@@ -136,10 +136,9 @@ def sdf_D(beta_D, C_D, eis_D):
 
 
 @simple
-def government_ss_D(TAX_D, rb_actual_D, b_gov_D):
-    # Use post-haircut rate (rb_actual_D) to match budget_residual_D in the full model.
-    # At SS with def_rate>0, rb_actual < rb, so G_D is higher than with pre-default rb.
-    G_D = TAX_D - rb_actual_D * b_gov_D
+def government_ss_D(TAX_D, rb_D, b_gov_D):
+    # Use promised yield rb_D — consistent with budget_residual_D (interest rate channel).
+    G_D = TAX_D - rb_D * b_gov_D
     return G_D
 
 
@@ -200,8 +199,19 @@ def portfolio_foc_bF_D(rb_actual_F, rdep_D, b_F_D, n_inter_D, p,
 
 
 @simple
-def intermediation_IC_D(nu_D, eta_D, lambda_gk_D):
-    theta_D = eta_D / (lambda_gk_D - nu_D)
+def macroprudential_D(def_rate_D, lambda_gk_D, phi_macro_D):
+    # Countercyclical tightening of the GK IC constraint via lambda_eff_D.
+    # Higher lambda_eff → regulator treats more bank assets as divertable →
+    # IC binds more tightly → theta = eta/(lambda_eff - nu) falls →
+    # banks hold less capital per unit of equity → K_D↓ → I_D↓ → Y_D↓.
+    # At SS (def_rate_D = 0): lambda_eff_D = lambda_gk_D — no SS distortion.
+    lambda_eff_D = lambda_gk_D + phi_macro_D * def_rate_D
+    return lambda_eff_D
+
+
+@simple
+def intermediation_IC_D(nu_D, eta_D, lambda_eff_D):
+    theta_D = eta_D / (lambda_eff_D - nu_D)
     return theta_D
 
 
@@ -209,7 +219,7 @@ def intermediation_IC_D(nu_D, eta_D, lambda_gk_D):
 def bank_return_D(theta_D, rk_D, rdep_D, b_D_D, b_F_D, n_inter_D, rb_actual_D, rb_actual_F,
                   phi_bF_D_ss, psi_bF_D):
     phi_bD_lag_D = b_D_D(-1) / n_inter_D(-1)
-    phi_bF_lag_D = b_F_D(-1) / n_inter_D(-1)     
+    phi_bF_lag_D = b_F_D(-1) / n_inter_D(-1)
 
     rn_D = (theta_D(-1) * (rk_D - rdep_D)
             + phi_bD_lag_D * (rb_actual_D - rdep_D)
@@ -221,8 +231,10 @@ def bank_return_D(theta_D, rk_D, rdep_D, b_D_D, b_F_D, n_inter_D, rb_actual_D, r
 
 
 @simple
-def intermediation_P1_D(rk_D, rdep_D, nu_D, lambda_gk_D, eta_D, theta_D, SDF_D, f_D):
-    Omega_p1_D = f_D + (1 - f_D) * lambda_gk_D * theta_D(+1)
+def intermediation_P1_D(rk_D, rdep_D, nu_D, lambda_eff_D, eta_D, theta_D, SDF_D, f_D):
+    # lambda_eff_D(+1): use expected future regulatory lambda in bank value function,
+    # consistent with GK timing (IC constraint applies at t+1).
+    Omega_p1_D = f_D + (1 - f_D) * lambda_eff_D(+1) * theta_D(+1)
     nu_res_D   = nu_D  - SDF_D * Omega_p1_D * (rk_D(+1) - rdep_D(+1))
     eta_res_D  = eta_D - SDF_D * Omega_p1_D * (1 + rdep_D(+1))
     return nu_res_D, eta_res_D
@@ -230,6 +242,8 @@ def intermediation_P1_D(rk_D, rdep_D, nu_D, lambda_gk_D, eta_D, theta_D, SDF_D, 
 
 @simple
 def k_balance_sheet_D(Q_D, theta_D, n_inter_D, K_D):
+    # GK balance sheet constraint restored: Q*K = theta*n_inter.
+    # Macroprudential tightening enters via lambda_eff_D → theta_D (see macroprudential_D).
     K_res_D = Q_D * K_D - theta_D * n_inter_D
     return K_res_D
 
@@ -300,9 +314,12 @@ def tax_rule_D(b_gov_D, lamb_ss_D, b_gov_ss_D, phi_lamb_D):
 
 
 @simple
-def budget_residual_D(b_gov_D, G_D, TAX_D, rb_D, def_rate_D, recovery_rate_D):
-    haircut_D             = 1.0 - recovery_rate_D
-    effective_repayment_D = (1 - def_rate_D * haircut_D) * (1 + rb_D(-1)) * b_gov_D(-1)
+def budget_residual_D(b_gov_D, G_D, TAX_D, rb_D):
+    # Government services debt at the PROMISED yield rb_D (interest rate channel).
+    # Rising default risk → rb_D rises (risk premium) → higher debt service
+    # → b_gov_D rises → lamb_D falls → fiscal tightening → contraction.
+    # Banks take losses separately via rb_actual_D in bond_return_D.
+    effective_repayment_D = (1 + rb_D(-1)) * b_gov_D(-1)
     b_gov_res_D           = effective_repayment_D + G_D - TAX_D - b_gov_D
     return b_gov_res_D
 
