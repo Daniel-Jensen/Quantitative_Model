@@ -1,0 +1,214 @@
+Starting Dynare (version 6.4).
+Calling Dynare with arguments: none
+Starting preprocessing of the model file ...
+Found 35 equation(s).
+Evaluating expressions...
+Computing static model derivatives (order 1).
+Normalizing the static model...
+Finding the optimal block decomposition of the static model...
+8 block(s) found:
+  6 recursive block(s) and 2 simultaneous block(s).
+  the largest simultaneous block has 16 equation(s)
+                                 and 16 feedback variable(s).
+Computing dynamic model derivatives (order 1).
+Normalizing the dynamic model...
+Finding the optimal block decomposition of the dynamic model...
+5 block(s) found:
+  4 recursive block(s) and 1 simultaneous block(s).
+  the largest simultaneous block has 22 equation(s)
+                                 and 21 feedback variable(s).
+Preprocessing completed.
+Preprocessing time: 0h00m00s.
+
+<a href = "matlab: helpview('optim','eq_init_pt','CSHelpWindow');">Equation solved at initial point</a>.
+
+fsolve completed because the vector of function values at the initial point
+is near zero as measured by the value of the <a href = "matlab: helpview('optim','fcn_tolerance_fsolve','CSHelpWindow');">function tolerance</a>, and
+the <a href = "matlab: helpview('optim','appears_regular','CSHelpWindow');">problem appears regular</a> as measured by the gradient.
+
+<<a href = "matlab: createExitMsg({'optim:fsolve:Exit100basic','fsolve'},{'optim:fsolve:Exit100detailed','3.589291e-15','1.000000e-10','4.308974e-30','1.000000e-05'},true,true);;">stopping criteria details</a>>
+
+STEADY-STATE RESULTS:
+
+C            		 0.833363
+W            		 0.508942
+L            		 1
+R_K          		 1.01261
+U            		 1
+delta_K      		 0.025
+mu           		 0.0100678
+Omega        		 1.54572
+nu           		 1.56144
+N            		 1.62642
+S            		 6.66548
+K            		 6.66548
+B            		 5.03906
+Y            		 1
+R            		 1.0101
+P            		 0.759615
+pi           		 1
+I            		 0.166637
+I_n          		 0
+q            		 1
+spread       		 0.00250666
+leverage     		 4.09826
+lambda       		 1.25305
+sdf          		 0.99
+sdf_adjusted 		 1.53026
+log_xi       		 0
+log_Y        		 0
+log_C        		 -0.182286
+log_I        		 -1.79194
+log_K        		 1.89694
+log_L        		 0
+log_q        		 0
+log_N        		 0.486379
+xi           		 1
+i            		 0.010101
+
+<a href = "matlab: helpview('optim','eq_init_pt','CSHelpWindow');">Equation solved at initial point</a>.
+
+fsolve completed because the vector of function values at the initial point
+is near zero as measured by the value of the <a href = "matlab: helpview('optim','fcn_tolerance_fsolve','CSHelpWindow');">function tolerance</a>, and
+the <a href = "matlab: helpview('optim','appears_regular','CSHelpWindow');">problem appears regular</a> as measured by the gradient.
+
+<<a href = "matlab: createExitMsg({'optim:fsolve:Exit100basic','fsolve'},{'optim:fsolve:Exit100detailed','3.589291e-15','1.000000e-10','4.308974e-30','1.000000e-05'},true,true);;">stopping criteria details</a>>
+
+
+Residuals of the static equations:
+Equation number  1: Y            :       0.000000
+Equation number  2: 2            :       0.000000
+Equation number  3: W            :       0.000000
+Equation number  4: 4            :       0.000000
+Equation number  5: 5            :       0.000000
+Equation number  6: R            :       0.000000
+Equation number  7: K            :       0.000000
+Equation number  8: I_n          :       0.000000
+Equation number  9: 9            :       0.000000
+Equation number 10: delta_K      :       0.000000
+Equation number 11: R_K          :       0.000000
+Equation number 12: q            :       0.000000
+Equation number 13: 13           :       0.000000
+Equation number 14: i            :       0.000000
+Equation number 15: 15           :       0.000000
+Equation number 16: Omega        :       0.000000
+Equation number 17: nu           :       0.000000
+Equation number 18: N            :       0.000000
+Equation number 19: 19           :       0.000000
+Equation number 20: 20           :       0.000000
+Equation number 21: 21           :       0.000000
+Equation number 22: leverage     :       0.000000
+Equation number 23: sdf          :       0.000000
+Equation number 24: sdf_adjusted :       0.000000
+Equation number 25: lambda       :       0.000000
+Equation number 26: spread       :       0.000000
+Equation number 27: 27           :       0.000000
+Equation number 28: log_xi       :       0.000000
+Equation number 29: log_Y        :       0.000000
+Equation number 30: log_C        :       0.000000
+Equation number 31: log_I        :       0.000000
+Equation number 32: log_K        :       0.000000
+Equation number 33: log_L        :       0.000000
+Equation number 34: log_q        :       0.000000
+Equation number 35: log_N        :       0.000000
+
+
+
+<a href = "matlab: helpview('optim','eq_init_pt','CSHelpWindow');">Equation solved at initial point</a>.
+
+fsolve completed because the vector of function values at the initial point
+is near zero as measured by the value of the <a href = "matlab: helpview('optim','fcn_tolerance_fsolve','CSHelpWindow');">function tolerance</a>, and
+the <a href = "matlab: helpview('optim','appears_regular','CSHelpWindow');">problem appears regular</a> as measured by the gradient.
+
+<<a href = "matlab: createExitMsg({'optim:fsolve:Exit100basic','fsolve'},{'optim:fsolve:Exit100detailed','3.589291e-15','1.000000e-10','4.308974e-30','1.000000e-05'},true,true);;">stopping criteria details</a>>
+
+STEADY-STATE RESULTS:
+
+C            		 0.833363
+W            		 0.508942
+L            		 1
+R_K          		 1.01261
+U            		 1
+delta_K      		 0.025
+mu           		 0.0100678
+Omega        		 1.54572
+nu           		 1.56144
+N            		 1.62642
+S            		 6.66548
+K            		 6.66548
+B            		 5.03906
+Y            		 1
+R            		 1.0101
+P            		 0.759615
+pi           		 1
+I            		 0.166637
+I_n          		 0
+q            		 1
+spread       		 0.00250666
+leverage     		 4.09826
+lambda       		 1.25305
+sdf          		 0.99
+sdf_adjusted 		 1.53026
+log_xi       		 0
+log_Y        		 0
+log_C        		 -0.182286
+log_I        		 -1.79194
+log_K        		 1.89694
+log_L        		 0
+log_q        		 0
+log_N        		 0.486379
+xi           		 1
+i            		 0.010101
+
+<a href = "matlab: helpview('optim','eq_init_pt','CSHelpWindow');">Equation solved at initial point</a>.
+
+fsolve completed because the vector of function values at the initial point
+is near zero as measured by the value of the <a href = "matlab: helpview('optim','fcn_tolerance_fsolve','CSHelpWindow');">function tolerance</a>, and
+the <a href = "matlab: helpview('optim','appears_regular','CSHelpWindow');">problem appears regular</a> as measured by the gradient.
+
+<<a href = "matlab: createExitMsg({'optim:fsolve:Exit100basic','fsolve'},{'optim:fsolve:Exit100detailed','3.589291e-15','1.000000e-10','4.308974e-30','1.000000e-05'},true,true);;">stopping criteria details</a>>
+
+EIGENVALUES:
+         Modulus             Real        Imaginary
+       6.225e-18        6.225e-18                0
+       2.425e-15       -2.425e-15                0
+             0.6              0.6                0
+          0.7267           0.7208          0.09222
+          0.7267           0.7208         -0.09222
+          0.8444           0.8383           0.1014
+          0.8444           0.8383          -0.1014
+          0.9572           0.9572                0
+           1.054            1.054         0.003682
+           1.054            1.054        -0.003682
+           1.228            1.217           0.1633
+           1.228            1.217          -0.1633
+           1.245            1.245                0
+       1.433e+16       -1.433e+16                0
+       4.328e+20        4.328e+20                0
+       9.826e+20        9.826e+20                0
+
+There are 8 eigenvalue(s) larger than 1 in modulus for 8 forward-looking variable(s)
+The rank condition is verified.
+
+
+<a href = "matlab: helpview('optim','eq_init_pt','CSHelpWindow');">Equation solved at initial point</a>.
+
+fsolve completed because the vector of function values at the initial point
+is near zero as measured by the value of the <a href = "matlab: helpview('optim','fcn_tolerance_fsolve','CSHelpWindow');">function tolerance</a>, and
+the <a href = "matlab: helpview('optim','appears_regular','CSHelpWindow');">problem appears regular</a> as measured by the gradient.
+
+<<a href = "matlab: createExitMsg({'optim:fsolve:Exit100basic','fsolve'},{'optim:fsolve:Exit100detailed','3.589291e-15','1.000000e-10','4.308974e-30','1.000000e-05'},true,true);;">stopping criteria details</a>>
+
+MODEL SUMMARY
+
+  Number of variables:         35
+  Number of stochastic shocks: 1
+  Number of state variables:   8
+  Number of jumpers:           8
+  Number of static variables:  21
+
+
+MATRIX OF COVARIANCE OF EXOGENOUS SHOCKS
+Variables        e_xi
+e_xi         0.002500
+

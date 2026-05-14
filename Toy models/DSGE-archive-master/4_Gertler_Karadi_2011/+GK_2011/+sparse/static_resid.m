@@ -1,0 +1,43 @@
+function [residual, T_order, T] = static_resid(y, x, params, T_order, T)
+if nargin < 5
+    T_order = -1;
+    T = NaN(5, 1);
+end
+[T_order, T] = GK_2011.sparse.static_resid_tt(y, x, params, T_order, T);
+residual = NaN(35, 1);
+    residual(1) = (y(14)) - (y(1)+y(18));
+    residual(2) = (y(14)) - (T(1)*T(2));
+    residual(3) = (y(2)) - (T(3)/y(23));
+    residual(4) = (y(2)) - ((1-params(6))*y(16)*y(14)/y(3));
+    residual(5) = (y(24)*y(15)) - (1);
+    residual(6) = (y(15)) - ((1+y(35))/y(17));
+    residual(7) = (y(12)) - (y(19)+y(12)*y(34));
+    residual(8) = (y(19)) - (y(18)-y(12)*y(34)*y(6));
+    residual(9) = (y(14)*params(6)*y(16)/y(5)) - (y(12)*y(34)*(params(21)+params(22)*(y(5)-1)));
+    residual(10) = (y(6)) - (params(2)+params(21)*(y(5)-1)+params(22)/2*(y(5)-1)^2);
+    residual(11) = (y(4)) - (y(34)*(y(14)*params(6)*y(16)/(y(12)*y(34))+(1-y(6))*y(20))/y(20));
+    residual(12) = (y(20)) - (1);
+    residual(13) = (1/y(16)) - (params(8)/(params(8)-1+params(14)*T(4)*(T(4)-1)-T(4)*(T(4)-1)*y(24)*params(14)));
+    residual(14) = (y(35)) - ((1-params(16))*(params(11)+params(17)*(y(17)-params(10))+params(18)*(params(8)/(params(8)-1)-1/y(16)))+y(35)*params(16));
+    residual(15) = (params(7)*y(7)) - (y(24)*y(8)*(y(4)-y(15)));
+    residual(16) = (y(8)) - (1-params(3)+params(3)*y(9));
+    residual(17) = (y(9)) - (y(15)*y(24)*y(8)/(1-y(7)));
+    residual(18) = (y(10)) - (params(3)*(y(20)*(y(4)-y(15))*y(11)+y(15)*y(10))+y(20)*y(11)*params(9));
+    residual(19) = (y(9)*y(10)) - (y(20)*params(7)*y(11));
+    residual(20) = (y(10)+y(13)) - (y(20)*y(11));
+    residual(21) = (y(12)) - (y(11));
+    residual(22) = (y(22)) - (y(20)*y(11)/y(10));
+    residual(23) = (y(24)) - (params(1));
+    residual(24) = (y(25)) - (y(8)*params(1));
+    residual(25) = (y(23)) - (T(5)-T(5)*params(1)*params(15));
+    residual(26) = (y(21)) - (y(4)-y(15));
+    residual(27) = (log(y(34))) - (log(y(34))*params(24)-x(1));
+    residual(28) = (y(26)) - (log(y(34)));
+    residual(29) = (y(27)) - (log(y(14)));
+    residual(30) = (y(28)) - (log(y(1)));
+    residual(31) = (y(29)) - (log(y(18)));
+    residual(32) = (y(30)) - (log(y(12)));
+    residual(33) = (y(31)) - (log(y(3)));
+    residual(34) = (y(32)) - (log(y(20)));
+    residual(35) = (y(33)) - (log(y(10)));
+end
