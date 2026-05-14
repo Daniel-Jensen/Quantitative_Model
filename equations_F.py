@@ -130,9 +130,9 @@ def sdf_F(beta_F, C_F, eis_F):
     return SDF_F
 
 @simple
-def government_ss_F(TAX_F, rb_actual_F, b_gov_F):
-    # Use post-haircut rate to match budget_residual_F in the full model.
-    G_F = TAX_F - rb_actual_F * b_gov_F
+def government_ss_F(TAX_F, rb_F, b_gov_F):
+    # Use promised yield rb_F — consistent with budget_residual_F (interest rate channel).
+    G_F = TAX_F - rb_F * b_gov_F
     return G_F
 
 @simple
@@ -182,18 +182,23 @@ def portfolio_foc_bD_F(rb_actual_D, rdep_F, b_D_F, n_inter_F, p,
 
 
 @simple
-def intermediation_IC_F(nu_F, eta_F, lambda_gk_F):
-    theta_F = eta_F / (lambda_gk_F - nu_F)
+def macroprudential_F(def_rate_F, lambda_gk_F, phi_macro_F):
+    # Symmetric to macroprudential_D — see comments there.
+    lambda_eff_F = lambda_gk_F + phi_macro_F * def_rate_F
+    return lambda_eff_F
+
+
+@simple
+def intermediation_IC_F(nu_F, eta_F, lambda_eff_F):
+    theta_F = eta_F / (lambda_eff_F - nu_F)
     return theta_F
 
 @simple
 def bank_return_F(theta_F, rk_F, rdep_F, b_F_F, b_D_F, n_inter_F, rb_actual_F, rb_actual_D,
                   phi_bD_F_ss, psi_bD_F):
-    # MU: bonds in common currency — no FX conversion of D-bond returns.
     phi_bF_lag_F = b_F_F(-1) / n_inter_F(-1)
-    phi_bD_lag_F = b_D_F(-1) / n_inter_F(-1)     # no 1/p(-1): same currency
+    phi_bD_lag_F = b_D_F(-1) / n_inter_F(-1)
 
-    # In MU rb_actual_D is already in F-units (same currency); no (p(-1)/p) factor.
     rn_F = (theta_F(-1) * (rk_F - rdep_F)
             + phi_bF_lag_F * (rb_actual_F - rdep_F)
             + phi_bD_lag_F * (rb_actual_D - rdep_F)
@@ -203,8 +208,8 @@ def bank_return_F(theta_F, rk_F, rdep_F, b_F_F, b_D_F, n_inter_F, rb_actual_F, r
     return rn_F
 
 @simple
-def intermediation_P1_F(rk_F, rdep_F, nu_F, lambda_gk_F, eta_F, theta_F, SDF_F, f_F):
-    Omega_p1_F = f_F + (1 - f_F) * lambda_gk_F * theta_F(+1)
+def intermediation_P1_F(rk_F, rdep_F, nu_F, lambda_eff_F, eta_F, theta_F, SDF_F, f_F):
+    Omega_p1_F = f_F + (1 - f_F) * lambda_eff_F(+1) * theta_F(+1)
     nu_res_F   = nu_F  - SDF_F * Omega_p1_F * (rk_F(+1) - rdep_F(+1))
     eta_res_F  = eta_F - SDF_F * Omega_p1_F * (1 + rdep_F(+1))
     return nu_res_F, eta_res_F
@@ -215,14 +220,23 @@ def k_balance_sheet_F(Q_F, theta_F, n_inter_F, K_F):
     return K_res_F
 
 @simple
-def intermediation_P2_F(rn_F, n_inter_F, m_F, f_F, cap_profit_F):
-    gross_income_F = (1 + rn_F) * n_inter_F(-1) + cap_profit_F
+def firm_profit_F(mc_F, Y_F):
+    # Monopoly profit from sticky-price markup: (1 - mc_F) * Y_F.
+    # Zero at SS (mc_F = 1), first-order off-SS. Routed to the financial
+    # intermediary (banks own goods-producing firms in this GK setup).
+    firm_profit_F = (1 - mc_F) * Y_F
+    return firm_profit_F
+
+
+@simple
+def intermediation_P2_F(rn_F, n_inter_F, m_F, f_F, cap_profit_F, firm_profit_F):
+    gross_income_F = (1 + rn_F) * n_inter_F(-1) + cap_profit_F + firm_profit_F
     n_inter_val_F  = (1 - f_F) * gross_income_F + m_F - n_inter_F
     return n_inter_val_F
 
 @simple
-def banker_div_res_F(rn_F, n_inter_F, div_F, m_F, f_F, cap_profit_F):
-    gross_income_F = (1 + rn_F) * n_inter_F(-1) + cap_profit_F
+def banker_div_res_F(rn_F, n_inter_F, div_F, m_F, f_F, cap_profit_F, firm_profit_F):
+    gross_income_F = (1 + rn_F) * n_inter_F(-1) + cap_profit_F + firm_profit_F
     net_div_F      = f_F * gross_income_F - m_F
     div_res_F      = div_F - net_div_F
     return div_res_F
@@ -271,10 +285,12 @@ def capital_producer_profit_F(Q_F, K_F, I_F, delta_F):
     return cap_profit_F
 
 @simple
-def budget_residual_F(b_gov_F, G_F, TAX_F, rb_F, def_rate_F, recovery_rate_F):
-    haircut_F             = 1.0 - recovery_rate_F
-    rb_actual_F           = (1 - def_rate_F * haircut_F) * (1 + rb_F(-1)) - 1
-    effective_repayment_F = (1 + rb_actual_F) * b_gov_F(-1)
+def budget_residual_F(b_gov_F, G_F, TAX_F, rb_F):
+    # Government services debt at the PROMISED yield rb_F (interest rate channel).
+    # Rising default risk → rb_F rises (risk premium) → higher debt service
+    # → b_gov_F rises → lamb_F falls → fiscal tightening → contraction.
+    # Banks take losses separately via rb_actual_F in bond_return_F.
+    effective_repayment_F = (1 + rb_F(-1)) * b_gov_F(-1)
     b_gov_res_F           = effective_repayment_F + G_F - TAX_F - b_gov_F
     return b_gov_res_F
 
