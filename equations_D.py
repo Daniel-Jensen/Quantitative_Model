@@ -235,15 +235,24 @@ def k_balance_sheet_D(Q_D, theta_D, n_inter_D, K_D):
 
 
 @simple
-def intermediation_P2_D(rn_D, n_inter_D, m_D, f_D, cap_profit_D):
-    gross_income_D = (1 + rn_D) * n_inter_D(-1) + cap_profit_D
+def firm_profit_D(mc_D, Y_D):
+    # Monopoly profit from sticky-price markup: (1 - mc_D) * Y_D.
+    # Zero at SS (mc_D = 1), first-order off-SS. Routed to the financial
+    # intermediary (banks own goods-producing firms in this GK setup).
+    firm_profit_D = (1 - mc_D) * Y_D
+    return firm_profit_D
+
+
+@simple
+def intermediation_P2_D(rn_D, n_inter_D, m_D, f_D, cap_profit_D, firm_profit_D):
+    gross_income_D = (1 + rn_D) * n_inter_D(-1) + cap_profit_D + firm_profit_D
     n_inter_val_D  = (1 - f_D) * gross_income_D + m_D - n_inter_D
     return n_inter_val_D
 
 
 @simple
-def banker_div_res_D(rn_D, n_inter_D, div_D, m_D, f_D, cap_profit_D):
-    gross_income_D = (1 + rn_D) * n_inter_D(-1) + cap_profit_D
+def banker_div_res_D(rn_D, n_inter_D, div_D, m_D, f_D, cap_profit_D, firm_profit_D):
+    gross_income_D = (1 + rn_D) * n_inter_D(-1) + cap_profit_D + firm_profit_D
     net_div_D      = f_D * gross_income_D - m_D
     div_res_D      = div_D - net_div_D
     return div_res_D
