@@ -316,12 +316,14 @@ def tax_rule_D(b_gov_D, lamb_ss_D, b_gov_ss_D, phi_lamb_D):
 @simple
 def budget_residual_D(b_gov_D, G_D, TAX_D, rb_D, def_rate_D, recovery_rate_D, zeta_writeoff_D):
     # zeta_writeoff_D ∈ [0, 1] dials between two default regimes:
+    #   ζ = 1  (default) Treasury repays only the post-haircut amount
+    #          rb_actual_D_implied; the haircut is a fiscal transfer from
+    #          bondholders to the Treasury. Matches the v11 design and the
+    #          empirical Eurozone-restructuring narrative (sovereign captures
+    #          real fiscal relief; trade flows shift through internal devaluation).
     #   ζ = 0  Treasury repays the full promised yield rb_D(-1); the haircut is
     #          pure deadweight (no agent captures it). Bondholders still take
     #          the loss via rb_actual_D in bond_return_D. Matches PR #2 design.
-    #   ζ = 1  Treasury repays only the post-haircut amount rb_actual_D_implied;
-    #          the haircut becomes a clean fiscal transfer from bondholders to
-    #          the Treasury (pre-PR #2 / v11 design).
     # At SS def_rate_D = 0 ⇒ rb_actual_D_implied = rb_D, so the residual is
     # invariant to ζ at SS — no recalibration needed when ζ moves.
     haircut_D             = 1.0 - recovery_rate_D
