@@ -314,12 +314,22 @@ def tax_rule_D(b_gov_D, lamb_ss_D, b_gov_ss_D, phi_lamb_D):
 
 
 @simple
-def budget_residual_D(b_gov_D, G_D, TAX_D, rb_D):
-    # Government services debt at the PROMISED yield rb_D (interest rate channel).
-    # Rising default risk → rb_D rises (risk premium) → higher debt service
-    # → b_gov_D rises → lamb_D falls → fiscal tightening → contraction.
-    # Banks take losses separately via rb_actual_D in bond_return_D.
-    effective_repayment_D = (1 + rb_D(-1)) * b_gov_D(-1)
+def budget_residual_D(b_gov_D, G_D, TAX_D, rb_D, def_rate_D, recovery_rate_D, zeta_writeoff_D):
+    # zeta_writeoff_D ∈ [0, 1] dials between two default regimes:
+    #   ζ = 0  Treasury repays the full promised yield rb_D(-1); the haircut is
+    #          pure deadweight (no agent captures it). Bondholders still take
+    #          the loss via rb_actual_D in bond_return_D. Matches PR #2 design.
+    #   ζ = 1  Treasury repays only the post-haircut amount rb_actual_D_implied;
+    #          the haircut becomes a clean fiscal transfer from bondholders to
+    #          the Treasury (pre-PR #2 / v11 design).
+    # At SS def_rate_D = 0 ⇒ rb_actual_D_implied = rb_D, so the residual is
+    # invariant to ζ at SS — no recalibration needed when ζ moves.
+    haircut_D             = 1.0 - recovery_rate_D
+    rb_actual_D_implied   = (1 - def_rate_D * haircut_D) * (1 + rb_D(-1)) - 1
+    effective_repayment_D = (
+        zeta_writeoff_D         * (1 + rb_actual_D_implied) * b_gov_D(-1)
+        + (1 - zeta_writeoff_D) * (1 + rb_D(-1))            * b_gov_D(-1)
+    )
     b_gov_res_D           = effective_repayment_D + G_D - TAX_D - b_gov_D
     return b_gov_res_D
 
