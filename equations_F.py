@@ -173,24 +173,20 @@ def labor_market_F(w_F, UCE_F, N_F, vphi_F, frisch_F):
 
 @simple
 def portfolio_foc_bD_F(rb_actual_D, rdep_F, b_D_F, n_inter_F, p,
-                       phi_bD_F_ss, psi_bD_F, excess_return_D_F_ss):
+                       phi_bD_F_ss, psi_bD_F, excess_return_D_F_ss, mp_wedge_D):
+    # D-bank-style pricing of D-bonds held by F-banks: the wedge follows the
+    # sovereign being priced (D), not the bank doing the pricing.
     phi_bD_F            = (1 / p) * b_D_F / n_inter_F
     rb_actual_D_in_F_p1 = (p / p(+1)) * (1 + rb_actual_D(+1)) - 1
     foc_bD_res_F        = (rb_actual_D_in_F_p1 - rdep_F(+1)) - excess_return_D_F_ss \
-                          - psi_bD_F * (phi_bD_F - phi_bD_F_ss)
+                          - psi_bD_F * (phi_bD_F - phi_bD_F_ss) \
+                          + mp_wedge_D
     return foc_bD_res_F
 
 
 @simple
-def macroprudential_F(def_rate_F, lambda_gk_F, phi_macro_F):
-    # Symmetric to macroprudential_D — see comments there.
-    lambda_eff_F = lambda_gk_F + phi_macro_F * def_rate_F
-    return lambda_eff_F
-
-
-@simple
-def intermediation_IC_F(nu_F, eta_F, lambda_eff_F):
-    theta_F = eta_F / (lambda_eff_F - nu_F)
+def intermediation_IC_F(nu_F, eta_F, lambda_gk_F):
+    theta_F = eta_F / (lambda_gk_F - nu_F)
     return theta_F
 
 @simple
@@ -208,8 +204,8 @@ def bank_return_F(theta_F, rk_F, rdep_F, b_F_F, b_D_F, n_inter_F, rb_actual_F, r
     return rn_F
 
 @simple
-def intermediation_P1_F(rk_F, rdep_F, nu_F, lambda_eff_F, eta_F, theta_F, SDF_F, f_F):
-    Omega_p1_F = f_F + (1 - f_F) * lambda_eff_F(+1) * theta_F(+1)
+def intermediation_P1_F(rk_F, rdep_F, nu_F, lambda_gk_F, eta_F, theta_F, SDF_F, f_F):
+    Omega_p1_F = f_F + (1 - f_F) * lambda_gk_F * theta_F(+1)
     nu_res_F   = nu_F  - SDF_F * Omega_p1_F * (rk_F(+1) - rdep_F(+1))
     eta_res_F  = eta_F - SDF_F * Omega_p1_F * (1 + rdep_F(+1))
     return nu_res_F, eta_res_F
@@ -257,13 +253,14 @@ def interest_rates_F(def_rate_F, recovery_rate_F, SDF_F):
 
 @simple
 def domestic_bond_foc_F(rb_actual_F, rdep_F, b_F_F, n_inter_F,
-                         phi_bF_F_ss, psi_bF_F, excess_return_bF_F_ss):
+                         phi_bF_F_ss, psi_bF_F, excess_return_bF_F_ss, mp_wedge_F):
     # GK-consistent bond pricing for F-country: rb_F adjusts until F-banks
     # willingly hold b_F_F (residual after D-banks take b_F_D).
-    # At SS: phi_bF_F = phi_bF_F_ss → rb_F_res = 0 by construction.
+    # At SS: phi_bF_F = phi_bF_F_ss AND mp_wedge_F = 0 → rb_F_res = 0.
     phi_bF_F = b_F_F / n_inter_F
     rb_F_res = (rb_actual_F(+1) - rdep_F(+1)) - excess_return_bF_F_ss \
-               - psi_bF_F * (phi_bF_F - phi_bF_F_ss)
+               - psi_bF_F * (phi_bF_F - phi_bF_F_ss) \
+               + mp_wedge_F
     return rb_F_res
 
 
