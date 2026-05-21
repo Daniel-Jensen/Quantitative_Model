@@ -176,11 +176,12 @@ def portfolio_foc_bD_F(rb_actual_D, rdep_F, b_D_F, n_inter_F, p,
                        phi_bD_F_ss, psi_bD_F, excess_return_D_F_ss, mp_wedge_D):
     # D-bank-style pricing of D-bonds held by F-banks: the wedge follows the
     # sovereign being priced (D), not the bank doing the pricing.
+    # See domestic_bond_foc_D for the sign convention on mp_wedge_D.
     phi_bD_F            = (1 / p) * b_D_F / n_inter_F
     rb_actual_D_in_F_p1 = (p / p(+1)) * (1 + rb_actual_D(+1)) - 1
     foc_bD_res_F        = (rb_actual_D_in_F_p1 - rdep_F(+1)) - excess_return_D_F_ss \
                           - psi_bD_F * (phi_bD_F - phi_bD_F_ss) \
-                          + mp_wedge_D
+                          - mp_wedge_D
     return foc_bD_res_F
 
 
@@ -257,10 +258,11 @@ def domestic_bond_foc_F(rb_actual_F, rdep_F, b_F_F, n_inter_F,
     # GK-consistent bond pricing for F-country: rb_F adjusts until F-banks
     # willingly hold b_F_F (residual after D-banks take b_F_D).
     # At SS: phi_bF_F = phi_bF_F_ss AND mp_wedge_F = 0 → rb_F_res = 0.
+    # See domestic_bond_foc_D for the sign convention on mp_wedge_F.
     phi_bF_F = b_F_F / n_inter_F
     rb_F_res = (rb_actual_F(+1) - rdep_F(+1)) - excess_return_bF_F_ss \
                - psi_bF_F * (phi_bF_F - phi_bF_F_ss) \
-               + mp_wedge_F
+               - mp_wedge_F
     return rb_F_res
 
 
