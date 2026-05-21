@@ -62,6 +62,24 @@ def terms_of_trade(p, pi_D, pi_F):
 
 
 @simple
+def risk_weight(def_rate_D, def_rate_F, alpha_w_D, alpha_w_F,
+                shock_w_sov_D, shock_w_sov_F):
+    # Sovereign risk weights respond to lagged realised default rate plus an
+    # exogenous "credit rating shock".  Rating agencies act on observed
+    # default — the lag mimics this convention and also breaks the otherwise
+    # simultaneous w_sov ↔ mp_wedge ↔ rb ↔ b_gov ↔ def_rate loop.
+    #
+    # At SS def_rate_c = 0 and shock_w_sov_c = 0 → w_sov_c = 1 (neutral).
+    # alpha_w_c is the rating sensitivity to default; 0 recovers the
+    # exogenous-w_sov regime of PRs #6/#7.  shock_w_sov_c is the new
+    # exogenous driver — perturbing it simulates a sovereign credit-rating
+    # action (Moody's downgrade, ECB collateral haircut announcement, etc.).
+    w_sov_D = 1.0 + alpha_w_D * def_rate_D(-1) + shock_w_sov_D
+    w_sov_F = 1.0 + alpha_w_F * def_rate_F(-1) + shock_w_sov_F
+    return w_sov_D, w_sov_F
+
+
+@simple
 def macroprudential_wedge(b_gov_D, b_gov_F, n_inter_D, n_inter_F,
                           vartheta_D, vartheta_F, w_sov_D, w_sov_F,
                           phi_sov_D_ss, phi_sov_F_ss):
@@ -76,12 +94,22 @@ def macroprudential_wedge(b_gov_D, b_gov_F, n_inter_D, n_inter_F,
     # b_D_D and b_D_F as inputs would give sequence_jacobian an exact zero
     # composed Jacobian that it stores as an empty SimpleSparse and later
     # fails to compose with.
-    # At SS phi_sov_c = phi_sov_c_ss → wedge = 0 by construction (the SS
-    # share is anchored in calibration_start by the notebook's post-solve
-    # patches).
+    #
+    # Functional form: mp_wedge_c = vartheta_c · (w_sov_c · phi_sov_c - phi_sov_c_ss).
+    # The bracket is the deviation of RISK-WEIGHTED exposure from its SS
+    # anchor — Basel-standard framing.  At SS w_sov_c = 1 and
+    # phi_sov_c = phi_sov_c_ss, so the bracket is zero by construction.
+    # When w_sov_c = 1 this collapses to vartheta_c · (phi_sov_c - phi_sov_c_ss)
+    # — identical to the original mp_wedge formula and bit-equal to the
+    # PR #6 / #7 IRFs at any vartheta.  When w_sov_c > 1 (rating downgrade),
+    # the wedge bites even at unchanged nominal exposure: the regulator
+    # treats the same b_gov as a larger "risk-weighted" position.  This
+    # gives w_sov_c a nonzero first-order Jacobian in the linearised system
+    # (it had none in the old multiplicative form because the linearisation
+    # evaluated at phi_sov = phi_sov_ss made the d/dw_sov derivative zero).
     n_total    = n_inter_D + n_inter_F
     phi_sov_D  = b_gov_D / n_total
     phi_sov_F  = b_gov_F / n_total
-    mp_wedge_D = vartheta_D * w_sov_D * (phi_sov_D - phi_sov_D_ss)
-    mp_wedge_F = vartheta_F * w_sov_F * (phi_sov_F - phi_sov_F_ss)
+    mp_wedge_D = vartheta_D * (w_sov_D * phi_sov_D - phi_sov_D_ss)
+    mp_wedge_F = vartheta_F * (w_sov_F * phi_sov_F - phi_sov_F_ss)
     return phi_sov_D, phi_sov_F, mp_wedge_D, mp_wedge_F
