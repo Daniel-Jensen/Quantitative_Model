@@ -295,21 +295,34 @@ def domestic_bond_foc_D(rb_actual_D, rdep_D, b_D_D, n_inter_D,
 
 # ==> GOVERMENT EQUATIONS
 @simple
-def government_default_D(shock_def_D, b_gov_D, Y_D, b_gov_ss_D, Y_ss_D, def_scale_D):
-    # Endogenous default rate: linear in the lagged debt-to-GDP deviation from
-    # steady state, plus an exogenous shock.
-    #   def_scale_D = 0   →  purely exogenous default (recovers PR #2 baseline).
-    #   def_scale_D > 0   →  doom-loop channel: rising debt raises default risk
-    #                        → bondholders take losses → spread rises → fiscal
-    #                        stress → more debt → ...
-    # Timing: uses b_gov_D(-1) / Y_D(-1). Defaults respond to last period's
-    # fiscal state (rating-agency convention), which also breaks the otherwise
-    # simultaneous loop with budget_residual_D.
-    # At SS b_gov_D = b_gov_ss_D and Y_D = Y_ss_D, so debt_gap_D = 0 and
-    # def_rate_D = shock_def_D = 0 — SS is invariant to def_scale_D, no
-    # recalibration needed.
+def government_default_D(shock_def_D, b_gov_D, Y_D, b_gov_ss_D, Y_ss_D,
+                          def_scale_D, def_curvature_D, def_offset_D):
+    # Endogenous default rate: smooth power function of the lagged debt-to-GDP
+    # deviation, plus an exogenous residual.
+    #   def_rate_D = shock_def_D + def_scale_D · ((gap + offset)^curvature
+    #                                              − offset^curvature)
+    # Why the offset:
+    #   sequence_jacobian linearises around SS (gap = 0). With curvature < 1
+    #   (e.g. 0.5 — the empirically motivated concave regime where small debt
+    #   moves matter most and the response saturates as debt blows up),
+    #   d/dx[x^curvature] is unbounded at x = 0, so the dynamic Jacobian
+    #   degenerates. The offset shifts evaluation to a point with a finite
+    #   slope, while the subtracted constant offset^curvature keeps the SS
+    #   anchored at zero.
+    # Linearised slope at SS:
+    #   d(def_rate_D)/d(gap) at SS = def_scale_D · curvature · offset^(curvature−1)
+    #   = def_scale_D · 0.5 / sqrt(0.05) ≈ 2.24 · def_scale_D
+    #   (under recommended defaults curvature=0.5, offset=0.05).
+    # SS invariance:
+    #   gap = 0 ⇒ endog_D = 0 ⇒ def_rate_D = shock_def_D = 0, regardless of
+    #   def_scale_D, def_curvature_D, def_offset_D. No SS recalibration needed.
+    # Interpretation of shock_def_D:
+    #   residual exogenous risk premium (political risk, contagion from
+    #   outside the model, redenomination risk) not captured by debt/GDP.
     debt_gap_D = b_gov_D(-1) / Y_D(-1) - b_gov_ss_D / Y_ss_D
-    def_rate_D = shock_def_D + def_scale_D * debt_gap_D
+    endog_D    = ((debt_gap_D + def_offset_D) ** def_curvature_D
+                  - def_offset_D ** def_curvature_D)
+    def_rate_D = shock_def_D + def_scale_D * endog_D
     return def_rate_D
 
 
