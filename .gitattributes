@@ -1,0 +1,8 @@
+# Strip output, execution counts, and metadata from notebooks on commit.
+# Requires each collaborator to run `nbstripout --install` once (see README).
+*.ipynb filter=nbstripout
+
+# Use nbdime as the diff and merge driver for notebooks.
+# Requires `nbdime config-git --enable` once (see README).
+*.ipynb diff=jupyternotebook
+*.ipynb merge=jupyternotebook
