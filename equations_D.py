@@ -193,11 +193,14 @@ def portfolio_foc_bF_D(rb_actual_F, rdep_D, b_F_D, n_inter_D, p,
                        phi_bF_D_ss, psi_bF_D, excess_return_F_D_ss, mp_wedge_F):
     # F-bank-style pricing of F-bonds held by D-banks: the wedge follows the
     # sovereign being priced (F), not the bank doing the pricing.
+    # Sign convention: mp_wedge_F > 0 (regulator charging more on F-bonds)
+    # subtracts from the residual, requiring HIGHER excess return — i.e. a
+    # capital charge raises the yield D-banks demand to hold F-bonds.
     phi_bF_D            =  b_F_D / n_inter_D
     rb_actual_F_in_D_p1 = (1 + rb_actual_F) - 1
     foc_bF_res_D        = (rb_actual_F_in_D_p1 - rdep_D(+1)) - excess_return_F_D_ss \
                           - psi_bF_D * (phi_bF_D - phi_bF_D_ss) \
-                          + mp_wedge_F
+                          - mp_wedge_F
     return foc_bF_res_D
 
 
@@ -284,12 +287,14 @@ def domestic_bond_foc_D(rb_actual_D, rdep_D, b_D_D, n_inter_D,
     # b_D_D (the residual after foreign banks take b_D_F).
     # At SS: phi_bD_D = phi_bD_D_ss AND mp_wedge_D = 0 → rb_D_res = 0.
     # After default shock: b_D_D rises (foreign flight) → phi_bD_D rises → rb_D rises.
-    # Macroprudential channel: when global exposure to D rises, mp_wedge_D > 0
-    # raises the required return on D-bonds for all holders (D and F banks).
+    # Macroprudential channel: when global exposure to D rises (or D's risk
+    # weight rises), mp_wedge_D > 0 subtracts from the residual, forcing the
+    # excess return UP — banks demand a higher yield to hold D-bonds.  This is
+    # the Basel "extra capital required" → "higher cost of capital" channel.
     phi_bD_D = b_D_D / n_inter_D
     rb_D_res = (rb_actual_D(+1) - rdep_D(+1)) - excess_return_bD_D_ss \
                - psi_bD_D * (phi_bD_D - phi_bD_D_ss) \
-               + mp_wedge_D
+               - mp_wedge_D
     return rb_D_res
 
 
