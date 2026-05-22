@@ -59,3 +59,29 @@ def portfolio_adj_cost(rb_actual_F, rb_actual_D, rdep_D, rdep_F,
 def terms_of_trade(p, pi_D, pi_F):
     p_res = p - p(-1) * (1 + pi_F) / (1 + pi_D)
     return p_res
+
+
+@simple
+def macroprudential_wedge(b_gov_D, b_gov_F, n_inter_D, n_inter_F,
+                          vartheta_D, vartheta_F, w_sov_D, w_sov_F,
+                          phi_sov_D_ss, phi_sov_F_ss):
+    # Sovereign-capital-charge wedge.  Each sovereign carries ONE wedge that
+    # enters every bond FOC for that sovereign — same number for all holders.
+    # phi_sov_c is global banking-sector exposure to sovereign c (consolidated
+    # issuance / consolidated bank equity).  By bond market clearing
+    #     b_gov_D = b_D_D + b_D_F   and   b_gov_F = b_F_F + b_F_D,
+    # so this is identical to (b_c_c + b_c_~c) / (n_D + n_F).  We write it in
+    # terms of b_gov_c to avoid a degenerate redundancy: in ha_full the block
+    # domestic_bond_clearing pins b_D_D = b_gov_D - b_D_F, so taking both
+    # b_D_D and b_D_F as inputs would give sequence_jacobian an exact zero
+    # composed Jacobian that it stores as an empty SimpleSparse and later
+    # fails to compose with.
+    # At SS phi_sov_c = phi_sov_c_ss → wedge = 0 by construction (the SS
+    # share is anchored in calibration_start by the notebook's post-solve
+    # patches).
+    n_total    = n_inter_D + n_inter_F
+    phi_sov_D  = b_gov_D / n_total
+    phi_sov_F  = b_gov_F / n_total
+    mp_wedge_D = vartheta_D * w_sov_D * (phi_sov_D - phi_sov_D_ss)
+    mp_wedge_F = vartheta_F * w_sov_F * (phi_sov_F - phi_sov_F_ss)
+    return phi_sov_D, phi_sov_F, mp_wedge_D, mp_wedge_F
