@@ -265,10 +265,13 @@ def domestic_bond_foc_F(rb_actual_F, rdep_F, b_F_F, n_inter_F,
 
 
 @simple
-def government_default_F(shock_def_F, b_gov_F, Y_F, b_gov_ss_F, Y_ss_F, def_scale_F):
+def government_default_F(shock_def_F, b_gov_F, Y_F, b_gov_ss_F, Y_ss_F,
+                          def_scale_F, def_curvature_F, def_offset_F):
     # Symmetric to government_default_D — see comments there.
     debt_gap_F = b_gov_F(-1) / Y_F(-1) - b_gov_ss_F / Y_ss_F
-    def_rate_F = shock_def_F + def_scale_F * debt_gap_F
+    endog_F    = ((debt_gap_F + def_offset_F) ** def_curvature_F
+                  - def_offset_F ** def_curvature_F)
+    def_rate_F = shock_def_F + def_scale_F * endog_F
     return def_rate_F
 
 @simple
