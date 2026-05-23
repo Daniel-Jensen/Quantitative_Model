@@ -190,28 +190,20 @@ def labor_market_D(w_D, UCE_D, N_D, vphi_D, frisch_D):
 
 @simple
 def portfolio_foc_bF_D(rb_actual_F, rdep_D, b_F_D, n_inter_D, p,
-                       phi_bF_D_ss, psi_bF_D, excess_return_F_D_ss):
+                       phi_bF_D_ss, psi_bF_D, excess_return_F_D_ss, mp_wedge_F):
+    # F-bank-style pricing of F-bonds held by D-banks: the wedge follows the
+    # sovereign being priced (F), not the bank doing the pricing.
     phi_bF_D            =  b_F_D / n_inter_D
     rb_actual_F_in_D_p1 = (1 + rb_actual_F) - 1
     foc_bF_res_D        = (rb_actual_F_in_D_p1 - rdep_D(+1)) - excess_return_F_D_ss \
-                          - psi_bF_D * (phi_bF_D - phi_bF_D_ss)
+                          - psi_bF_D * (phi_bF_D - phi_bF_D_ss) \
+                          + mp_wedge_F
     return foc_bF_res_D
 
 
 @simple
-def macroprudential_D(def_rate_D, lambda_gk_D, phi_macro_D):
-    # Countercyclical tightening of the GK IC constraint via lambda_eff_D.
-    # Higher lambda_eff → regulator treats more bank assets as divertable →
-    # IC binds more tightly → theta = eta/(lambda_eff - nu) falls →
-    # banks hold less capital per unit of equity → K_D↓ → I_D↓ → Y_D↓.
-    # At SS (def_rate_D = 0): lambda_eff_D = lambda_gk_D — no SS distortion.
-    lambda_eff_D = lambda_gk_D + phi_macro_D * def_rate_D
-    return lambda_eff_D
-
-
-@simple
-def intermediation_IC_D(nu_D, eta_D, lambda_eff_D):
-    theta_D = eta_D / (lambda_eff_D - nu_D)
+def intermediation_IC_D(nu_D, eta_D, lambda_gk_D):
+    theta_D = eta_D / (lambda_gk_D - nu_D)
     return theta_D
 
 
@@ -231,10 +223,8 @@ def bank_return_D(theta_D, rk_D, rdep_D, b_D_D, b_F_D, n_inter_D, rb_actual_D, r
 
 
 @simple
-def intermediation_P1_D(rk_D, rdep_D, nu_D, lambda_eff_D, eta_D, theta_D, SDF_D, f_D):
-    # lambda_eff_D(+1): use expected future regulatory lambda in bank value function,
-    # consistent with GK timing (IC constraint applies at t+1).
-    Omega_p1_D = f_D + (1 - f_D) * lambda_eff_D(+1) * theta_D(+1)
+def intermediation_P1_D(rk_D, rdep_D, nu_D, lambda_gk_D, eta_D, theta_D, SDF_D, f_D):
+    Omega_p1_D = f_D + (1 - f_D) * lambda_gk_D * theta_D(+1)
     nu_res_D   = nu_D  - SDF_D * Omega_p1_D * (rk_D(+1) - rdep_D(+1))
     eta_res_D  = eta_D - SDF_D * Omega_p1_D * (1 + rdep_D(+1))
     return nu_res_D, eta_res_D
@@ -242,8 +232,8 @@ def intermediation_P1_D(rk_D, rdep_D, nu_D, lambda_eff_D, eta_D, theta_D, SDF_D,
 
 @simple
 def k_balance_sheet_D(Q_D, theta_D, n_inter_D, K_D):
-    # GK balance sheet constraint restored: Q*K = theta*n_inter.
-    # Macroprudential tightening enters via lambda_eff_D → theta_D (see macroprudential_D).
+    # GK balance sheet constraint: Q*K = theta*n_inter.  Macroprudential
+    # tightening now enters via mp_wedge_D in the bond FOCs, not via theta.
     K_res_D = Q_D * K_D - theta_D * n_inter_D
     return K_res_D
 
@@ -289,34 +279,50 @@ def interest_rates_D(def_rate_D, recovery_rate_D, SDF_D):
 
 @simple
 def domestic_bond_foc_D(rb_actual_D, rdep_D, b_D_D, n_inter_D,
-                         phi_bD_D_ss, psi_bD_D, excess_return_bD_D_ss):
+                         phi_bD_D_ss, psi_bD_D, excess_return_bD_D_ss, mp_wedge_D):
     # GK-consistent bond pricing: rb_D adjusts until D-banks willingly hold
     # b_D_D (the residual after foreign banks take b_D_F).
-    # At SS: phi_bD_D = phi_bD_D_ss → rb_D_res = 0 by construction.
+    # At SS: phi_bD_D = phi_bD_D_ss AND mp_wedge_D = 0 → rb_D_res = 0.
     # After default shock: b_D_D rises (foreign flight) → phi_bD_D rises → rb_D rises.
+    # Macroprudential channel: when global exposure to D rises, mp_wedge_D > 0
+    # raises the required return on D-bonds for all holders (D and F banks).
     phi_bD_D = b_D_D / n_inter_D
     rb_D_res = (rb_actual_D(+1) - rdep_D(+1)) - excess_return_bD_D_ss \
-               - psi_bD_D * (phi_bD_D - phi_bD_D_ss)
+               - psi_bD_D * (phi_bD_D - phi_bD_D_ss) \
+               + mp_wedge_D
     return rb_D_res
 
 
 # ==> GOVERMENT EQUATIONS
 @simple
-def government_default_D(shock_def_D, b_gov_D, Y_D, b_gov_ss_D, Y_ss_D, def_scale_D):
-    # Endogenous default rate: linear in the lagged debt-to-GDP deviation from
-    # steady state, plus an exogenous shock.
-    #   def_scale_D = 0   →  purely exogenous default (recovers PR #2 baseline).
-    #   def_scale_D > 0   →  doom-loop channel: rising debt raises default risk
-    #                        → bondholders take losses → spread rises → fiscal
-    #                        stress → more debt → ...
-    # Timing: uses b_gov_D(-1) / Y_D(-1). Defaults respond to last period's
-    # fiscal state (rating-agency convention), which also breaks the otherwise
-    # simultaneous loop with budget_residual_D.
-    # At SS b_gov_D = b_gov_ss_D and Y_D = Y_ss_D, so debt_gap_D = 0 and
-    # def_rate_D = shock_def_D = 0 — SS is invariant to def_scale_D, no
-    # recalibration needed.
+def government_default_D(shock_def_D, b_gov_D, Y_D, b_gov_ss_D, Y_ss_D,
+                          def_scale_D, def_curvature_D, def_offset_D):
+    # Endogenous default rate: smooth power function of the lagged debt-to-GDP
+    # deviation, plus an exogenous residual.
+    #   def_rate_D = shock_def_D + def_scale_D · ((gap + offset)^curvature
+    #                                              − offset^curvature)
+    # Why the offset:
+    #   sequence_jacobian linearises around SS (gap = 0). With curvature < 1
+    #   (e.g. 0.5 — the empirically motivated concave regime where small debt
+    #   moves matter most and the response saturates as debt blows up),
+    #   d/dx[x^curvature] is unbounded at x = 0, so the dynamic Jacobian
+    #   degenerates. The offset shifts evaluation to a point with a finite
+    #   slope, while the subtracted constant offset^curvature keeps the SS
+    #   anchored at zero.
+    # Linearised slope at SS:
+    #   d(def_rate_D)/d(gap) at SS = def_scale_D · curvature · offset^(curvature−1)
+    #   = def_scale_D · 0.5 / sqrt(0.05) ≈ 2.24 · def_scale_D
+    #   (under recommended defaults curvature=0.5, offset=0.05).
+    # SS invariance:
+    #   gap = 0 ⇒ endog_D = 0 ⇒ def_rate_D = shock_def_D = 0, regardless of
+    #   def_scale_D, def_curvature_D, def_offset_D. No SS recalibration needed.
+    # Interpretation of shock_def_D:
+    #   residual exogenous risk premium (political risk, contagion from
+    #   outside the model, redenomination risk) not captured by debt/GDP.
     debt_gap_D = b_gov_D(-1) / Y_D(-1) - b_gov_ss_D / Y_ss_D
-    def_rate_D = shock_def_D + def_scale_D * debt_gap_D
+    endog_D    = ((debt_gap_D + def_offset_D) ** def_curvature_D
+                  - def_offset_D ** def_curvature_D)
+    def_rate_D = shock_def_D + def_scale_D * endog_D
     return def_rate_D
 
 
