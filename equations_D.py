@@ -302,8 +302,21 @@ def domestic_bond_foc_D(rb_actual_D, rdep_D, b_D_D, n_inter_D,
 
 # ==> GOVERMENT EQUATIONS
 @simple
-def government_default_D(shock_def_D):
-    def_rate_D = shock_def_D
+def government_default_D(shock_def_D, b_gov_D, Y_D, b_gov_ss_D, Y_ss_D, def_scale_D):
+    # Endogenous default rate: linear in the lagged debt-to-GDP deviation from
+    # steady state, plus an exogenous shock.
+    #   def_scale_D = 0   →  purely exogenous default (recovers PR #2 baseline).
+    #   def_scale_D > 0   →  doom-loop channel: rising debt raises default risk
+    #                        → bondholders take losses → spread rises → fiscal
+    #                        stress → more debt → ...
+    # Timing: uses b_gov_D(-1) / Y_D(-1). Defaults respond to last period's
+    # fiscal state (rating-agency convention), which also breaks the otherwise
+    # simultaneous loop with budget_residual_D.
+    # At SS b_gov_D = b_gov_ss_D and Y_D = Y_ss_D, so debt_gap_D = 0 and
+    # def_rate_D = shock_def_D = 0 — SS is invariant to def_scale_D, no
+    # recalibration needed.
+    debt_gap_D = b_gov_D(-1) / Y_D(-1) - b_gov_ss_D / Y_ss_D
+    def_rate_D = shock_def_D + def_scale_D * debt_gap_D
     return def_rate_D
 
 
@@ -314,12 +327,24 @@ def tax_rule_D(b_gov_D, lamb_ss_D, b_gov_ss_D, phi_lamb_D):
 
 
 @simple
-def budget_residual_D(b_gov_D, G_D, TAX_D, rb_D):
-    # Government services debt at the PROMISED yield rb_D (interest rate channel).
-    # Rising default risk → rb_D rises (risk premium) → higher debt service
-    # → b_gov_D rises → lamb_D falls → fiscal tightening → contraction.
-    # Banks take losses separately via rb_actual_D in bond_return_D.
-    effective_repayment_D = (1 + rb_D(-1)) * b_gov_D(-1)
+def budget_residual_D(b_gov_D, G_D, TAX_D, rb_D, def_rate_D, recovery_rate_D, zeta_writeoff_D):
+    # zeta_writeoff_D ∈ [0, 1] dials between two default regimes:
+    #   ζ = 1  (default) Treasury repays only the post-haircut amount
+    #          rb_actual_D_implied; the haircut is a fiscal transfer from
+    #          bondholders to the Treasury. Matches the v11 design and the
+    #          empirical Eurozone-restructuring narrative (sovereign captures
+    #          real fiscal relief; trade flows shift through internal devaluation).
+    #   ζ = 0  Treasury repays the full promised yield rb_D(-1); the haircut is
+    #          pure deadweight (no agent captures it). Bondholders still take
+    #          the loss via rb_actual_D in bond_return_D. Matches PR #2 design.
+    # At SS def_rate_D = 0 ⇒ rb_actual_D_implied = rb_D, so the residual is
+    # invariant to ζ at SS — no recalibration needed when ζ moves.
+    haircut_D             = 1.0 - recovery_rate_D
+    rb_actual_D_implied   = (1 - def_rate_D * haircut_D) * (1 + rb_D(-1)) - 1
+    effective_repayment_D = (
+        zeta_writeoff_D         * (1 + rb_actual_D_implied) * b_gov_D(-1)
+        + (1 - zeta_writeoff_D) * (1 + rb_D(-1))            * b_gov_D(-1)
+    )
     b_gov_res_D           = effective_repayment_D + G_D - TAX_D - b_gov_D
     return b_gov_res_D
 

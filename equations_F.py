@@ -268,8 +268,10 @@ def domestic_bond_foc_F(rb_actual_F, rdep_F, b_F_F, n_inter_F,
 
 
 @simple
-def government_default_F(shock_def_F):
-    def_rate_F = shock_def_F
+def government_default_F(shock_def_F, b_gov_F, Y_F, b_gov_ss_F, Y_ss_F, def_scale_F):
+    # Symmetric to government_default_D — see comments there.
+    debt_gap_F = b_gov_F(-1) / Y_F(-1) - b_gov_ss_F / Y_ss_F
+    def_rate_F = shock_def_F + def_scale_F * debt_gap_F
     return def_rate_F
 
 @simple
@@ -285,12 +287,14 @@ def capital_producer_profit_F(Q_F, K_F, I_F, delta_F):
     return cap_profit_F
 
 @simple
-def budget_residual_F(b_gov_F, G_F, TAX_F, rb_F):
-    # Government services debt at the PROMISED yield rb_F (interest rate channel).
-    # Rising default risk → rb_F rises (risk premium) → higher debt service
-    # → b_gov_F rises → lamb_F falls → fiscal tightening → contraction.
-    # Banks take losses separately via rb_actual_F in bond_return_F.
-    effective_repayment_F = (1 + rb_F(-1)) * b_gov_F(-1)
+def budget_residual_F(b_gov_F, G_F, TAX_F, rb_F, def_rate_F, recovery_rate_F, zeta_writeoff_F):
+    # Symmetric to budget_residual_D — see comments there.
+    haircut_F             = 1.0 - recovery_rate_F
+    rb_actual_F_implied   = (1 - def_rate_F * haircut_F) * (1 + rb_F(-1)) - 1
+    effective_repayment_F = (
+        zeta_writeoff_F         * (1 + rb_actual_F_implied) * b_gov_F(-1)
+        + (1 - zeta_writeoff_F) * (1 + rb_F(-1))            * b_gov_F(-1)
+    )
     b_gov_res_F           = effective_repayment_F + G_F - TAX_F - b_gov_F
     return b_gov_res_F
 
