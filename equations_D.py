@@ -211,13 +211,15 @@ def intermediation_IC_D(nu_D, eta_D, lambda_gk_D):
 
 
 @simple
-def bank_return_D(theta_D, rk_D, rdep_D, b_D_D, b_F_D, n_inter_D, rb_actual_D, rb_actual_F,
+def bank_return_D(theta_D, rk_D, rdep_D, b_D_D, b_F_D, n_inter_D, rb_D, rb_actual_F,
                   phi_bF_D_ss, psi_bF_D):
     phi_bD_lag_D = b_D_D(-1) / n_inter_D(-1)
     phi_bF_lag_D = b_F_D(-1) / n_inter_D(-1)
 
+    # Promised yield rb_D(-1) used here — default write-down on domestic bonds
+    # is applied directly in intermediation_P2_D to avoid (1-f_D) dampening.
     rn_D = (theta_D(-1) * (rk_D - rdep_D)
-            + phi_bD_lag_D * (rb_actual_D - rdep_D)
+            + phi_bD_lag_D * (rb_D(-1) - rdep_D)
             + phi_bF_lag_D * (rb_actual_F - rdep_D)
             + rdep_D)
 
@@ -251,16 +253,25 @@ def firm_profit_D(mc_D, Y_D):
 
 
 @simple
-def intermediation_P2_D(rn_D, n_inter_D, m_D, f_D, cap_profit_D, firm_profit_D):
+def intermediation_P2_D(rn_D, n_inter_D, m_D, f_D, cap_profit_D, firm_profit_D,
+                        b_D_D, def_rate_D, recovery_rate_D):
+    # Direct bond write-down: hits n_inter immediately, bypassing the (1-f_D)
+    # dividend filter that would otherwise dampen it to 3% per quarter.
+    # rn_D uses promised rb_D(-1), so there is no double-counting here.
+    haircut_D      = 1.0 - recovery_rate_D
+    writedown_D    = def_rate_D * haircut_D * b_D_D(-1)
     gross_income_D = (1 + rn_D) * n_inter_D(-1) + cap_profit_D + firm_profit_D
-    n_inter_val_D  = (1 - f_D) * gross_income_D + m_D - n_inter_D
+    n_inter_val_D  = (1 - f_D) * gross_income_D + m_D - writedown_D - n_inter_D
     return n_inter_val_D
 
 
 @simple
-def banker_div_res_D(rn_D, n_inter_D, div_D, m_D, f_D, cap_profit_D, firm_profit_D):
+def banker_div_res_D(rn_D, n_inter_D, div_D, m_D, f_D, cap_profit_D, firm_profit_D,
+                     b_D_D, def_rate_D, recovery_rate_D):
+    haircut_D      = 1.0 - recovery_rate_D
+    writedown_D    = def_rate_D * haircut_D * b_D_D(-1)
     gross_income_D = (1 + rn_D) * n_inter_D(-1) + cap_profit_D + firm_profit_D
-    net_div_D      = f_D * gross_income_D - m_D
+    net_div_D      = f_D * gross_income_D - m_D - writedown_D
     div_res_D      = div_D - net_div_D
     return div_res_D
 

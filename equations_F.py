@@ -191,13 +191,15 @@ def intermediation_IC_F(nu_F, eta_F, lambda_gk_F):
     return theta_F
 
 @simple
-def bank_return_F(theta_F, rk_F, rdep_F, b_F_F, b_D_F, n_inter_F, rb_actual_F, rb_actual_D,
+def bank_return_F(theta_F, rk_F, rdep_F, b_F_F, b_D_F, n_inter_F, rb_F, rb_actual_D,
                   phi_bD_F_ss, psi_bD_F):
     phi_bF_lag_F = b_F_F(-1) / n_inter_F(-1)
     phi_bD_lag_F = b_D_F(-1) / n_inter_F(-1)
 
+    # Promised yield rb_F(-1) used here — default write-down on domestic bonds
+    # is applied directly in intermediation_P2_F to avoid (1-f_F) dampening.
     rn_F = (theta_F(-1) * (rk_F - rdep_F)
-            + phi_bF_lag_F * (rb_actual_F - rdep_F)
+            + phi_bF_lag_F * (rb_F(-1) - rdep_F)
             + phi_bD_lag_F * (rb_actual_D - rdep_F)
             + rdep_F)
 
@@ -226,15 +228,21 @@ def firm_profit_F(mc_F, Y_F):
 
 
 @simple
-def intermediation_P2_F(rn_F, n_inter_F, m_F, f_F, cap_profit_F, firm_profit_F):
+def intermediation_P2_F(rn_F, n_inter_F, m_F, f_F, cap_profit_F, firm_profit_F,
+                        b_F_F, def_rate_F, recovery_rate_F):
+    haircut_F      = 1.0 - recovery_rate_F
+    writedown_F    = def_rate_F * haircut_F * b_F_F(-1)
     gross_income_F = (1 + rn_F) * n_inter_F(-1) + cap_profit_F + firm_profit_F
-    n_inter_val_F  = (1 - f_F) * gross_income_F + m_F - n_inter_F
+    n_inter_val_F  = (1 - f_F) * gross_income_F + m_F - writedown_F - n_inter_F
     return n_inter_val_F
 
 @simple
-def banker_div_res_F(rn_F, n_inter_F, div_F, m_F, f_F, cap_profit_F, firm_profit_F):
+def banker_div_res_F(rn_F, n_inter_F, div_F, m_F, f_F, cap_profit_F, firm_profit_F,
+                     b_F_F, def_rate_F, recovery_rate_F):
+    haircut_F      = 1.0 - recovery_rate_F
+    writedown_F    = def_rate_F * haircut_F * b_F_F(-1)
     gross_income_F = (1 + rn_F) * n_inter_F(-1) + cap_profit_F + firm_profit_F
-    net_div_F      = f_F * gross_income_F - m_F
+    net_div_F      = f_F * gross_income_F - m_F - writedown_F
     div_res_F      = div_F - net_div_F
     return div_res_F
 
@@ -280,7 +288,6 @@ def government_default_F(shock_def_F, b_gov_F, Y_F, b_gov_ss_F, Y_ss_F,
 def tax_rule_F(b_gov_F, lamb_ss_F, b_gov_ss_F, phi_lamb_F):
     lamb_F = lamb_ss_F - phi_lamb_F * (b_gov_F(-1) - b_gov_ss_F)
     return lamb_F
-
 
 
 @simple
