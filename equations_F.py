@@ -64,17 +64,19 @@ hh_extended_F = hh_F.add_hetinputs([make_grids_F, income_F])
 # CHECK STEADY STATE OWNING OF THE foreign bonds in DOMESTIC COUNTRY
 @simple
 def smart_steady_F(theta_F, Y_F, n_inter_F, rdep_F, alpha_F, delta_F, f_F, N_F,
-                   rb_F, rb_actual_D, b_F_F, b_D_F, Q_F):
-    # MU: bonds in common currency — no 1/p conversion of D-bond portfolio or balance sheet.
-    K_F          = theta_F * n_inter_F
+                   rb_actual_F, rb_actual_D, b_F_F, b_D_F, Q_F):
+    # Extended GK: theta_F = total leverage (QK + bonds) / n.
+    # Capital holdings follow residually: QK = theta*n - bonds.
+    K_F          = theta_F * n_inter_F - b_F_F - b_D_F
     phi_bF_F     = b_F_F / n_inter_F
     phi_bD_F     = b_D_F / n_inter_F              # no 1/p: same currency
+    kappa_F      = theta_F - phi_bF_F - phi_bD_F  # capital leverage = QK/n
     rk_F         = alpha_F * Y_F / K_F - delta_F
-    rn_F         = theta_F * (rk_F - rdep_F) + phi_bF_F * (rb_F - rdep_F) + phi_bD_F * (rb_actual_D - rdep_F) + rdep_F
+    rn_F         = kappa_F * (rk_F - rdep_F) + phi_bF_F * (rb_actual_F - rdep_F) + phi_bD_F * (rb_actual_D - rdep_F) + rdep_F
     m_F          = n_inter_F * (1 - (1 - f_F) * (1 + rn_F))
     k_inter_F    = K_F
     I_F          = K_F * delta_F
-    D_supply_F   = (theta_F - 1) * n_inter_F + b_F_F + b_D_F  # no 1/p: same currency
+    D_supply_F   = (theta_F - 1) * n_inter_F      # deposits = total assets - equity
     Z_F          = Y_F / ((K_F ** alpha_F) * (N_F ** (1 - alpha_F)))
     rdep_ante_F  = rdep_F
     cap_profit_F = Q_F * (K_F - (1 - delta_F) * K_F(-1)) - I_F
@@ -191,15 +193,18 @@ def intermediation_IC_F(nu_F, eta_F, lambda_gk_F):
     return theta_F
 
 @simple
-def bank_return_F(theta_F, rk_F, rdep_F, b_F_F, b_D_F, n_inter_F, rb_F, rb_actual_D,
+def bank_return_F(theta_F, rk_F, rdep_F, b_F_F, b_D_F, n_inter_F, rb_actual_F, rb_actual_D,
                   phi_bD_F_ss, psi_bD_F):
     phi_bF_lag_F = b_F_F(-1) / n_inter_F(-1)
     phi_bD_lag_F = b_D_F(-1) / n_inter_F(-1)
 
-    # Promised yield rb_F(-1) used here — default write-down on domestic bonds
-    # is applied directly in intermediation_P2_F to avoid (1-f_F) dampening.
-    rn_F = (theta_F(-1) * (rk_F - rdep_F)
-            + phi_bF_lag_F * (rb_F(-1) - rdep_F)
+    # theta_F(-1) is total leverage (QK+bonds)/n; subtract bond shares to get capital leverage.
+    kappa_lag_F  = theta_F(-1) - phi_bF_lag_F - phi_bD_lag_F
+
+    # rb_actual_F is the realised return net of the default haircut — symmetric
+    # treatment with rb_actual_D. Default reduces rn_F through the income channel.
+    rn_F = (kappa_lag_F  * (rk_F - rdep_F)
+            + phi_bF_lag_F * (rb_actual_F - rdep_F)
             + phi_bD_lag_F * (rb_actual_D - rdep_F)
             + rdep_F)
 
@@ -214,8 +219,10 @@ def intermediation_P1_F(rk_F, rdep_F, nu_F, lambda_gk_F, eta_F, theta_F, SDF_F, 
     return nu_res_F, eta_res_F
 
 @simple
-def k_balance_sheet_F(Q_F, theta_F, n_inter_F, K_F):
-    K_res_F = Q_F * K_F - theta_F * n_inter_F
+def k_balance_sheet_F(Q_F, theta_F, n_inter_F, K_F, b_F_F, b_D_F):
+    # Extended GK: theta now covers ALL bank assets (capital + bonds).
+    # Q*K + b_F_F + b_D_F = theta * n_inter  ⟹  QK is residual.
+    K_res_F = Q_F * K_F + b_F_F + b_D_F - theta_F * n_inter_F
     return K_res_F
 
 @simple
@@ -228,21 +235,17 @@ def firm_profit_F(mc_F, Y_F):
 
 
 @simple
-def intermediation_P2_F(rn_F, n_inter_F, m_F, f_F, cap_profit_F, firm_profit_F,
-                        b_F_F, def_rate_F, recovery_rate_F):
-    haircut_F      = 1.0 - recovery_rate_F
-    writedown_F    = def_rate_F * haircut_F * b_F_F(-1)
+def intermediation_P2_F(rn_F, n_inter_F, m_F, f_F, cap_profit_F, firm_profit_F):
+    # rn_F uses rb_actual_F (realised return net of default haircut), so the
+    # write-off is already embedded in gross_income via the income channel.
     gross_income_F = (1 + rn_F) * n_inter_F(-1) + cap_profit_F + firm_profit_F
-    n_inter_val_F  = (1 - f_F) * gross_income_F + m_F - writedown_F - n_inter_F
+    n_inter_val_F  = (1 - f_F) * gross_income_F + m_F - n_inter_F
     return n_inter_val_F
 
 @simple
-def banker_div_res_F(rn_F, n_inter_F, div_F, m_F, f_F, cap_profit_F, firm_profit_F,
-                     b_F_F, def_rate_F, recovery_rate_F):
-    haircut_F      = 1.0 - recovery_rate_F
-    writedown_F    = def_rate_F * haircut_F * b_F_F(-1)
+def banker_div_res_F(rn_F, n_inter_F, div_F, m_F, f_F, cap_profit_F, firm_profit_F):
     gross_income_F = (1 + rn_F) * n_inter_F(-1) + cap_profit_F + firm_profit_F
-    net_div_F      = f_F * gross_income_F - m_F - writedown_F
+    net_div_F      = f_F * gross_income_F - m_F
     div_res_F      = div_F - net_div_F
     return div_res_F
 

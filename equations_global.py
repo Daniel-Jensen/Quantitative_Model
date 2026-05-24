@@ -64,16 +64,18 @@ def terms_of_trade(p, pi_D, pi_F):
 @simple
 def risk_weight(def_rate_D, def_rate_F, alpha_w_D, alpha_w_F,
                 shock_w_sov_D, shock_w_sov_F):
-    # Sovereign risk weights respond to lagged realised default rate plus an
-    # exogenous "credit rating shock".  Rating agencies act on observed
-    # default — the lag mimics this convention and also breaks the otherwise
-    # simultaneous w_sov ↔ mp_wedge ↔ rb ↔ b_gov ↔ def_rate loop.
+    # Sovereign risk weights: endogenous response to the LAGGED realised default
+    # rate (rating agencies observe and act on historical data) plus an
+    # INSTANTANEOUS exogenous credit-rating shock (shock_w_sov_c).
+    # The lag on def_rate(-1) breaks the contemporaneous block-graph chain
+    # government_default → risk_weight → macroprudential_wedge, which would
+    # otherwise create a DAG depth that exceeds Python's default recursion
+    # limit during SSJ's topological sort.
+    # The contemporaneous macroprudential channel (II.4/II.5) is activated
+    # by perturbing shock_w_sov_c directly: this provides an instant
+    # first-order response without lengthening the contemporaneous DAG.
     #
     # At SS def_rate_c = 0 and shock_w_sov_c = 0 → w_sov_c = 1 (neutral).
-    # alpha_w_c is the rating sensitivity to default; 0 recovers the
-    # exogenous-w_sov regime of PRs #6/#7.  shock_w_sov_c is the new
-    # exogenous driver — perturbing it simulates a sovereign credit-rating
-    # action (Moody's downgrade, ECB collateral haircut announcement, etc.).
     w_sov_D = 1.0 + alpha_w_D * def_rate_D(-1) + shock_w_sov_D
     w_sov_F = 1.0 + alpha_w_F * def_rate_F(-1) + shock_w_sov_F
     return w_sov_D, w_sov_F

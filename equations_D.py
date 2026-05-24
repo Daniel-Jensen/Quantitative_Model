@@ -71,15 +71,18 @@ hh_extended_D = hh_D.add_hetinputs([make_grids_D, income_D])
 @simple
 def smart_steady_D(theta_D, Y_D, n_inter_D, rdep_D, alpha_D, delta_D, f_D, N_D,
                    rb_actual_D, rb_actual_F, b_D_D, b_F_D, Q_D):
-    K_D          = theta_D * n_inter_D
+    # Extended GK: theta_D = total leverage (QK + bonds) / n.
+    # Capital holdings follow residually: QK = theta*n - bonds.
+    K_D          = theta_D * n_inter_D - b_D_D - b_F_D
     phi_bD_D     = b_D_D / n_inter_D
-    phi_bF_D     = b_F_D / n_inter_D          
+    phi_bF_D     = b_F_D / n_inter_D
+    kappa_D      = theta_D - phi_bD_D - phi_bF_D      # capital leverage = QK/n
     rk_D         = alpha_D * Y_D / K_D - delta_D
-    rn_D         = theta_D * (rk_D - rdep_D) + phi_bD_D * (rb_actual_D - rdep_D) + phi_bF_D * (rb_actual_F - rdep_D) + rdep_D
+    rn_D         = kappa_D * (rk_D - rdep_D) + phi_bD_D * (rb_actual_D - rdep_D) + phi_bF_D * (rb_actual_F - rdep_D) + rdep_D
     m_D          = n_inter_D * (1 - (1 - f_D) * (1 + rn_D))
     k_inter_D    = K_D
     I_D          = K_D * delta_D
-    D_supply_D   = (theta_D - 1) * n_inter_D + b_D_D + b_F_D 
+    D_supply_D   = (theta_D - 1) * n_inter_D          # deposits = total assets - equity
     Z_D          = Y_D / ((K_D ** alpha_D) * (N_D ** (1 - alpha_D)))
     rdep_ante_D  = rdep_D
     cap_profit_D = Q_D * (K_D - (1 - delta_D) * K_D(-1)) - I_D
@@ -211,15 +214,17 @@ def intermediation_IC_D(nu_D, eta_D, lambda_gk_D):
 
 
 @simple
-def bank_return_D(theta_D, rk_D, rdep_D, b_D_D, b_F_D, n_inter_D, rb_D, rb_actual_F,
+def bank_return_D(theta_D, rk_D, rdep_D, b_D_D, b_F_D, n_inter_D, rb_actual_D, rb_actual_F,
                   phi_bF_D_ss, psi_bF_D):
     phi_bD_lag_D = b_D_D(-1) / n_inter_D(-1)
     phi_bF_lag_D = b_F_D(-1) / n_inter_D(-1)
+    # theta_D(-1) is total leverage (QK+bonds)/n; subtract bond shares to get capital leverage.
+    kappa_lag_D  = theta_D(-1) - phi_bD_lag_D - phi_bF_lag_D
 
-    # Promised yield rb_D(-1) used here — default write-down on domestic bonds
-    # is applied directly in intermediation_P2_D to avoid (1-f_D) dampening.
-    rn_D = (theta_D(-1) * (rk_D - rdep_D)
-            + phi_bD_lag_D * (rb_D(-1) - rdep_D)
+    # rb_actual_D is the realised return net of the default haircut — symmetric
+    # treatment with rb_actual_F. Default reduces rn_D through the income channel.
+    rn_D = (kappa_lag_D  * (rk_D - rdep_D)
+            + phi_bD_lag_D * (rb_actual_D - rdep_D)
             + phi_bF_lag_D * (rb_actual_F - rdep_D)
             + rdep_D)
 
@@ -236,10 +241,10 @@ def intermediation_P1_D(rk_D, rdep_D, nu_D, lambda_gk_D, eta_D, theta_D, SDF_D, 
 
 
 @simple
-def k_balance_sheet_D(Q_D, theta_D, n_inter_D, K_D):
-    # GK balance sheet constraint: Q*K = theta*n_inter.  Macroprudential
-    # tightening now enters via mp_wedge_D in the bond FOCs, not via theta.
-    K_res_D = Q_D * K_D - theta_D * n_inter_D
+def k_balance_sheet_D(Q_D, theta_D, n_inter_D, K_D, b_D_D, b_F_D):
+    # Extended GK: theta now covers ALL bank assets (capital + bonds).
+    # Q*K + b_D_D + b_F_D = theta * n_inter  ⟹  QK is residual.
+    K_res_D = Q_D * K_D + b_D_D + b_F_D - theta_D * n_inter_D
     return K_res_D
 
 
@@ -253,25 +258,18 @@ def firm_profit_D(mc_D, Y_D):
 
 
 @simple
-def intermediation_P2_D(rn_D, n_inter_D, m_D, f_D, cap_profit_D, firm_profit_D,
-                        b_D_D, def_rate_D, recovery_rate_D):
-    # Direct bond write-down: hits n_inter immediately, bypassing the (1-f_D)
-    # dividend filter that would otherwise dampen it to 3% per quarter.
-    # rn_D uses promised rb_D(-1), so there is no double-counting here.
-    haircut_D      = 1.0 - recovery_rate_D
-    writedown_D    = def_rate_D * haircut_D * b_D_D(-1)
+def intermediation_P2_D(rn_D, n_inter_D, m_D, f_D, cap_profit_D, firm_profit_D):
+    # rn_D uses rb_actual_D (realised return net of default haircut), so the
+    # write-off is already embedded in gross_income via the income channel.
     gross_income_D = (1 + rn_D) * n_inter_D(-1) + cap_profit_D + firm_profit_D
-    n_inter_val_D  = (1 - f_D) * gross_income_D + m_D - writedown_D - n_inter_D
+    n_inter_val_D  = (1 - f_D) * gross_income_D + m_D - n_inter_D
     return n_inter_val_D
 
 
 @simple
-def banker_div_res_D(rn_D, n_inter_D, div_D, m_D, f_D, cap_profit_D, firm_profit_D,
-                     b_D_D, def_rate_D, recovery_rate_D):
-    haircut_D      = 1.0 - recovery_rate_D
-    writedown_D    = def_rate_D * haircut_D * b_D_D(-1)
+def banker_div_res_D(rn_D, n_inter_D, div_D, m_D, f_D, cap_profit_D, firm_profit_D):
     gross_income_D = (1 + rn_D) * n_inter_D(-1) + cap_profit_D + firm_profit_D
-    net_div_D      = f_D * gross_income_D - m_D - writedown_D
+    net_div_D      = f_D * gross_income_D - m_D
     div_res_D      = div_D - net_div_D
     return div_res_D
 
