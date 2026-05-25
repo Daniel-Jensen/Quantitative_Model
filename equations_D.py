@@ -208,33 +208,12 @@ def intermediation_IC_D(nu_D, eta_D, lambda_gk_D):
 
 @simple
 def ic_residual_D(eta_D, nu_D, theta_D, lambda_gk_D):
-    """IC residual used by the SS solver (Option B of Task 1.3).
-
-    Pins lambda_gk_D endogenously so that the GK incentive constraint
-    theta = eta / (lambda_gk - nu) holds exactly at the calibrated theta = 4.
-    Added to `ha` with lambda_gk_D as unknown and ic_res_D = 0 as target.
-    """
     ic_res_D = theta_D - eta_D / (lambda_gk_D - nu_D)
     return ic_res_D
 
 
 @simple
 def bank_return_D(theta_D, rk_D, rdep_D, b_D_D, b_F_D, n_inter_D, rb_D, rb_F):
-    """Bank gross return on equity (Task 2.1 + 2.2).
-
-    Both domestic (rb_D(-1)) and cross-border (rb_F(-1)) bonds use PROMISED
-    yields.  Haircuts for both sovereigns are applied as balance-sheet
-    write-downs in intermediation_P2_D, bypassing the (1-f_D) income-filter and
-    hitting net worth in full on impact.  This symmetry ensures that an identical
-    default shock in either country produces an identical on-impact net-worth
-    response (up to portfolio-share differences).
-
-    The quadratic portfolio adjustment cost (psi/2)(phi-phi_ss)^2 is NOT
-    subtracted here (Task 2.2, Option A).  The cross-border Euler equations in
-    portfolio_adj_cost and domestic_bond_foc_D act as reduced-form demand
-    schedules; their marginal cost psi*(phi-phi_ss) is not derived from this
-    bank budget constraint.
-    """
     phi_bD_lag_D = b_D_D(-1) / n_inter_D(-1)
     phi_bF_lag_D = b_F_D(-1) / n_inter_D(-1)
     # theta_D(-1) is total leverage (QK+bonds)/n; subtract bond shares to get capital leverage.
@@ -276,21 +255,6 @@ def firm_profit_D(mc_D, Y_D):
 def intermediation_P2_D(rn_D, n_inter_D, m_D, f_D, cap_profit_D, firm_profit_D,
                         b_D_D, def_rate_D, recovery_rate_D,
                         b_F_D, def_rate_F, recovery_rate_F):
-    """Net-worth accumulation with symmetric balance-sheet write-downs (Task 2.1).
-
-    rn_D uses PROMISED yields for BOTH domestic (rb_D(-1)) and cross-border
-    (rb_F(-1)) bonds.  Both haircuts are applied as direct write-downs here,
-    bypassing the (1-f_D) ≈ 0.03 income-filter.  This symmetry ensures that a
-    1 % default shock in D or F produces the same on-impact hit to n_inter_D
-    (scaled by the respective portfolio share phi_bD_D or phi_bF_D).
-
-    Resource accounting:
-      n_inter + div = [(1-f)*gross_promised + m - wd_D - wd_F] + [f*gross_promised - m]
-                    = gross_promised - wd_D - wd_F = gross_actual  ✓
-
-    Timing: both def_rate_c(t) depend only on lagged debt/GDP + exogenous shock,
-    so write-downs are predetermined at t.
-    """
     haircut_D      = 1.0 - recovery_rate_D
     haircut_F      = 1.0 - recovery_rate_F
     writedown_D    = def_rate_D * haircut_D * b_D_D(-1)   # domestic sovereign default
@@ -302,10 +266,6 @@ def intermediation_P2_D(rn_D, n_inter_D, m_D, f_D, cap_profit_D, firm_profit_D,
 
 @simple
 def banker_div_res_D(rn_D, n_inter_D, div_D, m_D, f_D, cap_profit_D, firm_profit_D):
-    # Dividends are computed on PROMISED gross income (promised rb_D(-1)).
-    # The write-down is absorbed entirely by retained net worth (intermediation_P2_D).
-    # This, together with the P2 equation, ensures:
-    #   n_inter + div = gross_promised - writedown = gross_actual  (resource-consistent).
     gross_income_D = (1 + rn_D) * n_inter_D(-1) + cap_profit_D + firm_profit_D
     net_div_D      = f_D * gross_income_D - m_D
     div_res_D      = div_D - net_div_D
@@ -348,28 +308,6 @@ def domestic_bond_foc_D(rb_actual_D, rdep_D, b_D_D, n_inter_D,
 @simple
 def government_default_D(shock_def_D, b_gov_D, Y_D, b_gov_ss_D, Y_ss_D,
                           def_scale_D, def_curvature_D, def_offset_D):
-    # Endogenous default rate: smooth power function of the lagged debt-to-GDP
-    # deviation, plus an exogenous residual.
-    #   def_rate_D = shock_def_D + def_scale_D · ((gap + offset)^curvature
-    #                                              − offset^curvature)
-    # Why the offset:
-    #   sequence_jacobian linearises around SS (gap = 0). With curvature < 1
-    #   (e.g. 0.5 — the empirically motivated concave regime where small debt
-    #   moves matter most and the response saturates as debt blows up),
-    #   d/dx[x^curvature] is unbounded at x = 0, so the dynamic Jacobian
-    #   degenerates. The offset shifts evaluation to a point with a finite
-    #   slope, while the subtracted constant offset^curvature keeps the SS
-    #   anchored at zero.
-    # Linearised slope at SS:
-    #   d(def_rate_D)/d(gap) at SS = def_scale_D · curvature · offset^(curvature−1)
-    #   = def_scale_D · 0.5 / sqrt(0.05) ≈ 2.24 · def_scale_D
-    #   (under recommended defaults curvature=0.5, offset=0.05).
-    # SS invariance:
-    #   gap = 0 ⇒ endog_D = 0 ⇒ def_rate_D = shock_def_D = 0, regardless of
-    #   def_scale_D, def_curvature_D, def_offset_D. No SS recalibration needed.
-    # Interpretation of shock_def_D:
-    #   residual exogenous risk premium (political risk, contagion from
-    #   outside the model, redenomination risk) not captured by debt/GDP.
     debt_gap_D = b_gov_D(-1) / Y_D(-1) - b_gov_ss_D / Y_ss_D
     endog_D    = ((debt_gap_D + def_offset_D) ** def_curvature_D
                   - def_offset_D ** def_curvature_D)
@@ -385,17 +323,6 @@ def tax_rule_D(b_gov_D, lamb_ss_D, b_gov_ss_D, phi_lamb_D):
 
 @simple
 def budget_residual_D(b_gov_D, G_D, TAX_D, rb_D, def_rate_D, recovery_rate_D, zeta_writeoff_D):
-    # zeta_writeoff_D ∈ [0, 1] dials between two default regimes:
-    #   ζ = 1  (default) Treasury repays only the post-haircut amount
-    #          rb_actual_D_implied; the haircut is a fiscal transfer from
-    #          bondholders to the Treasury. Matches the v11 design and the
-    #          empirical Eurozone-restructuring narrative (sovereign captures
-    #          real fiscal relief; trade flows shift through internal devaluation).
-    #   ζ = 0  Treasury repays the full promised yield rb_D(-1); the haircut is
-    #          pure deadweight (no agent captures it). Bondholders still take
-    #          the loss via rb_actual_D in bond_return_D. Matches PR #2 design.
-    # At SS def_rate_D = 0 ⇒ rb_actual_D_implied = rb_D, so the residual is
-    # invariant to ζ at SS — no recalibration needed when ζ moves.
     haircut_D             = 1.0 - recovery_rate_D
     rb_actual_D_implied   = (1 - def_rate_D * haircut_D) * (1 + rb_D(-1)) - 1
     effective_repayment_D = (
@@ -410,8 +337,6 @@ def budget_residual_D(b_gov_D, G_D, TAX_D, rb_D, def_rate_D, recovery_rate_D, ze
 
 @simple
 def fisher_D(i_union, pi_D):
-    # MU: both countries share the single nominal rate i_union set by the union CB.
-    # Real rates differ across countries via inflation differentials.
     rdep_ante_D = i_union - pi_D(+1)
     rdep_D      = i_union(-1) - pi_D
     return rdep_ante_D, rdep_D
@@ -419,8 +344,6 @@ def fisher_D(i_union, pi_D):
 @simple
 def taylor_rule_union(i_union, pi_D, pi_F, Y_D, Y_F, Y_ss_D, Y_ss_F,
                       omega_union_U, rho_i_U, phi_pi_U, phi_y_U, r_star_U, eps_m_U):
-    # Task 7.3: renamed eps_m_D → eps_m_U — this is a union-level instrument,
-    # not a country-D instrument.
     pi_union         = omega_union_U * pi_D + (1 - omega_union_U) * pi_F
     Y_union          = omega_union_U * Y_D  + (1 - omega_union_U) * Y_F
     Y_ss_union       = omega_union_U * Y_ss_D + (1 - omega_union_U) * Y_ss_F
@@ -433,28 +356,12 @@ def taylor_rule_union(i_union, pi_D, pi_F, Y_D, Y_F, Y_ss_D, Y_ss_F,
 
 @simple
 def pricing_D(mc_D, pi_D, kappa_p_D, mu_p_D, SDF_D):
-    """Rotemberg price NKPC for country D (Task 4.1).
-
-    Discount factor is the household SDF.  Strictly, with GK banks owning firms,
-    the relevant discount factor for price decisions is the bank's stochastic
-    discount factor SDF · Omega(+1).  The household SDF is used as a
-    representative-agent approximation consistent with most HANK-NK literature.
-    This approximation is exact at SS (Omega is constant) and first-order
-    accurate around SS.
-    """
     nkpc_p_res_D = pi_D - kappa_p_D * (mc_D - 1 / mu_p_D) - SDF_D * pi_D(+1)
     return nkpc_p_res_D
 
 @simple
 def wage_setting_D(w_D, pi_w_D, pi_D, N_D, UCE_D, vphi_D, frisch_D, kappa_w_D, mu_w_D, beta_D):
-    """Rotemberg wage NKPC for country D (Task 4.1).
 
-    π_w = κ_w · (MRS − w/μ_w) + β · E[π_w(+1)].
-    vphi_D is calibrated so MRS = w/μ_w at SS → residual = 0 at SS.
-
-    Discount factor is the household SDF (beta_D), same approximation note as
-    pricing_D: exact at SS, first-order accurate off SS.
-    """
     nkpc_w_res_D = (pi_w_D
                     - kappa_w_D * (vphi_D * N_D ** (1 + 1 / frisch_D)
                                    - (1 / mu_w_D) * w_D * N_D * UCE_D)
