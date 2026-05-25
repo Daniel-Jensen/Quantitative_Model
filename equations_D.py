@@ -236,17 +236,12 @@ def intermediation_P1_D(rk_D, rdep_D, nu_D, lambda_gk_D, eta_D, theta_D, SDF_D, 
 
 @simple
 def k_balance_sheet_D(Q_D, theta_D, n_inter_D, K_D, b_D_D, b_F_D):
-    # Extended GK: theta now covers ALL bank assets (capital + bonds).
-    # Q*K + b_D_D + b_F_D = theta * n_inter  ⟹  QK is residual.
     K_res_D = Q_D * K_D + b_D_D + b_F_D - theta_D * n_inter_D
     return K_res_D
 
 
 @simple
 def firm_profit_D(mc_D, Y_D):
-    # Monopoly profit from sticky-price markup: (1 - mc_D) * Y_D.
-    # Zero at SS (mc_D = 1), first-order off-SS. Routed to the financial
-    # intermediary (banks own goods-producing firms in this GK setup).
     firm_profit_D = (1 - mc_D) * Y_D
     return firm_profit_D
 
@@ -289,14 +284,6 @@ def interest_rates_D(def_rate_D, recovery_rate_D, SDF_D):
 @simple
 def domestic_bond_foc_D(rb_actual_D, rdep_D, b_D_D, n_inter_D,
                          phi_bD_D_ss, psi_bD_D, excess_return_bD_D_ss, mp_wedge_D):
-    # GK-consistent bond pricing: rb_D adjusts until D-banks willingly hold
-    # b_D_D (the residual after foreign banks take b_D_F).
-    # At SS: phi_bD_D = phi_bD_D_ss AND mp_wedge_D = 0 → rb_D_res = 0.
-    # After default shock: b_D_D rises (foreign flight) → phi_bD_D rises → rb_D rises.
-    # Macroprudential channel: when global exposure to D rises (or D's risk
-    # weight rises), mp_wedge_D > 0 subtracts from the residual, forcing the
-    # excess return UP — banks demand a higher yield to hold D-bonds.  This is
-    # the Basel "extra capital required" → "higher cost of capital" channel.
     phi_bD_D = b_D_D / n_inter_D
     rb_D_res = (rb_actual_D(+1) - rdep_D(+1)) - excess_return_bD_D_ss \
                - psi_bD_D * (phi_bD_D - phi_bD_D_ss) \
