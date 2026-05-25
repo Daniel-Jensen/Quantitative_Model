@@ -173,42 +173,49 @@ def labor_market_F(w_F, UCE_F, N_F, vphi_F, frisch_F):
 
 
 
-@simple
-def portfolio_foc_bD_F(rb_actual_D, rdep_F, b_D_F, n_inter_F, p,
-                       phi_bD_F_ss, psi_bD_F, excess_return_D_F_ss, mp_wedge_D):
-    # D-bank-style pricing of D-bonds held by F-banks: the wedge follows the
-    # sovereign being priced (D), not the bank doing the pricing.
-    # See domestic_bond_foc_D for the sign convention on mp_wedge_D.
-    phi_bD_F            = (1 / p) * b_D_F / n_inter_F
-    rb_actual_D_in_F_p1 = (p / p(+1)) * (1 + rb_actual_D(+1)) - 1
-    foc_bD_res_F        = (rb_actual_D_in_F_p1 - rdep_F(+1)) - excess_return_D_F_ss \
-                          - psi_bD_F * (phi_bD_F - phi_bD_F_ss) \
-                          - mp_wedge_D
-    return foc_bD_res_F
-
 
 @simple
 def intermediation_IC_F(nu_F, eta_F, lambda_gk_F):
+    # GK incentive constraint: theta = eta / (lambda_gk - nu).
+    # NOTE (Task 5.1): same multi-asset caveat as intermediation_IC_D —
+    # lambda_gk_F is calibrated to make the IC hold at theta = 4, not derived
+    # from a no-arbitrage condition across all risky assets.
     theta_F = eta_F / (lambda_gk_F - nu_F)
     return theta_F
 
+
 @simple
-def bank_return_F(theta_F, rk_F, rdep_F, b_F_F, b_D_F, n_inter_F, rb_actual_F, rb_actual_D,
-                  phi_bD_F_ss, psi_bD_F):
+def ic_residual_F(eta_F, nu_F, theta_F, lambda_gk_F):
+    """IC residual used by the SS solver (Option B of Task 1.3).
+
+    Pins lambda_gk_F endogenously so that the GK incentive constraint
+    theta = eta / (lambda_gk - nu) holds exactly at the calibrated theta = 4.
+    Added to `ha` with lambda_gk_F as unknown and ic_res_F = 0 as target.
+    """
+    ic_res_F = theta_F - eta_F / (lambda_gk_F - nu_F)
+    return ic_res_F
+
+@simple
+def bank_return_F(theta_F, rk_F, rdep_F, b_F_F, b_D_F, n_inter_F, rb_F, rb_D):
+    """Bank gross return on equity for country F (Task 2.1 + 2.2).
+
+    Both domestic (rb_F(-1)) and cross-border (rb_D(-1)) bonds use PROMISED
+    yields.  Haircuts for both sovereigns are applied as balance-sheet
+    write-downs in intermediation_P2_F, bypassing the (1-f_F) income-filter and
+    hitting net worth in full on impact.  Symmetric to bank_return_D.
+
+    The quadratic portfolio adjustment cost is NOT subtracted here (Task 2.2,
+    Option A).  The FOCs in portfolio_adj_cost / domestic_bond_foc_F are
+    reduced-form demand schedules.
+    """
     phi_bF_lag_F = b_F_F(-1) / n_inter_F(-1)
     phi_bD_lag_F = b_D_F(-1) / n_inter_F(-1)
-
-    # theta_F(-1) is total leverage (QK+bonds)/n; subtract bond shares to get capital leverage.
     kappa_lag_F  = theta_F(-1) - phi_bF_lag_F - phi_bD_lag_F
 
-    # rb_actual_F is the realised return net of the default haircut — symmetric
-    # treatment with rb_actual_D. Default reduces rn_F through the income channel.
     rn_F = (kappa_lag_F  * (rk_F - rdep_F)
-            + phi_bF_lag_F * (rb_actual_F - rdep_F)
-            + phi_bD_lag_F * (rb_actual_D - rdep_F)
+            + phi_bF_lag_F * (rb_F(-1) - rdep_F)
+            + phi_bD_lag_F * (rb_D(-1) - rdep_F)
             + rdep_F)
-
-    rn_F = rn_F - (psi_bD_F / 2) * (phi_bD_lag_F - phi_bD_F_ss) ** 2
     return rn_F
 
 @simple
@@ -235,15 +242,34 @@ def firm_profit_F(mc_F, Y_F):
 
 
 @simple
-def intermediation_P2_F(rn_F, n_inter_F, m_F, f_F, cap_profit_F, firm_profit_F):
-    # rn_F uses rb_actual_F (realised return net of default haircut), so the
-    # write-off is already embedded in gross_income via the income channel.
+def intermediation_P2_F(rn_F, n_inter_F, m_F, f_F, cap_profit_F, firm_profit_F,
+                        b_F_F, def_rate_F, recovery_rate_F,
+                        b_D_F, def_rate_D, recovery_rate_D):
+    """Net-worth accumulation with symmetric balance-sheet write-downs (Task 2.1).
+
+    Symmetric to intermediation_P2_D.  Both domestic (F-sovereign) and
+    cross-border (D-sovereign) defaults are write-downs that bypass the
+    (1-f_F) income-filter.  A 1 % default shock in either country produces
+    equal on-impact net-worth losses (scaled by respective portfolio shares).
+
+    Resource accounting:
+      n_inter + div = [(1-f)*gross_promised + m - wd_F - wd_D] + [f*gross_promised - m]
+                    = gross_promised - wd_F - wd_D = gross_actual  ✓
+    """
+    haircut_F      = 1.0 - recovery_rate_F
+    haircut_D      = 1.0 - recovery_rate_D
+    writedown_F    = def_rate_F * haircut_F * b_F_F(-1)   # domestic sovereign default
+    writedown_D    = def_rate_D * haircut_D * b_D_F(-1)   # cross-border sovereign default
     gross_income_F = (1 + rn_F) * n_inter_F(-1) + cap_profit_F + firm_profit_F
-    n_inter_val_F  = (1 - f_F) * gross_income_F + m_F - n_inter_F
+    n_inter_val_F  = (1 - f_F) * gross_income_F + m_F - writedown_F - writedown_D - n_inter_F
     return n_inter_val_F
 
 @simple
 def banker_div_res_F(rn_F, n_inter_F, div_F, m_F, f_F, cap_profit_F, firm_profit_F):
+    # Dividends are computed on PROMISED gross income (promised rb_F(-1)).
+    # The write-down is absorbed entirely by retained net worth (intermediation_P2_F).
+    # This, together with the P2 equation, ensures:
+    #   n_inter + div = gross_promised - writedown = gross_actual  (resource-consistent).
     gross_income_F = (1 + rn_F) * n_inter_F(-1) + cap_profit_F + firm_profit_F
     net_div_F      = f_F * gross_income_F - m_F
     div_res_F      = div_F - net_div_F
@@ -321,11 +347,28 @@ def fisher_F(i_union, pi_F):
 
 @simple
 def pricing_F(mc_F, pi_F, kappa_p_F, mu_p_F, SDF_F):
+    """Rotemberg price NKPC for country F (Task 4.1).
+
+    Discount factor is the household SDF.  Strictly, with GK banks owning firms,
+    the relevant discount factor for price decisions is the bank's stochastic
+    discount factor SDF · Omega(+1).  The household SDF is used as a
+    representative-agent approximation consistent with most HANK-NK literature.
+    This approximation is exact at SS (Omega is constant) and first-order
+    accurate around SS.
+    """
     nkpc_p_res_F = pi_F - kappa_p_F * (mc_F - 1 / mu_p_F) - SDF_F * pi_F(+1)
     return nkpc_p_res_F
 
 @simple
 def wage_setting_F(w_F, pi_w_F, pi_F, N_F, UCE_F, vphi_F, frisch_F, kappa_w_F, mu_w_F, beta_F):
+    """Rotemberg wage NKPC for country F (Task 4.1).
+
+    π_w = κ_w · (MRS − w/μ_w) + β · E[π_w(+1)].
+    vphi_F is calibrated so MRS = w/μ_w at SS → residual = 0 at SS.
+
+    Discount factor is the household SDF (beta_F), same approximation note as
+    pricing_F: exact at SS, first-order accurate off SS.
+    """
     nkpc_w_res_F = (pi_w_F
                     - kappa_w_F * (vphi_F * N_F ** (1 + 1 / frisch_F)
                                    - (1 / mu_w_F) * w_F * N_F * UCE_F)
