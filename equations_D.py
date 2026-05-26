@@ -15,24 +15,34 @@ DATA_DIR_D = BASE_DIR_D / "Discretisation" / "Outputs"
 
 # ── HOUSEHOLD ─── #############################################################################################
 
-def hh_init_D(dep_D_grid, z_D, rdep_D, eis_D):
-    coh_D = (1 + rdep_D) * dep_D_grid[np.newaxis, :] + z_D[:, np.newaxis]
-    Vdep_D = (1 + rdep_D) * coh_D ** (-1 / eis_D)
+def hh_init_D(dep_D_grid, z_D, rdep_D, eis_D, P_CES_D):
+    # coh_D and dep_D_grid are in euros; c_real = euros / P_CES_D
+    coh_D  = (1 + rdep_D) * dep_D_grid[np.newaxis, :] + z_D[:, np.newaxis]
+    c_real = coh_D / P_CES_D
+    Vdep_D = (1 + rdep_D) * c_real ** (-1 / eis_D) / P_CES_D
     return Vdep_D
 
 
 @sj.het(exogenous='Pi_D', policy='dep_D', backward='Vdep_D', backward_init=hh_init_D)
-def hh_D(Vdep_D_p, dep_D_grid, z_D, t_paid_D, rdep_D, beta_D, eis_D):
-    uc_nextgrid_D = beta_D * Vdep_D_p
-    c_nextgrid_D = uc_nextgrid_D ** (-eis_D)
-    coh_D = (1 + rdep_D) * dep_D_grid[np.newaxis, :] + z_D[:, np.newaxis]
+def hh_D(Vdep_D_p, dep_D_grid, z_D, t_paid_D, rdep_D, beta_D, eis_D, P_CES_D):
+    # All stock/flow variables (dep_D_grid, z_D, coh_D, dep_D) are in euros.
+    # Real consumption c_D = expenditure_euros / P_CES_D.
+    # Envelope: Vdep_D = (1+r) * u'(c_real) / P_CES_D  (utils per euro of deposits).
+    # FOC at endogenous grid: u'(c_real) / P_CES_D = beta * E[Vdep_D_p]
+    #   => c_real_nextgrid = (uc_nextgrid * P_CES_D)^{-eis}
+    #   => exp_nextgrid    = c_real_nextgrid * P_CES_D   (euros)
+    uc_nextgrid_D   = beta_D * Vdep_D_p
+    c_real_nextgrid = (uc_nextgrid_D * P_CES_D) ** (-eis_D)
+    exp_nextgrid_D  = c_real_nextgrid * P_CES_D
 
-    dep_D = sj.interpolate.interpolate_y(c_nextgrid_D + dep_D_grid, coh_D, dep_D_grid)
+    coh_D = (1 + rdep_D) * dep_D_grid[np.newaxis, :] + z_D[:, np.newaxis]
+    dep_D = sj.interpolate.interpolate_y(exp_nextgrid_D + dep_D_grid, coh_D, dep_D_grid)
     sj.misc.setmin(dep_D, dep_D_grid[0])
 
-    c_D = coh_D - dep_D
-    uce_D = c_D ** (-1 / eis_D)
-    Vdep_D = (1 + rdep_D) * uce_D
+    exp_D  = coh_D - dep_D
+    c_D    = exp_D / P_CES_D
+    uce_D  = c_D ** (-1 / eis_D)
+    Vdep_D = (1 + rdep_D) * uce_D / P_CES_D
 
     tax_D = t_paid_D[:, np.newaxis] + np.zeros_like(dep_D_grid[np.newaxis, :])
 
@@ -56,10 +66,10 @@ def make_grids_D(Depmax_D, nDep_D, nZ_D, rho_z_D, sigma_z_D):
     return dep_D_grid, e_grid_D, Pi_D
 
 
-def income_D(e_grid_D, w_D, N_D, div_D, tau_D, lamb_D, P_CES_D):
-    y_pre_D  = (w_D * N_D * e_grid_D + div_D) / P_CES_D   # real income in bundle units
-    z_D      = lamb_D * (y_pre_D ** (1 - tau_D))
-    t_paid_D = y_pre_D - z_D
+def income_D(e_grid_D, w_D, N_D, div_D, tau_D, lamb_D):
+    inc_D    = w_D * N_D * e_grid_D + div_D   # gross income in euros
+    z_D      = lamb_D * (inc_D ** (1 - tau_D))  # net transfer in euros
+    t_paid_D = inc_D - z_D                      # taxes in euros
     return z_D, t_paid_D
 
 
@@ -90,8 +100,11 @@ def smart_steady_D(theta_D, Y_D, n_inter_D, rdep_D, alpha_D, delta_D, f_D, N_D,
 
 @simple
 def market_clearing_D(Y_D, C_D, I_D, G_D, NX_D, DEP_D, D_supply_D, P_CES_D):
-    goods_mkt_D   = Y_D - P_CES_D * (C_D + I_D + G_D) - NX_D
-    deposit_mkt_D = P_CES_D * DEP_D - D_supply_D
+    # C_D, I_D: real (bundle units) → multiply by P_CES_D to get euros.
+    # G_D: euros (gov budget is in euros) → enters directly.
+    # DEP_D: euros; D_supply_D: euros → no P_CES_D conversion needed.
+    goods_mkt_D   = Y_D - P_CES_D * (C_D + I_D) - G_D - NX_D
+    deposit_mkt_D = DEP_D - D_supply_D
     return goods_mkt_D, deposit_mkt_D
 
 
