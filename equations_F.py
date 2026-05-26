@@ -85,7 +85,7 @@ def smart_steady_F(theta_F, Y_F, n_inter_F, rdep_F, alpha_F, delta_F, f_F, N_F,
 @simple
 def market_clearing_F(Y_F, C_F, I_F, G_F, NX_F, DEP_F, D_supply_F, P_CES_F):
     goods_mkt_F = Y_F - P_CES_F * (C_F + I_F + G_F) - NX_F
-    deposit_mkt_F = DEP_F - D_supply_F
+    deposit_mkt_F = P_CES_F * DEP_F - D_supply_F
     return goods_mkt_F, deposit_mkt_F
 
 @simple
@@ -217,24 +217,29 @@ def k_balance_sheet_F(Q_F, theta_F, n_inter_F, K_F, b_F_F, b_D_F):
     return K_res_F
 
 @simple
-def firm_profit_F(mc_F, Y_F):
-    # Monopoly profit from sticky-price markup: (1 - mc_F) * Y_F.
-    # Zero at SS (mc_F = 1), first-order off-SS. Routed to the financial
-    # intermediary (banks own goods-producing firms in this GK setup).
-    firm_profit_F = (1 - mc_F) * Y_F
+def firm_profit_F(mc_F, Y_F, kappa_p_F, pi_F):
+    # Markup profit net of Rotemberg price-adjustment cost (κ/2 · π² · Y).
+    # Zero at SS (mc=1, π=0). The cost is real output destroyed; omitting it
+    # overstates bank income and breaks Walras' Law off-SS.
+    firm_profit_F = (1 - mc_F) * Y_F - kappa_p_F / 2 * pi_F**2 * Y_F
     return firm_profit_F
 
 
 @simple
 def intermediation_P2_F(rn_F, n_inter_F, m_F, f_F, cap_profit_F, firm_profit_F,
                         b_F_F, def_rate_F, recovery_rate_F,
-                        b_D_F, def_rate_D, recovery_rate_D):
+                        b_D_F, def_rate_D, recovery_rate_D,
+                        psi_bF_F, phi_bF_F_ss, psi_bD_F, phi_bD_F_ss):
     haircut_F      = 1.0 - recovery_rate_F
     haircut_D      = 1.0 - recovery_rate_D
-    writedown_F    = def_rate_F * haircut_F * b_F_F(-1)   # domestic sovereign default
-    writedown_D    = def_rate_D * haircut_D * b_D_F(-1)   # cross-border sovereign default
+    writedown_F    = def_rate_F * haircut_F * b_F_F(-1)
+    writedown_D    = def_rate_D * haircut_D * b_D_F(-1)
+    phi_bF_F_lag   = b_F_F(-1) / n_inter_F(-1)
+    phi_bD_F_lag   = b_D_F(-1) / n_inter_F(-1)
+    pac_F          = (psi_bF_F / 2 * (phi_bF_F_lag - phi_bF_F_ss)**2
+                      + psi_bD_F / 2 * (phi_bD_F_lag - phi_bD_F_ss)**2) * n_inter_F(-1)
     gross_income_F = (1 + rn_F) * n_inter_F(-1) + cap_profit_F + firm_profit_F
-    n_inter_val_F  = (1 - f_F) * gross_income_F + m_F - writedown_F - writedown_D - n_inter_F
+    n_inter_val_F  = (1 - f_F) * gross_income_F + m_F - writedown_F - writedown_D - pac_F - n_inter_F
     return n_inter_val_F
 
 @simple

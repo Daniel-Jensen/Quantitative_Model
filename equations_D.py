@@ -91,7 +91,7 @@ def smart_steady_D(theta_D, Y_D, n_inter_D, rdep_D, alpha_D, delta_D, f_D, N_D,
 @simple
 def market_clearing_D(Y_D, C_D, I_D, G_D, NX_D, DEP_D, D_supply_D, P_CES_D):
     goods_mkt_D   = Y_D - P_CES_D * (C_D + I_D + G_D) - NX_D
-    deposit_mkt_D = DEP_D - D_supply_D
+    deposit_mkt_D = P_CES_D * DEP_D - D_supply_D
     return goods_mkt_D, deposit_mkt_D
 
 
@@ -241,21 +241,28 @@ def k_balance_sheet_D(Q_D, theta_D, n_inter_D, K_D, b_D_D, b_F_D):
 
 
 @simple
-def firm_profit_D(mc_D, Y_D):
-    firm_profit_D = (1 - mc_D) * Y_D
+def firm_profit_D(mc_D, Y_D, kappa_p_D, pi_D):
+    # Markup profit net of Rotemberg price-adjustment cost (κ/2 · π² · Y).
+    # Zero at SS (mc=1, π=0).
+    firm_profit_D = (1 - mc_D) * Y_D - kappa_p_D / 2 * pi_D**2 * Y_D
     return firm_profit_D
 
 
 @simple
 def intermediation_P2_D(rn_D, n_inter_D, m_D, f_D, cap_profit_D, firm_profit_D,
                         b_D_D, def_rate_D, recovery_rate_D,
-                        b_F_D, def_rate_F, recovery_rate_F):
+                        b_F_D, def_rate_F, recovery_rate_F,
+                        psi_bD_D, phi_bD_D_ss, psi_bF_D, phi_bF_D_ss):
     haircut_D      = 1.0 - recovery_rate_D
     haircut_F      = 1.0 - recovery_rate_F
-    writedown_D    = def_rate_D * haircut_D * b_D_D(-1)   # domestic sovereign default
-    writedown_F    = def_rate_F * haircut_F * b_F_D(-1)   # cross-border sovereign default
+    writedown_D    = def_rate_D * haircut_D * b_D_D(-1)
+    writedown_F    = def_rate_F * haircut_F * b_F_D(-1)
+    phi_bD_D_lag   = b_D_D(-1) / n_inter_D(-1)
+    phi_bF_D_lag   = b_F_D(-1) / n_inter_D(-1)
+    pac_D          = (psi_bD_D / 2 * (phi_bD_D_lag - phi_bD_D_ss)**2
+                      + psi_bF_D / 2 * (phi_bF_D_lag - phi_bF_D_ss)**2) * n_inter_D(-1)
     gross_income_D = (1 + rn_D) * n_inter_D(-1) + cap_profit_D + firm_profit_D
-    n_inter_val_D  = (1 - f_D) * gross_income_D + m_D - writedown_D - writedown_F - n_inter_D
+    n_inter_val_D  = (1 - f_D) * gross_income_D + m_D - writedown_D - writedown_F - pac_D - n_inter_D
     return n_inter_val_D
 
 
