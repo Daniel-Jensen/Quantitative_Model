@@ -89,8 +89,8 @@ def smart_steady_D(theta_D, Y_D, n_inter_D, rdep_D, alpha_D, delta_D, f_D, N_D,
     return K_D, rk_D, rn_D, m_D, k_inter_D, I_D, D_supply_D, Z_D, rdep_ante_D, cap_profit_D
 
 @simple
-def market_clearing_D(Y_D, C_D, I_D, G_D, NX_D, DEP_D, D_supply_D):
-    goods_mkt_D   = Y_D - C_D - I_D - G_D - NX_D
+def market_clearing_D(Y_D, C_D, I_D, G_D, NX_D, DEP_D, D_supply_D, P_CES_D):
+    goods_mkt_D   = Y_D - P_CES_D * (C_D + I_D + G_D) - NX_D
     deposit_mkt_D = DEP_D - D_supply_D
     return goods_mkt_D, deposit_mkt_D
 
