@@ -64,17 +64,19 @@ hh_extended_F = hh_F.add_hetinputs([make_grids_F, income_F])
 # CHECK STEADY STATE OWNING OF THE foreign bonds in DOMESTIC COUNTRY
 @simple
 def smart_steady_F(theta_F, Y_F, n_inter_F, rdep_F, alpha_F, delta_F, f_F, N_F,
-                   rb_F, rb_actual_D, b_F_F, b_D_F, Q_F):
-    # MU: bonds in common currency — no 1/p conversion of D-bond portfolio or balance sheet.
-    K_F          = theta_F * n_inter_F
+                   rb_actual_F, rb_actual_D, b_F_F, b_D_F, Q_F):
+    # Extended GK: theta_F = total leverage (QK + bonds) / n.
+    # Capital holdings follow residually: QK = theta*n - bonds.
+    K_F          = theta_F * n_inter_F - b_F_F - b_D_F
     phi_bF_F     = b_F_F / n_inter_F
     phi_bD_F     = b_D_F / n_inter_F              # no 1/p: same currency
+    kappa_F      = theta_F - phi_bF_F - phi_bD_F  # capital leverage = QK/n
     rk_F         = alpha_F * Y_F / K_F - delta_F
-    rn_F         = theta_F * (rk_F - rdep_F) + phi_bF_F * (rb_F - rdep_F) + phi_bD_F * (rb_actual_D - rdep_F) + rdep_F
+    rn_F         = kappa_F * (rk_F - rdep_F) + phi_bF_F * (rb_actual_F - rdep_F) + phi_bD_F * (rb_actual_D - rdep_F) + rdep_F
     m_F          = n_inter_F * (1 - (1 - f_F) * (1 + rn_F))
     k_inter_F    = K_F
     I_F          = K_F * delta_F
-    D_supply_F   = (theta_F - 1) * n_inter_F + b_F_F + b_D_F  # no 1/p: same currency
+    D_supply_F   = (theta_F - 1) * n_inter_F      # deposits = total assets - equity
     Z_F          = Y_F / ((K_F ** alpha_F) * (N_F ** (1 - alpha_F)))
     rdep_ante_F  = rdep_F
     cap_profit_F = Q_F * (K_F - (1 - delta_F) * K_F(-1)) - I_F
@@ -171,52 +173,47 @@ def labor_market_F(w_F, UCE_F, N_F, vphi_F, frisch_F):
 
 
 
-@simple
-def portfolio_foc_bD_F(rb_actual_D, rdep_F, b_D_F, n_inter_F, p,
-                       phi_bD_F_ss, psi_bD_F, excess_return_D_F_ss):
-    phi_bD_F            = (1 / p) * b_D_F / n_inter_F
-    rb_actual_D_in_F_p1 = (p / p(+1)) * (1 + rb_actual_D(+1)) - 1
-    foc_bD_res_F        = (rb_actual_D_in_F_p1 - rdep_F(+1)) - excess_return_D_F_ss \
-                          - psi_bD_F * (phi_bD_F - phi_bD_F_ss)
-    return foc_bD_res_F
-
 
 @simple
-def macroprudential_F(def_rate_F, lambda_gk_F, phi_macro_F):
-    # Symmetric to macroprudential_D — see comments there.
-    lambda_eff_F = lambda_gk_F + phi_macro_F * def_rate_F
-    return lambda_eff_F
-
-
-@simple
-def intermediation_IC_F(nu_F, eta_F, lambda_eff_F):
-    theta_F = eta_F / (lambda_eff_F - nu_F)
+def intermediation_IC_F(nu_F, eta_F, lambda_gk_F):
+    # GK incentive constraint: theta = eta / (lambda_gk - nu).
+    # NOTE (Task 5.1): same multi-asset caveat as intermediation_IC_D —
+    # lambda_gk_F is calibrated to make the IC hold at theta = 4, not derived
+    # from a no-arbitrage condition across all risky assets.
+    theta_F = eta_F / (lambda_gk_F - nu_F)
     return theta_F
 
+
 @simple
-def bank_return_F(theta_F, rk_F, rdep_F, b_F_F, b_D_F, n_inter_F, rb_actual_F, rb_actual_D,
-                  phi_bD_F_ss, psi_bD_F):
+def ic_residual_F(eta_F, nu_F, theta_F, lambda_gk_F):
+    ic_res_F = theta_F - eta_F / (lambda_gk_F - nu_F)
+    return ic_res_F
+
+@simple
+def bank_return_F(theta_F, rk_F, rdep_F, b_F_F, b_D_F, n_inter_F, rb_F, rb_D):
+
     phi_bF_lag_F = b_F_F(-1) / n_inter_F(-1)
     phi_bD_lag_F = b_D_F(-1) / n_inter_F(-1)
+    kappa_lag_F  = theta_F(-1) - phi_bF_lag_F - phi_bD_lag_F
 
-    rn_F = (theta_F(-1) * (rk_F - rdep_F)
-            + phi_bF_lag_F * (rb_actual_F - rdep_F)
-            + phi_bD_lag_F * (rb_actual_D - rdep_F)
+    rn_F = (kappa_lag_F  * (rk_F - rdep_F)
+            + phi_bF_lag_F * (rb_F(-1) - rdep_F)
+            + phi_bD_lag_F * (rb_D(-1) - rdep_F)
             + rdep_F)
-
-    rn_F = rn_F - (psi_bD_F / 2) * (phi_bD_lag_F - phi_bD_F_ss) ** 2
     return rn_F
 
 @simple
-def intermediation_P1_F(rk_F, rdep_F, nu_F, lambda_eff_F, eta_F, theta_F, SDF_F, f_F):
-    Omega_p1_F = f_F + (1 - f_F) * lambda_eff_F(+1) * theta_F(+1)
+def intermediation_P1_F(rk_F, rdep_F, nu_F, lambda_gk_F, eta_F, theta_F, SDF_F, f_F):
+    Omega_p1_F = f_F + (1 - f_F) * lambda_gk_F * theta_F(+1)
     nu_res_F   = nu_F  - SDF_F * Omega_p1_F * (rk_F(+1) - rdep_F(+1))
     eta_res_F  = eta_F - SDF_F * Omega_p1_F * (1 + rdep_F(+1))
     return nu_res_F, eta_res_F
 
 @simple
-def k_balance_sheet_F(Q_F, theta_F, n_inter_F, K_F):
-    K_res_F = Q_F * K_F - theta_F * n_inter_F
+def k_balance_sheet_F(Q_F, theta_F, n_inter_F, K_F, b_F_F, b_D_F):
+    # Extended GK: theta now covers ALL bank assets (capital + bonds).
+    # Q*K + b_F_F + b_D_F = theta * n_inter  ⟹  QK is residual.
+    K_res_F = Q_F * K_F + b_F_F + b_D_F - theta_F * n_inter_F
     return K_res_F
 
 @simple
@@ -229,13 +226,23 @@ def firm_profit_F(mc_F, Y_F):
 
 
 @simple
-def intermediation_P2_F(rn_F, n_inter_F, m_F, f_F, cap_profit_F, firm_profit_F):
+def intermediation_P2_F(rn_F, n_inter_F, m_F, f_F, cap_profit_F, firm_profit_F,
+                        b_F_F, def_rate_F, recovery_rate_F,
+                        b_D_F, def_rate_D, recovery_rate_D):
+    haircut_F      = 1.0 - recovery_rate_F
+    haircut_D      = 1.0 - recovery_rate_D
+    writedown_F    = def_rate_F * haircut_F * b_F_F(-1)   # domestic sovereign default
+    writedown_D    = def_rate_D * haircut_D * b_D_F(-1)   # cross-border sovereign default
     gross_income_F = (1 + rn_F) * n_inter_F(-1) + cap_profit_F + firm_profit_F
-    n_inter_val_F  = (1 - f_F) * gross_income_F + m_F - n_inter_F
+    n_inter_val_F  = (1 - f_F) * gross_income_F + m_F - writedown_F - writedown_D - n_inter_F
     return n_inter_val_F
 
 @simple
 def banker_div_res_F(rn_F, n_inter_F, div_F, m_F, f_F, cap_profit_F, firm_profit_F):
+    # Dividends are computed on PROMISED gross income (promised rb_F(-1)).
+    # The write-down is absorbed entirely by retained net worth (intermediation_P2_F).
+    # This, together with the P2 equation, ensures:
+    #   n_inter + div = gross_promised - writedown = gross_actual  (resource-consistent).
     gross_income_F = (1 + rn_F) * n_inter_F(-1) + cap_profit_F + firm_profit_F
     net_div_F      = f_F * gross_income_F - m_F
     div_res_F      = div_F - net_div_F
@@ -243,7 +250,6 @@ def banker_div_res_F(rn_F, n_inter_F, div_F, m_F, f_F, cap_profit_F, firm_profit
 
 @simple
 def intermediation_P3_F(Q_F, K_F, n_inter_F, b_F_F, b_D_F):
-    # MU: b_D_F already in common currency — no 1/p conversion.
     D_supply_F = Q_F * K_F + b_F_F + b_D_F - n_inter_F
     return D_supply_F
 
@@ -257,19 +263,21 @@ def interest_rates_F(def_rate_F, recovery_rate_F, SDF_F):
 
 @simple
 def domestic_bond_foc_F(rb_actual_F, rdep_F, b_F_F, n_inter_F,
-                         phi_bF_F_ss, psi_bF_F, excess_return_bF_F_ss):
-    # GK-consistent bond pricing for F-country: rb_F adjusts until F-banks
-    # willingly hold b_F_F (residual after D-banks take b_F_D).
-    # At SS: phi_bF_F = phi_bF_F_ss → rb_F_res = 0 by construction.
+                         phi_bF_F_ss, psi_bF_F, excess_return_bF_F_ss, mp_wedge_F):
     phi_bF_F = b_F_F / n_inter_F
     rb_F_res = (rb_actual_F(+1) - rdep_F(+1)) - excess_return_bF_F_ss \
-               - psi_bF_F * (phi_bF_F - phi_bF_F_ss)
+               - psi_bF_F * (phi_bF_F - phi_bF_F_ss) \
+               - mp_wedge_F
     return rb_F_res
 
 
 @simple
-def government_default_F(shock_def_F):
-    def_rate_F = shock_def_F
+def government_default_F(shock_def_F, b_gov_F, Y_F, b_gov_ss_F, Y_ss_F,
+                          def_scale_F, def_curvature_F, def_offset_F):
+    debt_gap_F = b_gov_F(-1) / Y_F(-1) - b_gov_ss_F / Y_ss_F
+    endog_F    = ((debt_gap_F + def_offset_F) ** def_curvature_F
+                  - def_offset_F ** def_curvature_F)
+    def_rate_F = shock_def_F + def_scale_F * endog_F
     return def_rate_F
 
 @simple
@@ -278,19 +286,19 @@ def tax_rule_F(b_gov_F, lamb_ss_F, b_gov_ss_F, phi_lamb_F):
     return lamb_F
 
 
-
 @simple
 def capital_producer_profit_F(Q_F, K_F, I_F, delta_F):
     cap_profit_F = Q_F * (K_F - (1 - delta_F) * K_F(-1)) - I_F
     return cap_profit_F
 
 @simple
-def budget_residual_F(b_gov_F, G_F, TAX_F, rb_F):
-    # Government services debt at the PROMISED yield rb_F (interest rate channel).
-    # Rising default risk → rb_F rises (risk premium) → higher debt service
-    # → b_gov_F rises → lamb_F falls → fiscal tightening → contraction.
-    # Banks take losses separately via rb_actual_F in bond_return_F.
-    effective_repayment_F = (1 + rb_F(-1)) * b_gov_F(-1)
+def budget_residual_F(b_gov_F, G_F, TAX_F, rb_F, def_rate_F, recovery_rate_F, zeta_writeoff_F):
+    haircut_F             = 1.0 - recovery_rate_F
+    rb_actual_F_implied   = (1 - def_rate_F * haircut_F) * (1 + rb_F(-1)) - 1
+    effective_repayment_F = (
+        zeta_writeoff_F         * (1 + rb_actual_F_implied) * b_gov_F(-1)
+        + (1 - zeta_writeoff_F) * (1 + rb_F(-1))            * b_gov_F(-1)
+    )
     b_gov_res_F           = effective_repayment_F + G_F - TAX_F - b_gov_F
     return b_gov_res_F
 
@@ -305,6 +313,7 @@ def fisher_F(i_union, pi_F):
 
 @simple
 def pricing_F(mc_F, pi_F, kappa_p_F, mu_p_F, SDF_F):
+
     nkpc_p_res_F = pi_F - kappa_p_F * (mc_F - 1 / mu_p_F) - SDF_F * pi_F(+1)
     return nkpc_p_res_F
 
