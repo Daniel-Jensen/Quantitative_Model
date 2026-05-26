@@ -14,29 +14,23 @@ DATA_DIR_F = BASE_DIR_F / "Discretisation" / "Outputs"
 
 # ── Household ─────────────────────────────────────────────────────────────────
 
-def hh_init_F(dep_F_grid, z_F, rdep_F, eis_F, P_CES_F):
-    coh_F  = (1 + rdep_F) * dep_F_grid[np.newaxis, :] + z_F[:, np.newaxis]
-    c_real = coh_F / P_CES_F
-    Vdep_F = (1 + rdep_F) * c_real ** (-1 / eis_F) / P_CES_F
+def hh_init_F(dep_F_grid, z_F, rdep_F, eis_F):
+    coh_F = (1 + rdep_F) * dep_F_grid[np.newaxis, :] + z_F[:, np.newaxis]
+    Vdep_F = (1 + rdep_F) * coh_F ** (-1 / eis_F)
     return Vdep_F
 
 @sj.het(exogenous='Pi_F', policy='dep_F', backward='Vdep_F', backward_init=hh_init_F)
-def hh_F(Vdep_F_p, dep_F_grid, z_F, t_paid_F, rdep_F, beta_F, eis_F, P_CES_F):
-    # dep_F_grid, z_F, coh_F, dep_F in euros.
-    # c_F = real consumption = expenditure_euros / P_CES_F.
-    # Vdep_F = (1+r) * u'(c_real) / P_CES_F.
-    uc_nextgrid_F   = beta_F * Vdep_F_p
-    c_real_nextgrid = (uc_nextgrid_F * P_CES_F) ** (-eis_F)
-    exp_nextgrid_F  = c_real_nextgrid * P_CES_F
-
+def hh_F(Vdep_F_p, dep_F_grid, z_F, t_paid_F, rdep_F, beta_F, eis_F):
+    uc_nextgrid_F = beta_F * Vdep_F_p
+    c_nextgrid_F = uc_nextgrid_F ** (-eis_F)
     coh_F = (1 + rdep_F) * dep_F_grid[np.newaxis, :] + z_F[:, np.newaxis]
-    dep_F = sj.interpolate.interpolate_y(exp_nextgrid_F + dep_F_grid, coh_F, dep_F_grid)
+
+    dep_F = sj.interpolate.interpolate_y(c_nextgrid_F + dep_F_grid, coh_F, dep_F_grid)
     sj.misc.setmin(dep_F, dep_F_grid[0])
 
-    exp_F  = coh_F - dep_F
-    c_F    = exp_F / P_CES_F
-    uce_F  = c_F ** (-1 / eis_F)
-    Vdep_F = (1 + rdep_F) * uce_F / P_CES_F
+    c_F = coh_F - dep_F
+    uce_F = c_F ** (-1 / eis_F)
+    Vdep_F = (1 + rdep_F) * uce_F
 
     tax_F = t_paid_F[:, np.newaxis] + np.zeros_like(dep_F_grid[np.newaxis, :])
 
@@ -58,10 +52,10 @@ def make_grids_F(Depmax_F, nDep_F, nZ_F, rho_z_F, sigma_z_F):
 
     return dep_F_grid, e_grid_F, Pi_F
 
-def income_F(e_grid_F, w_F, N_F, div_F, tau_F, lamb_F):
-    inc_F    = w_F * N_F * e_grid_F + div_F   # gross income in euros
-    z_F      = lamb_F * (inc_F ** (1 - tau_F))  # net transfer in euros
-    t_paid_F = inc_F - z_F                      # taxes in euros
+def income_F(e_grid_F, w_F, N_F, div_F, tau_F, lamb_F, P_CES_F):
+    y_pre_F  = (w_F * N_F * e_grid_F + div_F) / P_CES_F   # real income in bundle units
+    z_F      = lamb_F * (y_pre_F ** (1 - tau_F))
+    t_paid_F = y_pre_F - z_F
     return z_F, t_paid_F
 
 hh_extended_F = hh_F.add_hetinputs([make_grids_F, income_F])
@@ -90,11 +84,8 @@ def smart_steady_F(theta_F, Y_F, n_inter_F, rdep_F, alpha_F, delta_F, f_F, N_F,
 
 @simple
 def market_clearing_F(Y_F, C_F, I_F, G_F, NX_F, DEP_F, D_supply_F, P_CES_F):
-    # C_F, I_F: real (bundle units) → multiply by P_CES_F to get euros.
-    # G_F: euros (gov budget is in euros) → enters directly.
-    # DEP_F: euros; D_supply_F: euros → no P_CES_F conversion needed.
-    goods_mkt_F   = Y_F - P_CES_F * (C_F + I_F) - G_F - NX_F
-    deposit_mkt_F = DEP_F - D_supply_F
+    goods_mkt_F = Y_F - P_CES_F * (C_F + I_F + G_F) - NX_F
+    deposit_mkt_F = P_CES_F * DEP_F - D_supply_F
     return goods_mkt_F, deposit_mkt_F
 
 @simple
