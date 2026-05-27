@@ -79,7 +79,7 @@ def smart_steady_D(theta_D, Y_D, n_inter_D, rdep_D, alpha_D, delta_D, f_D, N_D,
     kappa_D      = theta_D - phi_bD_D - phi_bF_D      # capital leverage = QK/n
     rk_D         = alpha_D * Y_D / K_D - delta_D
     rn_D         = kappa_D * (rk_D - rdep_D) + phi_bD_D * (rb_actual_D - rdep_D) + phi_bF_D * (rb_actual_F - rdep_D) + rdep_D
-    m_D          = n_inter_D * (1 - (1 - f_D) * (1 + rn_D))
+    m_D          = n_inter_D * (1 - f_D * (1 + rn_D))
     k_inter_D    = K_D
     I_D          = K_D * delta_D
     D_supply_D   = (theta_D - 1) * n_inter_D          # deposits = total assets - equity
@@ -109,11 +109,11 @@ def import_demand_D(C_D, I_D, G_D, omega, epsilon_trade, p, P_CES_D):
 
 
 @simple
-def steady_auxilliary_D(theta_D, rk_D, rdep_D, delta_D, alpha_D, Y_D, K_D, N_D, lambda_gk_D, beta_D, ksi_D, rn_D):
+def steady_auxilliary_D(theta_D, rk_D, rdep_D, delta_D, alpha_D, Y_D, K_D, N_D, lambda_gk_D, beta_D, ksi_D, f_D):
     iota_D   = delta_D
     mpk_D    = alpha_D * (Y_D / K_D)
     w_D      = (1 - alpha_D) * Y_D / N_D
-    Omega_D  = theta_D * lambda_gk_D / (beta_D * (1 + rn_D))
+    Omega_D  = (1 - f_D) + f_D * lambda_gk_D * theta_D
     nu_D     = beta_D * Omega_D * (rk_D - rdep_D)
     eta_D    = beta_D * Omega_D * (1 + rdep_D)
     gamma0_D = delta_D ** ksi_D / (1 - ksi_D)
@@ -228,7 +228,7 @@ def bank_return_D(theta_D, rk_D, rdep_D, b_D_D, b_F_D, n_inter_D, rb_D, rb_F):
 
 @simple
 def intermediation_P1_D(rk_D, rdep_D, nu_D, lambda_gk_D, eta_D, theta_D, SDF_D, f_D):
-    Omega_p1_D = f_D + (1 - f_D) * lambda_gk_D * theta_D(+1)
+    Omega_p1_D = (1 - f_D) + f_D * lambda_gk_D * theta_D(+1)
     nu_res_D   = nu_D  - SDF_D * Omega_p1_D * (rk_D(+1) - rdep_D(+1))
     eta_res_D  = eta_D - SDF_D * Omega_p1_D * (1 + rdep_D(+1))
     return nu_res_D, eta_res_D
@@ -255,14 +255,14 @@ def intermediation_P2_D(rn_D, n_inter_D, m_D, f_D, cap_profit_D, firm_profit_D,
     writedown_D    = def_rate_D * haircut_D * b_D_D(-1)   # domestic sovereign default
     writedown_F    = def_rate_F * haircut_F * b_F_D(-1)   # cross-border sovereign default
     gross_income_D = (1 + rn_D) * n_inter_D(-1) + cap_profit_D + firm_profit_D
-    n_inter_val_D  = (1 - f_D) * gross_income_D + m_D - writedown_D - writedown_F - n_inter_D
+    n_inter_val_D  = f_D * gross_income_D + m_D - writedown_D - writedown_F - n_inter_D
     return n_inter_val_D
 
 
 @simple
 def banker_div_res_D(rn_D, n_inter_D, div_D, m_D, f_D, cap_profit_D, firm_profit_D):
     gross_income_D = (1 + rn_D) * n_inter_D(-1) + cap_profit_D + firm_profit_D
-    net_div_D      = f_D * gross_income_D - m_D
+    net_div_D      = (1 - f_D) * gross_income_D - m_D
     div_res_D      = div_D - net_div_D
     return div_res_D
 
