@@ -30,32 +30,33 @@ def domestic_bond_clearing(b_gov_D, b_gov_F, b_D_F, b_F_D):
 
 
 @simple
-def bond_price(rb_D, rb_F):
-    # Market price of a one-period bond with promised yield rb_c.
-    # Bonds are issued at face value 1; q_b = PV of face value at the market yield.
-    # Used to value bond positions at market prices in intermediary balance sheets.
-    q_b_D = 1.0 / (1.0 + rb_D)
-    q_b_F = 1.0 / (1.0 + rb_F)
-    return q_b_D, q_b_F
+def bond_yield(q_b_D, q_b_F):
+    # Implied yields from bond prices — for interpretation only.
+    # q_b is the primary model variable; rb is derived here and NOT used elsewhere.
+    rb_D = 1.0 / q_b_D - 1.0
+    rb_F = 1.0 / q_b_F - 1.0
+    return rb_D, rb_F
 
 
 @simple
 def portfolio_adj_cost(rb_actual_F, rb_actual_D, rdep_D, rdep_F,
                        b_F_D, b_D_F, n_inter_D, n_inter_F,
+                       q_b_F, q_b_D,
                        phi_bF_D_ss, phi_bD_F_ss, psi_bF_D, psi_bD_F,
                        excess_return_F_D_ss, excess_return_D_F_ss,
                        tau_mp_D, tau_mp_F):
     # Cross-border bond Euler equations (portfolio-adjustment-cost approach).
-    # tau_mp_D is the per-unit macroprudential tax D-banks pay on bond holdings;
-    # it enters the D-banks' FOC for F-bonds and raises the required excess return.
-    # tau_mp_F enters F-banks' FOC for D-bonds symmetrically.
+    # phi shares use market values (q_b * face_value / net_worth) for consistency
+    # with the market-value balance sheet in k_balance_sheet_D/F.
+    # psi pins the equilibrium quantity (slope of demand curve).
+    # tau_mp / T0 shifts the required excess return (calibrates the price spread).
 
-    phi_bF_D  = b_F_D / n_inter_D
+    phi_bF_D  = q_b_F * b_F_D / n_inter_D
     b_F_D_res = (rb_actual_F(+1) - rdep_D(+1)) - excess_return_F_D_ss \
                 - psi_bF_D * (phi_bF_D - phi_bF_D_ss) \
                 - tau_mp_D
 
-    phi_bD_F  = b_D_F / n_inter_F
+    phi_bD_F  = q_b_D * b_D_F / n_inter_F
     b_D_F_res = (rb_actual_D(+1) - rdep_F(+1)) - excess_return_D_F_ss \
                 - psi_bD_F * (phi_bD_F - phi_bD_F_ss) \
                 - tau_mp_F

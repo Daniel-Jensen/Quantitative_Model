@@ -72,15 +72,11 @@ hh_extended_D = hh_D.add_hetinputs([make_grids_D, income_D])
 def smart_steady_D(theta_D, Y_D, n_inter_D, rdep_D, alpha_D, delta_D, f_D, N_D,
                    rb_actual_D, rb_actual_F, b_D_D, b_F_D, Q_D, q_b_D, q_b_F,
                    chi0_D, chi1_D, chi2_D, T0_D, T1_D, def_rate_D):
-    # Extended GK: balance sheet uses MARKET VALUE of bond positions.
-    # K_D is residual: Q*K = theta*n - q_b_D*b_D_D - q_b_F*b_F_D.
     K_D          = (theta_D * n_inter_D - q_b_D * b_D_D - q_b_F * b_F_D) / Q_D
     phi_bD_D     = q_b_D * b_D_D / n_inter_D   # market-value share of D-bonds
     phi_bF_D     = q_b_F * b_F_D / n_inter_D   # market-value share of F-bonds
     kappa_D      = theta_D - phi_bD_D - phi_bF_D
     rk_D         = alpha_D * Y_D / K_D - delta_D
-    # Auclert (2019) intermediary capital adj cost at SS:
-    # K_t = K_{t-1} = K_D → deviation from passive = K_D - (1+rk_D)*K_D = -rk_D*K_D
     arg_D        = -rk_D * K_D / (K_D + chi0_D)
     Phi_D        = (chi1_D / chi2_D) * (arg_D ** 2) ** (chi2_D / 2) * (K_D + chi0_D)
     # Macroprudential bond tax at SS
@@ -166,24 +162,19 @@ def sdf_D(beta_D, C_D, eis_D):
 
 
 @simple
-def government_ss_D(TAX_D, rb_D, b_gov_D):
-    # Use promised yield rb_D — consistent with budget_residual_D (interest rate channel).
-    G_D = TAX_D - rb_D * b_gov_D
+def government_ss_D(TAX_D, q_b_D, b_gov_D):
+    # At SS: gov raises q_b_D per face-value unit issued; interest cost = (1−q_b_D)·b_gov.
+    G_D = TAX_D - (1.0 - q_b_D) * b_gov_D
     return G_D
 
 
 @simple
 def labor_ss_D(w_D, N_D, UCE_D, frisch_D, mu_w_D):
-    # Calibrate vphi_D so wage NKPC residual = 0 at SS:
-    # vphi_D * N^(1/φ) = (1/μ_w) * w * UCE   → with μ_w=1 this is the frictionless MRS.
     vphi_D = (1 / mu_w_D) * w_D * UCE_D / (N_D ** (1 / frisch_D))
     return vphi_D
 
 @simple
 def bond_return_D(def_rate_D, recovery_rate_D, q_b_D):
-    # Realized holding-period return on a one-period bond:
-    #   pay q_b_D(-1) at t-1, receive face value 1 at t (haircut on default).
-    # At SS with def=0:  rb_actual = 1/q_b_D − 1 = rb_D (since q_b_D = 1/(1+rb_D)).
     haircut_D   = 1.0 - recovery_rate_D
     rb_actual_D = (1 - def_rate_D * haircut_D) / q_b_D(-1) - 1
     return rb_actual_D
@@ -225,19 +216,12 @@ def labor_market_D(w_D, UCE_D, N_D, vphi_D, frisch_D):
 @simple
 def intermediation_IC_D(nu_K_D, nu_bD_D, nu_bF_D, eta_D,
                         Q_D, K_D, q_b_D, q_b_F, b_D_D, b_F_D, n_inter_D,
-                        lambda_gk_D, theta_D, rho_theta_D):
-    # Multi-asset GK IC with partial adjustment on θ.
-    # Frictionless target (binding IC): θ_target = (ν·shares + η) / λ_gk.
-    # Actual leverage closes the gap slowly:
-    #     θ_t = ρ_θ · θ_{t-1} + (1 − ρ_θ) · θ_target_t
-    # Reduced-form precautionary motive — under crisis, banks rebuild leverage
-    # gradually rather than instantly jumping to the new IC.  ρ_θ = 0 recovers
-    # the standard instantaneous-binding case.  SS is unchanged for any ρ_θ.
+                        lambda_gk_D, theta_D):
     kappa_D     = Q_D   * K_D   / n_inter_D
     phi_bD_D    = q_b_D * b_D_D / n_inter_D
     phi_bF_D    = q_b_F * b_F_D / n_inter_D
     theta_tgt_D = (nu_K_D * kappa_D + nu_bD_D * phi_bD_D + nu_bF_D * phi_bF_D + eta_D) / lambda_gk_D
-    ic_res_D    = theta_D - rho_theta_D * theta_D(-1) - (1 - rho_theta_D) * theta_tgt_D
+    ic_res_D    = theta_D - theta_tgt_D
     return ic_res_D
 
 
@@ -331,11 +315,12 @@ def intermediation_P3_D(Q_D, K_D, n_inter_D, b_D_D, b_F_D, q_b_D, q_b_F):
 
 
 @simple
-def interest_rates_D(def_rate_D, recovery_rate_D, SDF_D):
-    # Used in SS model only. In ha_full, rb_D is an unknown pinned by domestic_bond_foc_D.
-    haircut_D = 1 - def_rate_D(+1) * (1.0 - recovery_rate_D)
-    rb_D      = 1 / (SDF_D * haircut_D) - 1
-    return rb_D
+def bond_price_ss_D(SDF_D, def_rate_D, recovery_rate_D):
+    # No-arbitrage SS bond price: pay q_b_D today, receive (1−default·haircut) at maturity.
+    # In ha_full q_b_D is an unknown pinned by domestic_bond_foc_D; this block is SS-only.
+    haircut_D = 1.0 - recovery_rate_D
+    q_b_D     = SDF_D * (1.0 - def_rate_D(+1) * haircut_D)
+    return q_b_D
 
 
 @simple
@@ -367,13 +352,12 @@ def tax_rule_D(b_gov_D, lamb_ss_D, b_gov_ss_D, phi_lamb_D):
 
 
 @simple
-def budget_residual_D(b_gov_D, G_D, TAX_D, rb_D, def_rate_D, recovery_rate_D, zeta_writeoff_D):
+def budget_residual_D(b_gov_D, G_D, TAX_D, q_b_D, def_rate_D, recovery_rate_D, zeta_writeoff_D):
+    # Budget: q_b_D·b_gov_D + TAX_D = G_D + repayment_of_old_bonds
+    # b_gov_D is FACE VALUE; gov raises q_b_D per unit issued.
+    # Repayment: zeta=1 → write off default losses; zeta=0 → pay full face value.
     haircut_D             = 1.0 - recovery_rate_D
-    rb_actual_D_implied   = (1 - def_rate_D * haircut_D) * (1 + rb_D(-1)) - 1
-    effective_repayment_D = (
-        zeta_writeoff_D         * (1 + rb_actual_D_implied) * b_gov_D(-1)
-        + (1 - zeta_writeoff_D) * (1 + rb_D(-1))            * b_gov_D(-1)
-    )
-    b_gov_res_D           = effective_repayment_D + G_D - TAX_D - b_gov_D
+    effective_repayment_D = (1.0 - zeta_writeoff_D * def_rate_D * haircut_D) * b_gov_D(-1)
+    b_gov_res_D           = effective_repayment_D + G_D - TAX_D - q_b_D * b_gov_D
     return b_gov_res_D
 
