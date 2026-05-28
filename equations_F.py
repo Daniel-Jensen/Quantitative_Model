@@ -144,9 +144,8 @@ def sdf_F(beta_F, C_F, eis_F):
     return SDF_F
 
 @simple
-def government_ss_F(TAX_F, rb_F, b_gov_F):
-    # Use promised yield rb_F — consistent with budget_residual_F (interest rate channel).
-    G_F = TAX_F - rb_F * b_gov_F
+def government_ss_F(TAX_F, q_b_F, b_gov_F):
+    G_F = TAX_F - (1.0 - q_b_F) * b_gov_F
     return G_F
 
 @simple
@@ -190,13 +189,12 @@ def labor_market_F(w_F, UCE_F, N_F, vphi_F, frisch_F):
 @simple
 def intermediation_IC_F(nu_K_F, nu_bF_F, nu_bD_F, eta_F,
                         Q_F, K_F, q_b_F, q_b_D, b_F_F, b_D_F, n_inter_F,
-                        lambda_gk_F, theta_F, rho_theta_F):
-    # See intermediation_IC_D for derivation.
+                        lambda_gk_F, theta_F):
     kappa_F     = Q_F   * K_F   / n_inter_F
     phi_bF_F    = q_b_F * b_F_F / n_inter_F
     phi_bD_F    = q_b_D * b_D_F / n_inter_F
     theta_tgt_F = (nu_K_F * kappa_F + nu_bF_F * phi_bF_F + nu_bD_F * phi_bD_F + eta_F) / lambda_gk_F
-    ic_res_F    = theta_F - rho_theta_F * theta_F(-1) - (1 - rho_theta_F) * theta_tgt_F
+    ic_res_F    = theta_F - theta_tgt_F
     return ic_res_F
 
 @simple
@@ -279,11 +277,10 @@ def intermediation_P3_F(Q_F, K_F, n_inter_F, b_F_F, b_D_F, q_b_F, q_b_D):
     return D_supply_F
 
 @simple
-def interest_rates_F(def_rate_F, recovery_rate_F, SDF_F):
-    # Used in SS model only. In ha_full, rb_F is an unknown pinned by domestic_bond_foc_F.
-    haircut_F = 1 - def_rate_F(+1) * (1.0 - recovery_rate_F)
-    rb_F      = 1 / (SDF_F * haircut_F) - 1
-    return rb_F
+def bond_price_ss_F(SDF_F, def_rate_F, recovery_rate_F):
+    haircut_F = 1.0 - recovery_rate_F
+    q_b_F     = SDF_F * (1.0 - def_rate_F(+1) * haircut_F)
+    return q_b_F
 
 
 @simple
@@ -317,14 +314,10 @@ def capital_producer_profit_F(Q_F, K_F, I_F, delta_F):
     return cap_profit_F
 
 @simple
-def budget_residual_F(b_gov_F, G_F, TAX_F, rb_F, def_rate_F, recovery_rate_F, zeta_writeoff_F):
+def budget_residual_F(b_gov_F, G_F, TAX_F, q_b_F, def_rate_F, recovery_rate_F, zeta_writeoff_F):
     haircut_F             = 1.0 - recovery_rate_F
-    rb_actual_F_implied   = (1 - def_rate_F * haircut_F) * (1 + rb_F(-1)) - 1
-    effective_repayment_F = (
-        zeta_writeoff_F         * (1 + rb_actual_F_implied) * b_gov_F(-1)
-        + (1 - zeta_writeoff_F) * (1 + rb_F(-1))            * b_gov_F(-1)
-    )
-    b_gov_res_F           = effective_repayment_F + G_F - TAX_F - b_gov_F
+    effective_repayment_F = (1.0 - zeta_writeoff_F * def_rate_F * haircut_F) * b_gov_F(-1)
+    b_gov_res_F           = effective_repayment_F + G_F - TAX_F - q_b_F * b_gov_F
     return b_gov_res_F
 
 
