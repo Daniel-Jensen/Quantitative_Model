@@ -30,13 +30,20 @@ def domestic_bond_clearing(b_gov_D, b_gov_F, b_D_F, b_F_D):
 
 
 @simple
-def bond_price(rb_D, rb_F):
-    # Market price of a one-period bond with promised yield rb_c.
-    # Bonds are issued at face value 1; q_b = PV of face value at the market yield.
-    # Used to value bond positions at market prices in intermediary balance sheets.
-    q_b_D = 1.0 / (1.0 + rb_D)
-    q_b_F = 1.0 / (1.0 + rb_F)
-    return q_b_D, q_b_F
+def bond_price(SDF_D, SDF_F, def_rate_D, def_rate_F, recovery_rate_D, recovery_rate_F):
+    # Forward-looking asset pricing: bond is a one-period claim to face value 1,
+    # reduced by haircut · default rate next period:
+    #     q_b_t = E_t[SDF · (1 − haircut · def_rate(+1))]
+    # Yield (promised) is then implied by the price:  1 + rb = 1 / q_b.
+    # This inverts the prior convention (q_b derived from rb) so that q_b is the
+    # primitive equilibrium asset price and rb is the YTM that drops out of it.
+    haircut_D = 1.0 - recovery_rate_D
+    haircut_F = 1.0 - recovery_rate_F
+    q_b_D = SDF_D * (1 - haircut_D * def_rate_D(+1))
+    q_b_F = SDF_F * (1 - haircut_F * def_rate_F(+1))
+    rb_D  = 1.0 / q_b_D - 1.0
+    rb_F  = 1.0 / q_b_F - 1.0
+    return q_b_D, q_b_F, rb_D, rb_F
 
 
 @simple
