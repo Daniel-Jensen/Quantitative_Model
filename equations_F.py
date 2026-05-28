@@ -64,28 +64,34 @@ hh_extended_F = hh_F.add_hetinputs([make_grids_F, income_F])
 # CHECK STEADY STATE OWNING OF THE foreign bonds in DOMESTIC COUNTRY
 @simple
 def smart_steady_F(theta_F, Y_F, n_inter_F, rdep_F, alpha_F, delta_F, f_F, N_F,
-                   rb_actual_F, rb_actual_D, b_F_F, b_D_F, Q_F):
-    # Extended GK: theta_F = total leverage (QK + bonds) / n.
-    # Capital holdings follow residually: QK = theta*n - bonds.
-    K_F          = theta_F * n_inter_F - b_F_F - b_D_F
-    phi_bF_F     = b_F_F / n_inter_F
-    phi_bD_F     = b_D_F / n_inter_F              # no 1/p: same currency
-    kappa_F      = theta_F - phi_bF_F - phi_bD_F  # capital leverage = QK/n
+                   rb_actual_F, rb_actual_D, b_F_F, b_D_F, Q_F, q_b_F, q_b_D,
+                   chi0_F, chi1_F, chi2_F, T0_F, T1_F, def_rate_F):
+    K_F          = (theta_F * n_inter_F - q_b_F * b_F_F - q_b_D * b_D_F) / Q_F
+    phi_bF_F     = q_b_F * b_F_F / n_inter_F
+    phi_bD_F     = q_b_D * b_D_F / n_inter_F
+    kappa_F      = theta_F - phi_bF_F - phi_bD_F
     rk_F         = alpha_F * Y_F / K_F - delta_F
-    rn_F         = kappa_F * (rk_F - rdep_F) + phi_bF_F * (rb_actual_F - rdep_F) + phi_bD_F * (rb_actual_D - rdep_F) + rdep_F
-    m_F          = n_inter_F * (1 - f_F * (1 + rn_F))
+    arg_F        = -rk_F * K_F / (K_F + chi0_F)
+    Phi_F        = (chi1_F / chi2_F) * (arg_F ** 2) ** (chi2_F / 2) * (K_F + chi0_F)
+    T_F          = (T0_F + T1_F * def_rate_F) * (b_F_F + b_D_F)
+    # rn = PURE portfolio return.  See smart_steady_D.
+    rn_F         = (kappa_F * (rk_F - rdep_F)
+                    + phi_bF_F * (rb_actual_F - rdep_F)
+                    + phi_bD_F * (rb_actual_D - rdep_F)
+                    + rdep_F)
+    m_F          = n_inter_F * (1 - (1 - f_F) * (1 + rn_F)) + Phi_F + T_F
     k_inter_F    = K_F
     I_F          = K_F * delta_F
-    D_supply_F   = (theta_F - 1) * n_inter_F      # deposits = total assets - equity
+    D_supply_F   = (theta_F - 1) * n_inter_F
     Z_F          = Y_F / ((K_F ** alpha_F) * (N_F ** (1 - alpha_F)))
     rdep_ante_F  = rdep_F
     cap_profit_F = Q_F * (K_F - (1 - delta_F) * K_F(-1)) - I_F
-    return K_F, rk_F, rn_F, m_F, k_inter_F, I_F, D_supply_F, Z_F, rdep_ante_F, cap_profit_F
+    return K_F, rk_F, rn_F, m_F, k_inter_F, I_F, D_supply_F, Z_F, rdep_ante_F, cap_profit_F, Phi_F, T_F
 
 @simple
-def market_clearing_F(Y_F, C_F, I_F, G_F, NX_F, DEP_F, D_supply_F):
-    goods_mkt_F   = Y_F - C_F - I_F - G_F - NX_F
-    deposit_mkt_F = DEP_F - D_supply_F
+def market_clearing_F(Y_F, C_F, I_F, G_F, NX_F, DEP_F, D_supply_F, P_CES_F):
+    goods_mkt_F = Y_F - P_CES_F * (C_F + I_F + G_F) - NX_F
+    deposit_mkt_F = P_CES_F * DEP_F - D_supply_F
     return goods_mkt_F, deposit_mkt_F
 
 @simple
@@ -104,16 +110,22 @@ def import_demand_F(C_F, I_F, G_F, omega, epsilon_trade, p, P_CES_F):
     return A_F, IM_F
 
 @simple
-def steady_auxilliary_F(theta_F, rk_F, rdep_F, delta_F, alpha_F, Y_F, K_F, N_F, lambda_gk_F, beta_F, ksi_F, f_F):
-    iota_F   = delta_F
-    mpk_F    = alpha_F * (Y_F / K_F)
-    w_F      = (1 - alpha_F) * Y_F / N_F
-    Omega_F  = (1 - f_F) + f_F * lambda_gk_F * theta_F
-    nu_F     = beta_F * Omega_F * (rk_F - rdep_F)
-    eta_F    = beta_F * Omega_F * (1 + rdep_F)
-    gamma0_F = delta_F ** ksi_F / (1 - ksi_F)
-    gamma1_F = -delta_F * ksi_F / (1 - ksi_F)
-    return iota_F, mpk_F, w_F, Omega_F, nu_F, eta_F, gamma0_F, gamma1_F
+def steady_auxilliary_F(theta_F, rk_F, rdep_F, delta_F, alpha_F, Y_F, K_F, N_F,
+                        beta_F, ksi_F, rn_F, f_F,
+                        rb_actual_F, rb_actual_D):
+    # See steady_auxilliary_D for derivation.
+    iota_F       = delta_F
+    mpk_F        = alpha_F * (Y_F / K_F)
+    w_F          = (1 - alpha_F) * Y_F / N_F
+    lambda_gk_F  = f_F / (theta_F * (1 / (beta_F * (1 + rn_F)) - (1 - f_F)))
+    Omega_F      = f_F + (1 - f_F) * lambda_gk_F * theta_F
+    nu_K_F       = beta_F * Omega_F * (rk_F        - rdep_F)
+    nu_bF_F      = beta_F * Omega_F * (rb_actual_F - rdep_F)
+    nu_bD_F      = beta_F * Omega_F * (rb_actual_D - rdep_F)
+    eta_F        = beta_F * Omega_F * (1 + rdep_F)
+    gamma0_F     = delta_F ** ksi_F / (1 - ksi_F)
+    gamma1_F     = -delta_F * ksi_F / (1 - ksi_F)
+    return iota_F, mpk_F, w_F, Omega_F, lambda_gk_F, nu_K_F, nu_bF_F, nu_bD_F, eta_F, gamma0_F, gamma1_F
 
 @simple
 def banker_div_F(rn_F, n_inter_F):
@@ -143,9 +155,10 @@ def labor_ss_F(w_F, N_F, UCE_F, frisch_F, mu_w_F):
     return vphi_F
 
 @simple
-def bond_return_F(rb_F, def_rate_F, recovery_rate_F):
+def bond_return_F(def_rate_F, recovery_rate_F, q_b_F):
+    # See bond_return_D.
     haircut_F   = 1.0 - recovery_rate_F
-    rb_actual_F = (1 - def_rate_F * haircut_F) * (1 + rb_F(-1)) - 1
+    rb_actual_F = (1 - def_rate_F * haircut_F) / q_b_F(-1) - 1
     return rb_actual_F
 
 # ── Off-steady-state blocks ───────────────────────────────────────────────────
@@ -175,66 +188,78 @@ def labor_market_F(w_F, UCE_F, N_F, vphi_F, frisch_F):
 
 
 @simple
-def intermediation_IC_F(nu_F, eta_F, lambda_gk_F):
-    # GK incentive constraint: theta = eta / (lambda_gk - nu).
-    # NOTE (Task 5.1): same multi-asset caveat as intermediation_IC_D —
-    # lambda_gk_F is calibrated to make the IC hold at theta = 4, not derived
-    # from a no-arbitrage condition across all risky assets.
-    theta_F = eta_F / (lambda_gk_F - nu_F)
-    return theta_F
-
-
-@simple
-def ic_residual_F(eta_F, nu_F, theta_F, lambda_gk_F):
-    ic_res_F = theta_F - eta_F / (lambda_gk_F - nu_F)
+def intermediation_IC_F(nu_K_F, nu_bF_F, nu_bD_F, eta_F,
+                        Q_F, K_F, q_b_F, q_b_D, b_F_F, b_D_F, n_inter_F,
+                        lambda_gk_F, theta_F, rho_theta_F):
+    # See intermediation_IC_D for derivation.
+    kappa_F     = Q_F   * K_F   / n_inter_F
+    phi_bF_F    = q_b_F * b_F_F / n_inter_F
+    phi_bD_F    = q_b_D * b_D_F / n_inter_F
+    theta_tgt_F = (nu_K_F * kappa_F + nu_bF_F * phi_bF_F + nu_bD_F * phi_bD_F + eta_F) / lambda_gk_F
+    ic_res_F    = theta_F - rho_theta_F * theta_F(-1) - (1 - rho_theta_F) * theta_tgt_F
     return ic_res_F
 
 @simple
-def bank_return_F(theta_F, rk_F, rdep_F, b_F_F, b_D_F, n_inter_F, rb_F, rb_D):
-
-    phi_bF_lag_F = b_F_F(-1) / n_inter_F(-1)
-    phi_bD_lag_F = b_D_F(-1) / n_inter_F(-1)
+def bank_return_F(theta_F, rk_F, rdep_F, b_F_F, b_D_F, n_inter_F,
+                  rb_actual_F, rb_actual_D, q_b_F, q_b_D):
+    phi_bF_lag_F = q_b_F(-1) * b_F_F(-1) / n_inter_F(-1)
+    phi_bD_lag_F = q_b_D(-1) * b_D_F(-1) / n_inter_F(-1)
     kappa_lag_F  = theta_F(-1) - phi_bF_lag_F - phi_bD_lag_F
-
     rn_F = (kappa_lag_F  * (rk_F - rdep_F)
-            + phi_bF_lag_F * (rb_F(-1) - rdep_F)
-            + phi_bD_lag_F * (rb_D(-1) - rdep_F)
+            + phi_bF_lag_F * (rb_actual_F - rdep_F)
+            + phi_bD_lag_F * (rb_actual_D - rdep_F)
             + rdep_F)
     return rn_F
 
 @simple
-def intermediation_P1_F(rk_F, rdep_F, nu_F, lambda_gk_F, eta_F, theta_F, SDF_F, f_F):
-    Omega_p1_F = (1 - f_F) + f_F * lambda_gk_F * theta_F(+1)
-    nu_res_F   = nu_F  - SDF_F * Omega_p1_F * (rk_F(+1) - rdep_F(+1))
-    eta_res_F  = eta_F - SDF_F * Omega_p1_F * (1 + rdep_F(+1))
-    return nu_res_F, eta_res_F
+def intermediation_P1_F(rk_F, rb_actual_F, rb_actual_D, rdep_F,
+                        nu_K_F, nu_bF_F, nu_bD_F, eta_F,
+                        lambda_gk_F, theta_F, SDF_F, f_F):
+    Omega_p1_F    = f_F + (1 - f_F) * lambda_gk_F * theta_F(+1)
+    nu_K_res_F    = nu_K_F  - SDF_F * Omega_p1_F * (rk_F(+1)        - rdep_F(+1))
+    nu_bF_res_F   = nu_bF_F - SDF_F * Omega_p1_F * (rb_actual_F(+1) - rdep_F(+1))
+    nu_bD_res_F   = nu_bD_F - SDF_F * Omega_p1_F * (rb_actual_D(+1) - rdep_F(+1))
+    eta_res_F     = eta_F   - SDF_F * Omega_p1_F * (1 + rdep_F(+1))
+    return nu_K_res_F, nu_bF_res_F, nu_bD_res_F, eta_res_F
 
 @simple
-def k_balance_sheet_F(Q_F, theta_F, n_inter_F, K_F, b_F_F, b_D_F):
-    # Extended GK: theta now covers ALL bank assets (capital + bonds).
-    # Q*K + b_F_F + b_D_F = theta * n_inter  ⟹  QK is residual.
-    K_res_F = Q_F * K_F + b_F_F + b_D_F - theta_F * n_inter_F
+def k_balance_sheet_F(Q_F, theta_F, n_inter_F, K_F, b_F_F, b_D_F, q_b_F, q_b_D):
+    K_res_F = Q_F * K_F + q_b_F * b_F_F + q_b_D * b_D_F - theta_F * n_inter_F
     return K_res_F
 
 @simple
 def firm_profit_F(mc_F, Y_F):
-    # Monopoly profit from sticky-price markup: (1 - mc_F) * Y_F.
-    # Zero at SS (mc_F = 1), first-order off-SS. Routed to the financial
-    # intermediary (banks own goods-producing firms in this GK setup).
     firm_profit_F = (1 - mc_F) * Y_F
     return firm_profit_F
 
 
 @simple
+def cap_adj_cost_inter_F(K_F, rk_F, chi0_F, chi1_F, chi2_F):
+    arg_F = (K_F - (1.0 + rk_F) * K_F(-1)) / (K_F(-1) + chi0_F)
+    Phi_F = (chi1_F / chi2_F) * (arg_F ** 2) ** (chi2_F / 2) * (K_F(-1) + chi0_F)
+    return Phi_F
+
+
+@simple
+def macro_pru_tax_F(b_F_F, b_D_F, def_rate_F, T0_F, T1_F):
+    # Tax base = total bond holdings (F-bonds + D-bonds held by F-bank).
+    tau_mp_F = T0_F + T1_F * def_rate_F
+    T_F      = tau_mp_F * (b_F_F + b_D_F)
+    return tau_mp_F, T_F
+
+
+@simple
 def intermediation_P2_F(rn_F, n_inter_F, m_F, f_F, cap_profit_F, firm_profit_F,
                         b_F_F, def_rate_F, recovery_rate_F,
-                        b_D_F, def_rate_D, recovery_rate_D):
+                        b_D_F, def_rate_D, recovery_rate_D,
+                        Phi_F, T_F):
     haircut_F      = 1.0 - recovery_rate_F
     haircut_D      = 1.0 - recovery_rate_D
-    writedown_F    = def_rate_F * haircut_F * b_F_F(-1)   # domestic sovereign default
-    writedown_D    = def_rate_D * haircut_D * b_D_F(-1)   # cross-border sovereign default
+    writedown_F    = def_rate_F * haircut_F * b_F_F(-1)
+    writedown_D    = def_rate_D * haircut_D * b_D_F(-1)
     gross_income_F = (1 + rn_F) * n_inter_F(-1) + cap_profit_F + firm_profit_F
-    n_inter_val_F  = f_F * gross_income_F + m_F - writedown_F - writedown_D - n_inter_F
+    n_inter_val_F  = ((1 - f_F) * gross_income_F + m_F
+                      - writedown_F - writedown_D - Phi_F - T_F - n_inter_F)
     return n_inter_val_F
 
 @simple
@@ -244,13 +269,13 @@ def banker_div_res_F(rn_F, n_inter_F, div_F, m_F, f_F, cap_profit_F, firm_profit
     # This, together with the P2 equation, ensures:
     #   n_inter + div = gross_promised - writedown = gross_actual  (resource-consistent).
     gross_income_F = (1 + rn_F) * n_inter_F(-1) + cap_profit_F + firm_profit_F
-    net_div_F      = (1 - f_F) * gross_income_F - m_F
+    net_div_F      = f_F * gross_income_F - m_F
     div_res_F      = div_F - net_div_F
     return div_res_F
 
 @simple
-def intermediation_P3_F(Q_F, K_F, n_inter_F, b_F_F, b_D_F):
-    D_supply_F = Q_F * K_F + b_F_F + b_D_F - n_inter_F
+def intermediation_P3_F(Q_F, K_F, n_inter_F, b_F_F, b_D_F, q_b_F, q_b_D):
+    D_supply_F = Q_F * K_F + q_b_F * b_F_F + q_b_D * b_D_F - n_inter_F
     return D_supply_F
 
 @simple
@@ -262,12 +287,12 @@ def interest_rates_F(def_rate_F, recovery_rate_F, SDF_F):
 
 
 @simple
-def domestic_bond_foc_F(rb_actual_F, rdep_F, b_F_F, n_inter_F,
-                         phi_bF_F_ss, psi_bF_F, excess_return_bF_F_ss, mp_wedge_F):
-    phi_bF_F = b_F_F / n_inter_F
+def domestic_bond_foc_F(rb_actual_F, rdep_F, b_F_F, n_inter_F, q_b_F,
+                         phi_bF_F_ss, psi_bF_F, excess_return_bF_F_ss, tau_mp_F):
+    phi_bF_F = q_b_F * b_F_F / n_inter_F
     rb_F_res = (rb_actual_F(+1) - rdep_F(+1)) - excess_return_bF_F_ss \
                - psi_bF_F * (phi_bF_F - phi_bF_F_ss) \
-               - mp_wedge_F
+               - tau_mp_F
     return rb_F_res
 
 
@@ -301,29 +326,5 @@ def budget_residual_F(b_gov_F, G_F, TAX_F, rb_F, def_rate_F, recovery_rate_F, ze
     )
     b_gov_res_F           = effective_repayment_F + G_F - TAX_F - b_gov_F
     return b_gov_res_F
-
-
-# ── NK frictions ─────────────────────────────────────────────────────────────
-
-@simple
-def fisher_F(i_union, pi_F):
-    rdep_ante_F = i_union - pi_F(+1)
-    rdep_F      = i_union(-1) - pi_F
-    return rdep_ante_F, rdep_F
-
-@simple
-def pricing_F(mc_F, pi_F, kappa_p_F, mu_p_F, SDF_F):
-
-    nkpc_p_res_F = pi_F - kappa_p_F * (mc_F - 1 / mu_p_F) - SDF_F * pi_F(+1)
-    return nkpc_p_res_F
-
-@simple
-def wage_setting_F(w_F, pi_w_F, pi_F, N_F, UCE_F, vphi_F, frisch_F, kappa_w_F, mu_w_F, beta_F):
-    nkpc_w_res_F = (pi_w_F
-                    - kappa_w_F * (vphi_F * N_F ** (1 + 1 / frisch_F)
-                                   - (1 / mu_w_F) * w_F * N_F * UCE_F)
-                    - beta_F * pi_w_F(+1))
-    w_res_F = w_F - w_F(-1) * (1 + pi_w_F) / (1 + pi_F)
-    return nkpc_w_res_F, w_res_F
 
 
