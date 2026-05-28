@@ -110,16 +110,20 @@ def import_demand_F(C_F, I_F, G_F, omega, epsilon_trade, p, P_CES_F):
     return A_F, IM_F
 
 @simple
-def steady_auxilliary_F(theta_F, rk_F, rdep_F, delta_F, alpha_F, Y_F, K_F, N_F, lambda_gk_F, beta_F, ksi_F, rn_F):
-    iota_F   = delta_F
-    mpk_F    = alpha_F * (Y_F / K_F)
-    w_F      = (1 - alpha_F) * Y_F / N_F
-    Omega_F  = theta_F * lambda_gk_F / (beta_F * (1 + rn_F))
-    nu_F     = beta_F * Omega_F * (rk_F - rdep_F)
-    eta_F    = beta_F * Omega_F * (1 + rdep_F)
-    gamma0_F = delta_F ** ksi_F / (1 - ksi_F)
-    gamma1_F = -delta_F * ksi_F / (1 - ksi_F)
-    return iota_F, mpk_F, w_F, Omega_F, nu_F, eta_F, gamma0_F, gamma1_F
+def steady_auxilliary_F(theta_F, rk_F, rdep_F, delta_F, alpha_F, Y_F, K_F, N_F,
+                        lambda_gk_F, beta_F, ksi_F, rn_F,
+                        rb_actual_F, rb_actual_D):
+    iota_F    = delta_F
+    mpk_F     = alpha_F * (Y_F / K_F)
+    w_F       = (1 - alpha_F) * Y_F / N_F
+    Omega_F   = theta_F * lambda_gk_F / (beta_F * (1 + rn_F))
+    nu_K_F    = beta_F * Omega_F * (rk_F        - rdep_F)
+    nu_bF_F   = beta_F * Omega_F * (rb_actual_F - rdep_F)
+    nu_bD_F   = beta_F * Omega_F * (rb_actual_D - rdep_F)
+    eta_F     = beta_F * Omega_F * (1 + rdep_F)
+    gamma0_F  = delta_F ** ksi_F / (1 - ksi_F)
+    gamma1_F  = -delta_F * ksi_F / (1 - ksi_F)
+    return iota_F, mpk_F, w_F, Omega_F, nu_K_F, nu_bF_F, nu_bD_F, eta_F, gamma0_F, gamma1_F
 
 @simple
 def banker_div_F(rn_F, n_inter_F):
@@ -149,9 +153,10 @@ def labor_ss_F(w_F, N_F, UCE_F, frisch_F, mu_w_F):
     return vphi_F
 
 @simple
-def bond_return_F(rb_F, def_rate_F, recovery_rate_F):
+def bond_return_F(def_rate_F, recovery_rate_F, q_b_F):
+    # See bond_return_D.
     haircut_F   = 1.0 - recovery_rate_F
-    rb_actual_F = (1 - def_rate_F * haircut_F) * (1 + rb_F(-1)) - 1
+    rb_actual_F = (1 - def_rate_F * haircut_F) / q_b_F(-1) - 1
     return rb_actual_F
 
 # ── Off-steady-state blocks ───────────────────────────────────────────────────
@@ -181,18 +186,16 @@ def labor_market_F(w_F, UCE_F, N_F, vphi_F, frisch_F):
 
 
 @simple
-def intermediation_IC_F(nu_F, eta_F, lambda_gk_F):
-    # GK incentive constraint: theta = eta / (lambda_gk - nu).
-    # NOTE (Task 5.1): same multi-asset caveat as intermediation_IC_D —
-    # lambda_gk_F is calibrated to make the IC hold at theta = 4, not derived
-    # from a no-arbitrage condition across all risky assets.
-    theta_F = eta_F / (lambda_gk_F - nu_F)
-    return theta_F
-
-
-@simple
-def ic_residual_F(eta_F, nu_F, theta_F, lambda_gk_F):
-    ic_res_F = theta_F - eta_F / (lambda_gk_F - nu_F)
+def intermediation_IC_F(nu_K_F, nu_bF_F, nu_bD_F, eta_F,
+                        Q_F, K_F, q_b_F, q_b_D, b_F_F, b_D_F, n_inter_F,
+                        lambda_gk_F, Delta_K_F, Delta_bF_F, Delta_bD_F, theta_F):
+    # See intermediation_IC_D for derivation.
+    kappa_F     = Q_F   * K_F     / n_inter_F
+    phi_bF_F    = q_b_F * b_F_F   / n_inter_F
+    phi_bD_F    = q_b_D * b_D_F   / n_inter_F
+    LHS_F       = nu_K_F * kappa_F + nu_bF_F * phi_bF_F + nu_bD_F * phi_bD_F + eta_F
+    RHS_F       = lambda_gk_F * (Delta_K_F * kappa_F + Delta_bF_F * phi_bF_F + Delta_bD_F * phi_bD_F)
+    ic_res_F    = LHS_F - RHS_F
     return ic_res_F
 
 @simple
@@ -208,11 +211,15 @@ def bank_return_F(theta_F, rk_F, rdep_F, b_F_F, b_D_F, n_inter_F,
     return rn_F
 
 @simple
-def intermediation_P1_F(rk_F, rdep_F, nu_F, lambda_gk_F, eta_F, theta_F, SDF_F, f_F):
-    Omega_p1_F = f_F + (1 - f_F) * lambda_gk_F * theta_F(+1)
-    nu_res_F   = nu_F  - SDF_F * Omega_p1_F * (rk_F(+1) - rdep_F(+1))
-    eta_res_F  = eta_F - SDF_F * Omega_p1_F * (1 + rdep_F(+1))
-    return nu_res_F, eta_res_F
+def intermediation_P1_F(rk_F, rb_actual_F, rb_actual_D, rdep_F,
+                        nu_K_F, nu_bF_F, nu_bD_F, eta_F,
+                        lambda_gk_F, theta_F, SDF_F, f_F):
+    Omega_p1_F    = f_F + (1 - f_F) * lambda_gk_F * theta_F(+1)
+    nu_K_res_F    = nu_K_F  - SDF_F * Omega_p1_F * (rk_F(+1)        - rdep_F(+1))
+    nu_bF_res_F   = nu_bF_F - SDF_F * Omega_p1_F * (rb_actual_F(+1) - rdep_F(+1))
+    nu_bD_res_F   = nu_bD_F - SDF_F * Omega_p1_F * (rb_actual_D(+1) - rdep_F(+1))
+    eta_res_F     = eta_F   - SDF_F * Omega_p1_F * (1 + rdep_F(+1))
+    return nu_K_res_F, nu_bF_res_F, nu_bD_res_F, eta_res_F
 
 @simple
 def k_balance_sheet_F(Q_F, theta_F, n_inter_F, K_F, b_F_F, b_D_F, q_b_F, q_b_D):
@@ -233,9 +240,10 @@ def cap_adj_cost_inter_F(K_F, rk_F, chi0_F, chi1_F, chi2_F):
 
 
 @simple
-def macro_pru_tax_F(b_D_F, def_rate_F, T0_F, T1_F):
+def macro_pru_tax_F(b_F_F, b_D_F, def_rate_F, T0_F, T1_F):
+    # Tax base = total bond holdings (F-bonds + D-bonds held by F-bank).
     tau_mp_F = T0_F + T1_F * def_rate_F
-    T_F      = tau_mp_F * (b_D_F)
+    T_F      = tau_mp_F * (b_F_F + b_D_F)
     return tau_mp_F, T_F
 
 

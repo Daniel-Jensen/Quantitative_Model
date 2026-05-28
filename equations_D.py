@@ -120,16 +120,21 @@ def import_demand_D(C_D, I_D, G_D, omega, epsilon_trade, p, P_CES_D):
 
 
 @simple
-def steady_auxilliary_D(theta_D, rk_D, rdep_D, delta_D, alpha_D, Y_D, K_D, N_D, lambda_gk_D, beta_D, ksi_D, rn_D):
-    iota_D   = delta_D
-    mpk_D    = alpha_D * (Y_D / K_D)
-    w_D      = (1 - alpha_D) * Y_D / N_D
-    Omega_D  = theta_D * lambda_gk_D / (beta_D * (1 + rn_D))
-    nu_D     = beta_D * Omega_D * (rk_D - rdep_D)
-    eta_D    = beta_D * Omega_D * (1 + rdep_D)
-    gamma0_D = delta_D ** ksi_D / (1 - ksi_D)
-    gamma1_D = -delta_D * ksi_D / (1 - ksi_D)
-    return iota_D, mpk_D, w_D, Omega_D, nu_D, eta_D, gamma0_D, gamma1_D
+def steady_auxilliary_D(theta_D, rk_D, rdep_D, delta_D, alpha_D, Y_D, K_D, N_D,
+                        lambda_gk_D, beta_D, ksi_D, rn_D,
+                        rb_actual_D, rb_actual_F):
+    # Multi-asset GK: separate Bellman ν for each risky asset.
+    iota_D    = delta_D
+    mpk_D     = alpha_D * (Y_D / K_D)
+    w_D       = (1 - alpha_D) * Y_D / N_D
+    Omega_D   = theta_D * lambda_gk_D / (beta_D * (1 + rn_D))
+    nu_K_D    = beta_D * Omega_D * (rk_D        - rdep_D)
+    nu_bD_D   = beta_D * Omega_D * (rb_actual_D - rdep_D)
+    nu_bF_D   = beta_D * Omega_D * (rb_actual_F - rdep_D)
+    eta_D     = beta_D * Omega_D * (1 + rdep_D)
+    gamma0_D  = delta_D ** ksi_D / (1 - ksi_D)
+    gamma1_D  = -delta_D * ksi_D / (1 - ksi_D)
+    return iota_D, mpk_D, w_D, Omega_D, nu_K_D, nu_bD_D, nu_bF_D, eta_D, gamma0_D, gamma1_D
 
 
 @simple
@@ -164,9 +169,12 @@ def labor_ss_D(w_D, N_D, UCE_D, frisch_D, mu_w_D):
     return vphi_D
 
 @simple
-def bond_return_D(rb_D, def_rate_D, recovery_rate_D):
+def bond_return_D(def_rate_D, recovery_rate_D, q_b_D):
+    # Realized holding-period return on a one-period bond:
+    #   pay q_b_D(-1) at t-1, receive face value 1 at t (haircut on default).
+    # At SS with def=0:  rb_actual = 1/q_b_D − 1 = rb_D (since q_b_D = 1/(1+rb_D)).
     haircut_D   = 1.0 - recovery_rate_D
-    rb_actual_D = (1 - def_rate_D * haircut_D) * (1 + rb_D(-1)) - 1
+    rb_actual_D = (1 - def_rate_D * haircut_D) / q_b_D(-1) - 1
     return rb_actual_D
 
 
@@ -204,22 +212,21 @@ def labor_market_D(w_D, UCE_D, N_D, vphi_D, frisch_D):
 
 
 @simple
-def intermediation_IC_D(nu_D, eta_D, lambda_gk_D):
-    # GK incentive constraint: theta = eta / (lambda_gk - nu).
-    # NOTE (Task 5.1): With capital AND bonds in the bank's portfolio, the single
-    # IC cannot simultaneously equalise excess returns on all assets.  The model
-    # is "GK on capital with reduced-form bond demand" — see portfolio_adj_cost.
-    # The SS excess return on capital (~170 bp/qtr) differs from that on D-bonds
-    # (~16 bp) and F-bonds (~69 bp); lambda_gk is calibrated to make the IC
-    # hold exactly at theta = 4, so this is a calibration choice, not a GK
-    # no-arbitrage outcome.
-    theta_D = eta_D / (lambda_gk_D - nu_D)
-    return theta_D
-
-
-@simple
-def ic_residual_D(eta_D, nu_D, theta_D, lambda_gk_D):
-    ic_res_D = theta_D - eta_D / (lambda_gk_D - nu_D)
+def intermediation_IC_D(nu_K_D, nu_bD_D, nu_bF_D, eta_D,
+                        Q_D, K_D, q_b_D, q_b_F, b_D_D, b_F_D, n_inter_D,
+                        lambda_gk_D, Delta_K_D, Delta_bD_D, Delta_bF_D, theta_D):
+    # Multi-asset GK incentive constraint with asset-specific diversion rates.
+    # Banker can divert Δ_i · asset_i; depositors will lend only if continuation
+    # value covers what could be diverted:
+    #     ν_K·κ + ν_bD·φ_bD + ν_bF·φ_bF + η  ≥  λ·(Δ_K·κ + Δ_bD·φ_bD + Δ_bF·φ_bF)
+    # Δ's are calibrated post-SS to match observed SS spreads (rk-r > rb-r ⟹
+    # capital is harder to abscond with → higher Δ_K → higher required return).
+    kappa_D     = Q_D   * K_D     / n_inter_D
+    phi_bD_D    = q_b_D * b_D_D   / n_inter_D
+    phi_bF_D    = q_b_F * b_F_D   / n_inter_D
+    LHS_D       = nu_K_D * kappa_D + nu_bD_D * phi_bD_D + nu_bF_D * phi_bF_D + eta_D
+    RHS_D       = lambda_gk_D * (Delta_K_D * kappa_D + Delta_bD_D * phi_bD_D + Delta_bF_D * phi_bF_D)
+    ic_res_D    = LHS_D - RHS_D
     return ic_res_D
 
 
@@ -238,11 +245,19 @@ def bank_return_D(theta_D, rk_D, rdep_D, b_D_D, b_F_D, n_inter_D,
 
 
 @simple
-def intermediation_P1_D(rk_D, rdep_D, nu_D, lambda_gk_D, eta_D, theta_D, SDF_D, f_D):
-    Omega_p1_D = f_D + (1 - f_D) * lambda_gk_D * theta_D(+1)
-    nu_res_D   = nu_D  - SDF_D * Omega_p1_D * (rk_D(+1) - rdep_D(+1))
-    eta_res_D  = eta_D - SDF_D * Omega_p1_D * (1 + rdep_D(+1))
-    return nu_res_D, eta_res_D
+def intermediation_P1_D(rk_D, rb_actual_D, rb_actual_F, rdep_D,
+                        nu_K_D, nu_bD_D, nu_bF_D, eta_D,
+                        lambda_gk_D, theta_D, SDF_D, f_D):
+    # Bellman: marginal franchise value of each asset.  Ω is the augmented SDF
+    # weighting (continuation value of leverage).  Three ν's let default risk
+    # bite ν_bD without contaminating ν_K — sovereign shocks tighten the IC
+    # directly, not just via writedown.
+    Omega_p1_D    = f_D + (1 - f_D) * lambda_gk_D * theta_D(+1)
+    nu_K_res_D    = nu_K_D  - SDF_D * Omega_p1_D * (rk_D(+1)        - rdep_D(+1))
+    nu_bD_res_D   = nu_bD_D - SDF_D * Omega_p1_D * (rb_actual_D(+1) - rdep_D(+1))
+    nu_bF_res_D   = nu_bF_D - SDF_D * Omega_p1_D * (rb_actual_F(+1) - rdep_D(+1))
+    eta_res_D     = eta_D   - SDF_D * Omega_p1_D * (1 + rdep_D(+1))
+    return nu_K_res_D, nu_bD_res_D, nu_bF_res_D, eta_res_D
 
 
 @simple
@@ -267,10 +282,11 @@ def cap_adj_cost_inter_D(K_D, rk_D, chi0_D, chi1_D, chi2_D):
 
 
 @simple
-def macro_pru_tax_D(b_D_D, def_rate_D, T0_D, T1_D):
-    # Macroprudential bond tax: T = (T0 + T1*ProbDefault) * total_bonds. CHECK
+def macro_pru_tax_D(b_D_D, b_F_D, def_rate_D, T0_D, T1_D):
+    # Macroprudential bond tax: T = (T0 + T1·ProbDefault) · total bond holdings
+    # (both D-bonds and F-bonds held by the D-bank).  Matches smart_steady_D.
     tau_mp_D = T0_D + T1_D * def_rate_D
-    T_D      = tau_mp_D * (b_D_D)
+    T_D      = tau_mp_D * (b_D_D + b_F_D)
     return tau_mp_D, T_D
 
 
