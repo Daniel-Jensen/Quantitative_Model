@@ -70,19 +70,30 @@ hh_extended_D = hh_D.add_hetinputs([make_grids_D, income_D])
 
 @simple
 def smart_steady_D(theta_D, Y_D, n_inter_D, rdep_D, alpha_D, delta_D, f_D, N_D,
-                   rb_actual_D, rb_actual_F, b_D_D, b_F_D, Q_D):
-    # Extended GK: theta_D = total leverage (QK + bonds) / n.
-    # Capital holdings follow residually: QK = theta*n - bonds.
-    K_D          = theta_D * n_inter_D - b_D_D - b_F_D
-    phi_bD_D     = b_D_D / n_inter_D
-    phi_bF_D     = b_F_D / n_inter_D
-    kappa_D      = theta_D - phi_bD_D - phi_bF_D      # capital leverage = QK/n
+                   rb_actual_D, rb_actual_F, b_D_D, b_F_D, Q_D, q_b_D, q_b_F,
+                   chi0_D, chi1_D, chi2_D, T0_D, T1_D, def_rate_D):
+    # Extended GK: balance sheet uses MARKET VALUE of bond positions.
+    # K_D is residual: Q*K = theta*n - q_b_D*b_D_D - q_b_F*b_F_D.
+    K_D          = (theta_D * n_inter_D - q_b_D * b_D_D - q_b_F * b_F_D) / Q_D
+    phi_bD_D     = q_b_D * b_D_D / n_inter_D   # market-value share of D-bonds
+    phi_bF_D     = q_b_F * b_F_D / n_inter_D   # market-value share of F-bonds
+    kappa_D      = theta_D - phi_bD_D - phi_bF_D
     rk_D         = alpha_D * Y_D / K_D - delta_D
-    rn_D         = kappa_D * (rk_D - rdep_D) + phi_bD_D * (rb_actual_D - rdep_D) + phi_bF_D * (rb_actual_F - rdep_D) + rdep_D
+    # Auclert (2019) intermediary capital adj cost at SS:
+    # K_t = K_{t-1} = K_D → deviation from passive = K_D - (1+rk_D)*K_D = -rk_D*K_D
+    arg_D        = -rk_D * K_D / (K_D + chi0_D)
+    Phi_D        = (chi1_D / chi2_D) * (arg_D ** 2) ** (chi2_D / 2) * (K_D + chi0_D)
+    # Macroprudential bond tax at SS
+    T_D          = (T0_D + T1_D * def_rate_D) * (b_D_D + b_F_D)
+    rn_D         = (kappa_D * (rk_D - rdep_D)
+                    + phi_bD_D * (rb_actual_D - rdep_D)
+                    + phi_bF_D * (rb_actual_F - rdep_D)
+                    + rdep_D
+                    - (Phi_D + T_D) / n_inter_D)
     m_D          = n_inter_D * (1 - (1 - f_D) * (1 + rn_D))
     k_inter_D    = K_D
     I_D          = K_D * delta_D
-    D_supply_D   = (theta_D - 1) * n_inter_D          # deposits = total assets - equity
+    D_supply_D   = (theta_D - 1) * n_inter_D
     Z_D          = Y_D / ((K_D ** alpha_D) * (N_D ** (1 - alpha_D)))
     rdep_ante_D  = rdep_D
     cap_profit_D = Q_D * (K_D - (1 - delta_D) * K_D(-1)) - I_D
@@ -213,15 +224,15 @@ def ic_residual_D(eta_D, nu_D, theta_D, lambda_gk_D):
 
 
 @simple
-def bank_return_D(theta_D, rk_D, rdep_D, b_D_D, b_F_D, n_inter_D, rb_D, rb_F):
-    phi_bD_lag_D = b_D_D(-1) / n_inter_D(-1)
-    phi_bF_lag_D = b_F_D(-1) / n_inter_D(-1)
-    # theta_D(-1) is total leverage (QK+bonds)/n; subtract bond shares to get capital leverage.
+def bank_return_D(theta_D, rk_D, rdep_D, b_D_D, b_F_D, n_inter_D,
+                  rb_actual_D, rb_actual_F, q_b_D, q_b_F):
+    # Portfolio shares use MARKET VALUE of bond positions at t-1.
+    phi_bD_lag_D = q_b_D(-1) * b_D_D(-1) / n_inter_D(-1)
+    phi_bF_lag_D = q_b_F(-1) * b_F_D(-1) / n_inter_D(-1)
     kappa_lag_D  = theta_D(-1) - phi_bD_lag_D - phi_bF_lag_D
-
     rn_D = (kappa_lag_D  * (rk_D - rdep_D)
-            + phi_bD_lag_D * (rb_D(-1) - rdep_D)
-            + phi_bF_lag_D * (rb_F(-1) - rdep_D)
+            + phi_bD_lag_D * (rb_actual_D - rdep_D)
+            + phi_bF_lag_D * (rb_actual_F - rdep_D)
             + rdep_D)
     return rn_D
 
@@ -235,8 +246,9 @@ def intermediation_P1_D(rk_D, rdep_D, nu_D, lambda_gk_D, eta_D, theta_D, SDF_D, 
 
 
 @simple
-def k_balance_sheet_D(Q_D, theta_D, n_inter_D, K_D, b_D_D, b_F_D):
-    K_res_D = Q_D * K_D + b_D_D + b_F_D - theta_D * n_inter_D
+def k_balance_sheet_D(Q_D, theta_D, n_inter_D, K_D, b_D_D, b_F_D, q_b_D, q_b_F):
+    # Balance sheet at MARKET VALUES: Q*K + q_b_D*b_D_D + q_b_F*b_F_D = theta*n.
+    K_res_D = Q_D * K_D + q_b_D * b_D_D + q_b_F * b_F_D - theta_D * n_inter_D
     return K_res_D
 
 
@@ -247,15 +259,33 @@ def firm_profit_D(mc_D, Y_D):
 
 
 @simple
+def cap_adj_cost_inter_D(K_D, rk_D, chi0_D, chi1_D, chi2_D):
+    # Auclert (2019) intermediary capital adjustment cost.
+    arg_D = (K_D - (1.0 + rk_D) * K_D(-1)) / (K_D(-1) + chi0_D)
+    Phi_D = (chi1_D / chi2_D) * (arg_D ** 2) ** (chi2_D / 2) * (K_D(-1) + chi0_D)
+    return Phi_D
+
+
+@simple
+def macro_pru_tax_D(b_D_D, def_rate_D, T0_D, T1_D):
+    # Macroprudential bond tax: T = (T0 + T1*ProbDefault) * total_bonds. CHECK
+    tau_mp_D = T0_D + T1_D * def_rate_D
+    T_D      = tau_mp_D * (b_D_D)
+    return tau_mp_D, T_D
+
+
+@simple
 def intermediation_P2_D(rn_D, n_inter_D, m_D, f_D, cap_profit_D, firm_profit_D,
                         b_D_D, def_rate_D, recovery_rate_D,
-                        b_F_D, def_rate_F, recovery_rate_F):
+                        b_F_D, def_rate_F, recovery_rate_F,
+                        Phi_D, T_D):
     haircut_D      = 1.0 - recovery_rate_D
     haircut_F      = 1.0 - recovery_rate_F
-    writedown_D    = def_rate_D * haircut_D * b_D_D(-1)   # domestic sovereign default
-    writedown_F    = def_rate_F * haircut_F * b_F_D(-1)   # cross-border sovereign default
+    writedown_D    = def_rate_D * haircut_D * b_D_D(-1)
+    writedown_F    = def_rate_F * haircut_F * b_F_D(-1)
     gross_income_D = (1 + rn_D) * n_inter_D(-1) + cap_profit_D + firm_profit_D
-    n_inter_val_D  = (1 - f_D) * gross_income_D + m_D - writedown_D - writedown_F - n_inter_D
+    n_inter_val_D  = ((1 - f_D) * gross_income_D + m_D
+                      - writedown_D - writedown_F - Phi_D - T_D - n_inter_D)
     return n_inter_val_D
 
 
@@ -268,8 +298,8 @@ def banker_div_res_D(rn_D, n_inter_D, div_D, m_D, f_D, cap_profit_D, firm_profit
 
 
 @simple
-def intermediation_P3_D(Q_D, K_D, n_inter_D, b_D_D, b_F_D):
-    D_supply_D = Q_D * K_D + b_D_D + b_F_D - n_inter_D
+def intermediation_P3_D(Q_D, K_D, n_inter_D, b_D_D, b_F_D, q_b_D, q_b_F):
+    D_supply_D = Q_D * K_D + q_b_D * b_D_D + q_b_F * b_F_D - n_inter_D
     return D_supply_D
 
 
@@ -282,12 +312,13 @@ def interest_rates_D(def_rate_D, recovery_rate_D, SDF_D):
 
 
 @simple
-def domestic_bond_foc_D(rb_actual_D, rdep_D, b_D_D, n_inter_D,
-                         phi_bD_D_ss, psi_bD_D, excess_return_bD_D_ss, mp_wedge_D):
-    phi_bD_D = b_D_D / n_inter_D
+def domestic_bond_foc_D(rb_actual_D, rdep_D, b_D_D, n_inter_D, q_b_D,
+                         phi_bD_D_ss, psi_bD_D, excess_return_bD_D_ss, tau_mp_D):
+    # Portfolio share at market value; tau_mp_D is the marginal macroprudential tax.
+    phi_bD_D = q_b_D * b_D_D / n_inter_D
     rb_D_res = (rb_actual_D(+1) - rdep_D(+1)) - excess_return_bD_D_ss \
                - psi_bD_D * (phi_bD_D - phi_bD_D_ss) \
-               - mp_wedge_D
+               - tau_mp_D
     return rb_D_res
 
 
