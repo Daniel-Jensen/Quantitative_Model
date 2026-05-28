@@ -74,19 +74,19 @@ def smart_steady_F(theta_F, Y_F, n_inter_F, rdep_F, alpha_F, delta_F, f_F, N_F,
     arg_F        = -rk_F * K_F / (K_F + chi0_F)
     Phi_F        = (chi1_F / chi2_F) * (arg_F ** 2) ** (chi2_F / 2) * (K_F + chi0_F)
     T_F          = (T0_F + T1_F * def_rate_F) * (b_F_F + b_D_F)
+    # rn = PURE portfolio return.  See smart_steady_D.
     rn_F         = (kappa_F * (rk_F - rdep_F)
                     + phi_bF_F * (rb_actual_F - rdep_F)
                     + phi_bD_F * (rb_actual_D - rdep_F)
-                    + rdep_F
-                    - (Phi_F + T_F) / n_inter_F)
-    m_F          = n_inter_F * (1 - (1 - f_F) * (1 + rn_F))
+                    + rdep_F)
+    m_F          = n_inter_F * (1 - (1 - f_F) * (1 + rn_F)) + Phi_F + T_F
     k_inter_F    = K_F
     I_F          = K_F * delta_F
     D_supply_F   = (theta_F - 1) * n_inter_F
     Z_F          = Y_F / ((K_F ** alpha_F) * (N_F ** (1 - alpha_F)))
     rdep_ante_F  = rdep_F
     cap_profit_F = Q_F * (K_F - (1 - delta_F) * K_F(-1)) - I_F
-    return K_F, rk_F, rn_F, m_F, k_inter_F, I_F, D_supply_F, Z_F, rdep_ante_F, cap_profit_F
+    return K_F, rk_F, rn_F, m_F, k_inter_F, I_F, D_supply_F, Z_F, rdep_ante_F, cap_profit_F, Phi_F, T_F
 
 @simple
 def market_clearing_F(Y_F, C_F, I_F, G_F, NX_F, DEP_F, D_supply_F, P_CES_F):
@@ -111,19 +111,21 @@ def import_demand_F(C_F, I_F, G_F, omega, epsilon_trade, p, P_CES_F):
 
 @simple
 def steady_auxilliary_F(theta_F, rk_F, rdep_F, delta_F, alpha_F, Y_F, K_F, N_F,
-                        lambda_gk_F, beta_F, ksi_F, rn_F,
+                        beta_F, ksi_F, rn_F, f_F,
                         rb_actual_F, rb_actual_D):
-    iota_F    = delta_F
-    mpk_F     = alpha_F * (Y_F / K_F)
-    w_F       = (1 - alpha_F) * Y_F / N_F
-    Omega_F   = theta_F * lambda_gk_F / (beta_F * (1 + rn_F))
-    nu_K_F    = beta_F * Omega_F * (rk_F        - rdep_F)
-    nu_bF_F   = beta_F * Omega_F * (rb_actual_F - rdep_F)
-    nu_bD_F   = beta_F * Omega_F * (rb_actual_D - rdep_F)
-    eta_F     = beta_F * Omega_F * (1 + rdep_F)
-    gamma0_F  = delta_F ** ksi_F / (1 - ksi_F)
-    gamma1_F  = -delta_F * ksi_F / (1 - ksi_F)
-    return iota_F, mpk_F, w_F, Omega_F, nu_K_F, nu_bF_F, nu_bD_F, eta_F, gamma0_F, gamma1_F
+    # See steady_auxilliary_D for derivation.
+    iota_F       = delta_F
+    mpk_F        = alpha_F * (Y_F / K_F)
+    w_F          = (1 - alpha_F) * Y_F / N_F
+    lambda_gk_F  = f_F / (theta_F * (1 / (beta_F * (1 + rn_F)) - (1 - f_F)))
+    Omega_F      = f_F + (1 - f_F) * lambda_gk_F * theta_F
+    nu_K_F       = beta_F * Omega_F * (rk_F        - rdep_F)
+    nu_bF_F      = beta_F * Omega_F * (rb_actual_F - rdep_F)
+    nu_bD_F      = beta_F * Omega_F * (rb_actual_D - rdep_F)
+    eta_F        = beta_F * Omega_F * (1 + rdep_F)
+    gamma0_F     = delta_F ** ksi_F / (1 - ksi_F)
+    gamma1_F     = -delta_F * ksi_F / (1 - ksi_F)
+    return iota_F, mpk_F, w_F, Omega_F, lambda_gk_F, nu_K_F, nu_bF_F, nu_bD_F, eta_F, gamma0_F, gamma1_F
 
 @simple
 def banker_div_F(rn_F, n_inter_F):

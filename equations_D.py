@@ -85,19 +85,24 @@ def smart_steady_D(theta_D, Y_D, n_inter_D, rdep_D, alpha_D, delta_D, f_D, N_D,
     Phi_D        = (chi1_D / chi2_D) * (arg_D ** 2) ** (chi2_D / 2) * (K_D + chi0_D)
     # Macroprudential bond tax at SS
     T_D          = (T0_D + T1_D * def_rate_D) * (b_D_D + b_F_D)
+    # rn = PURE portfolio return.  Phi (intermediary cap-adj cost) and T (bond
+    # tax) hit net worth directly in intermediation_P2_D, not via the return
+    # rate.  Keeping them out of rn ensures Omega/ν/η computed here are
+    # consistent with the transition's bank_return_D.
     rn_D         = (kappa_D * (rk_D - rdep_D)
                     + phi_bD_D * (rb_actual_D - rdep_D)
                     + phi_bF_D * (rb_actual_F - rdep_D)
-                    + rdep_D
-                    - (Phi_D + T_D) / n_inter_D)
-    m_D          = n_inter_D * (1 - (1 - f_D) * (1 + rn_D))
+                    + rdep_D)
+    # SS net worth identity (intermediation_P2_D = 0 at SS):
+    #   n = (1-f)·(1+rn)·n + m - Phi - T   ⟹   m = n·(1 - (1-f)(1+rn)) + Phi + T
+    m_D          = n_inter_D * (1 - (1 - f_D) * (1 + rn_D)) + Phi_D + T_D
     k_inter_D    = K_D
     I_D          = K_D * delta_D
     D_supply_D   = (theta_D - 1) * n_inter_D
     Z_D          = Y_D / ((K_D ** alpha_D) * (N_D ** (1 - alpha_D)))
     rdep_ante_D  = rdep_D
     cap_profit_D = Q_D * (K_D - (1 - delta_D) * K_D(-1)) - I_D
-    return K_D, rk_D, rn_D, m_D, k_inter_D, I_D, D_supply_D, Z_D, rdep_ante_D, cap_profit_D
+    return K_D, rk_D, rn_D, m_D, k_inter_D, I_D, D_supply_D, Z_D, rdep_ante_D, cap_profit_D, Phi_D, T_D
 
 @simple
 def market_clearing_D(Y_D, C_D, I_D, G_D, NX_D, DEP_D, D_supply_D, P_CES_D):
@@ -121,20 +126,26 @@ def import_demand_D(C_D, I_D, G_D, omega, epsilon_trade, p, P_CES_D):
 
 @simple
 def steady_auxilliary_D(theta_D, rk_D, rdep_D, delta_D, alpha_D, Y_D, K_D, N_D,
-                        lambda_gk_D, beta_D, ksi_D, rn_D,
+                        beta_D, ksi_D, rn_D, f_D,
                         rb_actual_D, rb_actual_F):
     # Multi-asset GK: separate Bellman ν for each risky asset.
-    iota_D    = delta_D
-    mpk_D     = alpha_D * (Y_D / K_D)
-    w_D       = (1 - alpha_D) * Y_D / N_D
-    Omega_D   = theta_D * lambda_gk_D / (beta_D * (1 + rn_D))
-    nu_K_D    = beta_D * Omega_D * (rk_D        - rdep_D)
-    nu_bD_D   = beta_D * Omega_D * (rb_actual_D - rdep_D)
-    nu_bF_D   = beta_D * Omega_D * (rb_actual_F - rdep_D)
-    eta_D     = beta_D * Omega_D * (1 + rdep_D)
-    gamma0_D  = delta_D ** ksi_D / (1 - ksi_D)
-    gamma1_D  = -delta_D * ksi_D / (1 - ksi_D)
-    return iota_D, mpk_D, w_D, Omega_D, nu_K_D, nu_bD_D, nu_bF_D, eta_D, gamma0_D, gamma1_D
+    # λ_gk is DERIVED so that the transition's Bellman Ω = f + (1-f)·λ·θ is
+    # consistent with the SS IC binding β·Ω·(1+rn) = λ·θ.  Joint solution:
+    #     λ = f / (θ·[1/(β(1+rn)) − (1−f)])
+    # This eliminates the SS-vs-transition inconsistency that produced
+    # nonzero P1 Bellman residuals when λ was fixed at calibration.
+    iota_D       = delta_D
+    mpk_D        = alpha_D * (Y_D / K_D)
+    w_D          = (1 - alpha_D) * Y_D / N_D
+    lambda_gk_D  = f_D / (theta_D * (1 / (beta_D * (1 + rn_D)) - (1 - f_D)))
+    Omega_D      = f_D + (1 - f_D) * lambda_gk_D * theta_D
+    nu_K_D       = beta_D * Omega_D * (rk_D        - rdep_D)
+    nu_bD_D      = beta_D * Omega_D * (rb_actual_D - rdep_D)
+    nu_bF_D      = beta_D * Omega_D * (rb_actual_F - rdep_D)
+    eta_D        = beta_D * Omega_D * (1 + rdep_D)
+    gamma0_D     = delta_D ** ksi_D / (1 - ksi_D)
+    gamma1_D     = -delta_D * ksi_D / (1 - ksi_D)
+    return iota_D, mpk_D, w_D, Omega_D, lambda_gk_D, nu_K_D, nu_bD_D, nu_bF_D, eta_D, gamma0_D, gamma1_D
 
 
 @simple
