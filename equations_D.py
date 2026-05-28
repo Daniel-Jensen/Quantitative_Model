@@ -241,28 +241,21 @@ def k_balance_sheet_D(Q_D, theta_D, n_inter_D, K_D, b_D_D, b_F_D):
 
 
 @simple
-def firm_profit_D(mc_D, Y_D, kappa_p_D, pi_D):
-    # Markup profit net of Rotemberg price-adjustment cost (κ/2 · π² · Y).
-    # Zero at SS (mc=1, π=0).
-    firm_profit_D = (1 - mc_D) * Y_D - kappa_p_D / 2 * pi_D**2 * Y_D
+def firm_profit_D(mc_D, Y_D):
+    firm_profit_D = (1 - mc_D) * Y_D
     return firm_profit_D
 
 
 @simple
 def intermediation_P2_D(rn_D, n_inter_D, m_D, f_D, cap_profit_D, firm_profit_D,
                         b_D_D, def_rate_D, recovery_rate_D,
-                        b_F_D, def_rate_F, recovery_rate_F,
-                        psi_bD_D, phi_bD_D_ss, psi_bF_D, phi_bF_D_ss):
+                        b_F_D, def_rate_F, recovery_rate_F):
     haircut_D      = 1.0 - recovery_rate_D
     haircut_F      = 1.0 - recovery_rate_F
-    writedown_D    = def_rate_D * haircut_D * b_D_D(-1)
-    writedown_F    = def_rate_F * haircut_F * b_F_D(-1)
-    phi_bD_D_lag   = b_D_D(-1) / n_inter_D(-1)
-    phi_bF_D_lag   = b_F_D(-1) / n_inter_D(-1)
-    pac_D          = (psi_bD_D / 2 * (phi_bD_D_lag - phi_bD_D_ss)**2
-                      + psi_bF_D / 2 * (phi_bF_D_lag - phi_bF_D_ss)**2) * n_inter_D(-1)
+    writedown_D    = def_rate_D * haircut_D * b_D_D(-1)   # domestic sovereign default
+    writedown_F    = def_rate_F * haircut_F * b_F_D(-1)   # cross-border sovereign default
     gross_income_D = (1 + rn_D) * n_inter_D(-1) + cap_profit_D + firm_profit_D
-    n_inter_val_D  = (1 - f_D) * gross_income_D + m_D - writedown_D - writedown_F - pac_D - n_inter_D
+    n_inter_val_D  = (1 - f_D) * gross_income_D + m_D - writedown_D - writedown_F - n_inter_D
     return n_inter_val_D
 
 
@@ -326,40 +319,3 @@ def budget_residual_D(b_gov_D, G_D, TAX_D, rb_D, def_rate_D, recovery_rate_D, ze
     b_gov_res_D           = effective_repayment_D + G_D - TAX_D - b_gov_D
     return b_gov_res_D
 
-
-# ── NK frictions (price NKPC, wage NKPC, Taylor rule, Fisher) ────────────────
-
-@simple
-def fisher_D(i_union, pi_D):
-    rdep_ante_D = i_union - pi_D(+1)
-    rdep_D      = i_union(-1) - pi_D
-    return rdep_ante_D, rdep_D
-
-@simple
-def taylor_rule_union(i_union, pi_D, pi_F, Y_D, Y_F, Y_ss_D, Y_ss_F,
-                      omega_union_U, rho_i_U, phi_pi_U, phi_y_U, r_star_U, eps_m_U):
-    pi_union         = omega_union_U * pi_D + (1 - omega_union_U) * pi_F
-    Y_union          = omega_union_U * Y_D  + (1 - omega_union_U) * Y_F
-    Y_ss_union       = omega_union_U * Y_ss_D + (1 - omega_union_U) * Y_ss_F
-    taylor_res_union = (i_union
-                        - rho_i_U * i_union(-1)
-                        - (1 - rho_i_U) * (r_star_U + phi_pi_U * pi_union
-                                           + phi_y_U * (Y_union / Y_ss_union - 1))
-                        - eps_m_U)
-    return taylor_res_union
-
-@simple
-def pricing_D(mc_D, pi_D, kappa_p_D, mu_p_D, SDF_D):
-    nkpc_p_res_D = pi_D - kappa_p_D * (mc_D - 1 / mu_p_D) - SDF_D * pi_D(+1)
-    return nkpc_p_res_D
-
-@simple
-def wage_setting_D(w_D, pi_w_D, pi_D, N_D, UCE_D, vphi_D, frisch_D, kappa_w_D, mu_w_D, beta_D):
-
-    nkpc_w_res_D = (pi_w_D
-                    - kappa_w_D * (vphi_D * N_D ** (1 + 1 / frisch_D)
-                                   - (1 / mu_w_D) * w_D * N_D * UCE_D)
-                    - beta_D * pi_w_D(+1))
-    # Real wage law of motion: w_t = w_{t-1} * (1 + π^w_t) / (1 + π_t).
-    w_res_D = w_D - w_D(-1) * (1 + pi_w_D) / (1 + pi_D)
-    return nkpc_w_res_D, w_res_D

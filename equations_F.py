@@ -217,11 +217,8 @@ def k_balance_sheet_F(Q_F, theta_F, n_inter_F, K_F, b_F_F, b_D_F):
     return K_res_F
 
 @simple
-def firm_profit_F(mc_F, Y_F, kappa_p_F, pi_F):
-    # Markup profit net of Rotemberg price-adjustment cost (κ/2 · π² · Y).
-    # Zero at SS (mc=1, π=0). The cost is real output destroyed; omitting it
-    # overstates bank income and breaks Walras' Law off-SS.
-    firm_profit_F = (1 - mc_F) * Y_F - kappa_p_F / 2 * pi_F**2 * Y_F
+def firm_profit_F(mc_F, Y_F):
+    firm_profit_F = (1 - mc_F) * Y_F
     return firm_profit_F
 
 
@@ -306,29 +303,5 @@ def budget_residual_F(b_gov_F, G_F, TAX_F, rb_F, def_rate_F, recovery_rate_F, ze
     )
     b_gov_res_F           = effective_repayment_F + G_F - TAX_F - b_gov_F
     return b_gov_res_F
-
-
-# ── NK frictions ─────────────────────────────────────────────────────────────
-
-@simple
-def fisher_F(i_union, pi_F):
-    rdep_ante_F = i_union - pi_F(+1)
-    rdep_F      = i_union(-1) - pi_F
-    return rdep_ante_F, rdep_F
-
-@simple
-def pricing_F(mc_F, pi_F, kappa_p_F, mu_p_F, SDF_F):
-
-    nkpc_p_res_F = pi_F - kappa_p_F * (mc_F - 1 / mu_p_F) - SDF_F * pi_F(+1)
-    return nkpc_p_res_F
-
-@simple
-def wage_setting_F(w_F, pi_w_F, pi_F, N_F, UCE_F, vphi_F, frisch_F, kappa_w_F, mu_w_F, beta_F):
-    nkpc_w_res_F = (pi_w_F
-                    - kappa_w_F * (vphi_F * N_F ** (1 + 1 / frisch_F)
-                                   - (1 / mu_w_F) * w_F * N_F * UCE_F)
-                    - beta_F * pi_w_F(+1))
-    w_res_F = w_F - w_F(-1) * (1 + pi_w_F) / (1 + pi_F)
-    return nkpc_w_res_F, w_res_F
 
 
