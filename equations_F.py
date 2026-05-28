@@ -190,13 +190,13 @@ def labor_market_F(w_F, UCE_F, N_F, vphi_F, frisch_F):
 @simple
 def intermediation_IC_F(nu_K_F, nu_bF_F, nu_bD_F, eta_F,
                         Q_F, K_F, q_b_F, q_b_D, b_F_F, b_D_F, n_inter_F,
-                        lambda_gk_F, theta_F):
+                        lambda_gk_F, theta_F, rho_theta_F):
     # See intermediation_IC_D for derivation.
-    kappa_F    = Q_F   * K_F   / n_inter_F
-    phi_bF_F   = q_b_F * b_F_F / n_inter_F
-    phi_bD_F   = q_b_D * b_D_F / n_inter_F
-    LHS_F      = nu_K_F * kappa_F + nu_bF_F * phi_bF_F + nu_bD_F * phi_bD_F + eta_F
-    ic_res_F   = LHS_F - lambda_gk_F * theta_F
+    kappa_F     = Q_F   * K_F   / n_inter_F
+    phi_bF_F    = q_b_F * b_F_F / n_inter_F
+    phi_bD_F    = q_b_D * b_D_F / n_inter_F
+    theta_tgt_F = (nu_K_F * kappa_F + nu_bF_F * phi_bF_F + nu_bD_F * phi_bD_F + eta_F) / lambda_gk_F
+    ic_res_F    = theta_F - rho_theta_F * theta_F(-1) - (1 - rho_theta_F) * theta_tgt_F
     return ic_res_F
 
 @simple

@@ -225,18 +225,19 @@ def labor_market_D(w_D, UCE_D, N_D, vphi_D, frisch_D):
 @simple
 def intermediation_IC_D(nu_K_D, nu_bD_D, nu_bF_D, eta_D,
                         Q_D, K_D, q_b_D, q_b_F, b_D_D, b_F_D, n_inter_D,
-                        lambda_gk_D, theta_D):
-    # Multi-asset GK IC with uniform diversion rate (= 1).  Portfolio
-    # composition (κ, φ_bD, φ_bF) is pinned by separate PACs on capital and
-    # on bond holdings, NOT by IC weights.  So the IC just aggregates total
-    # franchise value vs total leverage:
-    #     ν_K·κ + ν_bD·φ_bD + ν_bF·φ_bF + η  =  λ_gk · θ
-    # where θ = κ + φ_bD + φ_bF (balance sheet identity).
-    kappa_D    = Q_D   * K_D   / n_inter_D
-    phi_bD_D   = q_b_D * b_D_D / n_inter_D
-    phi_bF_D   = q_b_F * b_F_D / n_inter_D
-    LHS_D      = nu_K_D * kappa_D + nu_bD_D * phi_bD_D + nu_bF_D * phi_bF_D + eta_D
-    ic_res_D   = LHS_D - lambda_gk_D * theta_D
+                        lambda_gk_D, theta_D, rho_theta_D):
+    # Multi-asset GK IC with partial adjustment on θ.
+    # Frictionless target (binding IC): θ_target = (ν·shares + η) / λ_gk.
+    # Actual leverage closes the gap slowly:
+    #     θ_t = ρ_θ · θ_{t-1} + (1 − ρ_θ) · θ_target_t
+    # Reduced-form precautionary motive — under crisis, banks rebuild leverage
+    # gradually rather than instantly jumping to the new IC.  ρ_θ = 0 recovers
+    # the standard instantaneous-binding case.  SS is unchanged for any ρ_θ.
+    kappa_D     = Q_D   * K_D   / n_inter_D
+    phi_bD_D    = q_b_D * b_D_D / n_inter_D
+    phi_bF_D    = q_b_F * b_F_D / n_inter_D
+    theta_tgt_D = (nu_K_D * kappa_D + nu_bD_D * phi_bD_D + nu_bF_D * phi_bF_D + eta_D) / lambda_gk_D
+    ic_res_D    = theta_D - rho_theta_D * theta_D(-1) - (1 - rho_theta_D) * theta_tgt_D
     return ic_res_D
 
 
