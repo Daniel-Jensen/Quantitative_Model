@@ -212,6 +212,22 @@ def labor_market_D(w_D, UCE_D, N_D, vphi_D, frisch_D):
     return labor_mkt_res_D
 
 
+@simple
+def wage_setting_D(w_D, N_D, UCE_D, vphi_D, frisch_D, kappa_w_D, mu_w_D, beta_D):
+    # Standard NK wage Phillips curve in REAL terms (no CB needed):
+    #   π_w_t = β · E[π_w_{t+1}] + κ_w · (MRS_t − w_t/μ_w)
+    # where π_w_t = w_t/w_{t-1} − 1 is REAL wage growth.
+    # At SS: π_w = 0 and w = μ_w · MRS — frictionless labor condition.
+    # Off-SS: real wage adjusts gradually toward MRS; firms hire N at given w
+    # (labor demand pins N), so the household wealth effect doesn't translate
+    # immediately into N → blocks the labor-side overshoot at impact.
+    pi_w_D       = w_D    / w_D(-1) - 1
+    pi_w_D_p1    = w_D(+1) / w_D    - 1
+    mrs_D        = vphi_D * N_D ** (1 / frisch_D) / UCE_D
+    nkpc_w_res_D = pi_w_D - beta_D * pi_w_D_p1 - kappa_w_D * (mrs_D - w_D / mu_w_D)
+    return nkpc_w_res_D
+
+
 
 @simple
 def intermediation_IC_D(nu_K_D, nu_bD_D, nu_bF_D, eta_D,
