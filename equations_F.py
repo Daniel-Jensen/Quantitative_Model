@@ -184,6 +184,16 @@ def labor_market_F(w_F, UCE_F, N_F, vphi_F, frisch_F):
     return labor_mkt_res_F
 
 
+@simple
+def wage_setting_F(w_F, N_F, UCE_F, vphi_F, frisch_F, kappa_w_F, mu_w_F, beta_F):
+    # See wage_setting_D.
+    pi_w_F       = w_F    / w_F(-1) - 1
+    pi_w_F_p1    = w_F(+1) / w_F    - 1
+    mrs_F        = vphi_F * N_F ** (1 / frisch_F) / UCE_F
+    nkpc_w_res_F = pi_w_F - beta_F * pi_w_F_p1 - kappa_w_F * (mrs_F - w_F / mu_w_F)
+    return nkpc_w_res_F
+
+
 
 
 @simple
