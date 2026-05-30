@@ -73,8 +73,8 @@ def smart_steady_D(theta_D, Y_D, n_inter_D, rdep_D, alpha_D, delta_D, f_D, N_D,
                    rb_actual_D, rb_actual_F, b_D_D, b_F_D, Q_D, q_b_D, q_b_F,
                    chi0_D, chi1_D, chi2_D, T0_D, T1_D, def_rate_D):
     K_D          = (theta_D * n_inter_D - q_b_D * b_D_D - q_b_F * b_F_D) / Q_D
-    phi_bD_D     = q_b_D * b_D_D / n_inter_D   # market-value share of D-bonds
-    phi_bF_D     = q_b_F * b_F_D / n_inter_D   # market-value share of F-bonds
+    phi_bD_D     = q_b_D * b_D_D / n_inter_D
+    phi_bF_D     = q_b_F * b_F_D / n_inter_D
     kappa_D      = theta_D - phi_bD_D - phi_bF_D
     rk_D         = alpha_D * Y_D / K_D - delta_D
     arg_D        = -rk_D * K_D / (K_D + chi0_D)
@@ -101,8 +101,8 @@ def smart_steady_D(theta_D, Y_D, n_inter_D, rdep_D, alpha_D, delta_D, f_D, N_D,
     return K_D, rk_D, rn_D, m_D, k_inter_D, I_D, D_supply_D, Z_D, rdep_ante_D, cap_profit_D, Phi_D, T_D
 
 @simple
-def market_clearing_D(Y_D, C_D, I_D, G_D, NX_D, DEP_D, D_supply_D, P_CES_D):
-    goods_mkt_D   = Y_D - P_CES_D * (C_D + I_D + G_D) - NX_D
+def market_clearing_D(Y_D, C_D, I_D, G_D, NX_D, DEP_D, D_supply_D, P_CES_D, Phi_D, T_D):
+    goods_mkt_D   = Y_D - (P_CES_D * C_D + I_D + G_D + Phi_D + T_D) - NX_D
     deposit_mkt_D = P_CES_D * DEP_D - D_supply_D
     return goods_mkt_D, deposit_mkt_D
 
@@ -116,7 +116,7 @@ def ces_price_D(omega, epsilon_trade, p):
 @simple
 def import_demand_D(C_D, I_D, G_D, omega, epsilon_trade, p, P_CES_D):
     A_D  = C_D + I_D + G_D
-    IM_D = (1 - omega) * (P_CES_D / p) ** epsilon_trade * A_D
+    IM_D = (1 - omega) * (P_CES_D / p) ** epsilon_trade * C_D
     return A_D, IM_D
 
 
@@ -145,8 +145,9 @@ def steady_auxilliary_D(theta_D, rk_D, rdep_D, delta_D, alpha_D, Y_D, K_D, N_D,
 
 
 @simple
-def banker_div_D(rn_D, n_inter_D):
-    div_D = rn_D * n_inter_D
+def banker_div_D(rn_D, n_inter_D, Phi_D, T_D):
+    # Consistent with banker_div_res_D: div = f·gross − m = rn·n − Phi − T at SS.
+    div_D = rn_D * n_inter_D - Phi_D - T_D
     return div_D
 
 
@@ -162,15 +163,15 @@ def sdf_D(beta_D, C_D, eis_D):
 
 
 @simple
-def government_ss_D(TAX_D, q_b_D, b_gov_D):
-    # At SS: gov raises q_b_D per face-value unit issued; interest cost = (1−q_b_D)·b_gov.
-    G_D = TAX_D - (1.0 - q_b_D) * b_gov_D
+def government_ss_D(TAX_D, q_b_D, b_gov_D, P_CES_D):
+    # TAX is in bundle units → multiply by P_CES_D to convert to D-goods.
+    G_D = P_CES_D * TAX_D - (1.0 - q_b_D) * b_gov_D
     return G_D
 
 
 @simple
-def labor_ss_D(w_D, N_D, UCE_D, frisch_D, mu_w_D):
-    vphi_D = (1 / mu_w_D) * w_D * UCE_D / (N_D ** (1 / frisch_D))
+def labor_ss_D(w_D, N_D, UCE_D, frisch_D, mu_w_D, P_CES_D):
+    vphi_D = (1 / mu_w_D) * (w_D / P_CES_D) * UCE_D / (N_D ** (1 / frisch_D))
     return vphi_D
 
 @simple
@@ -183,11 +184,10 @@ def bond_return_D(def_rate_D, recovery_rate_D, q_b_D):
 # ── OFF STEADY STATE EQUATIONS ─── #############################################################################################
 
 @simple
-def capital_adj_D(Y_D, K_D, Q_D, I_D, alpha_D, delta_D, gamma0_D, gamma1_D, ksi_D, mc_D):
+def capital_adj_D(Y_D, K_D, Q_D, I_D, alpha_D, delta_D, gamma0_D, gamma1_D, ksi_D):
     iota_D        = I_D / K_D(-1)
     mpk_D         = alpha_D * Y_D / K_D(-1)
-    # Under monopolistic competition firms rent capital at mc * MPK (not just MPK).
-    rk_D          = (mc_D * mpk_D + (1 - delta_D) * Q_D) / Q_D(-1) - 1
+    rk_D          = (mpk_D + (1 - delta_D) * Q_D) / Q_D(-1) - 1
     q_res_D       = Q_D - 1 / (gamma0_D * (1 - ksi_D) * iota_D ** (-ksi_D))
     capital_res_D = K_D - (1 - delta_D) * K_D(-1) - (gamma0_D * iota_D ** (1 - ksi_D) + gamma1_D) * K_D(-1)
     return iota_D, mpk_D, rk_D, q_res_D, capital_res_D
@@ -199,16 +199,15 @@ def capital_producer_profit_D(Q_D, K_D, I_D, delta_D):
 
 
 @simple
-def labor_D(Y_D, Z_D, K_D, alpha_D, w_D):
-    N_D  = (Y_D / (Z_D * K_D(-1) ** alpha_D)) ** (1 / (1 - alpha_D))
-    mc_D = w_D * N_D / ((1 - alpha_D) * Y_D)
-    return N_D, mc_D
+def labor_D(N_D, Z_D, K_D, alpha_D):
+    Y_D = Z_D * K_D(-1) ** alpha_D * N_D ** (1 - alpha_D)
+    return Y_D
 
 
 @simple
-def labor_market_D(w_D, UCE_D, N_D, vphi_D, frisch_D):
+def labor_market_D(w_D, UCE_D, N_D, vphi_D, frisch_D, P_CES_D):
     mrs_D           = vphi_D * N_D ** (1 / frisch_D) / UCE_D
-    labor_mkt_res_D = w_D - mrs_D
+    labor_mkt_res_D = w_D / P_CES_D - mrs_D
     return labor_mkt_res_D
 
 
@@ -228,7 +227,6 @@ def intermediation_IC_D(nu_K_D, nu_bD_D, nu_bF_D, eta_D,
 @simple
 def bank_return_D(theta_D, rk_D, rdep_D, b_D_D, b_F_D, n_inter_D,
                   rb_actual_D, rb_actual_F, q_b_D, q_b_F):
-    # Portfolio shares use MARKET VALUE of bond positions at t-1.
     phi_bD_lag_D = q_b_D(-1) * b_D_D(-1) / n_inter_D(-1)
     phi_bF_lag_D = q_b_F(-1) * b_F_D(-1) / n_inter_D(-1)
     kappa_lag_D  = theta_D(-1) - phi_bD_lag_D - phi_bF_lag_D
@@ -243,10 +241,6 @@ def bank_return_D(theta_D, rk_D, rdep_D, b_D_D, b_F_D, n_inter_D,
 def intermediation_P1_D(rk_D, rb_actual_D, rb_actual_F, rdep_D,
                         nu_K_D, nu_bD_D, nu_bF_D, eta_D,
                         lambda_gk_D, theta_D, SDF_D, f_D):
-    # Bellman: marginal franchise value of each asset.  Ω is the augmented SDF
-    # weighting (continuation value of leverage).  Three ν's let default risk
-    # bite ν_bD without contaminating ν_K — sovereign shocks tighten the IC
-    # directly, not just via writedown.
     Omega_p1_D    = f_D + (1 - f_D) * lambda_gk_D * theta_D(+1)
     nu_K_res_D    = nu_K_D  - SDF_D * Omega_p1_D * (rk_D(+1)        - rdep_D(+1))
     nu_bD_res_D   = nu_bD_D - SDF_D * Omega_p1_D * (rb_actual_D(+1) - rdep_D(+1))
@@ -257,15 +251,9 @@ def intermediation_P1_D(rk_D, rb_actual_D, rb_actual_F, rdep_D,
 
 @simple
 def k_balance_sheet_D(Q_D, theta_D, n_inter_D, K_D, b_D_D, b_F_D, q_b_D, q_b_F):
-    # Balance sheet at MARKET VALUES: Q*K + q_b_D*b_D_D + q_b_F*b_F_D = theta*n.
     K_res_D = Q_D * K_D + q_b_D * b_D_D + q_b_F * b_F_D - theta_D * n_inter_D
     return K_res_D
 
-
-@simple
-def firm_profit_D(mc_D, Y_D):
-    firm_profit_D = (1 - mc_D) * Y_D
-    return firm_profit_D
 
 
 @simple
@@ -286,7 +274,7 @@ def macro_pru_tax_D(b_D_D, b_F_D, def_rate_D, T0_D, T1_D):
 
 
 @simple
-def intermediation_P2_D(rn_D, n_inter_D, m_D, f_D, cap_profit_D, firm_profit_D,
+def intermediation_P2_D(rn_D, n_inter_D, m_D, f_D, cap_profit_D,
                         b_D_D, def_rate_D, recovery_rate_D,
                         b_F_D, def_rate_F, recovery_rate_F,
                         Phi_D, T_D):
@@ -294,15 +282,15 @@ def intermediation_P2_D(rn_D, n_inter_D, m_D, f_D, cap_profit_D, firm_profit_D,
     haircut_F      = 1.0 - recovery_rate_F
     writedown_D    = def_rate_D * haircut_D * b_D_D(-1)
     writedown_F    = def_rate_F * haircut_F * b_F_D(-1)
-    gross_income_D = (1 + rn_D) * n_inter_D(-1) + cap_profit_D + firm_profit_D
+    gross_income_D = (1 + rn_D) * n_inter_D(-1) + cap_profit_D
     n_inter_val_D  = ((1 - f_D) * gross_income_D + m_D
                       - writedown_D - writedown_F - Phi_D - T_D - n_inter_D)
     return n_inter_val_D
 
 
 @simple
-def banker_div_res_D(rn_D, n_inter_D, div_D, m_D, f_D, cap_profit_D, firm_profit_D):
-    gross_income_D = (1 + rn_D) * n_inter_D(-1) + cap_profit_D + firm_profit_D
+def banker_div_res_D(rn_D, n_inter_D, div_D, m_D, f_D, cap_profit_D):
+    gross_income_D = (1 + rn_D) * n_inter_D(-1) + cap_profit_D
     net_div_D      = f_D * gross_income_D - m_D
     div_res_D      = div_D - net_div_D
     return div_res_D
@@ -352,12 +340,11 @@ def tax_rule_D(b_gov_D, lamb_ss_D, b_gov_ss_D, phi_lamb_D):
 
 
 @simple
-def budget_residual_D(b_gov_D, G_D, TAX_D, q_b_D, def_rate_D, recovery_rate_D, zeta_writeoff_D):
-    # Budget: q_b_D·b_gov_D + TAX_D = G_D + repayment_of_old_bonds
+def budget_residual_D(b_gov_D, G_D, TAX_D, q_b_D, def_rate_D, recovery_rate_D, zeta_writeoff_D, P_CES_D):
     # b_gov_D is FACE VALUE; gov raises q_b_D per unit issued.
-    # Repayment: zeta=1 → write off default losses; zeta=0 → pay full face value.
+    # TAX is in bundle units → multiply by P_CES_D for D-goods.
     haircut_D             = 1.0 - recovery_rate_D
     effective_repayment_D = (1.0 - zeta_writeoff_D * def_rate_D * haircut_D) * b_gov_D(-1)
-    b_gov_res_D           = effective_repayment_D + G_D - TAX_D - q_b_D * b_gov_D
+    b_gov_res_D           = effective_repayment_D + G_D - P_CES_D * TAX_D - q_b_D * b_gov_D
     return b_gov_res_D
 
