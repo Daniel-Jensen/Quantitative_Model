@@ -2,10 +2,22 @@ from sequence_jacobian import simple
 
 
 @simple
-def trade_balance(p, IM_D, IM_F):
-    NX_D    = IM_F - p * IM_D
-    NX_F    = IM_D - IM_F / p
-    tob_res = NX_D
+def trade_balance(p, IM_D, IM_F,
+                  b_D_F, b_F_D, q_b_D, q_b_F,
+                  def_rate_D, def_rate_F, recovery_rate_D, recovery_rate_F):
+    # NX_X = X's net exports (in X-units) = X's goods out − X's goods in.
+    # Cross-border bond payments are PHYSICAL resource flows that must enter NX:
+    #   D→F (D-units): D-gov interest (1−def_D·h)·b_D_F(−1) minus F-bank new lending q_b_D·b_D_F
+    #   F→D (F-units): symmetric
+    # The augmented NX captures both the goods trade balance and the financial
+    # flows; without this, cross-border bond payments leak from Walras.
+    haircut_D = 1.0 - recovery_rate_D
+    haircut_F = 1.0 - recovery_rate_F
+    net_D_out_via_bonds = (1.0 - haircut_D * def_rate_D) * b_D_F(-1) - q_b_D * b_D_F
+    net_F_out_via_bonds = (1.0 - haircut_F * def_rate_F) * b_F_D(-1) - q_b_F * b_F_D
+    NX_D    = IM_F - p * IM_D + net_D_out_via_bonds - p * net_F_out_via_bonds
+    NX_F    = IM_D - IM_F / p + net_F_out_via_bonds - net_D_out_via_bonds / p
+    tob_res = NX_D + p * NX_F        # identity check, should be machine-precision 0
     return NX_D, NX_F, tob_res
 
 

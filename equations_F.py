@@ -64,11 +64,13 @@ hh_extended_F = hh_F.add_hetinputs([make_grids_F, income_F])
 # CHECK STEADY STATE OWNING OF THE foreign bonds in DOMESTIC COUNTRY
 @simple
 def smart_steady_F(theta_F, Y_F, n_inter_F, rdep_F, alpha_F, delta_F, f_F, N_F,
-                   rb_actual_F, rb_actual_D, b_F_F, b_D_F, Q_F, q_b_F, q_b_D,
+                   rb_actual_F, rb_actual_D, b_F_F, b_D_F, Q_F, q_b_F, q_b_D, p,
                    chi0_F, chi1_F, chi2_F, T0_F, T1_F, def_rate_F):
-    K_F          = (theta_F * n_inter_F - q_b_F * b_F_F - q_b_D * b_D_F) / Q_F
-    phi_bF_F     = q_b_F * b_F_F / n_inter_F
-    phi_bD_F     = q_b_D * b_D_F / n_inter_F
+    # Cross-border D-bond holdings (b_D_F) are face-value in D-units;
+    # divide by p to express market value in F-units.
+    K_F          = (theta_F * n_inter_F - q_b_F * b_F_F - q_b_D * b_D_F / p) / Q_F
+    phi_bF_F     = q_b_F * b_F_F / n_inter_F            # F-bond share, in F-units
+    phi_bD_F     = q_b_D * b_D_F / (n_inter_F * p)      # D-bond share, in F-units
     kappa_F      = theta_F - phi_bF_F - phi_bD_F
     rk_F         = alpha_F * Y_F / K_F - delta_F
     arg_F        = -rk_F * K_F / (K_F + chi0_F)
@@ -89,8 +91,9 @@ def smart_steady_F(theta_F, Y_F, n_inter_F, rdep_F, alpha_F, delta_F, f_F, N_F,
     return K_F, rk_F, rn_F, m_F, k_inter_F, I_F, D_supply_F, Z_F, rdep_ante_F, cap_profit_F, Phi_F, T_F
 
 @simple
-def market_clearing_F(Y_F, C_F, I_F, G_F, NX_F, DEP_F, D_supply_F, P_CES_F):
-    goods_mkt_F = Y_F - P_CES_F * (C_F + I_F + G_F) - NX_F
+def market_clearing_F(Y_F, C_F, I_F, G_F, NX_F, DEP_F, D_supply_F, P_CES_F, Phi_F, T_F):
+    # See market_clearing_D: Phi+T as real resource costs.
+    goods_mkt_F   = Y_F - P_CES_F * (C_F + I_F + G_F) - NX_F - Phi_F - T_F
     deposit_mkt_F = P_CES_F * DEP_F - D_supply_F
     return goods_mkt_F, deposit_mkt_F
 
@@ -128,8 +131,9 @@ def steady_auxilliary_F(theta_F, rk_F, rdep_F, delta_F, alpha_F, Y_F, K_F, N_F,
     return iota_F, mpk_F, w_F, Omega_F, lambda_gk_F, nu_K_F, nu_bF_F, nu_bD_F, eta_F, gamma0_F, gamma1_F
 
 @simple
-def banker_div_F(rn_F, n_inter_F):
-    div_F = rn_F * n_inter_F
+def banker_div_F(rn_F, n_inter_F, Phi_F, T_F):
+    # See banker_div_D.
+    div_F = rn_F * n_inter_F - Phi_F - T_F
     return div_F
 
 @simple
@@ -144,8 +148,9 @@ def sdf_F(beta_F, C_F, eis_F):
     return SDF_F
 
 @simple
-def government_ss_F(TAX_F, q_b_F, b_gov_F):
-    G_F = TAX_F - (1.0 - q_b_F) * b_gov_F
+def government_ss_F(TAX_F, q_b_F, b_gov_F, P_CES_F):
+    # See government_ss_D: TAX bundles + b_gov D-units → divide by P_CES.
+    G_F = TAX_F - (1.0 - q_b_F) * b_gov_F / P_CES_F
     return G_F
 
 @simple
@@ -248,16 +253,11 @@ def macro_pru_tax_F(b_F_F, b_D_F, def_rate_F, T0_F, T1_F):
 
 @simple
 def intermediation_P2_F(rn_F, n_inter_F, m_F, f_F, cap_profit_F, firm_profit_F,
-                        b_F_F, def_rate_F, recovery_rate_F,
-                        b_D_F, def_rate_D, recovery_rate_D,
                         Phi_F, T_F):
-    haircut_F      = 1.0 - recovery_rate_F
-    haircut_D      = 1.0 - recovery_rate_D
-    writedown_F    = def_rate_F * haircut_F * b_F_F(-1)
-    writedown_D    = def_rate_D * haircut_D * b_D_F(-1)
+    # See intermediation_P2_D: writedown removed (already in rn via rb_actual).
     gross_income_F = (1 + rn_F) * n_inter_F(-1) + cap_profit_F + firm_profit_F
     n_inter_val_F  = ((1 - f_F) * gross_income_F + m_F
-                      - writedown_F - writedown_D - Phi_F - T_F - n_inter_F)
+                      - Phi_F - T_F - n_inter_F)
     return n_inter_val_F
 
 @simple

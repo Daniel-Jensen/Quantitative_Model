@@ -70,11 +70,13 @@ hh_extended_D = hh_D.add_hetinputs([make_grids_D, income_D])
 
 @simple
 def smart_steady_D(theta_D, Y_D, n_inter_D, rdep_D, alpha_D, delta_D, f_D, N_D,
-                   rb_actual_D, rb_actual_F, b_D_D, b_F_D, Q_D, q_b_D, q_b_F,
+                   rb_actual_D, rb_actual_F, b_D_D, b_F_D, Q_D, q_b_D, q_b_F, p,
                    chi0_D, chi1_D, chi2_D, T0_D, T1_D, def_rate_D):
-    K_D          = (theta_D * n_inter_D - q_b_D * b_D_D - q_b_F * b_F_D) / Q_D
-    phi_bD_D     = q_b_D * b_D_D / n_inter_D   # market-value share of D-bonds
-    phi_bF_D     = q_b_F * b_F_D / n_inter_D   # market-value share of F-bonds
+    # Cross-border F-bond holdings (b_F_D) are face-value in F-units;
+    # multiply by p to express market value in D-units.
+    K_D          = (theta_D * n_inter_D - q_b_D * b_D_D - q_b_F * b_F_D * p) / Q_D
+    phi_bD_D     = q_b_D * b_D_D / n_inter_D       # D-bond share, in D-units
+    phi_bF_D     = q_b_F * b_F_D * p / n_inter_D   # F-bond share, in D-units
     kappa_D      = theta_D - phi_bD_D - phi_bF_D
     rk_D         = alpha_D * Y_D / K_D - delta_D
     arg_D        = -rk_D * K_D / (K_D + chi0_D)
@@ -101,8 +103,11 @@ def smart_steady_D(theta_D, Y_D, n_inter_D, rdep_D, alpha_D, delta_D, f_D, N_D,
     return K_D, rk_D, rn_D, m_D, k_inter_D, I_D, D_supply_D, Z_D, rdep_ante_D, cap_profit_D, Phi_D, T_D
 
 @simple
-def market_clearing_D(Y_D, C_D, I_D, G_D, NX_D, DEP_D, D_supply_D, P_CES_D):
-    goods_mkt_D   = Y_D - P_CES_D * (C_D + I_D + G_D) - NX_D
+def market_clearing_D(Y_D, C_D, I_D, G_D, NX_D, DEP_D, D_supply_D, P_CES_D, Phi_D, T_D):
+    # Phi and T are real resource costs paid by the bank (subtracted from n_inter
+    # in intermediation_P2_D / smart_steady_D's m formula). No agent receives
+    # them, so they consume D-goods and must appear in goods_mkt.
+    goods_mkt_D   = Y_D - P_CES_D * (C_D + I_D + G_D) - NX_D - Phi_D - T_D
     deposit_mkt_D = P_CES_D * DEP_D - D_supply_D
     return goods_mkt_D, deposit_mkt_D
 
@@ -145,8 +150,11 @@ def steady_auxilliary_D(theta_D, rk_D, rdep_D, delta_D, alpha_D, Y_D, K_D, N_D,
 
 
 @simple
-def banker_div_D(rn_D, n_inter_D):
-    div_D = rn_D * n_inter_D
+def banker_div_D(rn_D, n_inter_D, Phi_D, T_D):
+    # SS dividend consistent with bank wealth identity:
+    # net_div = rn·n − Phi − T (Phi, T are bank-side resource costs).
+    # Without subtracting, HH receives overstated div by Phi+T → leaks goods market.
+    div_D = rn_D * n_inter_D - Phi_D - T_D
     return div_D
 
 
@@ -162,9 +170,12 @@ def sdf_D(beta_D, C_D, eis_D):
 
 
 @simple
-def government_ss_D(TAX_D, q_b_D, b_gov_D):
-    # At SS: gov raises q_b_D per face-value unit issued; interest cost = (1−q_b_D)·b_gov.
-    G_D = TAX_D - (1.0 - q_b_D) * b_gov_D
+def government_ss_D(TAX_D, q_b_D, b_gov_D, P_CES_D):
+    # SS gov budget in BUNDLE units: G = TAX − (1−q_b)·b_gov/P_CES
+    # TAX from HH is bundles; b_gov is D-units (bank balance sheet convention).
+    # Interest payment (1−q_b)·b_gov is D-units; divide by P_CES to express in
+    # bundles so the budget is unit-consistent.
+    G_D = TAX_D - (1.0 - q_b_D) * b_gov_D / P_CES_D
     return G_D
 
 
@@ -287,16 +298,13 @@ def macro_pru_tax_D(b_D_D, b_F_D, def_rate_D, T0_D, T1_D):
 
 @simple
 def intermediation_P2_D(rn_D, n_inter_D, m_D, f_D, cap_profit_D, firm_profit_D,
-                        b_D_D, def_rate_D, recovery_rate_D,
-                        b_F_D, def_rate_F, recovery_rate_F,
                         Phi_D, T_D):
-    haircut_D      = 1.0 - recovery_rate_D
-    haircut_F      = 1.0 - recovery_rate_F
-    writedown_D    = def_rate_D * haircut_D * b_D_D(-1)
-    writedown_F    = def_rate_F * haircut_F * b_F_D(-1)
+    # rn_D uses rb_actual = (1 − def·h)/q_b(−1) − 1, which already nets the
+    # default haircut. Subtracting a separate writedown here would double-count
+    # default losses (gap = def·h·b_gov exactly on default shocks).
     gross_income_D = (1 + rn_D) * n_inter_D(-1) + cap_profit_D + firm_profit_D
     n_inter_val_D  = ((1 - f_D) * gross_income_D + m_D
-                      - writedown_D - writedown_F - Phi_D - T_D - n_inter_D)
+                      - Phi_D - T_D - n_inter_D)
     return n_inter_val_D
 
 
