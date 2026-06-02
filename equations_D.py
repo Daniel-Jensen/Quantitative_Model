@@ -322,9 +322,13 @@ def banker_div_res_D(rn_D, n_inter_D, div_D, m_D, f_D, cap_profit_D, firm_profit
 
 
 @simple
-def intermediation_P3_D(Q_D, K_D, n_inter_D, b_D_D, b_F_D, q_b_D, q_b_F, p):
-    # All in D-units; F-bond holdings ·p.
-    D_supply_D = Q_D * K_D + q_b_D * b_D_D + q_b_F * b_F_D * p - n_inter_D
+def intermediation_P3_D(Q_D, K_D, n_inter_D, b_D_D, b_F_D, q_b_D, q_b_F, p, b_TPI_D):
+    # All in D-units. F-bond holdings ·p.
+    # CB's TPI purchases: bank gives up b_TPI_D bonds, receives q_b_D·b_TPI_D
+    # in reserves. Net total assets = Q·K + q_b·b_D_D + q_b·b_F_D·p + q_b·b_TPI_D.
+    # IC binds on risky assets only: theta·n = Q·K + bonds_market (reserves safe).
+    # HH deposits = total_assets − n picks up the +q_b·b_TPI_D from reserves.
+    D_supply_D = Q_D * K_D + q_b_D * b_D_D + q_b_F * b_F_D * p + q_b_D * b_TPI_D - n_inter_D
     return D_supply_D
 
 

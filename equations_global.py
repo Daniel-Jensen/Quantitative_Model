@@ -34,10 +34,24 @@ def global_bond_market(B_supply_D, B_supply_F, b_D_D, b_D_F, b_F_F, b_F_D):
 
 
 @simple
-def domestic_bond_clearing(b_gov_D, b_gov_F, b_D_F, b_F_D):
-    b_D_D = b_gov_D - b_D_F
+def domestic_bond_clearing(b_gov_D, b_gov_F, b_D_F, b_F_D, b_TPI_D):
+    # ECB's TPI absorbs b_TPI_D of D-bonds; the remainder is held by banks.
+    # F-bonds are not eligible for TPI in this baseline (only periphery debt).
+    b_D_D = b_gov_D - b_D_F - b_TPI_D
     b_F_F = b_gov_F - b_F_D
     return b_D_D, b_F_F
+
+
+@simple
+def central_bank_TPI(rb_D, rb_F, b_TPI_D, phi_TPI, spread_threshold):
+    # ECB Transmission Protection Instrument: CB holds D-bonds proportional to
+    # the deviation of the D-F sovereign YIELD spread from threshold.
+    # rb_D = 1/q_b_D − 1 is the market YTM (rises when q_b falls = default fear);
+    # rb_actual would fall on default haircut, giving the wrong sign for the rule.
+    # Linear rule (actual policy has max(0,·) gate; this is the always-active branch).
+    spread_dev = (rb_D - rb_F) - spread_threshold
+    tpi_res    = b_TPI_D - phi_TPI * spread_dev
+    return tpi_res
 
 
 @simple
