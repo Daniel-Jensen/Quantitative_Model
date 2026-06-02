@@ -170,9 +170,13 @@ def sdf_D(beta_D, C_D, eis_D):
 
 
 @simple
-def government_ss_D(TAX_D, q_b_D, b_gov_D):
-    # At SS: gov raises q_b_D per face-value unit issued; interest cost = (1−q_b_D)·b_gov.
-    G_D = TAX_D - (1.0 - q_b_D) * b_gov_D
+def government_ss_D(TAX_D, q_b_D, b_gov_D, def_rate_D, recovery_rate_D, zeta_writeoff_D):
+    # SS gov budget: TAX + q_b·b = G + (1 − ζ·def·h)·b  ⇒
+    #   G = TAX − (1 − ζ·def·h − q_b)·b
+    # When def_rate_ss > 0, omitting the writeoff term leaks (ζ·def·h)·b
+    # into goods_mkt every period.
+    haircut_D = 1.0 - recovery_rate_D
+    G_D = TAX_D - (1.0 - zeta_writeoff_D * def_rate_D * haircut_D - q_b_D) * b_gov_D
     return G_D
 
 

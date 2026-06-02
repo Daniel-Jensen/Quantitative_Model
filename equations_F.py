@@ -148,8 +148,10 @@ def sdf_F(beta_F, C_F, eis_F):
     return SDF_F
 
 @simple
-def government_ss_F(TAX_F, q_b_F, b_gov_F):
-    G_F = TAX_F - (1.0 - q_b_F) * b_gov_F
+def government_ss_F(TAX_F, q_b_F, b_gov_F, def_rate_F, recovery_rate_F, zeta_writeoff_F):
+    # See government_ss_D: writeoff term required when def_rate_ss > 0.
+    haircut_F = 1.0 - recovery_rate_F
+    G_F = TAX_F - (1.0 - zeta_writeoff_F * def_rate_F * haircut_F - q_b_F) * b_gov_F
     return G_F
 
 @simple
