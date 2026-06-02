@@ -70,11 +70,13 @@ hh_extended_D = hh_D.add_hetinputs([make_grids_D, income_D])
 
 @simple
 def smart_steady_D(theta_D, Y_D, n_inter_D, rdep_D, alpha_D, delta_D, f_D, N_D,
-                   rb_actual_D, rb_actual_F, b_D_D, b_F_D, Q_D, q_b_D, q_b_F,
+                   rb_actual_D, rb_actual_F, b_D_D, b_F_D, Q_D, q_b_D, q_b_F, p,
                    chi0_D, chi1_D, chi2_D, T0_D, T1_D, def_rate_D):
-    K_D          = (theta_D * n_inter_D - q_b_D * b_D_D - q_b_F * b_F_D) / Q_D
-    phi_bD_D     = q_b_D * b_D_D / n_inter_D   # market-value share of D-bonds
-    phi_bF_D     = q_b_F * b_F_D / n_inter_D   # market-value share of F-bonds
+    # Cross-border F-bond holdings (b_F_D) are face-value in F-units; multiply
+    # by p to express market value in D-units (consistent with k_balance_sheet_D).
+    K_D          = (theta_D * n_inter_D - q_b_D * b_D_D - q_b_F * b_F_D * p) / Q_D
+    phi_bD_D     = q_b_D * b_D_D / n_inter_D       # market-value share of D-bonds (D-units)
+    phi_bF_D     = q_b_F * b_F_D * p / n_inter_D   # market-value share of F-bonds (D-units)
     kappa_D      = theta_D - phi_bD_D - phi_bF_D
     rk_D         = alpha_D * Y_D / K_D - delta_D
     arg_D        = -rk_D * K_D / (K_D + chi0_D)
@@ -101,8 +103,11 @@ def smart_steady_D(theta_D, Y_D, n_inter_D, rdep_D, alpha_D, delta_D, f_D, N_D,
     return K_D, rk_D, rn_D, m_D, k_inter_D, I_D, D_supply_D, Z_D, rdep_ante_D, cap_profit_D, Phi_D, T_D
 
 @simple
-def market_clearing_D(Y_D, C_D, I_D, G_D, NX_D, DEP_D, D_supply_D, P_CES_D):
-    goods_mkt_D   = Y_D - P_CES_D * (C_D + I_D + G_D) - NX_D
+def market_clearing_D(Y_D, C_D, I_D, G_D, NX_D, DEP_D, D_supply_D, P_CES_D, Phi_D, T_D):
+    # Phi and T are real resource costs paid by the bank (subtracted from n_inter
+    # in intermediation_P2_D with no recipient) → they consume D-goods and must
+    # appear here, otherwise Walras leaks by exactly Phi+T per period.
+    goods_mkt_D   = Y_D - P_CES_D * (C_D + I_D + G_D) - NX_D - Phi_D - T_D
     deposit_mkt_D = P_CES_D * DEP_D - D_supply_D
     return goods_mkt_D, deposit_mkt_D
 
@@ -145,8 +150,11 @@ def steady_auxilliary_D(theta_D, rk_D, rdep_D, delta_D, alpha_D, Y_D, K_D, N_D,
 
 
 @simple
-def banker_div_D(rn_D, n_inter_D):
-    div_D = rn_D * n_inter_D
+def banker_div_D(rn_D, n_inter_D, Phi_D, T_D):
+    # SS dividend must match transition's banker_div_res_D, which gives
+    # net_div_ss = rn·n − Phi − T after substituting m_ss from smart_steady_D.
+    # Without subtracting Phi+T here, div_res_D would equal Phi+T ≠ 0 at SS.
+    div_D = rn_D * n_inter_D - Phi_D - T_D
     return div_D
 
 
@@ -216,10 +224,10 @@ def labor_market_D(w_D, UCE_D, N_D, vphi_D, frisch_D):
 @simple
 def intermediation_IC_D(nu_K_D, nu_bD_D, nu_bF_D, eta_D,
                         Q_D, K_D, q_b_D, q_b_F, b_D_D, b_F_D, n_inter_D,
-                        lambda_gk_D, theta_D):
+                        lambda_gk_D, theta_D, p):
     kappa_D     = Q_D   * K_D   / n_inter_D
     phi_bD_D    = q_b_D * b_D_D / n_inter_D
-    phi_bF_D    = q_b_F * b_F_D / n_inter_D
+    phi_bF_D    = q_b_F * b_F_D * p / n_inter_D
     theta_tgt_D = (nu_K_D * kappa_D + nu_bD_D * phi_bD_D + nu_bF_D * phi_bF_D + eta_D) / lambda_gk_D
     ic_res_D    = theta_D - theta_tgt_D
     return ic_res_D
@@ -227,14 +235,17 @@ def intermediation_IC_D(nu_K_D, nu_bD_D, nu_bF_D, eta_D,
 
 @simple
 def bank_return_D(theta_D, rk_D, rdep_D, b_D_D, b_F_D, n_inter_D,
-                  rb_actual_D, rb_actual_F, q_b_D, q_b_F):
-    # Portfolio shares use MARKET VALUE of bond positions at t-1.
+                  rb_actual_D, rb_actual_F, q_b_D, q_b_F, p):
+    # Portfolio shares: MARKET VALUE of bond positions at t-1, in D-units.
+    # F-bond holdings: face value × q_b_F × p(-1) to express in D-units.
     phi_bD_lag_D = q_b_D(-1) * b_D_D(-1) / n_inter_D(-1)
-    phi_bF_lag_D = q_b_F(-1) * b_F_D(-1) / n_inter_D(-1)
+    phi_bF_lag_D = q_b_F(-1) * b_F_D(-1) * p(-1) / n_inter_D(-1)
     kappa_lag_D  = theta_D(-1) - phi_bD_lag_D - phi_bF_lag_D
+    # F-bond realized return in D-units per D-unit invested: includes p revaluation.
+    rb_F_in_D    = (1.0 + rb_actual_F) * p / p(-1) - 1.0
     rn_D = (kappa_lag_D  * (rk_D - rdep_D)
             + phi_bD_lag_D * (rb_actual_D - rdep_D)
-            + phi_bF_lag_D * (rb_actual_F - rdep_D)
+            + phi_bF_lag_D * (rb_F_in_D    - rdep_D)
             + rdep_D)
     return rn_D
 
@@ -256,9 +267,10 @@ def intermediation_P1_D(rk_D, rb_actual_D, rb_actual_F, rdep_D,
 
 
 @simple
-def k_balance_sheet_D(Q_D, theta_D, n_inter_D, K_D, b_D_D, b_F_D, q_b_D, q_b_F):
-    # Balance sheet at MARKET VALUES: Q*K + q_b_D*b_D_D + q_b_F*b_F_D = theta*n.
-    K_res_D = Q_D * K_D + q_b_D * b_D_D + q_b_F * b_F_D - theta_D * n_inter_D
+def k_balance_sheet_D(Q_D, theta_D, n_inter_D, K_D, b_D_D, b_F_D, q_b_D, q_b_F, p):
+    # Balance sheet at MARKET VALUES, all in D-units.
+    # F-bond holdings: q_b_F·b_F_D in F-units → ·p to D-units.
+    K_res_D = Q_D * K_D + q_b_D * b_D_D + q_b_F * b_F_D * p - theta_D * n_inter_D
     return K_res_D
 
 
@@ -287,16 +299,13 @@ def macro_pru_tax_D(b_D_D, b_F_D, def_rate_D, T0_D, T1_D):
 
 @simple
 def intermediation_P2_D(rn_D, n_inter_D, m_D, f_D, cap_profit_D, firm_profit_D,
-                        b_D_D, def_rate_D, recovery_rate_D,
-                        b_F_D, def_rate_F, recovery_rate_F,
                         Phi_D, T_D):
-    haircut_D      = 1.0 - recovery_rate_D
-    haircut_F      = 1.0 - recovery_rate_F
-    writedown_D    = def_rate_D * haircut_D * b_D_D(-1)
-    writedown_F    = def_rate_F * haircut_F * b_F_D(-1)
+    # rn_D uses rb_actual = (1 − def·h)/q_b(−1) − 1 so gross_income already
+    # reflects the realised default loss.  Subtracting a separate "writedown"
+    # would double-count default (verified: gap = def·h·b_gov exactly).
     gross_income_D = (1 + rn_D) * n_inter_D(-1) + cap_profit_D + firm_profit_D
     n_inter_val_D  = ((1 - f_D) * gross_income_D + m_D
-                      - writedown_D - writedown_F - Phi_D - T_D - n_inter_D)
+                      - Phi_D - T_D - n_inter_D)
     return n_inter_val_D
 
 
@@ -309,8 +318,9 @@ def banker_div_res_D(rn_D, n_inter_D, div_D, m_D, f_D, cap_profit_D, firm_profit
 
 
 @simple
-def intermediation_P3_D(Q_D, K_D, n_inter_D, b_D_D, b_F_D, q_b_D, q_b_F):
-    D_supply_D = Q_D * K_D + q_b_D * b_D_D + q_b_F * b_F_D - n_inter_D
+def intermediation_P3_D(Q_D, K_D, n_inter_D, b_D_D, b_F_D, q_b_D, q_b_F, p):
+    # All in D-units; F-bond holdings ·p.
+    D_supply_D = Q_D * K_D + q_b_D * b_D_D + q_b_F * b_F_D * p - n_inter_D
     return D_supply_D
 
 
