@@ -110,11 +110,12 @@ def smart_steady_D(theta_D, Y_D, n_inter_D, rdep_D, alpha_D, delta_D, f_D, N_D,
 @simple
 def market_clearing_D(Y_D, C_D, I_D, G_D, NX_D, DEP_D, D_supply_D, P_CES_D, Phi_D, T_D):
     # Physical resource constraint: Y = P·C + I + G + Phi + T + NX.
-    # cap_profit (Q·ΔK_net − I) is a CASH flow between cap-producer and bank,
-    # not a resource flow: bank pays Q·ΔK_net for new K, cap-producer pays I to
-    # the goods market and returns (Q·ΔK_net − I) to bank as dividend. Net
-    # resource cost = I (already in this constraint). The dynamic probe
-    # confirms removing cap_profit here improves the goods-market closure by ~17×.
+    # cap_profit IS added to bank wealth in intermediation_P2 (Q·ΔK − I going
+    # to bank as cap-producer profit), but it should NOT debit the resource
+    # constraint: bank pays Q·ΔK for new K, cap-producer spends I in goods and
+    # rebates (Q·ΔK − I) to bank; net resource cost = I, already counted here.
+    # Including cap_profit here adds a spurious 17× linear leak AND breaks SSJ's
+    # Jacobian (SimpleSparse({}) on the K↔Q product).
     goods_mkt_D   = Y_D - (P_CES_D * C_D + I_D + G_D + Phi_D + T_D) - NX_D
     deposit_mkt_D = P_CES_D * DEP_D - D_supply_D
     return goods_mkt_D, deposit_mkt_D
