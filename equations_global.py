@@ -68,11 +68,13 @@ def portfolio_adj_cost(rb_actual_F, rb_actual_D, rdep_D, rdep_F,
                        tau_mp_D, tau_mp_F, p):
     # Level penalty on face-value bond stocks anchors the external position level,
     # not only its composition relative to net worth.
-    b_F_D_res = (rb_actual_F(+1) - rdep_D(+1)) - excess_return_F_D_ss \
+    # Expected D-good return on F-bonds: (1+rb_F)·p(+1)/p − 1
+    rb_F_dg_next = (1 + rb_actual_F(+1)) * p(+1) / p - 1
+    b_F_D_res = (rb_F_dg_next - rdep_D(+1)) - excess_return_F_D_ss \
                 - psi_bF_D * (b_F_D - b_F_D_ss) \
                 - tau_mp_D
 
-    # Expected F-good return on D-good bond: (1+rb)·p/p(+1) − 1
+    # Expected F-good return on D-bonds: (1+rb_D)·p/p(+1) − 1
     rb_D_fg_next = (1 + rb_actual_D(+1)) * p / p(+1) - 1
     b_D_F_res    = (rb_D_fg_next - rdep_F(+1)) - excess_return_D_F_ss \
                    - psi_bD_F * (b_D_F - b_D_F_ss) \

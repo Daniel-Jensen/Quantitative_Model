@@ -259,13 +259,15 @@ def intermediation_IC_D(nu_K_D, nu_bD_D, nu_bF_D, eta_D,
 
 @simple
 def bank_return_D(theta_D, rk_D, rdep_D, b_D_D, b_F_D, n_inter_D,
-                  rb_actual_D, rb_actual_F, q_b_D, q_b_F):
+                  rb_actual_D, rb_actual_F, q_b_D, q_b_F, p):
     phi_bD_lag_D = q_b_D(-1) * b_D_D(-1) / n_inter_D(-1)
     phi_bF_lag_D = q_b_F(-1) * b_F_D(-1) / n_inter_D(-1)
     kappa_lag_D  = theta_D(-1) - phi_bD_lag_D - phi_bF_lag_D
-    rn_D = (kappa_lag_D  * (rk_D - rdep_D)
+    # F-bond return converted to D-goods: (1+rb_F)·p/p(-1) − 1
+    rb_F_dg = (1 + rb_actual_F) * p / p(-1) - 1
+    rn_D = (kappa_lag_D  * (rk_D        - rdep_D)
             + phi_bD_lag_D * (rb_actual_D - rdep_D)
-            + phi_bF_lag_D * (rb_actual_F - rdep_D)
+            + phi_bF_lag_D * (rb_F_dg     - rdep_D)
             + rdep_D)
     return rn_D
 
@@ -273,11 +275,13 @@ def bank_return_D(theta_D, rk_D, rdep_D, b_D_D, b_F_D, n_inter_D,
 @simple
 def intermediation_P1_D(rk_D, rb_actual_D, rb_actual_F, rdep_D,
                         nu_K_D, nu_bD_D, nu_bF_D, eta_D,
-                        lambda_gk_D, theta_D, SDF_D, f_D):
+                        lambda_gk_D, theta_D, SDF_D, f_D, p):
     Omega_p1_D    = f_D + (1 - f_D) * lambda_gk_D * theta_D(+1)
+    # Expected D-good return on F-bonds: (1+rb_F)·p(+1)/p − 1
+    rb_F_dg_next  = (1 + rb_actual_F(+1)) * p(+1) / p - 1
     nu_K_res_D    = nu_K_D  - SDF_D * Omega_p1_D * (rk_D(+1)        - rdep_D(+1))
     nu_bD_res_D   = nu_bD_D - SDF_D * Omega_p1_D * (rb_actual_D(+1) - rdep_D(+1))
-    nu_bF_res_D   = nu_bF_D - SDF_D * Omega_p1_D * (rb_actual_F(+1) - rdep_D(+1))
+    nu_bF_res_D   = nu_bF_D - SDF_D * Omega_p1_D * (rb_F_dg_next    - rdep_D(+1))
     eta_res_D     = eta_D   - SDF_D * Omega_p1_D * (1 + rdep_D(+1))
     return nu_K_res_D, nu_bD_res_D, nu_bF_res_D, eta_res_D
 
