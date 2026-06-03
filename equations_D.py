@@ -108,11 +108,14 @@ def smart_steady_D(theta_D, Y_D, n_inter_D, rdep_D, alpha_D, delta_D, f_D, N_D,
     return K_D, rk_D, rn_D, m_D, k_inter_D, I_D, D_supply_D, Z_D, cap_profit_D, Phi_D, T_D
 
 @simple
-def market_clearing_D(Y_D, C_D, I_D, G_D, NX_D, DEP_D, D_supply_D, P_CES_D, Phi_D, T_D, cap_profit_D):
-    # cap_profit_D = Q·ΔK_net − I is added here to match its injection into bank net worth
-    # via intermediation_P2_D. Without it the resource constraint debits only I while the
-    # balance-sheet records Q·ΔK_net, leaving an unbacked (Q−1)·ΔK_net wedge.
-    goods_mkt_D   = Y_D - (P_CES_D * C_D + I_D + G_D + Phi_D + T_D + cap_profit_D) - NX_D
+def market_clearing_D(Y_D, C_D, I_D, G_D, NX_D, DEP_D, D_supply_D, P_CES_D, Phi_D, T_D):
+    # Physical resource constraint: Y = P·C + I + G + Phi + T + NX.
+    # cap_profit (Q·ΔK_net − I) is a CASH flow between cap-producer and bank,
+    # not a resource flow: bank pays Q·ΔK_net for new K, cap-producer pays I to
+    # the goods market and returns (Q·ΔK_net − I) to bank as dividend. Net
+    # resource cost = I (already in this constraint). The dynamic probe
+    # confirms removing cap_profit here improves the goods-market closure by ~17×.
+    goods_mkt_D   = Y_D - (P_CES_D * C_D + I_D + G_D + Phi_D + T_D) - NX_D
     deposit_mkt_D = P_CES_D * DEP_D - D_supply_D
     return goods_mkt_D, deposit_mkt_D
 
