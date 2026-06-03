@@ -102,10 +102,9 @@ def smart_steady_F(theta_F, Y_F, n_inter_F, rdep_F, alpha_F, delta_F, f_F, N_F,
     return K_F, rk_F, rn_F, m_F, k_inter_F, I_F, D_supply_F, Z_F, cap_profit_F, Phi_F, T_F
 
 @simple
-def market_clearing_F(Y_F, C_F, I_F, G_F, NX_F, DEP_F, D_supply_F, P_CES_F, Phi_F, T_F, cap_profit_F):
-    # cap_profit_F = Q·ΔK_net − I mirrors the treatment in equations_D: the resource
-    # constraint must debit Q·ΔK_net (= I + cap_profit_F) to match the balance-sheet entry.
-    goods_mkt_F = Y_F - (P_CES_F * C_F + I_F + G_F + Phi_F + T_F + cap_profit_F) - NX_F
+def market_clearing_F(Y_F, C_F, I_F, G_F, NX_F, DEP_F, D_supply_F, P_CES_F, Phi_F, T_F):
+    # F (P_F = 1): only C is in bundle units; I, G, Phi, T are in domestic goods.
+    goods_mkt_F = Y_F - (P_CES_F * C_F + I_F + G_F + Phi_F + T_F) - NX_F
     deposit_mkt_F = P_CES_F * DEP_F - D_supply_F
     return goods_mkt_F, deposit_mkt_F
 
@@ -117,10 +116,9 @@ def ces_price_F(omega, epsilon_trade, p):
     return P_CES_F
 
 @simple
-def import_demand_F(C_F, I_F, G_F, omega, epsilon_trade, p, P_CES_F):
-    A_F  = C_F + I_F + G_F
+def import_demand_F(C_F, omega, epsilon_trade, p, P_CES_F):
     IM_F = (1 - omega) * (P_CES_F * p) ** epsilon_trade * C_F
-    return A_F, IM_F
+    return IM_F
 
 @simple
 def steady_auxilliary_F(theta_F, rk_F, rdep_F, delta_F, alpha_F, Y_F, K_F, N_F,

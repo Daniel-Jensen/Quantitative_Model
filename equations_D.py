@@ -108,11 +108,9 @@ def smart_steady_D(theta_D, Y_D, n_inter_D, rdep_D, alpha_D, delta_D, f_D, N_D,
     return K_D, rk_D, rn_D, m_D, k_inter_D, I_D, D_supply_D, Z_D, cap_profit_D, Phi_D, T_D
 
 @simple
-def market_clearing_D(Y_D, C_D, I_D, G_D, NX_D, DEP_D, D_supply_D, P_CES_D, Phi_D, T_D, cap_profit_D):
-    # cap_profit_D = Q·ΔK_net − I is added here to match its injection into bank net worth
-    # via intermediation_P2_D. Without it the resource constraint debits only I while the
-    # balance-sheet records Q·ΔK_net, leaving an unbacked (Q−1)·ΔK_net wedge.
-    goods_mkt_D   = Y_D - (P_CES_D * C_D + I_D + G_D + Phi_D + T_D + cap_profit_D) - NX_D
+def market_clearing_D(Y_D, C_D, I_D, G_D, NX_D, DEP_D, D_supply_D, P_CES_D, Phi_D, T_D):
+    # D (P_D = 1): only C is in bundle units; I, G, Phi, T are in domestic goods.
+    goods_mkt_D   = Y_D - (P_CES_D * C_D + I_D + G_D + Phi_D + T_D) - NX_D
     deposit_mkt_D = P_CES_D * DEP_D - D_supply_D
     return goods_mkt_D, deposit_mkt_D
 
@@ -124,10 +122,9 @@ def ces_price_D(omega, epsilon_trade, p):
 
 
 @simple
-def import_demand_D(C_D, I_D, G_D, omega, epsilon_trade, p, P_CES_D):
-    A_D  = C_D + I_D + G_D
+def import_demand_D(C_D, omega, epsilon_trade, p, P_CES_D):
     IM_D = (1 - omega) * (P_CES_D / p) ** epsilon_trade * C_D
-    return A_D, IM_D
+    return IM_D
 
 
 @simple
