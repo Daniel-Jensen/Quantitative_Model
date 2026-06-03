@@ -52,22 +52,30 @@ def bond_yield(q_b_D, q_b_F):
 
 
 @simple
+def portfolio_level_anchors(b_F_D_anchor, b_D_F_anchor):
+    """Rename fixed calibration scalars so SJ's block graph tracks them as outputs."""
+    b_F_D_ss = b_F_D_anchor
+    b_D_F_ss = b_D_F_anchor
+    return b_F_D_ss, b_D_F_ss
+
+
+@simple
 def portfolio_adj_cost(rb_actual_F, rb_actual_D, rdep_D, rdep_F,
-                       b_F_D, b_D_F, n_inter_D, n_inter_F,
-                       q_b_F, q_b_D,
-                       phi_bF_D_ss, phi_bD_F_ss, psi_bF_D, psi_bD_F,
+                       b_F_D, b_D_F,
+                       b_F_D_ss, b_D_F_ss,
+                       psi_bF_D, psi_bD_F,
                        excess_return_F_D_ss, excess_return_D_F_ss,
                        tau_mp_D, tau_mp_F, p):
-    # D-bank holds F-bonds (D-good claims); n_inter_D is in D-goods → no p needed.
-    phi_bF_D  = q_b_F * b_F_D / n_inter_D
+    # Level penalty on face-value bond stocks anchors the external position level,
+    # not only its composition relative to net worth.
     b_F_D_res = (rb_actual_F(+1) - rdep_D(+1)) - excess_return_F_D_ss \
-                - psi_bF_D * (phi_bF_D - phi_bF_D_ss) \
+                - psi_bF_D * (b_F_D - b_F_D_ss) \
                 - tau_mp_D
 
-    # F-bank holds D-bonds (D-good claims); n_inter_F is in F-goods → divide by p.
-    phi_bD_F  = q_b_D * b_D_F / (p * n_inter_F)
-    b_D_F_res = (rb_actual_D(+1) - rdep_F(+1)) - excess_return_D_F_ss \
-                - psi_bD_F * (phi_bD_F - phi_bD_F_ss) \
-                - tau_mp_F
+    # Expected F-good return on D-good bond: (1+rb)·p/p(+1) − 1
+    rb_D_fg_next = (1 + rb_actual_D(+1)) * p / p(+1) - 1
+    b_D_F_res    = (rb_D_fg_next - rdep_F(+1)) - excess_return_D_F_ss \
+                   - psi_bD_F * (b_D_F - b_D_F_ss) \
+                   - tau_mp_F
 
     return b_F_D_res, b_D_F_res

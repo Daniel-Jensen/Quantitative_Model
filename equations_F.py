@@ -14,23 +14,28 @@ DATA_DIR_F = BASE_DIR_F / "Discretisation" / "Outputs"
 
 # ── Household ─────────────────────────────────────────────────────────────────
 
-def hh_init_F(dep_F_grid, z_F, rdep_F, eis_F):
-    coh_F = (1 + rdep_F) * dep_F_grid[np.newaxis, :] + z_F[:, np.newaxis]
-    Vdep_F = (1 + rdep_F) * coh_F ** (-1 / eis_F)
+def hh_init_F(dep_F_grid, z_F, Rgross_F, eis_F, vphi_F, N_F, frisch_F):
+    coh_F  = Rgross_F * dep_F_grid[np.newaxis, :] + z_F[:, np.newaxis]
+    v_F    = vphi_F * N_F ** (1 + 1/frisch_F) / (1 + 1/frisch_F)
+    Vdep_F = Rgross_F * (coh_F - v_F) ** (-1 / eis_F)
     return Vdep_F
 
 @sj.het(exogenous='Pi_F', policy='dep_F', backward='Vdep_F', backward_init=hh_init_F)
-def hh_F(Vdep_F_p, dep_F_grid, z_F, t_paid_F, rdep_F, beta_F, eis_F):
+def hh_F(Vdep_F_p, dep_F_grid, z_F, t_paid_F, Rgross_F, beta_F, eis_F, vphi_F, N_F, frisch_F):
+    # GHH composite: x = c - v(N), v(N) = vphi*N^(1+1/frisch)/(1+1/frisch)
+    v_F           = vphi_F * N_F ** (1 + 1/frisch_F) / (1 + 1/frisch_F)
     uc_nextgrid_F = beta_F * Vdep_F_p
-    c_nextgrid_F = uc_nextgrid_F ** (-eis_F)
-    coh_F = (1 + rdep_F) * dep_F_grid[np.newaxis, :] + z_F[:, np.newaxis]
+    x_nextgrid_F  = uc_nextgrid_F ** (-eis_F)
+    coh_F         = Rgross_F * dep_F_grid[np.newaxis, :] + z_F[:, np.newaxis]
 
-    dep_F = sj.interpolate.interpolate_y(c_nextgrid_F + dep_F_grid, coh_F, dep_F_grid)
+    # EGM: x + a' = coh - v  →  endogenous grid x_nextgrid + a' matched to coh - v
+    dep_F = sj.interpolate.interpolate_y(x_nextgrid_F + dep_F_grid, coh_F - v_F, dep_F_grid)
     sj.misc.setmin(dep_F, dep_F_grid[0])
 
-    c_F = coh_F - dep_F
-    uce_F = c_F ** (-1 / eis_F)
-    Vdep_F = (1 + rdep_F) * uce_F
+    x_F    = coh_F - v_F - dep_F   # GHH composite
+    c_F    = x_F + v_F              # total consumption = x + v(N)
+    uce_F  = x_F ** (-1 / eis_F)   # marginal utility of composite
+    Vdep_F = Rgross_F * uce_F
 
     tax_F = t_paid_F[:, np.newaxis] + np.zeros_like(dep_F_grid[np.newaxis, :])
 
@@ -60,6 +65,14 @@ def income_F(e_grid_F, w_F, N_F, div_F, tau_F, lamb_F, P_CES_F):
 
 hh_extended_F = hh_F.add_hetinputs([make_grids_F, income_F])
 
+@simple
+def deposit_return_F(rdep_F, P_CES_F):
+    # Bundle-real gross deposit return: corrects for P_CES revaluation between t-1 and t.
+    # At SS P_CES_F(-1)/P_CES_F = 1, so Rgross_F = 1 + rdep_F identically.
+    Rgross_F = (1 + rdep_F) * P_CES_F(-1) / P_CES_F
+    return Rgross_F
+
+
 # ── Steady-state blocks ───────────────────────────────────────────────────────
 # CHECK STEADY STATE OWNING OF THE foreign bonds in DOMESTIC COUNTRY
 @simple
@@ -85,13 +98,14 @@ def smart_steady_F(theta_F, Y_F, n_inter_F, rdep_F, alpha_F, delta_F, f_F, N_F,
     I_F          = K_F * delta_F
     D_supply_F   = (theta_F - 1) * n_inter_F
     Z_F          = Y_F / ((K_F ** alpha_F) * (N_F ** (1 - alpha_F)))
-    rdep_ante_F  = rdep_F
     cap_profit_F = Q_F * (K_F - (1 - delta_F) * K_F(-1)) - I_F
-    return K_F, rk_F, rn_F, m_F, k_inter_F, I_F, D_supply_F, Z_F, rdep_ante_F, cap_profit_F, Phi_F, T_F
+    return K_F, rk_F, rn_F, m_F, k_inter_F, I_F, D_supply_F, Z_F, cap_profit_F, Phi_F, T_F
 
 @simple
-def market_clearing_F(Y_F, C_F, I_F, G_F, NX_F, DEP_F, D_supply_F, P_CES_F, Phi_F, T_F):
-    goods_mkt_F = Y_F - (P_CES_F * C_F + I_F + G_F + Phi_F + T_F) - NX_F
+def market_clearing_F(Y_F, C_F, I_F, G_F, NX_F, DEP_F, D_supply_F, P_CES_F, Phi_F, T_F, cap_profit_F):
+    # cap_profit_F = Q·ΔK_net − I mirrors the treatment in equations_D: the resource
+    # constraint must debit Q·ΔK_net (= I + cap_profit_F) to match the balance-sheet entry.
+    goods_mkt_F = Y_F - (P_CES_F * C_F + I_F + G_F + Phi_F + T_F + cap_profit_F) - NX_F
     deposit_mkt_F = P_CES_F * DEP_F - D_supply_F
     return goods_mkt_F, deposit_mkt_F
 
@@ -139,35 +153,50 @@ def sdf_ss_F(beta_F):
     return SDF_F
 
 @simple
-def sdf_F(beta_F, C_F, eis_F):
-    SDF_F = beta_F * (C_F(+1) / C_F) ** (-1 / eis_F)
+def sdf_F(beta_F, X_F, eis_F):
+    # GHH: SDF uses composite x = c - v(N) instead of c
+    SDF_F = beta_F * (X_F(+1) / X_F) ** (-1 / eis_F)
     return SDF_F
 
+
 @simple
-def government_ss_F(TAX_F, q_b_F, b_gov_F, p, P_CES_F):
-    # TAX is in bundle units → multiply by P_CES_F for F-goods.
-    # Bond debt service is in D-goods (numeraire) → divide by p for F-goods.
-    G_F = P_CES_F * TAX_F - (1.0 - q_b_F) * b_gov_F / p
+def ghh_composite_F(C_F, vphi_F, N_F, frisch_F):
+    # Aggregate GHH composite X = C - v(N); homogeneous v(N) → X = C - v(N) exactly
+    X_F = C_F - vphi_F * N_F ** (1 + 1/frisch_F) / (1 + 1/frisch_F)
+    return X_F
+
+@simple
+def government_ss_F(TAX_F, q_b_F, b_gov_F, p, P_CES_F, delta_b_F,
+                    def_rate_F, recovery_rate_F, zeta_writeoff_F):
+    # At SS (b_gov constant): G = TAX*P + (net_issuance - coupon)/p.
+    # Consistent with budget_residual_F at steady state.
+    haircut_F   = 1.0 - recovery_rate_F
+    surv_cont_F = 1.0 - zeta_writeoff_F * def_rate_F * haircut_F
+    coupon_F    = delta_b_F * (1.0 - def_rate_F * haircut_F) * b_gov_F
+    net_iss_F   = q_b_F * (1.0 - surv_cont_F * (1.0 - delta_b_F)) * b_gov_F
+    G_F         = P_CES_F * TAX_F + (net_iss_F - coupon_F) / p
     return G_F
 
 @simple
-def labor_ss_F(w_F, N_F, UCE_F, frisch_F, mu_w_F, P_CES_F):
-    vphi_F = (1 / mu_w_F) * (w_F / P_CES_F) * UCE_F / (N_F ** (1 / frisch_F))
+def labor_ss_F(w_F, N_F, frisch_F, mu_w_F, P_CES_F):
+    # GHH: UCE cancels from intratemporal FOC → vphi independent of UCE
+    vphi_F = (1 / mu_w_F) * (w_F / P_CES_F) / (N_F ** (1 / frisch_F))
     return vphi_F
 
 @simple
-def bond_return_F(def_rate_F, recovery_rate_F, q_b_F):
-    # See bond_return_D.
-    haircut_F   = 1.0 - recovery_rate_F
-    rb_actual_F = (1 - def_rate_F * haircut_F) / q_b_F(-1) - 1
+def bond_return_F(def_rate_F, recovery_rate_F, q_b_F, delta_b_F, zeta_writeoff_F):
+    haircut_F        = 1.0 - recovery_rate_F
+    current_payoff_F = delta_b_F * (1.0 - def_rate_F * haircut_F)
+    continuation_F   = (1.0 - delta_b_F) * q_b_F * (1.0 - zeta_writeoff_F * def_rate_F * haircut_F)
+    rb_actual_F      = (current_payoff_F + continuation_F) / q_b_F(-1) - 1.0
     return rb_actual_F
 
 # ── Off-steady-state blocks ───────────────────────────────────────────────────
 
 @simple
-def capital_adj_F(Y_F, K_F, Q_F, I_F, alpha_F, delta_F, gamma0_F, gamma1_F, ksi_F):
+def capital_adj_F(K_F, Q_F, I_F, Z_F, N_F, alpha_F, delta_F, gamma0_F, gamma1_F, ksi_F):
     iota_F        = I_F / K_F(-1)
-    mpk_F         = alpha_F * Y_F / K_F(-1)
+    mpk_F         = alpha_F * Z_F * K_F ** (alpha_F - 1) * N_F ** (1 - alpha_F)
     rk_F          = (mpk_F + (1 - delta_F) * Q_F) / Q_F(-1) - 1
     q_res_F       = Q_F - 1 / (gamma0_F * (1 - ksi_F) * iota_F ** (-ksi_F))
     capital_res_F = K_F - (1 - delta_F) * K_F(-1) - (gamma0_F * iota_F ** (1 - ksi_F) + gamma1_F) * K_F(-1)
@@ -175,14 +204,21 @@ def capital_adj_F(Y_F, K_F, Q_F, I_F, alpha_F, delta_F, gamma0_F, gamma1_F, ksi_
 
 @simple
 def labor_F(N_F, Z_F, K_F, alpha_F):
-    Y_F = Z_F * K_F(-1) ** alpha_F * N_F ** (1 - alpha_F)
+    Y_F = Z_F * K_F ** alpha_F * N_F ** (1 - alpha_F)
     return Y_F
 
 @simple
-def labor_market_F(w_F, UCE_F, N_F, vphi_F, frisch_F, P_CES_F):
-    mrs_F           = vphi_F * N_F ** (1 / frisch_F) / UCE_F
-    labor_mkt_res_F = w_F / P_CES_F - mrs_F
+def labor_market_F(w_F, N_F, vphi_F, frisch_F, P_CES_F):
+    # GHH: UCE = x^(-1/eis) divides out of both sides → w/P = vphi*N^(1/frisch)
+    labor_mkt_res_F = w_F / P_CES_F - vphi_F * N_F ** (1 / frisch_F)
     return labor_mkt_res_F
+
+
+@simple
+def labor_demand_F(w_F, Y_F, N_F, alpha_F):
+    # Firm FOC: w = (1−α)·Y/N. Pins the wage in ha_full (drop labor_mkt_res_F there).
+    w_res_F = w_F - (1 - alpha_F) * Y_F / N_F
+    return w_res_F
 
 
 
@@ -204,20 +240,26 @@ def bank_return_F(theta_F, rk_F, rdep_F, b_F_F, b_D_F, n_inter_F,
     phi_bF_lag_F = q_b_F(-1) * b_F_F(-1) / (p(-1) * n_inter_F(-1))
     phi_bD_lag_F = q_b_D(-1) * b_D_F(-1) / (p(-1) * n_inter_F(-1))
     kappa_lag_F  = theta_F(-1) - phi_bF_lag_F - phi_bD_lag_F
-    rn_F = (kappa_lag_F  * (rk_F - rdep_F)
-            + phi_bF_lag_F * (rb_actual_F - rdep_F)
-            + phi_bD_lag_F * (rb_actual_D - rdep_F)
+    # D-good bond returns revalued into F-goods: (1+rb)·p(-1)/p − 1
+    rb_F_fg = (1 + rb_actual_F) * p(-1) / p - 1
+    rb_D_fg = (1 + rb_actual_D) * p(-1) / p - 1
+    rn_F = (kappa_lag_F  * (rk_F   - rdep_F)
+            + phi_bF_lag_F * (rb_F_fg - rdep_F)
+            + phi_bD_lag_F * (rb_D_fg - rdep_F)
             + rdep_F)
     return rn_F
 
 @simple
 def intermediation_P1_F(rk_F, rb_actual_F, rb_actual_D, rdep_F,
                         nu_K_F, nu_bF_F, nu_bD_F, eta_F,
-                        lambda_gk_F, theta_F, SDF_F, f_F):
+                        lambda_gk_F, theta_F, SDF_F, f_F, p):
     Omega_p1_F    = f_F + (1 - f_F) * lambda_gk_F * theta_F(+1)
-    nu_K_res_F    = nu_K_F  - SDF_F * Omega_p1_F * (rk_F(+1)        - rdep_F(+1))
-    nu_bF_res_F   = nu_bF_F - SDF_F * Omega_p1_F * (rb_actual_F(+1) - rdep_F(+1))
-    nu_bD_res_F   = nu_bD_F - SDF_F * Omega_p1_F * (rb_actual_D(+1) - rdep_F(+1))
+    # Expected F-good returns on D-good bonds: (1+rb)·p/p(+1) − 1
+    rb_F_fg_next  = (1 + rb_actual_F(+1)) * p / p(+1) - 1
+    rb_D_fg_next  = (1 + rb_actual_D(+1)) * p / p(+1) - 1
+    nu_K_res_F    = nu_K_F  - SDF_F * Omega_p1_F * (rk_F(+1)     - rdep_F(+1))
+    nu_bF_res_F   = nu_bF_F - SDF_F * Omega_p1_F * (rb_F_fg_next - rdep_F(+1))
+    nu_bD_res_F   = nu_bD_F - SDF_F * Omega_p1_F * (rb_D_fg_next - rdep_F(+1))
     eta_res_F     = eta_F   - SDF_F * Omega_p1_F * (1 + rdep_F(+1))
     return nu_K_res_F, nu_bF_res_F, nu_bD_res_F, eta_res_F
 
@@ -243,18 +285,11 @@ def macro_pru_tax_F(b_F_F, b_D_F, def_rate_F, T0_F, T1_F, p):
 
 
 @simple
-def intermediation_P2_F(rn_F, n_inter_F, m_F, f_F, cap_profit_F,
-                        b_F_F, def_rate_F, recovery_rate_F,
-                        b_D_F, def_rate_D, recovery_rate_D,
-                        Phi_F, T_F, p):
-    haircut_F      = 1.0 - recovery_rate_F
-    haircut_D      = 1.0 - recovery_rate_D
-    # Bond face values are D-good claims; divide by p to get F-good losses.
-    writedown_F    = def_rate_F * haircut_F * b_F_F(-1) / p
-    writedown_D    = def_rate_D * haircut_D * b_D_F(-1) / p
+def intermediation_P2_F(rn_F, n_inter_F, m_F, f_F, cap_profit_F, Phi_F, T_F):
+    # Writedown terms removed: rb_actual already embeds the default haircut via
+    # rb_actual = (1 − def·haircut)/q_b(-1) − 1, so deducting them again double-counts.
     gross_income_F = (1 + rn_F) * n_inter_F(-1) + cap_profit_F
-    n_inter_val_F  = ((1 - f_F) * gross_income_F + m_F
-                      - writedown_F - writedown_D - Phi_F - T_F - n_inter_F)
+    n_inter_val_F  = (1 - f_F) * gross_income_F + m_F - Phi_F - T_F - n_inter_F
     return n_inter_val_F
 
 @simple
@@ -270,19 +305,27 @@ def intermediation_P3_F(Q_F, K_F, n_inter_F, b_F_F, b_D_F, q_b_F, q_b_D, p):
     return D_supply_F
 
 @simple
-def bond_price_ss_F(SDF_F, def_rate_F, recovery_rate_F):
-    haircut_F = 1.0 - recovery_rate_F
-    q_b_F     = SDF_F * (1.0 - def_rate_F(+1) * haircut_F)
+def bond_price_ss_F(SDF_F, def_rate_F, recovery_rate_F, delta_b_F, zeta_writeoff_F):
+    # SS fixed point: q = SDF*[delta_b*(1-d*h) + (1-delta_b)*q*(1-zeta*d*h)]
+    # → q = SDF*delta_b*(1-d*h) / (1 - SDF*(1-delta_b)*(1-zeta*d*h))
+    haircut_F   = 1.0 - recovery_rate_F
+    surv_cont_F = 1.0 - zeta_writeoff_F * def_rate_F * haircut_F
+    q_b_F       = (
+        SDF_F * delta_b_F * (1.0 - def_rate_F * haircut_F)
+        / (1.0 - SDF_F * (1.0 - delta_b_F) * surv_cont_F)
+    )
     return q_b_F
 
 
 @simple
 def domestic_bond_foc_F(rb_actual_F, rdep_F, b_F_F, n_inter_F, q_b_F,
                          phi_bF_F_ss, psi_bF_F, excess_return_bF_F_ss, tau_mp_F, p):
-    phi_bF_F = q_b_F * b_F_F / (p * n_inter_F)
-    rb_F_res = (rb_actual_F(+1) - rdep_F(+1)) - excess_return_bF_F_ss \
-               - psi_bF_F * (phi_bF_F - phi_bF_F_ss) \
-               - tau_mp_F
+    phi_bF_F     = q_b_F * b_F_F / (p * n_inter_F)
+    # Expected F-good return on D-good bond: (1+rb)·p/p(+1) − 1
+    rb_F_fg_next = (1 + rb_actual_F(+1)) * p / p(+1) - 1
+    rb_F_res     = (rb_F_fg_next - rdep_F(+1)) - excess_return_bF_F_ss \
+                   - psi_bF_F * (phi_bF_F - phi_bF_F_ss) \
+                   - tau_mp_F
     return rb_F_res
 
 
@@ -307,12 +350,13 @@ def capital_producer_profit_F(Q_F, K_F, I_F, delta_F):
     return cap_profit_F
 
 @simple
-def budget_residual_F(b_gov_F, G_F, TAX_F, q_b_F, def_rate_F, recovery_rate_F, zeta_writeoff_F, p, P_CES_F):
-    haircut_F   = 1.0 - recovery_rate_F
-    repay_F     = (1.0 - zeta_writeoff_F * def_rate_F * haircut_F) * b_gov_F(-1)
-    # Bond repayment and new issuance are D-good (numeraire) flows → divide by p.
-    # Tax revenue is in bundle units → multiply by P_CES_F for F-goods.
-    b_gov_res_F = (repay_F - q_b_F * b_gov_F) / p + G_F - P_CES_F * TAX_F
+def budget_residual_F(b_gov_F, G_F, TAX_F, q_b_F, def_rate_F, recovery_rate_F, zeta_writeoff_F, p, P_CES_F, delta_b_F):
+    # Bond flows are in D-goods → divide by p for F-goods.
+    haircut_F      = 1.0 - recovery_rate_F
+    surv_cont_F    = 1.0 - zeta_writeoff_F * def_rate_F * haircut_F
+    coupon_F       = delta_b_F * (1.0 - def_rate_F * haircut_F) * b_gov_F(-1)
+    net_issuance_F = q_b_F * (b_gov_F - surv_cont_F * (1.0 - delta_b_F) * b_gov_F(-1))
+    b_gov_res_F    = (coupon_F - net_issuance_F) / p + G_F - P_CES_F * TAX_F
     return b_gov_res_F
 
 
