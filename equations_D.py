@@ -241,12 +241,19 @@ def labor_demand_D(w_D, Y_D, N_D, alpha_D):
 @simple
 def intermediation_IC_D(nu_K_D, nu_bD_D, nu_bF_D, eta_D,
                         Q_D, K_D, q_b_D, q_b_F, b_D_D, b_F_D, n_inter_D,
-                        lambda_gk_D, theta_D):
-    kappa_D     = Q_D   * K_D   / n_inter_D
-    phi_bD_D    = q_b_D * b_D_D / n_inter_D
-    phi_bF_D    = q_b_F * b_F_D / n_inter_D
-    theta_tgt_D = (nu_K_D * kappa_D + nu_bD_D * phi_bD_D + nu_bF_D * phi_bF_D + eta_D) / lambda_gk_D
-    ic_res_D    = theta_D - theta_tgt_D
+                        lambda_K_D, lambda_B_D, theta_D,
+                        def_rate_D, psi_lambda_B_D):
+    kappa_D        = Q_D   * K_D   / n_inter_D
+    phi_bD_D       = q_b_D * b_D_D / n_inter_D
+    phi_bF_D       = q_b_F * b_F_D / n_inter_D
+    # psi_lambda_B_D > 0 makes bonds lose safe-collateral status when default risk rises.
+    # Set psi_lambda_B_D = 0 to disable state-dependence.
+    lambda_B_eff_D = lambda_B_D + psi_lambda_B_D * def_rate_D(+1)
+    theta_tgt_D    = (  nu_K_D  * kappa_D  / lambda_K_D
+                      + nu_bD_D * phi_bD_D / lambda_B_eff_D
+                      + nu_bF_D * phi_bF_D / lambda_B_eff_D
+                      + eta_D              / lambda_K_D)
+    ic_res_D       = theta_D - theta_tgt_D
     return ic_res_D
 
 
