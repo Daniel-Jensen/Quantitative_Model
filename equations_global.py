@@ -5,8 +5,21 @@ from sequence_jacobian import simple
 def trade_balance(p, IM_D, IM_F):
     NX_D    = IM_F - p * IM_D
     NX_F    = IM_D - IM_F / p
-    tob_res = NX_D
-    return NX_D, NX_F, tob_res
+    return NX_D, NX_F
+
+
+
+@simple
+def external_account_D(NX_D, q_b_D, q_b_F, b_F_D, b_D_F,rb_actual_F, rb_actual_D):
+
+    receipts_from_F_bonds = (1 + rb_actual_F) * q_b_F(-1) * b_F_D(-1)
+    payments_on_D_bonds   = (1 + rb_actual_D) * q_b_D(-1) * b_D_F(-1)
+
+    nfa_D = q_b_F * b_F_D - q_b_D * b_D_F
+
+    ca_res_D = (NX_D + receipts_from_F_bonds - payments_on_D_bonds- nfa_D)
+
+    return nfa_D, ca_res_D
 
 
 @simple
@@ -39,32 +52,30 @@ def bond_yield(q_b_D, q_b_F):
 
 
 @simple
-def portfolio_adj_cost(rb_actual_F, rb_actual_D, rdep_D, rdep_F,
-                       b_F_D, b_D_F, n_inter_D, n_inter_F,
-                       q_b_F, q_b_D,
-                       phi_bF_D_ss, phi_bD_F_ss, psi_bF_D, psi_bD_F,
-                       excess_return_F_D_ss, excess_return_D_F_ss,
-                       tau_mp_D, tau_mp_F):
-    # Cross-border bond Euler equations (portfolio-adjustment-cost approach).
-    # phi shares use market values (q_b * face_value / net_worth) for consistency
-    # with the market-value balance sheet in k_balance_sheet_D/F.
-    # psi pins the equilibrium quantity (slope of demand curve).
-    # tau_mp / T0 shifts the required excess return (calibrates the price spread).
-
-    phi_bF_D  = q_b_F * b_F_D / n_inter_D
-    b_F_D_res = (rb_actual_F(+1) - rdep_D(+1)) - excess_return_F_D_ss \
-                - psi_bF_D * (phi_bF_D - phi_bF_D_ss) \
-                - tau_mp_D
-
-    phi_bD_F  = q_b_D * b_D_F / n_inter_F
-    b_D_F_res = (rb_actual_D(+1) - rdep_F(+1)) - excess_return_D_F_ss \
-                - psi_bD_F * (phi_bD_F - phi_bD_F_ss) \
-                - tau_mp_F
-
-    return b_F_D_res, b_D_F_res
+def portfolio_level_anchors(b_F_D_anchor, b_D_F_anchor):
+    """Rename fixed calibration scalars so SJ's block graph tracks them as outputs."""
+    b_F_D_ss = b_F_D_anchor
+    b_D_F_ss = b_D_F_anchor
+    return b_F_D_ss, b_D_F_ss
 
 
 @simple
-def terms_of_trade(p, pi_D, pi_F):
-    p_res = p - p(-1) * (1 + pi_F) / (1 + pi_D)
-    return p_res
+def portfolio_adj_cost(rb_actual_F, rb_actual_D, rdep_D, rdep_F,
+                       b_F_D, b_D_F,
+                       b_F_D_ss, b_D_F_ss,
+                       psi_bF_D, psi_bD_F,
+                       excess_return_F_D_ss, excess_return_D_F_ss,
+                       tau_mp_D, tau_mp_F, p):
+    # Level penalty on face-value bond stocks anchors the external position level,
+    # not only its composition relative to net worth.
+    b_F_D_res = (rb_actual_F(+1) - rdep_D(+1)) - excess_return_F_D_ss \
+                - psi_bF_D * (b_F_D - b_F_D_ss) \
+                - tau_mp_D
+
+    # Expected F-good return on D-good bond: (1+rb)·p/p(+1) − 1
+    rb_D_fg_next = (1 + rb_actual_D(+1)) * p / p(+1) - 1
+    b_D_F_res    = (rb_D_fg_next - rdep_F(+1)) - excess_return_D_F_ss \
+                   - psi_bD_F * (b_D_F - b_D_F_ss) \
+                   - tau_mp_F
+
+    return b_F_D_res, b_D_F_res
