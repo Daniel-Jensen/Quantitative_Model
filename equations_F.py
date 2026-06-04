@@ -228,19 +228,19 @@ def labor_demand_F(w_F, Y_F, N_F, alpha_F):
 @simple
 def intermediation_IC_F(nu_K_F, nu_bF_F, nu_bD_F, eta_F,
                         Q_F, K_F, q_b_F, q_b_D, b_F_F, b_D_F, n_inter_F,
-                        lambda_K_F, lambda_BF_F, lambda_BD_F, theta_F, p,
+                        lambda_gk_F, Delta_bF_F, Delta_bD_F, theta_F, p,
                         def_rate_F, psi_lambda_B_F):
-    kappa_F         = Q_F   * K_F   / n_inter_F
-    phi_bF_F        = q_b_F * b_F_F / (p * n_inter_F)
-    phi_bD_F        = q_b_D * b_D_F / (p * n_inter_F)
-    # psi_lambda_B_F > 0 lets default risk tighten both bond risk-weights uniformly.
-    lambda_BF_eff_F = lambda_BF_F + psi_lambda_B_F * def_rate_F(+1)
-    lambda_BD_eff_F = lambda_BD_F + psi_lambda_B_F * def_rate_F(+1)
-    theta_tgt_F     = (  nu_K_F  * kappa_F  / lambda_K_F
-                       + nu_bF_F * phi_bF_F / lambda_BF_eff_F
-                       + nu_bD_F * phi_bD_F / lambda_BD_eff_F
-                       + eta_F              / lambda_K_F)
-    ic_res_F        = theta_F - theta_tgt_F
+    kappa_F       = Q_F   * K_F   / n_inter_F
+    phi_bF_F      = q_b_F * b_F_F / (p * n_inter_F)
+    phi_bD_F      = q_b_D * b_D_F / (p * n_inter_F)
+    # GK multi-asset IC with relative divertability Delta_i — see intermediation_IC_D.
+    Delta_bF_eff  = Delta_bF_F + psi_lambda_B_F * def_rate_F(+1)
+    Delta_bD_eff  = Delta_bD_F + psi_lambda_B_F * def_rate_F(+1)
+    value_F       = nu_K_F * kappa_F + nu_bF_F * phi_bF_F + nu_bD_F * phi_bD_F + eta_F
+    theta_tgt_F   = (value_F / lambda_gk_F
+                     + (1 - Delta_bF_eff) * phi_bF_F
+                     + (1 - Delta_bD_eff) * phi_bD_F)
+    ic_res_F      = theta_F - theta_tgt_F
     return ic_res_F
 
 @simple

@@ -255,19 +255,26 @@ def labor_demand_D(w_D, Y_D, N_D, alpha_D):
 @simple
 def intermediation_IC_D(nu_K_D, nu_bD_D, nu_bF_D, eta_D,
                         Q_D, K_D, q_b_D, q_b_F, b_D_D, b_F_D, n_inter_D,
-                        lambda_K_D, lambda_BD_D, lambda_BF_D, theta_D,
+                        lambda_gk_D, Delta_bD_D, Delta_bF_D, theta_D,
                         def_rate_D, psi_lambda_B_D):
-    kappa_D         = Q_D   * K_D   / n_inter_D
-    phi_bD_D        = q_b_D * b_D_D / n_inter_D
-    phi_bF_D        = q_b_F * b_F_D / n_inter_D
-    # psi_lambda_B_D > 0 lets default risk tighten both bond risk-weights uniformly.
-    lambda_BD_eff_D = lambda_BD_D + psi_lambda_B_D * def_rate_D(+1)
-    lambda_BF_eff_D = lambda_BF_D + psi_lambda_B_D * def_rate_D(+1)
-    theta_tgt_D     = (  nu_K_D  * kappa_D  / lambda_K_D
-                       + nu_bD_D * phi_bD_D / lambda_BD_eff_D
-                       + nu_bF_D * phi_bF_D / lambda_BF_eff_D
-                       + eta_D              / lambda_K_D)
-    ic_res_D        = theta_D - theta_tgt_D
+    kappa_D       = Q_D   * K_D   / n_inter_D
+    phi_bD_D      = q_b_D * b_D_D / n_inter_D
+    phi_bF_D      = q_b_F * b_F_D / n_inter_D
+    # GK multi-asset IC: franchise value = lambda·(divertable assets), assets weighted
+    # by relative divertability Delta_i (Delta<1 = better collateral = bank levers more).
+    # Single divertability lambda_gk (consistent with P1's Omega). Using the balance
+    # sheet kappa = theta - phi_bD - phi_bF, the binding IC gives
+    #   theta_tgt = value/lambda_gk + (1-Delta_bD)·phi_bD + (1-Delta_bF)·phi_bF.
+    # Delta_i=1 ⇒ single-lambda form. Composition enters via mild O(1-Delta) terms
+    # (not ÷lambda_B), so it's stable AND keeps theta explicit (pins theta).
+    # psi_lambda_B>0: default risk raises bond divertability (worse collateral).
+    Delta_bD_eff  = Delta_bD_D + psi_lambda_B_D * def_rate_D(+1)
+    Delta_bF_eff  = Delta_bF_D + psi_lambda_B_D * def_rate_D(+1)
+    value_D       = nu_K_D * kappa_D + nu_bD_D * phi_bD_D + nu_bF_D * phi_bF_D + eta_D
+    theta_tgt_D   = (value_D / lambda_gk_D
+                     + (1 - Delta_bD_eff) * phi_bD_D
+                     + (1 - Delta_bF_eff) * phi_bF_D)
+    ic_res_D      = theta_D - theta_tgt_D
     return ic_res_D
 
 
