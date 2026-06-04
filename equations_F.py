@@ -363,3 +363,15 @@ def budget_residual_F(b_gov_F, G_F, TAX_F, q_b_F, def_rate_F, recovery_rate_F, z
     return b_gov_res_F
 
 
+@simple
+def divert_bond_foc_F(rb_actual_F, rdep_F, b_F_F, n_inter_F, q_b_F,
+                      phi_bF_F_ss, psi_bF_F, excess_return_bF_F_ss, tau_mp_F, p,
+                      lambda_BF_F, psi_lambda_B_F, def_rate_F):
+    phi_bF_F     = q_b_F * b_F_F / (p * n_inter_F)
+    rb_F_fg_next = (1 + rb_actual_F(+1)) * p / p(+1) - 1
+    lam_eff      = lambda_BF_F + psi_lambda_B_F * def_rate_F(+1)
+    req_spread   = (lam_eff / lambda_BF_F) * excess_return_bF_F_ss
+    rb_F_res     = (rb_F_fg_next - rdep_F(+1)) - req_spread \
+                   - psi_bF_F * (phi_bF_F - phi_bF_F_ss) \
+                   - tau_mp_F
+    return rb_F_res

@@ -81,3 +81,24 @@ def portfolio_adj_cost(rb_actual_F, rb_actual_D, rdep_D, rdep_F,
                    - tau_mp_F
 
     return b_F_D_res, b_D_F_res
+
+
+@simple
+def divert_portfolio_adj(rb_actual_F, rb_actual_D, rdep_D, rdep_F, p,
+                         b_F_D, b_D_F, b_F_D_ss, b_D_F_ss, psi_bF_D, psi_bD_F,
+                         excess_return_F_D_ss, excess_return_D_F_ss, tau_mp_D, tau_mp_F,
+                         lambda_BF_D, lambda_BD_F, psi_lambda_B_D, psi_lambda_B_F,
+                         def_rate_D, def_rate_F):
+    # D holds F-bonds (F-good claim -> convert with p); issuer = F
+    rb_F_dg_next = (1 + rb_actual_F(+1)) * p(+1) / p - 1
+    lam_FD_eff   = lambda_BF_D + psi_lambda_B_D * def_rate_F(+1)
+    prem_FD      = (lam_FD_eff / lambda_BF_D) * excess_return_F_D_ss
+    b_F_D_res    = (rb_F_dg_next - rdep_D(+1)) - prem_FD \
+                   - psi_bF_D * (b_F_D - b_F_D_ss) - tau_mp_D
+    # F holds D-bonds (D-good claim -> convert with p); issuer = D
+    rb_D_fg_next = (1 + rb_actual_D(+1)) * p / p(+1) - 1
+    lam_DF_eff   = lambda_BD_F + psi_lambda_B_F * def_rate_D(+1)
+    prem_DF      = (lam_DF_eff / lambda_BD_F) * excess_return_D_F_ss
+    b_D_F_res    = (rb_D_fg_next - rdep_F(+1)) - prem_DF \
+                   - psi_bD_F * (b_D_F - b_D_F_ss) - tau_mp_F
+    return b_F_D_res, b_D_F_res

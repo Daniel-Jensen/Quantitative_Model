@@ -384,3 +384,22 @@ def budget_residual_D(b_gov_D, G_D, TAX_D, q_b_D, def_rate_D, recovery_rate_D, z
     b_gov_res_D    = coupon_D + G_D - P_CES_D * TAX_D - net_issuance_D
     return b_gov_res_D
 
+
+@simple
+def divert_bond_foc_D(rb_actual_D, rdep_D, b_D_D, n_inter_D, q_b_D,
+                      phi_bD_D_ss, psi_bD_D, excess_return_bD_D_ss, tau_mp_D,
+                      lambda_BD_D, psi_lambda_B_D, def_rate_D):
+    # Required bond excess return scales with EFFECTIVE divertability
+    #   lambda_BD_eff = lambda_BD_D + psi_lambda_B_D * def_rate_D(+1).
+    # At SS def_rate=0 -> lam_eff=lambda_BD_D -> req_spread = excess_return_bD_D_ss,
+    # so the steady state is preserved exactly. Higher expected default raises the
+    # required spread (lower q_b_D). psi_bD_D is retained only as a small curvature
+    # anchor and can be set near zero once psi_lambda_B_D > 0.
+    phi_bD_D   = q_b_D * b_D_D / n_inter_D
+    lam_eff    = lambda_BD_D + psi_lambda_B_D * def_rate_D(+1)
+    req_spread = (lam_eff / lambda_BD_D) * excess_return_bD_D_ss
+    rb_D_res   = (rb_actual_D(+1) - rdep_D(+1)) - req_spread \
+                 - psi_bD_D * (phi_bD_D - phi_bD_D_ss) \
+                 - tau_mp_D
+    return rb_D_res
+
