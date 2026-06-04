@@ -165,14 +165,13 @@ def ghh_composite_F(C_F, vphi_F, N_F, frisch_F):
 
 @simple
 def government_ss_F(TAX_F, q_b_F, b_gov_F, p, P_CES_F, delta_b_F,
-                    def_rate_F, recovery_rate_F, zeta_writeoff_F):
-    # At SS (b_gov constant): G = TAX*P + (net_issuance - coupon)/p.
-    # Consistent with budget_residual_F at steady state.
-    haircut_F   = 1.0 - recovery_rate_F
-    surv_cont_F = 1.0 - zeta_writeoff_F * def_rate_F * haircut_F
-    coupon_F    = delta_b_F * (1.0 - def_rate_F * haircut_F) * b_gov_F
-    net_iss_F   = q_b_F * (1.0 - surv_cont_F * (1.0 - delta_b_F)) * b_gov_F
-    G_F         = P_CES_F * TAX_F + (net_iss_F - coupon_F) / p
+                    def_rate_F, recovery_rate_F, zeta_writeoff_F, writeoff_enabled_F):
+    haircut_F      = 1.0 - recovery_rate_F
+    haircut_mult_F = writeoff_enabled_F
+    surv_cont_F    = 1.0 - zeta_writeoff_F * def_rate_F * haircut_F * haircut_mult_F
+    coupon_F       = delta_b_F * (1.0 - def_rate_F * haircut_F * haircut_mult_F) * b_gov_F
+    net_iss_F      = q_b_F * (1.0 - surv_cont_F * (1.0 - delta_b_F)) * b_gov_F
+    G_F            = P_CES_F * TAX_F + (net_iss_F - coupon_F) / p
     return G_F
 
 @simple
@@ -182,10 +181,13 @@ def labor_ss_F(w_F, N_F, frisch_F, mu_w_F, P_CES_F):
     return vphi_F
 
 @simple
-def bond_return_F(def_rate_F, recovery_rate_F, q_b_F, delta_b_F, zeta_writeoff_F):
+def bond_return_F(def_rate_F, recovery_rate_F, q_b_F, delta_b_F, zeta_writeoff_F, writeoff_enabled_F):
+    # writeoff_enabled_F = 0: pure sovereign risk shock, no haircuts on cash flows.
+    # writeoff_enabled_F = 1: original write-off regime, full haircuts.
     haircut_F        = 1.0 - recovery_rate_F
-    current_payoff_F = delta_b_F * (1.0 - def_rate_F * haircut_F)
-    continuation_F   = (1.0 - delta_b_F) * q_b_F * (1.0 - zeta_writeoff_F * def_rate_F * haircut_F)
+    haircut_mult_F   = writeoff_enabled_F
+    current_payoff_F = delta_b_F * (1.0 - def_rate_F * haircut_F * haircut_mult_F)
+    continuation_F   = (1.0 - delta_b_F) * q_b_F * (1.0 - zeta_writeoff_F * def_rate_F * haircut_F * haircut_mult_F)
     rb_actual_F      = (current_payoff_F + continuation_F) / q_b_F(-1) - 1.0
     return rb_actual_F
 
@@ -308,13 +310,12 @@ def intermediation_P3_F(Q_F, K_F, n_inter_F, b_F_F, b_D_F, q_b_F, q_b_D, p):
     return D_supply_F
 
 @simple
-def bond_price_ss_F(SDF_F, def_rate_F, recovery_rate_F, delta_b_F, zeta_writeoff_F):
-    # SS fixed point: q = SDF*[delta_b*(1-d*h) + (1-delta_b)*q*(1-zeta*d*h)]
-    # → q = SDF*delta_b*(1-d*h) / (1 - SDF*(1-delta_b)*(1-zeta*d*h))
-    haircut_F   = 1.0 - recovery_rate_F
-    surv_cont_F = 1.0 - zeta_writeoff_F * def_rate_F * haircut_F
-    q_b_F       = (
-        SDF_F * delta_b_F * (1.0 - def_rate_F * haircut_F)
+def bond_price_ss_F(SDF_F, def_rate_F, recovery_rate_F, delta_b_F, zeta_writeoff_F, writeoff_enabled_F):
+    haircut_F      = 1.0 - recovery_rate_F
+    haircut_mult_F = writeoff_enabled_F
+    surv_cont_F    = 1.0 - zeta_writeoff_F * def_rate_F * haircut_F * haircut_mult_F
+    q_b_F          = (
+        SDF_F * delta_b_F * (1.0 - def_rate_F * haircut_F * haircut_mult_F)
         / (1.0 - SDF_F * (1.0 - delta_b_F) * surv_cont_F)
     )
     return q_b_F
@@ -353,11 +354,11 @@ def capital_producer_profit_F(Q_F, K_F, I_F, delta_F):
     return cap_profit_F
 
 @simple
-def budget_residual_F(b_gov_F, G_F, TAX_F, q_b_F, def_rate_F, recovery_rate_F, zeta_writeoff_F, p, P_CES_F, delta_b_F):
-    # Bond flows are in D-goods → divide by p for F-goods.
+def budget_residual_F(b_gov_F, G_F, TAX_F, q_b_F, def_rate_F, recovery_rate_F, zeta_writeoff_F, p, P_CES_F, delta_b_F, writeoff_enabled_F):
     haircut_F      = 1.0 - recovery_rate_F
-    surv_cont_F    = 1.0 - zeta_writeoff_F * def_rate_F * haircut_F
-    coupon_F       = delta_b_F * (1.0 - def_rate_F * haircut_F) * b_gov_F(-1)
+    haircut_mult_F = writeoff_enabled_F
+    surv_cont_F    = 1.0 - zeta_writeoff_F * def_rate_F * haircut_F * haircut_mult_F
+    coupon_F       = delta_b_F * (1.0 - def_rate_F * haircut_F * haircut_mult_F) * b_gov_F(-1)
     net_issuance_F = q_b_F * (b_gov_F - surv_cont_F * (1.0 - delta_b_F) * b_gov_F(-1))
     b_gov_res_F    = (coupon_F - net_issuance_F) / p + G_F - P_CES_F * TAX_F
     return b_gov_res_F

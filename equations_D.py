@@ -173,14 +173,13 @@ def ghh_composite_D(C_D, vphi_D, N_D, frisch_D):
 
 @simple
 def government_ss_D(TAX_D, q_b_D, b_gov_D, P_CES_D, delta_b_D,
-                    def_rate_D, recovery_rate_D, zeta_writeoff_D):
-    # At SS (b_gov constant): G = TAX*P + net_issuance - coupon.
-    # Consistent with budget_residual_D at steady state.
-    haircut_D   = 1.0 - recovery_rate_D
-    surv_cont_D = 1.0 - zeta_writeoff_D * def_rate_D * haircut_D
-    coupon_D    = delta_b_D * (1.0 - def_rate_D * haircut_D) * b_gov_D
-    net_iss_D   = q_b_D * (1.0 - surv_cont_D * (1.0 - delta_b_D)) * b_gov_D
-    G_D         = P_CES_D * TAX_D + net_iss_D - coupon_D
+                    def_rate_D, recovery_rate_D, zeta_writeoff_D, writeoff_enabled_D):
+    haircut_D      = 1.0 - recovery_rate_D
+    haircut_mult_D = writeoff_enabled_D
+    surv_cont_D    = 1.0 - zeta_writeoff_D * def_rate_D * haircut_D * haircut_mult_D
+    coupon_D       = delta_b_D * (1.0 - def_rate_D * haircut_D * haircut_mult_D) * b_gov_D
+    net_iss_D      = q_b_D * (1.0 - surv_cont_D * (1.0 - delta_b_D)) * b_gov_D
+    G_D            = P_CES_D * TAX_D + net_iss_D - coupon_D
     return G_D
 
 
@@ -191,13 +190,13 @@ def labor_ss_D(w_D, N_D, frisch_D, mu_w_D, P_CES_D):
     return vphi_D
 
 @simple
-def bond_return_D(def_rate_D, recovery_rate_D, q_b_D, delta_b_D, zeta_writeoff_D):
+def bond_return_D(def_rate_D, recovery_rate_D, q_b_D, delta_b_D, zeta_writeoff_D, writeoff_enabled_D):
+    # writeoff_enabled_D = 0: pure sovereign risk shock, no haircuts on cash flows.
+    # writeoff_enabled_D = 1: original write-off regime, full haircuts.
     haircut_D        = 1.0 - recovery_rate_D
-    # Maturing coupon: always haircut by def_rate * haircut.
-    # Continuation claim: haircut only when zeta_writeoff_D > 0 (partial/full write-down of outstanding stock).
-    # zeta_writeoff_D = 0 → current model (only coupon haircut); = 1 → continuation also written down.
-    current_payoff_D = delta_b_D * (1.0 - def_rate_D * haircut_D)
-    continuation_D   = (1.0 - delta_b_D) * q_b_D * (1.0 - zeta_writeoff_D * def_rate_D * haircut_D)
+    haircut_mult_D   = writeoff_enabled_D
+    current_payoff_D = delta_b_D * (1.0 - def_rate_D * haircut_D * haircut_mult_D)
+    continuation_D   = (1.0 - delta_b_D) * q_b_D * (1.0 - zeta_writeoff_D * def_rate_D * haircut_D * haircut_mult_D)
     rb_actual_D      = (current_payoff_D + continuation_D) / q_b_D(-1) - 1.0
     return rb_actual_D
 
@@ -334,13 +333,12 @@ def intermediation_P3_D(Q_D, K_D, n_inter_D, b_D_D, b_F_D, q_b_D, q_b_F):
 
 
 @simple
-def bond_price_ss_D(SDF_D, def_rate_D, recovery_rate_D, delta_b_D, zeta_writeoff_D):
-    # SS fixed point: q = SDF*[delta_b*(1-d*h) + (1-delta_b)*q*(1-zeta*d*h)]
-    # → q = SDF*delta_b*(1-d*h) / (1 - SDF*(1-delta_b)*(1-zeta*d*h))
-    haircut_D   = 1.0 - recovery_rate_D
-    surv_cont_D = 1.0 - zeta_writeoff_D * def_rate_D * haircut_D
-    q_b_D       = (
-        SDF_D * delta_b_D * (1.0 - def_rate_D * haircut_D)
+def bond_price_ss_D(SDF_D, def_rate_D, recovery_rate_D, delta_b_D, zeta_writeoff_D, writeoff_enabled_D):
+    haircut_D      = 1.0 - recovery_rate_D
+    haircut_mult_D = writeoff_enabled_D
+    surv_cont_D    = 1.0 - zeta_writeoff_D * def_rate_D * haircut_D * haircut_mult_D
+    q_b_D          = (
+        SDF_D * delta_b_D * (1.0 - def_rate_D * haircut_D * haircut_mult_D)
         / (1.0 - SDF_D * (1.0 - delta_b_D) * surv_cont_D)
     )
     return q_b_D
@@ -374,12 +372,11 @@ def tax_rule_D(b_gov_D, lamb_ss_D, b_gov_ss_D, phi_lamb_D):
 
 
 @simple
-def budget_residual_D(b_gov_D, G_D, TAX_D, q_b_D, def_rate_D, recovery_rate_D, zeta_writeoff_D, P_CES_D, delta_b_D):
+def budget_residual_D(b_gov_D, G_D, TAX_D, q_b_D, def_rate_D, recovery_rate_D, zeta_writeoff_D, P_CES_D, delta_b_D, writeoff_enabled_D):
     haircut_D      = 1.0 - recovery_rate_D
-    surv_cont_D    = 1.0 - zeta_writeoff_D * def_rate_D * haircut_D
-    # Coupon: maturing share always fully haircut (consistent with current_payoff in bond_return_D).
-    coupon_D       = delta_b_D * (1.0 - def_rate_D * haircut_D) * b_gov_D(-1)
-    # Net issuance: unmatured legacy stock written down by surv_cont when zeta > 0.
+    haircut_mult_D = writeoff_enabled_D
+    surv_cont_D    = 1.0 - zeta_writeoff_D * def_rate_D * haircut_D * haircut_mult_D
+    coupon_D       = delta_b_D * (1.0 - def_rate_D * haircut_D * haircut_mult_D) * b_gov_D(-1)
     net_issuance_D = q_b_D * (b_gov_D - surv_cont_D * (1.0 - delta_b_D) * b_gov_D(-1))
     b_gov_res_D    = coupon_D + G_D - P_CES_D * TAX_D - net_issuance_D
     return b_gov_res_D
