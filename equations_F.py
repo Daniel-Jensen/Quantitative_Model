@@ -249,11 +249,13 @@ def bank_return_F(theta_F, rk_F, rdep_F, b_F_F, b_D_F, n_inter_F,
     phi_bF_lag_F = q_b_F(-1) * b_F_F(-1) / (p(-1) * n_inter_F(-1))
     phi_bD_lag_F = q_b_D(-1) * b_D_F(-1) / (p(-1) * n_inter_F(-1))
     kappa_lag_F  = theta_F(-1) - phi_bF_lag_F - phi_bD_lag_F
-    # D-bond return converted to F-goods: (1+rb_D)·p(-1)/p − 1
+    # D-good bond returns revalued into F-goods: (1+rb)·p(-1)/p − 1.
+    # Both bonds are D-good claims on an F-good balance sheet → convert both.
+    rb_F_fg = (1 + rb_actual_F) * p(-1) / p - 1
     rb_D_fg = (1 + rb_actual_D) * p(-1) / p - 1
-    rn_F = (kappa_lag_F  * (rk_F        - rdep_F)
-            + phi_bF_lag_F * (rb_actual_F - rdep_F)
-            + phi_bD_lag_F * (rb_D_fg     - rdep_F)
+    rn_F = (kappa_lag_F  * (rk_F   - rdep_F)
+            + phi_bF_lag_F * (rb_F_fg - rdep_F)
+            + phi_bD_lag_F * (rb_D_fg - rdep_F)
             + rdep_F)
     return rn_F
 
@@ -262,11 +264,12 @@ def intermediation_P1_F(rk_F, rb_actual_F, rb_actual_D, rdep_F,
                         nu_K_F, nu_bF_F, nu_bD_F, eta_F,
                         lambda_gk_F, theta_F, SDF_F, f_F, p):
     Omega_p1_F    = f_F + (1 - f_F) * lambda_gk_F * theta_F(+1)
-    # Expected F-good return on D-bonds: (1+rb_D)·p/p(+1) − 1
+    # Expected F-good returns on D-good bonds: (1+rb)·p/p(+1) − 1 (convert both)
+    rb_F_fg_next  = (1 + rb_actual_F(+1)) * p / p(+1) - 1
     rb_D_fg_next  = (1 + rb_actual_D(+1)) * p / p(+1) - 1
-    nu_K_res_F    = nu_K_F  - SDF_F * Omega_p1_F * (rk_F(+1)        - rdep_F(+1))
-    nu_bF_res_F   = nu_bF_F - SDF_F * Omega_p1_F * (rb_actual_F(+1) - rdep_F(+1))
-    nu_bD_res_F   = nu_bD_F - SDF_F * Omega_p1_F * (rb_D_fg_next    - rdep_F(+1))
+    nu_K_res_F    = nu_K_F  - SDF_F * Omega_p1_F * (rk_F(+1)     - rdep_F(+1))
+    nu_bF_res_F   = nu_bF_F - SDF_F * Omega_p1_F * (rb_F_fg_next - rdep_F(+1))
+    nu_bD_res_F   = nu_bD_F - SDF_F * Omega_p1_F * (rb_D_fg_next - rdep_F(+1))
     eta_res_F     = eta_F   - SDF_F * Omega_p1_F * (1 + rdep_F(+1))
     return nu_K_res_F, nu_bF_res_F, nu_bD_res_F, eta_res_F
 
