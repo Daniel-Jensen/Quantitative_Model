@@ -105,6 +105,7 @@ def smart_steady_F(theta_F, Y_F, n_inter_F, rdep_F, alpha_F, delta_F, f_F, N_F,
 @simple
 def market_clearing_F(Y_F, C_F, I_F, G_F, NX_F, DEP_F, D_supply_F, P_CES_F, Phi_F, T_F):
     # Physical resource constraint — see market_clearing_D for rationale.
+    # F (P_F = 1): only C is in bundle units; I, G, Phi, T are in domestic goods.
     goods_mkt_F = Y_F - (P_CES_F * C_F + I_F + G_F + Phi_F + T_F) - NX_F
     deposit_mkt_F = P_CES_F * DEP_F - D_supply_F
     return goods_mkt_F, deposit_mkt_F
@@ -117,10 +118,9 @@ def ces_price_F(omega, epsilon_trade, p):
     return P_CES_F
 
 @simple
-def import_demand_F(C_F, I_F, G_F, omega, epsilon_trade, p, P_CES_F):
-    A_F  = C_F + I_F + G_F
+def import_demand_F(C_F, omega, epsilon_trade, p, P_CES_F):
     IM_F = (1 - omega) * (P_CES_F * p) ** epsilon_trade * C_F
-    return A_F, IM_F
+    return IM_F
 
 @simple
 def steady_auxilliary_F(theta_F, rk_F, rdep_F, delta_F, alpha_F, Y_F, K_F, N_F,
@@ -228,12 +228,19 @@ def labor_demand_F(w_F, Y_F, N_F, alpha_F):
 @simple
 def intermediation_IC_F(nu_K_F, nu_bF_F, nu_bD_F, eta_F,
                         Q_F, K_F, q_b_F, q_b_D, b_F_F, b_D_F, n_inter_F,
-                        lambda_gk_F, theta_F, p):
-    kappa_F     = Q_F   * K_F   / n_inter_F
-    phi_bF_F    = q_b_F * b_F_F / (p * n_inter_F)
-    phi_bD_F    = q_b_D * b_D_F / (p * n_inter_F)
-    theta_tgt_F = (nu_K_F * kappa_F + nu_bF_F * phi_bF_F + nu_bD_F * phi_bD_F + eta_F) / lambda_gk_F
-    ic_res_F    = theta_F - theta_tgt_F
+                        lambda_K_F, lambda_BF_F, lambda_BD_F, theta_F, p,
+                        def_rate_F, psi_lambda_B_F):
+    kappa_F         = Q_F   * K_F   / n_inter_F
+    phi_bF_F        = q_b_F * b_F_F / (p * n_inter_F)
+    phi_bD_F        = q_b_D * b_D_F / (p * n_inter_F)
+    # psi_lambda_B_F > 0 lets default risk tighten both bond risk-weights uniformly.
+    lambda_BF_eff_F = lambda_BF_F + psi_lambda_B_F * def_rate_F(+1)
+    lambda_BD_eff_F = lambda_BD_F + psi_lambda_B_F * def_rate_F(+1)
+    theta_tgt_F     = (  nu_K_F  * kappa_F  / lambda_K_F
+                       + nu_bF_F * phi_bF_F / lambda_BF_eff_F
+                       + nu_bD_F * phi_bD_F / lambda_BD_eff_F
+                       + eta_F              / lambda_K_F)
+    ic_res_F        = theta_F - theta_tgt_F
     return ic_res_F
 
 @simple
@@ -242,12 +249,11 @@ def bank_return_F(theta_F, rk_F, rdep_F, b_F_F, b_D_F, n_inter_F,
     phi_bF_lag_F = q_b_F(-1) * b_F_F(-1) / (p(-1) * n_inter_F(-1))
     phi_bD_lag_F = q_b_D(-1) * b_D_F(-1) / (p(-1) * n_inter_F(-1))
     kappa_lag_F  = theta_F(-1) - phi_bF_lag_F - phi_bD_lag_F
-    # D-good bond returns revalued into F-goods: (1+rb)·p(-1)/p − 1
-    rb_F_fg = (1 + rb_actual_F) * p(-1) / p - 1
+    # D-bond return converted to F-goods: (1+rb_D)·p(-1)/p − 1
     rb_D_fg = (1 + rb_actual_D) * p(-1) / p - 1
-    rn_F = (kappa_lag_F  * (rk_F   - rdep_F)
-            + phi_bF_lag_F * (rb_F_fg - rdep_F)
-            + phi_bD_lag_F * (rb_D_fg - rdep_F)
+    rn_F = (kappa_lag_F  * (rk_F        - rdep_F)
+            + phi_bF_lag_F * (rb_actual_F - rdep_F)
+            + phi_bD_lag_F * (rb_D_fg     - rdep_F)
             + rdep_F)
     return rn_F
 
@@ -256,12 +262,11 @@ def intermediation_P1_F(rk_F, rb_actual_F, rb_actual_D, rdep_F,
                         nu_K_F, nu_bF_F, nu_bD_F, eta_F,
                         lambda_gk_F, theta_F, SDF_F, f_F, p):
     Omega_p1_F    = f_F + (1 - f_F) * lambda_gk_F * theta_F(+1)
-    # Expected F-good returns on D-good bonds: (1+rb)·p/p(+1) − 1
-    rb_F_fg_next  = (1 + rb_actual_F(+1)) * p / p(+1) - 1
+    # Expected F-good return on D-bonds: (1+rb_D)·p/p(+1) − 1
     rb_D_fg_next  = (1 + rb_actual_D(+1)) * p / p(+1) - 1
-    nu_K_res_F    = nu_K_F  - SDF_F * Omega_p1_F * (rk_F(+1)     - rdep_F(+1))
-    nu_bF_res_F   = nu_bF_F - SDF_F * Omega_p1_F * (rb_F_fg_next - rdep_F(+1))
-    nu_bD_res_F   = nu_bD_F - SDF_F * Omega_p1_F * (rb_D_fg_next - rdep_F(+1))
+    nu_K_res_F    = nu_K_F  - SDF_F * Omega_p1_F * (rk_F(+1)        - rdep_F(+1))
+    nu_bF_res_F   = nu_bF_F - SDF_F * Omega_p1_F * (rb_actual_F(+1) - rdep_F(+1))
+    nu_bD_res_F   = nu_bD_F - SDF_F * Omega_p1_F * (rb_D_fg_next    - rdep_F(+1))
     eta_res_F     = eta_F   - SDF_F * Omega_p1_F * (1 + rdep_F(+1))
     return nu_K_res_F, nu_bF_res_F, nu_bD_res_F, eta_res_F
 

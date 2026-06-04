@@ -113,12 +113,10 @@ def smart_steady_D(theta_D, Y_D, n_inter_D, rdep_D, alpha_D, delta_D, f_D, N_D,
 @simple
 def market_clearing_D(Y_D, C_D, I_D, G_D, NX_D, DEP_D, D_supply_D, P_CES_D, Phi_D, T_D):
     # Physical resource constraint: Y = P·C + I + G + Phi + T + NX.
-    # cap_profit IS added to bank wealth in intermediation_P2 (Q·ΔK − I going
-    # to bank as cap-producer profit), but it should NOT debit the resource
-    # constraint: bank pays Q·ΔK for new K, cap-producer spends I in goods and
-    # rebates (Q·ΔK − I) to bank; net resource cost = I, already counted here.
-    # Including cap_profit here adds a spurious 17× linear leak AND breaks SSJ's
-    # Jacobian (SimpleSparse({}) on the K↔Q product).
+    # D (P_D = 1): only C is in bundle units; I, G, Phi, T are in domestic goods.
+    # cap_profit (Q·ΔK − I) does NOT debit the resource constraint: cap-producer
+    # spends I in goods, net resource cost = I, already counted. Including it adds
+    # a spurious 17× linear leak AND breaks SSJ's Jacobian on the K↔Q product.
     goods_mkt_D   = Y_D - (P_CES_D * C_D + I_D + G_D + Phi_D + T_D) - NX_D
     deposit_mkt_D = P_CES_D * DEP_D - D_supply_D
     return goods_mkt_D, deposit_mkt_D
@@ -131,10 +129,9 @@ def ces_price_D(omega, epsilon_trade, p):
 
 
 @simple
-def import_demand_D(C_D, I_D, G_D, omega, epsilon_trade, p, P_CES_D):
-    A_D  = C_D + I_D + G_D
+def import_demand_D(C_D, omega, epsilon_trade, p, P_CES_D):
     IM_D = (1 - omega) * (P_CES_D / p) ** epsilon_trade * C_D
-    return A_D, IM_D
+    return IM_D
 
 
 @simple
@@ -258,24 +255,33 @@ def labor_demand_D(w_D, Y_D, N_D, alpha_D):
 @simple
 def intermediation_IC_D(nu_K_D, nu_bD_D, nu_bF_D, eta_D,
                         Q_D, K_D, q_b_D, q_b_F, b_D_D, b_F_D, n_inter_D,
-                        lambda_gk_D, theta_D):
-    kappa_D     = Q_D   * K_D   / n_inter_D
-    phi_bD_D    = q_b_D * b_D_D / n_inter_D
-    phi_bF_D    = q_b_F * b_F_D / n_inter_D
-    theta_tgt_D = (nu_K_D * kappa_D + nu_bD_D * phi_bD_D + nu_bF_D * phi_bF_D + eta_D) / lambda_gk_D
-    ic_res_D    = theta_D - theta_tgt_D
+                        lambda_K_D, lambda_BD_D, lambda_BF_D, theta_D,
+                        def_rate_D, psi_lambda_B_D):
+    kappa_D         = Q_D   * K_D   / n_inter_D
+    phi_bD_D        = q_b_D * b_D_D / n_inter_D
+    phi_bF_D        = q_b_F * b_F_D / n_inter_D
+    # psi_lambda_B_D > 0 lets default risk tighten both bond risk-weights uniformly.
+    lambda_BD_eff_D = lambda_BD_D + psi_lambda_B_D * def_rate_D(+1)
+    lambda_BF_eff_D = lambda_BF_D + psi_lambda_B_D * def_rate_D(+1)
+    theta_tgt_D     = (  nu_K_D  * kappa_D  / lambda_K_D
+                       + nu_bD_D * phi_bD_D / lambda_BD_eff_D
+                       + nu_bF_D * phi_bF_D / lambda_BF_eff_D
+                       + eta_D              / lambda_K_D)
+    ic_res_D        = theta_D - theta_tgt_D
     return ic_res_D
 
 
 @simple
 def bank_return_D(theta_D, rk_D, rdep_D, b_D_D, b_F_D, n_inter_D,
-                  rb_actual_D, rb_actual_F, q_b_D, q_b_F):
+                  rb_actual_D, rb_actual_F, q_b_D, q_b_F, p):
     phi_bD_lag_D = q_b_D(-1) * b_D_D(-1) / n_inter_D(-1)
     phi_bF_lag_D = q_b_F(-1) * b_F_D(-1) / n_inter_D(-1)
     kappa_lag_D  = theta_D(-1) - phi_bD_lag_D - phi_bF_lag_D
-    rn_D = (kappa_lag_D  * (rk_D - rdep_D)
+    # F-bond return converted to D-goods: (1+rb_F)·p/p(-1) − 1
+    rb_F_dg = (1 + rb_actual_F) * p / p(-1) - 1
+    rn_D = (kappa_lag_D  * (rk_D        - rdep_D)
             + phi_bD_lag_D * (rb_actual_D - rdep_D)
-            + phi_bF_lag_D * (rb_actual_F - rdep_D)
+            + phi_bF_lag_D * (rb_F_dg     - rdep_D)
             + rdep_D)
     return rn_D
 
@@ -283,11 +289,13 @@ def bank_return_D(theta_D, rk_D, rdep_D, b_D_D, b_F_D, n_inter_D,
 @simple
 def intermediation_P1_D(rk_D, rb_actual_D, rb_actual_F, rdep_D,
                         nu_K_D, nu_bD_D, nu_bF_D, eta_D,
-                        lambda_gk_D, theta_D, SDF_D, f_D):
+                        lambda_gk_D, theta_D, SDF_D, f_D, p):
     Omega_p1_D    = f_D + (1 - f_D) * lambda_gk_D * theta_D(+1)
+    # Expected D-good return on F-bonds: (1+rb_F)·p(+1)/p − 1
+    rb_F_dg_next  = (1 + rb_actual_F(+1)) * p(+1) / p - 1
     nu_K_res_D    = nu_K_D  - SDF_D * Omega_p1_D * (rk_D(+1)        - rdep_D(+1))
     nu_bD_res_D   = nu_bD_D - SDF_D * Omega_p1_D * (rb_actual_D(+1) - rdep_D(+1))
-    nu_bF_res_D   = nu_bF_D - SDF_D * Omega_p1_D * (rb_actual_F(+1) - rdep_D(+1))
+    nu_bF_res_D   = nu_bF_D - SDF_D * Omega_p1_D * (rb_F_dg_next    - rdep_D(+1))
     eta_res_D     = eta_D   - SDF_D * Omega_p1_D * (1 + rdep_D(+1))
     return nu_K_res_D, nu_bD_res_D, nu_bF_res_D, eta_res_D
 
