@@ -97,8 +97,9 @@ def smart_steady_D(theta_D, Y_D, n_inter_D, rdep_D, alpha_D, delta_D, f_D, N_D,
                     + phi_bD_D * (rb_actual_D - rdep_D)
                     + phi_bF_D * (rb_actual_F - rdep_D)
                     + rdep_D)
-    # SS net worth identity (intermediation_P2_D = 0 at SS):
-    #   n = (1-f)·(1+rn)·n + m - Phi - T   ⟹   m = n·(1 - (1-f)(1+rn)) + Phi + T
+
+
+
     m_D          = n_inter_D * (1 - (1 - f_D) * (1 + rn_D)) + Phi_D + T_D
     k_inter_D    = K_D
     I_D          = K_D * delta_D
@@ -192,7 +193,6 @@ def labor_ss_D(w_D, N_D, frisch_D, mu_w_D, P_CES_D):
 @simple
 def bond_return_D(def_rate_D, recovery_rate_D, q_b_D, delta_b_D, zeta_writeoff_D, writeoff_enabled_D):
     # writeoff_enabled_D = 0: pure sovereign risk shock, no haircuts on cash flows.
-    # writeoff_enabled_D = 1: original write-off regime, full haircuts.
     haircut_D        = 1.0 - recovery_rate_D
     haircut_mult_D   = writeoff_enabled_D
     current_payoff_D = delta_b_D * (1.0 - def_rate_D * haircut_D * haircut_mult_D)
@@ -311,8 +311,6 @@ def macro_pru_tax_D(b_D_D, b_F_D, def_rate_D, T0_D, T1_D):
 
 @simple
 def intermediation_P2_D(rn_D, n_inter_D, m_D, f_D, cap_profit_D, Phi_D, T_D):
-    # Writedown terms removed: rb_actual already embeds the default haircut via
-    # rb_actual = (1 − def·haircut)/q_b(-1) − 1, so deducting them again double-counts.
     gross_income_D = (1 + rn_D) * n_inter_D(-1) + cap_profit_D
     n_inter_val_D  = (1 - f_D) * gross_income_D + m_D - Phi_D - T_D - n_inter_D
     return n_inter_val_D
@@ -386,12 +384,6 @@ def budget_residual_D(b_gov_D, G_D, TAX_D, q_b_D, def_rate_D, recovery_rate_D, z
 def divert_bond_foc_D(rb_actual_D, rdep_D, b_D_D, n_inter_D, q_b_D,
                       phi_bD_D_ss, psi_bD_D, excess_return_bD_D_ss, tau_mp_D,
                       lambda_BD_D, psi_lambda_B_D, def_rate_D):
-    # Required bond excess return scales with EFFECTIVE divertability
-    #   lambda_BD_eff = lambda_BD_D + psi_lambda_B_D * def_rate_D(+1).
-    # At SS def_rate=0 -> lam_eff=lambda_BD_D -> req_spread = excess_return_bD_D_ss,
-    # so the steady state is preserved exactly. Higher expected default raises the
-    # required spread (lower q_b_D). psi_bD_D is retained only as a small curvature
-    # anchor and can be set near zero once psi_lambda_B_D > 0.
     phi_bD_D   = q_b_D * b_D_D / n_inter_D
     lam_eff    = lambda_BD_D + psi_lambda_B_D * def_rate_D(+1)
     req_spread = (lam_eff / lambda_BD_D) * excess_return_bD_D_ss

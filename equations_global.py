@@ -28,12 +28,6 @@ def global_goods_mkt(goods_mkt_D, goods_mkt_F, p):
     return global_goods_res
 
 
-@simple
-def global_bond_market(B_supply_D, B_supply_F, b_D_D, b_D_F, b_F_F, b_F_D):
-    bond_mkt_D_res = B_supply_D - (b_D_D + b_D_F)
-    bond_mkt_F_res = B_supply_F - (b_F_F + b_F_D)
-    return bond_mkt_D_res, bond_mkt_F_res
-
 
 @simple
 def domestic_bond_clearing(b_gov_D, b_gov_F, b_D_F, b_F_D):

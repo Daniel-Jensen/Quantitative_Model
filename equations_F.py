@@ -183,7 +183,6 @@ def labor_ss_F(w_F, N_F, frisch_F, mu_w_F, P_CES_F):
 @simple
 def bond_return_F(def_rate_F, recovery_rate_F, q_b_F, delta_b_F, zeta_writeoff_F, writeoff_enabled_F):
     # writeoff_enabled_F = 0: pure sovereign risk shock, no haircuts on cash flows.
-    # writeoff_enabled_F = 1: original write-off regime, full haircuts.
     haircut_F        = 1.0 - recovery_rate_F
     haircut_mult_F   = writeoff_enabled_F
     current_payoff_F = delta_b_F * (1.0 - def_rate_F * haircut_F * haircut_mult_F)
