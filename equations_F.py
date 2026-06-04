@@ -57,8 +57,9 @@ def make_grids_F(Depmax_F, nDep_F, nZ_F, rho_z_F, sigma_z_F):
 
     return dep_F_grid, e_grid_F, Pi_F
 
-def income_F(e_grid_F, w_F, N_F, div_F, tau_F, lamb_F, P_CES_F):
-    y_pre_F  = (w_F * N_F * e_grid_F + div_F) / P_CES_F   # real income in bundle units
+def income_F(e_grid_F, w_F, N_F, div_F, cap_profit_F, tau_F, lamb_F, P_CES_F):
+    # cap_profit_F routed to HH as a uniform lump-sum dividend — see income_D.
+    y_pre_F  = (w_F * N_F * e_grid_F + div_F + cap_profit_F) / P_CES_F
     z_F      = lamb_F * (y_pre_F ** (1 - tau_F))
     t_paid_F = y_pre_F - z_F
     return z_F, t_paid_F
@@ -194,8 +195,9 @@ def bond_return_F(def_rate_F, recovery_rate_F, q_b_F, delta_b_F, zeta_writeoff_F
 
 @simple
 def capital_adj_F(K_F, Q_F, I_F, Z_F, N_F, alpha_F, delta_F, gamma0_F, gamma1_F, ksi_F):
+    # mpk uses K_F(-1) to match lagged-K production — see capital_adj_D.
     iota_F        = I_F / K_F(-1)
-    mpk_F         = alpha_F * Z_F * K_F ** (alpha_F - 1) * N_F ** (1 - alpha_F)
+    mpk_F         = alpha_F * Z_F * K_F(-1) ** (alpha_F - 1) * N_F ** (1 - alpha_F)
     rk_F          = (mpk_F + (1 - delta_F) * Q_F) / Q_F(-1) - 1
     q_res_F       = Q_F - 1 / (gamma0_F * (1 - ksi_F) * iota_F ** (-ksi_F))
     capital_res_F = K_F - (1 - delta_F) * K_F(-1) - (gamma0_F * iota_F ** (1 - ksi_F) + gamma1_F) * K_F(-1)
@@ -203,7 +205,8 @@ def capital_adj_F(K_F, Q_F, I_F, Z_F, N_F, alpha_F, delta_F, gamma0_F, gamma1_F,
 
 @simple
 def labor_F(N_F, Z_F, K_F, alpha_F):
-    Y_F = Z_F * K_F ** alpha_F * N_F ** (1 - alpha_F)
+    # Use K(-1) (begin-of-period) — see labor_D.
+    Y_F = Z_F * K_F(-1) ** alpha_F * N_F ** (1 - alpha_F)
     return Y_F
 
 @simple
@@ -284,16 +287,15 @@ def macro_pru_tax_F(b_F_F, b_D_F, def_rate_F, T0_F, T1_F, p):
 
 
 @simple
-def intermediation_P2_F(rn_F, n_inter_F, m_F, f_F, cap_profit_F, Phi_F, T_F):
-    # Writedown terms removed: rb_actual already embeds the default haircut via
-    # rb_actual = (1 − def·haircut)/q_b(-1) − 1, so deducting them again double-counts.
-    gross_income_F = (1 + rn_F) * n_inter_F(-1) + cap_profit_F
+def intermediation_P2_F(rn_F, n_inter_F, m_F, f_F, Phi_F, T_F):
+    # cap_profit_F routed to HH via income_F — see intermediation_P2_D.
+    gross_income_F = (1 + rn_F) * n_inter_F(-1)
     n_inter_val_F  = (1 - f_F) * gross_income_F + m_F - Phi_F - T_F - n_inter_F
     return n_inter_val_F
 
 @simple
-def banker_div_res_F(rn_F, n_inter_F, div_F, m_F, f_F, cap_profit_F):
-    gross_income_F = (1 + rn_F) * n_inter_F(-1) + cap_profit_F
+def banker_div_res_F(rn_F, n_inter_F, div_F, m_F, f_F):
+    gross_income_F = (1 + rn_F) * n_inter_F(-1)
     net_div_F      = f_F * gross_income_F - m_F
     div_res_F      = div_F - net_div_F
     return div_res_F

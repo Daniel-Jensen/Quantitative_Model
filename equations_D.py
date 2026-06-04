@@ -61,8 +61,11 @@ def make_grids_D(Depmax_D, nDep_D, nZ_D, rho_z_D, sigma_z_D):
     return dep_D_grid, e_grid_D, Pi_D
 
 
-def income_D(e_grid_D, w_D, N_D, div_D, tau_D, lamb_D, P_CES_D):
-    y_pre_D  = (w_D * N_D * e_grid_D + div_D) / P_CES_D   # real income in bundle units
+def income_D(e_grid_D, w_D, N_D, div_D, cap_profit_D, tau_D, lamb_D, P_CES_D):
+    # cap_profit_D is the cap-producer's profit (Q·ΔK − I) routed to HH as a
+    # uniform lump-sum dividend (NOT scaled by e_i). Treats cap producer as
+    # owned by HHs; bank no longer receives this flow (see intermediation_P2_D).
+    y_pre_D  = (w_D * N_D * e_grid_D + div_D + cap_profit_D) / P_CES_D
     z_D      = lamb_D * (y_pre_D ** (1 - tau_D))
     t_paid_D = y_pre_D - z_D
     return z_D, t_paid_D
@@ -213,8 +216,12 @@ def bond_return_D(def_rate_D, recovery_rate_D, q_b_D, delta_b_D, zeta_writeoff_D
 
 @simple
 def capital_adj_D(K_D, Q_D, I_D, Z_D, N_D, alpha_D, delta_D, gamma0_D, gamma1_D, ksi_D):
+    # mpk uses K_D(-1) (begin-of-period stock) to match the lagged-K production
+    # in labor_D. This ensures rental income = mpk·K(-1) = α·Y exactly, so the
+    # bank's K wealth return rk·Q(-1)·K(-1) = mpk·K(-1) + (1-δ)·Q·K(-1) − Q(-1)·K(-1)
+    # matches actual K wealth change in transitions (was leaking mpk·(K−K(-1))).
     iota_D        = I_D / K_D(-1)
-    mpk_D         = alpha_D * Z_D * K_D ** (alpha_D - 1) * N_D ** (1 - alpha_D)
+    mpk_D         = alpha_D * Z_D * K_D(-1) ** (alpha_D - 1) * N_D ** (1 - alpha_D)
     rk_D          = (mpk_D + (1 - delta_D) * Q_D) / Q_D(-1) - 1
     q_res_D       = Q_D - 1 / (gamma0_D * (1 - ksi_D) * iota_D ** (-ksi_D))
     capital_res_D = K_D - (1 - delta_D) * K_D(-1) - (gamma0_D * iota_D ** (1 - ksi_D) + gamma1_D) * K_D(-1)
@@ -228,7 +235,10 @@ def capital_producer_profit_D(Q_D, K_D, I_D, delta_D):
 
 @simple
 def labor_D(N_D, Z_D, K_D, alpha_D):
-    Y_D = Z_D * K_D ** alpha_D * N_D ** (1 - alpha_D)
+    # Use K(-1) — begin-of-period (predetermined) capital. Standard time-to-build
+    # convention. At SS K=K(-1) so no change; in transitions this aligns rental
+    # income with bank's K return formula (rk uses Q(-1)·K(-1) as invested base).
+    Y_D = Z_D * K_D(-1) ** alpha_D * N_D ** (1 - alpha_D)
     return Y_D
 
 
@@ -307,17 +317,17 @@ def macro_pru_tax_D(b_D_D, b_F_D, def_rate_D, T0_D, T1_D):
 
 
 @simple
-def intermediation_P2_D(rn_D, n_inter_D, m_D, f_D, cap_profit_D, Phi_D, T_D):
-    # Writedown terms removed: rb_actual already embeds the default haircut via
-    # rb_actual = (1 − def·haircut)/q_b(-1) − 1, so deducting them again double-counts.
-    gross_income_D = (1 + rn_D) * n_inter_D(-1) + cap_profit_D
+def intermediation_P2_D(rn_D, n_inter_D, m_D, f_D, Phi_D, T_D):
+    # Bank gross_income = (1+rn)·n(-1) ONLY.  cap_profit_D is routed to HH
+    # via income_D (cap producer is HH-owned), so it must NOT appear here.
+    gross_income_D = (1 + rn_D) * n_inter_D(-1)
     n_inter_val_D  = (1 - f_D) * gross_income_D + m_D - Phi_D - T_D - n_inter_D
     return n_inter_val_D
 
 
 @simple
-def banker_div_res_D(rn_D, n_inter_D, div_D, m_D, f_D, cap_profit_D):
-    gross_income_D = (1 + rn_D) * n_inter_D(-1) + cap_profit_D
+def banker_div_res_D(rn_D, n_inter_D, div_D, m_D, f_D):
+    gross_income_D = (1 + rn_D) * n_inter_D(-1)
     net_div_D      = f_D * gross_income_D - m_D
     div_res_D      = div_D - net_div_D
     return div_res_D
