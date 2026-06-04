@@ -392,3 +392,11 @@ def divert_bond_foc_D(rb_actual_D, rdep_D, b_D_D, n_inter_D, q_b_D,
                  - tau_mp_D
     return rb_D_res
 
+
+@simple
+def welfare_agg_D(X_D, C_D_ss):
+    # GHH utility composite normalised by SS consumption.
+    # In IRFs the deviation ΔX_D/C_D_ss gives welfare change as a fraction of SS consumption.
+    U_D = X_D / C_D_ss
+    return U_D
+

@@ -40,9 +40,10 @@ def domestic_bond_clearing(b_gov_D, b_gov_F, b_D_F, b_F_D):
 def bond_yield(q_b_D, q_b_F):
     # Implied yields from bond prices — for interpretation only.
     # q_b is the primary model variable; rb is derived here and NOT used elsewhere.
-    rb_D = 1.0 / q_b_D - 1.0
-    rb_F = 1.0 / q_b_F - 1.0
-    return rb_D, rb_F
+    rb_D      = 1.0 / q_b_D - 1.0
+    rb_F      = 1.0 / q_b_F - 1.0
+    spread_rb = rb_D - rb_F
+    return rb_D, rb_F, spread_rb
 
 
 @simple
