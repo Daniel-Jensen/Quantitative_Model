@@ -61,11 +61,11 @@ def make_grids_D(Depmax_D, nDep_D, nZ_D, rho_z_D, sigma_z_D):
     return dep_D_grid, e_grid_D, Pi_D
 
 
-def income_D(e_grid_D, w_D, N_D, div_D, cap_profit_D, tau_D, lamb_D, P_CES_D):
-    # cap_profit_D is the cap-producer's profit (Q·ΔK − I) routed to HH as a
-    # uniform lump-sum dividend (NOT scaled by e_i). Treats cap producer as
-    # owned by HHs; bank no longer receives this flow (see intermediation_P2_D).
-    y_pre_D  = (w_D * N_D * e_grid_D + div_D + cap_profit_D) / P_CES_D
+def income_D(e_grid_D, w_D, N_D, div_D, tau_D, lamb_D, P_CES_D):
+    # cap_profit routed to the FI (intermediation_P2_D), NOT to HH: the bank holds
+    # the capital stock, so it earns the capital-producer profit (Q·ΔK − I). This
+    # raises rn → stronger inequality dynamics via unequally-held deposits.
+    y_pre_D  = (w_D * N_D * e_grid_D + div_D) / P_CES_D   # real income in bundle units
     z_D      = lamb_D * (y_pre_D ** (1 - tau_D))
     t_paid_D = y_pre_D - z_D
     return z_D, t_paid_D
@@ -331,17 +331,19 @@ def macro_pru_tax_D(b_D_D, b_F_D, def_rate_D, T0_D, T1_D):
 
 
 @simple
-def intermediation_P2_D(rn_D, n_inter_D, m_D, f_D, Phi_D, T_D):
-    # Bank gross_income = (1+rn)·n(-1) ONLY.  cap_profit_D is routed to HH
-    # via income_D (cap producer is HH-owned), so it must NOT appear here.
-    gross_income_D = (1 + rn_D) * n_inter_D(-1)
+def intermediation_P2_D(rn_D, n_inter_D, m_D, f_D, cap_profit_D, Phi_D, T_D):
+    # Bank owns the capital stock → earns cap_profit_D (cap-producer profit Q·ΔK − I).
+    # NOT in market_clearing (cap_profit is a valuation flow, not a goods use; putting
+    # it in the resource constraint double-counts). cap_profit = 0 at SS (Q=1, I=δK),
+    # so the smart_steady m_D identity stays consistent without a cap_profit term.
+    gross_income_D = (1 + rn_D) * n_inter_D(-1) + cap_profit_D
     n_inter_val_D  = (1 - f_D) * gross_income_D + m_D - Phi_D - T_D - n_inter_D
     return n_inter_val_D
 
 
 @simple
-def banker_div_res_D(rn_D, n_inter_D, div_D, m_D, f_D):
-    gross_income_D = (1 + rn_D) * n_inter_D(-1)
+def banker_div_res_D(rn_D, n_inter_D, div_D, m_D, f_D, cap_profit_D):
+    gross_income_D = (1 + rn_D) * n_inter_D(-1) + cap_profit_D
     net_div_D      = f_D * gross_income_D - m_D
     div_res_D      = div_D - net_div_D
     return div_res_D

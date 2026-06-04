@@ -57,9 +57,9 @@ def make_grids_F(Depmax_F, nDep_F, nZ_F, rho_z_F, sigma_z_F):
 
     return dep_F_grid, e_grid_F, Pi_F
 
-def income_F(e_grid_F, w_F, N_F, div_F, cap_profit_F, tau_F, lamb_F, P_CES_F):
-    # cap_profit_F routed to HH as a uniform lump-sum dividend — see income_D.
-    y_pre_F  = (w_F * N_F * e_grid_F + div_F + cap_profit_F) / P_CES_F
+def income_F(e_grid_F, w_F, N_F, div_F, tau_F, lamb_F, P_CES_F):
+    # cap_profit routed to the FI (intermediation_P2_F), NOT to HH — see income_D.
+    y_pre_F  = (w_F * N_F * e_grid_F + div_F) / P_CES_F
     z_F      = lamb_F * (y_pre_F ** (1 - tau_F))
     t_paid_F = y_pre_F - z_F
     return z_F, t_paid_F
@@ -295,15 +295,15 @@ def macro_pru_tax_F(b_F_F, b_D_F, def_rate_F, T0_F, T1_F, p):
 
 
 @simple
-def intermediation_P2_F(rn_F, n_inter_F, m_F, f_F, Phi_F, T_F):
-    # cap_profit_F routed to HH via income_F — see intermediation_P2_D.
-    gross_income_F = (1 + rn_F) * n_inter_F(-1)
+def intermediation_P2_F(rn_F, n_inter_F, m_F, f_F, cap_profit_F, Phi_F, T_F):
+    # Bank earns cap_profit_F (cap-producer profit) — see intermediation_P2_D.
+    gross_income_F = (1 + rn_F) * n_inter_F(-1) + cap_profit_F
     n_inter_val_F  = (1 - f_F) * gross_income_F + m_F - Phi_F - T_F - n_inter_F
     return n_inter_val_F
 
 @simple
-def banker_div_res_F(rn_F, n_inter_F, div_F, m_F, f_F):
-    gross_income_F = (1 + rn_F) * n_inter_F(-1)
+def banker_div_res_F(rn_F, n_inter_F, div_F, m_F, f_F, cap_profit_F):
+    gross_income_F = (1 + rn_F) * n_inter_F(-1) + cap_profit_F
     net_div_F      = f_F * gross_income_F - m_F
     div_res_F      = div_F - net_div_F
     return div_res_F
