@@ -240,19 +240,23 @@ def labor_demand_D(w_D, Y_D, N_D, alpha_D):
 @simple
 def intermediation_IC_D(nu_K_D, nu_bD_D, nu_bF_D, eta_D,
                         Q_D, K_D, q_b_D, q_b_F, b_D_D, b_F_D, n_inter_D,
-                        lambda_K_D, lambda_BD_D, lambda_BF_D, theta_D,
+                        lambda_gk_D, Delta_bD_D, Delta_bF_D, theta_D,
                         def_rate_D, psi_lambda_B_D):
-    kappa_D         = Q_D   * K_D   / n_inter_D
-    phi_bD_D        = q_b_D * b_D_D / n_inter_D
-    phi_bF_D        = q_b_F * b_F_D / n_inter_D
-    # psi_lambda_B_D > 0 lets default risk tighten both bond risk-weights uniformly.
-    lambda_BD_eff_D = lambda_BD_D + psi_lambda_B_D * def_rate_D(+1)
-    lambda_BF_eff_D = lambda_BF_D + psi_lambda_B_D * def_rate_D(+1)
-    theta_tgt_D     = (  nu_K_D  * kappa_D  / lambda_K_D
-                       + nu_bD_D * phi_bD_D / lambda_BD_eff_D
-                       + nu_bF_D * phi_bF_D / lambda_BF_eff_D
-                       + eta_D              / lambda_K_D)
-    ic_res_D        = theta_D - theta_tgt_D
+    kappa_D      = Q_D   * K_D   / n_inter_D
+    phi_bD_D     = q_b_D * b_D_D / n_inter_D
+    phi_bF_D     = q_b_F * b_F_D / n_inter_D
+    # GK multi-asset IC: franchise value = lambda_gk·(divertable assets), where each
+    # bond class is weighted by its relative divertability Delta_i vs capital (=1).
+    # theta_tgt = value/lambda_gk + (1-Delta_bD)·phi_bD + (1-Delta_bF)·phi_bF.
+    # Delta=1 → single-lambda; Delta<1 → bond is better collateral → bank levers more.
+    # psi_lambda_B_D > 0: default risk raises bond divertability (worsens collateral).
+    Delta_bD_eff = Delta_bD_D + psi_lambda_B_D * def_rate_D(+1)
+    Delta_bF_eff = Delta_bF_D + psi_lambda_B_D * def_rate_D(+1)
+    value_D      = nu_K_D * kappa_D + nu_bD_D * phi_bD_D + nu_bF_D * phi_bF_D + eta_D
+    theta_tgt_D  = (value_D / lambda_gk_D
+                    + (1 - Delta_bD_eff) * phi_bD_D
+                    + (1 - Delta_bF_eff) * phi_bF_D)
+    ic_res_D     = theta_D - theta_tgt_D
     return ic_res_D
 
 
@@ -262,11 +266,9 @@ def bank_return_D(theta_D, rk_D, rdep_D, b_D_D, b_F_D, n_inter_D,
     phi_bD_lag_D = q_b_D(-1) * b_D_D(-1) / n_inter_D(-1)
     phi_bF_lag_D = q_b_F(-1) * b_F_D(-1) / n_inter_D(-1)
     kappa_lag_D  = theta_D(-1) - phi_bD_lag_D - phi_bF_lag_D
-    # F-bond return converted to D-goods: (1+rb_F)·p/p(-1) − 1
-    rb_F_dg = (1 + rb_actual_F) * p / p(-1) - 1
     rn_D = (kappa_lag_D  * (rk_D        - rdep_D)
             + phi_bD_lag_D * (rb_actual_D - rdep_D)
-            + phi_bF_lag_D * (rb_F_dg     - rdep_D)
+            + phi_bF_lag_D * (rb_actual_F - rdep_D)
             + rdep_D)
     return rn_D
 
@@ -274,13 +276,11 @@ def bank_return_D(theta_D, rk_D, rdep_D, b_D_D, b_F_D, n_inter_D,
 @simple
 def intermediation_P1_D(rk_D, rb_actual_D, rb_actual_F, rdep_D,
                         nu_K_D, nu_bD_D, nu_bF_D, eta_D,
-                        lambda_gk_D, theta_D, SDF_D, f_D, p):
+                        lambda_gk_D, theta_D, SDF_D, f_D):
     Omega_p1_D    = f_D + (1 - f_D) * lambda_gk_D * theta_D(+1)
-    # Expected D-good return on F-bonds: (1+rb_F)·p(+1)/p − 1
-    rb_F_dg_next  = (1 + rb_actual_F(+1)) * p(+1) / p - 1
     nu_K_res_D    = nu_K_D  - SDF_D * Omega_p1_D * (rk_D(+1)        - rdep_D(+1))
     nu_bD_res_D   = nu_bD_D - SDF_D * Omega_p1_D * (rb_actual_D(+1) - rdep_D(+1))
-    nu_bF_res_D   = nu_bF_D - SDF_D * Omega_p1_D * (rb_F_dg_next    - rdep_D(+1))
+    nu_bF_res_D   = nu_bF_D - SDF_D * Omega_p1_D * (rb_actual_F(+1) - rdep_D(+1))
     eta_res_D     = eta_D   - SDF_D * Omega_p1_D * (1 + rdep_D(+1))
     return nu_K_res_D, nu_bD_res_D, nu_bF_res_D, eta_res_D
 

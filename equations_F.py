@@ -225,19 +225,19 @@ def labor_demand_F(w_F, Y_F, N_F, alpha_F):
 @simple
 def intermediation_IC_F(nu_K_F, nu_bF_F, nu_bD_F, eta_F,
                         Q_F, K_F, q_b_F, q_b_D, b_F_F, b_D_F, n_inter_F,
-                        lambda_K_F, lambda_BF_F, lambda_BD_F, theta_F, p,
+                        lambda_gk_F, Delta_bF_F, Delta_bD_F, theta_F, p,
                         def_rate_F, psi_lambda_B_F):
-    kappa_F         = Q_F   * K_F   / n_inter_F
-    phi_bF_F        = q_b_F * b_F_F / (p * n_inter_F)
-    phi_bD_F        = q_b_D * b_D_F / (p * n_inter_F)
-    # psi_lambda_B_F > 0 lets default risk tighten both bond risk-weights uniformly.
-    lambda_BF_eff_F = lambda_BF_F + psi_lambda_B_F * def_rate_F(+1)
-    lambda_BD_eff_F = lambda_BD_F + psi_lambda_B_F * def_rate_F(+1)
-    theta_tgt_F     = (  nu_K_F  * kappa_F  / lambda_K_F
-                       + nu_bF_F * phi_bF_F / lambda_BF_eff_F
-                       + nu_bD_F * phi_bD_F / lambda_BD_eff_F
-                       + eta_F              / lambda_K_F)
-    ic_res_F        = theta_F - theta_tgt_F
+    kappa_F      = Q_F   * K_F   / n_inter_F
+    phi_bF_F     = q_b_F * b_F_F / (p * n_inter_F)
+    phi_bD_F     = q_b_D * b_D_F / (p * n_inter_F)
+    # GK multi-asset IC — see intermediation_IC_D for derivation.
+    Delta_bF_eff = Delta_bF_F + psi_lambda_B_F * def_rate_F(+1)
+    Delta_bD_eff = Delta_bD_F + psi_lambda_B_F * def_rate_F(+1)
+    value_F      = nu_K_F * kappa_F + nu_bF_F * phi_bF_F + nu_bD_F * phi_bD_F + eta_F
+    theta_tgt_F  = (value_F / lambda_gk_F
+                    + (1 - Delta_bF_eff) * phi_bF_F
+                    + (1 - Delta_bD_eff) * phi_bD_F)
+    ic_res_F     = theta_F - theta_tgt_F
     return ic_res_F
 
 @simple
@@ -246,24 +246,20 @@ def bank_return_F(theta_F, rk_F, rdep_F, b_F_F, b_D_F, n_inter_F,
     phi_bF_lag_F = q_b_F(-1) * b_F_F(-1) / (p(-1) * n_inter_F(-1))
     phi_bD_lag_F = q_b_D(-1) * b_D_F(-1) / (p(-1) * n_inter_F(-1))
     kappa_lag_F  = theta_F(-1) - phi_bF_lag_F - phi_bD_lag_F
-    # D-bond return converted to F-goods: (1+rb_D)·p(-1)/p − 1
-    rb_D_fg = (1 + rb_actual_D) * p(-1) / p - 1
     rn_F = (kappa_lag_F  * (rk_F        - rdep_F)
             + phi_bF_lag_F * (rb_actual_F - rdep_F)
-            + phi_bD_lag_F * (rb_D_fg     - rdep_F)
+            + phi_bD_lag_F * (rb_actual_D - rdep_F)
             + rdep_F)
     return rn_F
 
 @simple
 def intermediation_P1_F(rk_F, rb_actual_F, rb_actual_D, rdep_F,
                         nu_K_F, nu_bF_F, nu_bD_F, eta_F,
-                        lambda_gk_F, theta_F, SDF_F, f_F, p):
+                        lambda_gk_F, theta_F, SDF_F, f_F):
     Omega_p1_F    = f_F + (1 - f_F) * lambda_gk_F * theta_F(+1)
-    # Expected F-good return on D-bonds: (1+rb_D)·p/p(+1) − 1
-    rb_D_fg_next  = (1 + rb_actual_D(+1)) * p / p(+1) - 1
     nu_K_res_F    = nu_K_F  - SDF_F * Omega_p1_F * (rk_F(+1)        - rdep_F(+1))
     nu_bF_res_F   = nu_bF_F - SDF_F * Omega_p1_F * (rb_actual_F(+1) - rdep_F(+1))
-    nu_bD_res_F   = nu_bD_F - SDF_F * Omega_p1_F * (rb_D_fg_next    - rdep_F(+1))
+    nu_bD_res_F   = nu_bD_F - SDF_F * Omega_p1_F * (rb_actual_D(+1) - rdep_F(+1))
     eta_res_F     = eta_F   - SDF_F * Omega_p1_F * (1 + rdep_F(+1))
     return nu_K_res_F, nu_bF_res_F, nu_bD_res_F, eta_res_F
 
@@ -367,13 +363,12 @@ def budget_residual_F(b_gov_F, G_F, TAX_F, q_b_F, def_rate_F, recovery_rate_F, z
 def divert_bond_foc_F(rb_actual_F, rdep_F, b_F_F, n_inter_F, q_b_F,
                       phi_bF_F_ss, psi_bF_F, excess_return_bF_F_ss, tau_mp_F, p,
                       lambda_BF_F, psi_lambda_B_F, def_rate_F):
-    phi_bF_F     = q_b_F * b_F_F / (p * n_inter_F)
-    rb_F_fg_next = (1 + rb_actual_F(+1)) * p / p(+1) - 1
-    lam_eff      = lambda_BF_F + psi_lambda_B_F * def_rate_F(+1)
-    req_spread   = (lam_eff / lambda_BF_F) * excess_return_bF_F_ss
-    rb_F_res     = (rb_F_fg_next - rdep_F(+1)) - req_spread \
-                   - psi_bF_F * (phi_bF_F - phi_bF_F_ss) \
-                   - tau_mp_F
+    phi_bF_F   = q_b_F * b_F_F / (p * n_inter_F)
+    lam_eff    = lambda_BF_F + psi_lambda_B_F * def_rate_F(+1)
+    req_spread = (lam_eff / lambda_BF_F) * excess_return_bF_F_ss
+    rb_F_res   = (rb_actual_F(+1) - rdep_F(+1)) - req_spread \
+                 - psi_bF_F * (phi_bF_F - phi_bF_F_ss) \
+                 - tau_mp_F
     return rb_F_res
 
 
