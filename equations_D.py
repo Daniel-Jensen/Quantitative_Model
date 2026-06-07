@@ -241,7 +241,7 @@ def labor_demand_D(w_D, Y_D, N_D, alpha_D):
 def intermediation_IC_D(nu_K_D, nu_bD_D, nu_bF_D, eta_D,
                         Q_D, K_D, q_b_D, q_b_F, b_D_D, b_F_D, n_inter_D,
                         lambda_gk_D, Delta_bD_D, Delta_bF_D, theta_D,
-                        def_rate_D, psi_lambda_B_D):
+                        def_rate_D,def_rate_F, psi_lambda_B_D):
     kappa_D      = Q_D   * K_D   / n_inter_D
     phi_bD_D     = q_b_D * b_D_D / n_inter_D
     phi_bF_D     = q_b_F * b_F_D / n_inter_D
@@ -251,7 +251,7 @@ def intermediation_IC_D(nu_K_D, nu_bD_D, nu_bF_D, eta_D,
     # Delta=1 → single-lambda; Delta<1 → bond is better collateral → bank levers more.
     # psi_lambda_B_D > 0: default risk raises bond divertability (worsens collateral).
     Delta_bD_eff = Delta_bD_D + psi_lambda_B_D * def_rate_D(+1)
-    Delta_bF_eff = Delta_bF_D + psi_lambda_B_D * def_rate_D(+1)
+    Delta_bF_eff = Delta_bF_D + psi_lambda_B_D * def_rate_F(+1)
     value_D      = nu_K_D * kappa_D + nu_bD_D * phi_bD_D + nu_bF_D * phi_bF_D + eta_D
     theta_tgt_D  = (value_D / lambda_gk_D
                     + (1 - Delta_bD_eff) * phi_bD_D
