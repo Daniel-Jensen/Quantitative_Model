@@ -121,15 +121,21 @@ def import_demand_F(C_F, omega, epsilon_trade, p, P_CES_F):
     return IM_F
 
 @simple
-def steady_auxilliary_F(theta_F, rk_F, rdep_F, delta_F, alpha_F, Y_F, K_F, N_F,
+def steady_auxilliary_F(rk_F, rdep_F, delta_F, alpha_F, Y_F, K_F, N_F,
                         beta_F, ksi_F, rn_F, f_F,
-                        rb_actual_F, rb_actual_D):
-    # See steady_auxilliary_D for derivation.
+                        rb_actual_F, rb_actual_D,
+                        Q_F, n_inter_F, q_b_F, q_b_D, b_F_F, b_D_F, p,
+                        Delta_bF_F, Delta_bD_F):
+    # See steady_auxilliary_D for derivation. Bonds are D-good claims → divide by p.
     iota_F       = delta_F
     mpk_F        = alpha_F * (Y_F / K_F)
     w_F          = (1 - alpha_F) * Y_F / N_F
-    lambda_gk_F  = f_F / (theta_F * (1 / (beta_F * (1 + rn_F)) - (1 - f_F)))
-    Omega_F      = f_F + (1 - f_F) * lambda_gk_F * theta_F
+    kappa_F      = Q_F * K_F / n_inter_F
+    phi_bF_F     = q_b_F * b_F_F / (p * n_inter_F)
+    phi_bD_F     = q_b_D * b_D_F / (p * n_inter_F)
+    theta_div_F  = kappa_F + Delta_bF_F * phi_bF_F + Delta_bD_F * phi_bD_F
+    lambda_gk_F  = f_F / (theta_div_F * (1 / (beta_F * (1 + rn_F)) - (1 - f_F)))
+    Omega_F      = f_F + (1 - f_F) * lambda_gk_F * theta_div_F
     nu_K_F       = beta_F * Omega_F * (rk_F        - rdep_F)
     nu_bF_F      = beta_F * Omega_F * (rb_actual_F - rdep_F)
     nu_bD_F      = beta_F * Omega_F * (rb_actual_D - rdep_F)
@@ -226,19 +232,19 @@ def labor_demand_F(w_F, Y_F, N_F, alpha_F):
 def intermediation_IC_F(nu_K_F, nu_bF_F, nu_bD_F, eta_F,
                         Q_F, K_F, q_b_F, q_b_D, b_F_F, b_D_F, n_inter_F,
                         lambda_gk_F, Delta_bF_F, Delta_bD_F, theta_F, p,
-                        def_rate_F, psi_lambda_B_F):
+                        def_rate_F, def_rate_D, psi_lambda_B_F):
     kappa_F      = Q_F   * K_F   / n_inter_F
     phi_bF_F     = q_b_F * b_F_F / (p * n_inter_F)
     phi_bD_F     = q_b_D * b_D_F / (p * n_inter_F)
     # GK multi-asset IC — see intermediation_IC_D for derivation.
     Delta_bF_eff = Delta_bF_F + psi_lambda_B_F * def_rate_F(+1)
-    Delta_bD_eff = Delta_bD_F + psi_lambda_B_F * def_rate_F(+1)
+    Delta_bD_eff = Delta_bD_F + psi_lambda_B_F * def_rate_D(+1)
     value_F      = nu_K_F * kappa_F + nu_bF_F * phi_bF_F + nu_bD_F * phi_bD_F + eta_F
     theta_tgt_F  = (value_F / lambda_gk_F
                     + (1 - Delta_bF_eff) * phi_bF_F
                     + (1 - Delta_bD_eff) * phi_bD_F)
     ic_res_F     = theta_F - theta_tgt_F
-    return ic_res_F
+    return ic_res_F, value_F
 
 @simple
 def bank_return_F(theta_F, rk_F, rdep_F, b_F_F, b_D_F, n_inter_F,
@@ -255,11 +261,16 @@ def bank_return_F(theta_F, rk_F, rdep_F, b_F_F, b_D_F, n_inter_F,
 @simple
 def intermediation_P1_F(rk_F, rb_actual_F, rb_actual_D, rdep_F,
                         nu_K_F, nu_bF_F, nu_bD_F, eta_F,
-                        lambda_gk_F, theta_F, SDF_F, f_F):
-    Omega_p1_F    = f_F + (1 - f_F) * lambda_gk_F * theta_F(+1)
+                        value_F, SDF_F, f_F,
+                        def_rate_F, def_rate_D,
+                        psi_nu_bF_F, psi_nu_bD_F):
+    # Omega = f*1 + (1-f)*(franchise value / nw). Use value_F from IC block (= lambda_gk*theta_div
+    # at the binding multi-asset IC). nu_bD_F discounted by def_rate_D (D-bond issuer risk);
+    # nu_bF_F discounted by def_rate_F (F-bond issuer risk). psi_nu = 0 → no direct risk channel.
+    Omega_p1_F    = f_F + (1 - f_F) * value_F(+1)
     nu_K_res_F    = nu_K_F  - SDF_F * Omega_p1_F * (rk_F(+1)        - rdep_F(+1))
-    nu_bF_res_F   = nu_bF_F - SDF_F * Omega_p1_F * (rb_actual_F(+1) - rdep_F(+1))
-    nu_bD_res_F   = nu_bD_F - SDF_F * Omega_p1_F * (rb_actual_D(+1) - rdep_F(+1))
+    nu_bF_res_F   = nu_bF_F - SDF_F * Omega_p1_F * (rb_actual_F(+1) - rdep_F(+1) - psi_nu_bF_F * def_rate_F(+1))
+    nu_bD_res_F   = nu_bD_F - SDF_F * Omega_p1_F * (rb_actual_D(+1) - rdep_F(+1) - psi_nu_bD_F * def_rate_D(+1))
     eta_res_F     = eta_F   - SDF_F * Omega_p1_F * (1 + rdep_F(+1))
     return nu_K_res_F, nu_bF_res_F, nu_bD_res_F, eta_res_F
 

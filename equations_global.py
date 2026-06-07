@@ -11,14 +11,10 @@ def trade_balance(p, IM_D, IM_F):
 
 @simple
 def external_account_D(NX_D, q_b_D, q_b_F, b_F_D, b_D_F,rb_actual_F, rb_actual_D):
-
     receipts_from_F_bonds = (1 + rb_actual_F) * q_b_F(-1) * b_F_D(-1)
     payments_on_D_bonds   = (1 + rb_actual_D) * q_b_D(-1) * b_D_F(-1)
-
     nfa_D = q_b_F * b_F_D - q_b_D * b_D_F
-
     ca_res_D = (NX_D + receipts_from_F_bonds - payments_on_D_bonds- nfa_D)
-
     return nfa_D, ca_res_D
 
 
@@ -48,7 +44,6 @@ def bond_yield(q_b_D, q_b_F):
 
 @simple
 def portfolio_level_anchors(b_F_D_anchor, b_D_F_anchor):
-    """Rename fixed calibration scalars so SJ's block graph tracks them as outputs."""
     b_F_D_ss = b_F_D_anchor
     b_D_F_ss = b_D_F_anchor
     return b_F_D_ss, b_D_F_ss
