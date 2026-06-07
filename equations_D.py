@@ -394,6 +394,13 @@ def divert_bond_foc_D(rb_actual_D, rdep_D, b_D_D, n_inter_D, q_b_D,
 
 
 @simple
+def rk_net_block_D(rk_D, Phi_D, K_D, rk_net_target_D):
+    rk_net_D     = rk_D - Phi_D / K_D
+    rk_net_res_D = rk_net_D - rk_net_target_D
+    return rk_net_D, rk_net_res_D
+
+
+@simple
 def welfare_agg_D(X_D, C_D_ss):
     # GHH utility composite normalised by SS consumption.
     # In IRFs the deviation ΔX_D/C_D_ss gives welfare change as a fraction of SS consumption.
