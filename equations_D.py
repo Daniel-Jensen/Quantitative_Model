@@ -252,9 +252,9 @@ def intermediation_IC_D(nu_K_D, nu_bD_D, nu_bF_D, eta_D,
                         Q_D, K_D, q_b_D, q_b_F, b_D_D, b_F_D, n_inter_D,
                         lambda_gk_D, Delta_bD_D, Delta_bF_D, theta_D,
                         def_rate_D,def_rate_F, psi_lambda_B_D):
-    kappa_D      = Q_D   * K_D   / n_inter_D
-    phi_bD_D     = q_b_D * b_D_D / n_inter_D
-    phi_bF_D     = q_b_F * b_F_D / n_inter_D
+    kappa_D      = Q_D   * K_D   / n_inter_D(-1)
+    phi_bD_D     = q_b_D * b_D_D / n_inter_D(-1)
+    phi_bF_D     = q_b_F * b_F_D / n_inter_D(-1)
     # GK multi-asset IC: franchise value = lambda_gk·(divertable assets), where each
     # bond class is weighted by its relative divertability Delta_i vs capital (=1).
     # theta_tgt = value/lambda_gk + (1-Delta_bD)·phi_bD + (1-Delta_bF)·phi_bF.

@@ -233,9 +233,9 @@ def intermediation_IC_F(nu_K_F, nu_bF_F, nu_bD_F, eta_F,
                         Q_F, K_F, q_b_F, q_b_D, b_F_F, b_D_F, n_inter_F,
                         lambda_gk_F, Delta_bF_F, Delta_bD_F, theta_F, p,
                         def_rate_F, def_rate_D, psi_lambda_B_F):
-    kappa_F      = Q_F   * K_F   / n_inter_F
-    phi_bF_F     = q_b_F * b_F_F / (p * n_inter_F)
-    phi_bD_F     = q_b_D * b_D_F / (p * n_inter_F)
+    kappa_F      = Q_F   * K_F   / n_inter_F(-1)
+    phi_bF_F     = q_b_F * b_F_F / (p * n_inter_F(-1))
+    phi_bD_F     = q_b_D * b_D_F / (p * n_inter_F(-1))
     # GK multi-asset IC — see intermediation_IC_D for derivation.
     Delta_bF_eff = Delta_bF_F + psi_lambda_B_F * def_rate_F(+1)
     Delta_bD_eff = Delta_bD_F + psi_lambda_B_F * def_rate_D(+1)
