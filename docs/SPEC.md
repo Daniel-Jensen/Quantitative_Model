@@ -30,6 +30,7 @@ Build a tractable two-country general equilibrium model with financial intermedi
 - Study the interaction between sovereign risk and bank portfolio choice in a two-country setting.
 - Evaluate how investment and deposit returns propagate through global goods markets.
 - Assess the role of portfolio adjustment costs for cross-border bond holdings.
+- Implement a bilateral Greece-Germany sovereign calibration using asset-share targets from EBA data.
 - Explore policy extensions such as ECB-style backstops and macroprudential capital requirements.
 
 ## Out of scope for the current phase
