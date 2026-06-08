@@ -42,8 +42,32 @@
 - `goods_mkt_F` not in `targets_tp` (clears by Walras). Linearisation residual ~7e-4 at impact is acceptable but worth monitoring if shocks are large.
 - ECB/ESM backstop and macroprudential extensions are conceptual only.
 
+## def_scale probe: endogenous default risk (2026-06-08)
+
+`def_scale_D` controls how strongly debt-to-output feeds back into default risk:
+`def_rate_D = shock_def_D + def_scale_D * ((debt_gap + offset)^curv - offset^curv)`
+
+At SS `debt_gap = 0` so SS is identical for all `def_scale` values. Only the Jacobian changes.
+
+**Three regimes** (1pp shock_def_D, ρ=0.8, T=100):
+
+| Regime | def_scale | spread[0] bps | n_inter_D[0] | lamb_D peak | b_gov peak | Notes |
+|--------|-----------|--------------|--------------|-------------|------------|-------|
+| Baseline | 0.0 | +167 | −5.2% | −0.13 pp | +0.10% | exogenous only |
+| Stable amplification | 0.1 | +204 | −6.6% | −0.16 pp | +0.13% | +22% more spread |
+| | 0.2 | +288 | −9.5% | −0.24 pp | +0.20% | +72% more spread |
+| Near-critical | 0.3 | +2189 | −77% | −2.27 pp | +1.89% | explosive; austerity trap |
+| **Bifurcation** | **≈0.305** | — | — | — | — | **Jacobian eigenvalue = 1; model indeterminate** |
+| Sign-flip zone | 0.31–0.35 | sign reversed | sign reversed | — | — | linearisation unreliable |
+| Re-stabilised | 0.5–2.0 | +102–162 | −2.6 to −4.8% | −0.05 to −0.09 pp | weak | Bohn rule dominates |
+
+**Mechanism**: higher `def_scale` → default risk rises with debt → spreads blow up → bank net worth collapses → output falls → debt/GDP rises → more default risk (self-reinforcing). Bohn rule (φ_lamb = 0.4) stabilises via fiscal tightening but is overwhelmed near the critical point.
+
+**Recommended calibration range**: `def_scale ∈ [0.0, 0.20]` — monotonic, well-behaved amplification. `def_scale = 0.1` gives +22% spread amplification and +26% bank loss amplification vs pure exogenous. `def_scale > 0.25` approaches instability and linearization breaks down.
+
 ## Next focus
 
 - Decide whether to raise `theta` to match 2011 leverage.
 - Consider adding `goods_mkt_F` as an explicit check (not target) in the IRF diagnostic cell.
+- Calibrate `def_scale` for the paper: 0.0 (baseline), 0.1 (moderate endogenous), 0.2 (strong endogenous) as three scenarios.
 - Policy extensions: ECB backstop, macroprudential bond tax.
