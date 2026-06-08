@@ -33,11 +33,13 @@ def domestic_bond_clearing(b_gov_D, b_gov_F, b_D_F, b_F_D):
 
 
 @simple
-def bond_yield(q_b_D, q_b_F):
-    # Implied yields from bond prices — for interpretation only.
-    # q_b is the primary model variable; rb is derived here and NOT used elsewhere.
-    rb_D      = 1.0 / q_b_D - 1.0
-    rb_F      = 1.0 / q_b_F - 1.0
+def bond_yield(q_b_D, q_b_F, delta_b_D, delta_b_F):
+    # Woodford perpetuity holding-period return: rb = delta_b * (1/q_b - 1)
+    # This equals rb_actual in SS and gives the correct annualised yield.
+    # The old formula 1/q_b - 1 treated q_b as a zero-coupon price and
+    # overstated the yield by a factor of 1/delta_b (~20×).
+    rb_D      = delta_b_D * (1.0 / q_b_D - 1.0)
+    rb_F      = delta_b_F * (1.0 / q_b_F - 1.0)
     spread_rb = rb_D - rb_F
     return rb_D, rb_F, spread_rb
 
