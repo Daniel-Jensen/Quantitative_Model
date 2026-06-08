@@ -1,23 +1,56 @@
-Code for first project 
+# HHBANK 2-Country Macro-Financial Model
 
-Link to overleaf: 
+A two-country heterogeneous-agent / financial-intermediary model built with `sequence_jacobian`.
 
+## Project overview
 
-https://www.overleaf.com/project/698b4f88aeef1d0e1d08cc0c
+This repository implements a macro-financial model with:
+- domestic and foreign households optimizing deposits and labour supply
+- domestic and foreign financial intermediaries holding government bonds, capital, and deposits
+- sovereign debt issuance, default risk, and endogenous bond spreads
+- cross-border bond positions and portfolio adjustment costs
+- global goods markets and trade balance dynamics
+- a modular equation structure in `equations_D.py`, `equations_F.py`, and `equations_global.py`
 
+## Current development
 
-## Notebook hygiene setup
+- `model_v12.ipynb` — latest active version, with:
+  - New Keynesian labour-side features
+  - foreign-bond portfolio adjustment cost
+  - two-good consumption basket and trade price dynamics
+- `model_v11.ipynb` — previous working version, with free trade in bonds between intermediaries and portfolio friction analysis
 
-`.gitattributes` declares `nbstripout` as the clean filter and `nbdime` as the
-diff/merge driver for `*.ipynb` files. The filters only take effect after each
-collaborator runs the setup commands once per local clone:
+## Repository structure
+
+- `code/model_v12.ipynb` — current active notebook
+- `OLD models /model_v11.ipynb` — archived previous version
+- `code/equations_D.py`, `code/equations_F.py`, `code/equations_global.py` — core model equations
+- `code/diagnose_default_shock.py` — diagnostic tools for default and bond shock analysis
+- `docs/` — project documentation, including `STATE.md`, `SPEC.md`, `PROCESS.md`, `HANDOFF.md`, and legacy `model_notes`
+- `Discretisation/Outputs` — Markov approximation data used by household grids
+- `requirements.txt` — reproducible Python dependency list
+
+## Quick start
+
+1. Install required Python packages from the dependency file:
+
+```bash
+pip install -r requirements.txt
+```
+
+2. Set up notebook hygiene once per clone:
 
 ```bash
 pip install nbstripout nbdime
-nbstripout --install        # registers clean filter in .git/config
-nbdime config-git --enable  # registers diff/merge drivers in .git/config
+nbstripout --install
+nbdime config-git --enable
 ```
 
-After setup, committed notebooks will have outputs, execution counts, and
-volatile metadata stripped automatically, and `git diff` / `git merge` on
-notebooks will use nbdime's cell-aware rendering.
+3. Open `code/model_v12.ipynb` and run the calibration + steady-state sections first.
+
+## Notes
+
+- `model_v12.ipynb` is the current master notebook for development.
+- `model_notes` contains older research notes and a stale log; the new documentation files in the repository should be treated as the current reference.
+- The Overleaf project link previously used is documented in `model_notes` but is not the active source of truth for code structure.
+
