@@ -22,18 +22,20 @@ This repository implements a macro-financial model with:
 
 ## Repository structure
 
-- `model_v11.ipynb`, `model_v12.ipynb` — main development notebooks
-- `equations_D.py`, `equations_F.py`, `equations_global.py` — core model equations
+- `code/model_v12.ipynb` — current active notebook
+- `OLD models /model_v11.ipynb` — archived previous version
+- `code/equations_D.py`, `code/equations_F.py`, `code/equations_global.py` — core model equations
+- `code/diagnose_default_shock.py` — diagnostic tools for default and bond shock analysis
+- `docs/` — project documentation, including `STATE.md`, `SPEC.md`, `PROCESS.md`, `HANDOFF.md`, and legacy `model_notes`
 - `Discretisation/Outputs` — Markov approximation data used by household grids
-- `diagnose_default_shock.py` — diagnostic tools for default and bond shock analysis
-- `model_notes` — legacy research log; see new documentation files for the current project state
+- `requirements.txt` — reproducible Python dependency list
 
 ## Quick start
 
-1. Install required Python packages:
+1. Install required Python packages from the dependency file:
 
 ```bash
-pip install sequence-jacobian numpy scipy matplotlib
+pip install -r requirements.txt
 ```
 
 2. Set up notebook hygiene once per clone:
@@ -44,7 +46,7 @@ nbstripout --install
 nbdime config-git --enable
 ```
 
-3. Open `model_v12.ipynb` and run the calibration + steady-state sections first.
+3. Open `code/model_v12.ipynb` and run the calibration + steady-state sections first.
 
 ## Notes
 
