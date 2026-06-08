@@ -20,7 +20,16 @@ nbdime config-git --enable
 - edit calibration and equation blocks in the notebook
 - re-run the steady-state solve sections
 - inspect diagnostic residuals and impulse responses
-- adjust `psi_bF_D`, `psi_bD_F`, and related parameters if calibration is unstable
+- verify the corrected EBA bilateral sovereign calibration in `code/model_v12.ipynb`:
+  - b_D_D = 0.2447 × assets (Greek sovereigns in Greek banks)
+  - b_F_F = 0.2579 × assets (German sovereigns in German banks)
+  - b_F_D = 0.0018 × assets (German sovereigns in Greek banks)
+  - b_D_F = 0.0065 × assets (Greek sovereigns in German banks)
+  - Verify: `b_D_D + b_F_D <= asset_D` and `b_F_F + b_D_F <= asset_F`
+  - Verify: `b_D_D + b_D_F == B_supply_D` and `b_F_F + b_F_D == B_supply_F`
+- confirm that Greek sovereign shocks hit Greek bank net worth more than German bank net worth, and vice versa
+- note that corrected calibration reduces bond supplies 47-63%, changing debt-to-output ratios
+- adjust `psi_bF_D`, `psi_bD_F`, and bank leverage if needed given smaller cross-border positions
 - commit the cleaned notebook and update documentation
 
 ## Key debugging resources
@@ -32,8 +41,9 @@ nbdime config-git --enable
 ## Code structure
 
 - Root notebooks: main experiment and calibration environment
-- `equations_D.py` / `equations_F.py`: functions decorated with `sequence_jacobian.simple` and `sequence_jacobian.het`
-- `equations_global.py`: cross-country clearing and portfolio friction blocks
+- `code/model_v12.ipynb`: active notebook with the bilateral sovereign calibration
+- `code/equations_D.py` / `code/equations_F.py`: functions decorated with `sequence_jacobian.simple` and `sequence_jacobian.het`
+- `code/equations_global.py`: cross-country clearing and portfolio friction blocks
 
 ## Version management
 
