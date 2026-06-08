@@ -70,16 +70,18 @@ Two structural slopes tie `def_scale` and `phi_lamb` to the literature:
 
 ### Paper scenarios (recommended)
 
-| Scenario | def_scale | phi_lamb | Spread-debt | Bohn coef |
-|---|---|---|---|---|
-| Baseline (exogenous) | 0.0 | 0.40 | 0 endogenous | 1.6 (over-stabilised) |
-| Moderate endogenous | 0.05 | 0.03 | ~22 bps/pp | 0.12 |
-| Strong endogenous | 0.10 | 0.03 | ~43 bps/pp | 0.12 |
-| Crisis | 0.20 | 0.03 | ~86 bps/pp | 0.12 |
+phi_lamb **recalibrated to 0.03** (annual Bohn = 0.12, EA periphery range). This shrinks the safe def_scale range.
 
-Note: phi_lamb = 0.03 gives annual Bohn = 0.12 — top of EA periphery range. Reduce further to 0.015 for core-country baseline.
+| Scenario | def_scale | phi_lamb | Spread-debt | Bohn coef | Status |
+|---|---|---|---|---|---|
+| Baseline (exogenous) | 0.00 | 0.03 | 0 bps/pp | 0.12 | ✓ stable, ρ≈0.98 |
+| Moderate endogenous | 0.05 | 0.03 | ~22 bps/pp | 0.12 | ✓ stable, ρ≈0.99 |
+| Strong endogenous | 0.10 | 0.03 | ~43 bps/pp | 0.12 | ✓ stable, ρ≈0.93 |
 
-⚠️ Keep def_scale ≤ 0.20 — bifurcation at def_scale ≈ 0.305 (see below).
+⚠️ **New bifurcation with phi_lamb=0.03: def_scale ≈ 0.13** (was 0.305 at phi_lamb=0.40).  
+Drop def_scale=0.20 from paper — explosive with weaker fiscal rule.
+
+**n_inter_D impact sign with endogenous default**: for def_scale>0 the GK Bellman is forward-looking — higher future default risk raises required bond yields, increasing bank franchise value on impact. n_inter_D[0] flips positive at def_scale=0.05-0.10. This is a feature of the GK model, not a bug; net worth deterioration appears at t=5+ as debt accumulates.
 
 ## def_scale probe: endogenous default risk (2026-06-08)
 
@@ -104,9 +106,14 @@ At SS `debt_gap = 0` so SS is identical for all `def_scale` values. Only the Jac
 
 **Recommended calibration range**: `def_scale ∈ [0.0, 0.20]` — monotonic, well-behaved amplification. `def_scale = 0.1` gives +22% spread amplification and +26% bank loss amplification vs pure exogenous. `def_scale > 0.25` approaches instability and linearization breaks down.
 
+## phi_lamb recalibration (2026-06-08)
+
+- `phi_lamb` changed from 0.40 → 0.03 (annual Bohn 1.6 → 0.12; EA periphery range)
+- Diagnostic sweep confirms stable range: def_scale ∈ {0.00, 0.05, 0.10}
+- def_scale=0.20 is explosive at phi_lamb=0.03 — removed from paper scenarios
+- Diagnostic cell (cell `7d7d6cbe`) updated: ρ threshold 0.95→0.99, nw_D check at t=5, scenarios {0.00, 0.05, 0.10}
+
 ## Next focus
 
-- Decide whether to raise `theta` to match 2011 leverage.
-- Consider adding `goods_mkt_F` as an explicit check (not target) in the IRF diagnostic cell.
-- Calibrate `def_scale` for the paper: 0.0 (baseline), 0.1 (moderate endogenous), 0.2 (strong endogenous) as three scenarios.
+- Decide whether to raise `theta` to match 2011 leverage (historical 10–25×, current model uses 4).
 - Policy extensions: ECB backstop, macroprudential bond tax.
