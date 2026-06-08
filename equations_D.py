@@ -130,17 +130,17 @@ def import_demand_D(C_D, omega, epsilon_trade, p, P_CES_D):
 
 @simple
 def steady_auxilliary_D(theta_D, rk_D, rdep_D, delta_D, alpha_D, Y_D, K_D, N_D,
-                        beta_D, ksi_D, rn_D, f_D,
+                        beta_inter_D, ksi_D, rn_D, f_D,
                         rb_actual_D, rb_actual_F):
     iota_D       = delta_D
     mpk_D        = alpha_D * (Y_D / K_D)
     w_D          = (1 - alpha_D) * Y_D / N_D
-    lambda_gk_D  = f_D / (theta_D * (1 / (beta_D * (1 + rn_D)) - (1 - f_D)))
+    lambda_gk_D  = f_D / (theta_D * (1 / (beta_inter_D * (1 + rn_D)) - (1 - f_D)))
     Omega_D      = f_D + (1 - f_D) * lambda_gk_D * theta_D
-    nu_K_D       = beta_D * Omega_D * (rk_D        - rdep_D)
-    nu_bD_D      = beta_D * Omega_D * (rb_actual_D - rdep_D)
-    nu_bF_D      = beta_D * Omega_D * (rb_actual_F - rdep_D)
-    eta_D        = beta_D * Omega_D * (1 + rdep_D)
+    nu_K_D       = beta_inter_D * Omega_D * (rk_D        - rdep_D)
+    nu_bD_D      = beta_inter_D * Omega_D * (rb_actual_D - rdep_D)
+    nu_bF_D      = beta_inter_D * Omega_D * (rb_actual_F - rdep_D)
+    eta_D        = beta_inter_D * Omega_D * (1 + rdep_D)
     gamma0_D     = delta_D ** ksi_D / (1 - ksi_D)
     gamma1_D     = -delta_D * ksi_D / (1 - ksi_D)
     return iota_D, mpk_D, w_D, Omega_D, lambda_gk_D, nu_K_D, nu_bD_D, nu_bF_D, eta_D, gamma0_D, gamma1_D
@@ -163,6 +163,16 @@ def sdf_D(beta_D, X_D, eis_D):
     # GHH: SDF uses composite x = c - v(N) instead of c
     SDF_D = beta_D * (X_D(+1) / X_D) ** (-1 / eis_D)
     return SDF_D
+
+@simple
+def sdf_banker_ss_D(beta_inter_D):
+    SDF_banker_D = beta_inter_D
+    return SDF_banker_D
+
+@simple
+def sdf_banker_D(beta_inter_D, X_D, eis_D):
+    SDF_banker_D = beta_inter_D * (X_D(+1) / X_D) ** (-1 / eis_D)
+    return SDF_banker_D
 
 
 @simple
@@ -276,12 +286,12 @@ def bank_return_D(theta_D, rk_D, rdep_D, b_D_D, b_F_D, n_inter_D,
 @simple
 def intermediation_P1_D(rk_D, rb_actual_D, rb_actual_F, rdep_D,
                         nu_K_D, nu_bD_D, nu_bF_D, eta_D,
-                        lambda_gk_D, theta_D, SDF_D, f_D):
+                        lambda_gk_D, theta_D, SDF_banker_D, f_D):
     Omega_p1_D    = f_D + (1 - f_D) * lambda_gk_D * theta_D(+1)
-    nu_K_res_D    = nu_K_D  - SDF_D * Omega_p1_D * (rk_D(+1)        - rdep_D(+1))
-    nu_bD_res_D   = nu_bD_D - SDF_D * Omega_p1_D * (rb_actual_D(+1) - rdep_D(+1))
-    nu_bF_res_D   = nu_bF_D - SDF_D * Omega_p1_D * (rb_actual_F(+1) - rdep_D(+1))
-    eta_res_D     = eta_D   - SDF_D * Omega_p1_D * (1 + rdep_D(+1))
+    nu_K_res_D    = nu_K_D  - SDF_banker_D * Omega_p1_D * (rk_D(+1)        - rdep_D(+1))
+    nu_bD_res_D   = nu_bD_D - SDF_banker_D * Omega_p1_D * (rb_actual_D(+1) - rdep_D(+1))
+    nu_bF_res_D   = nu_bF_D - SDF_banker_D * Omega_p1_D * (rb_actual_F(+1) - rdep_D(+1))
+    eta_res_D     = eta_D   - SDF_banker_D * Omega_p1_D * (1 + rdep_D(+1))
     return nu_K_res_D, nu_bD_res_D, nu_bF_res_D, eta_res_D
 
 
@@ -331,13 +341,13 @@ def intermediation_P3_D(Q_D, K_D, n_inter_D, b_D_D, b_F_D, q_b_D, q_b_F):
 
 
 @simple
-def bond_price_ss_D(SDF_D, def_rate_D, recovery_rate_D, delta_b_D, zeta_writeoff_D, writeoff_enabled_D):
+def bond_price_ss_D(SDF_banker_D, def_rate_D, recovery_rate_D, delta_b_D, zeta_writeoff_D, writeoff_enabled_D):
     haircut_D      = 1.0 - recovery_rate_D
     haircut_mult_D = writeoff_enabled_D
     surv_cont_D    = 1.0 - zeta_writeoff_D * def_rate_D * haircut_D * haircut_mult_D
     q_b_D          = (
-        SDF_D * delta_b_D * (1.0 - def_rate_D * haircut_D * haircut_mult_D)
-        / (1.0 - SDF_D * (1.0 - delta_b_D) * surv_cont_D)
+        SDF_banker_D * delta_b_D * (1.0 - def_rate_D * haircut_D * haircut_mult_D)
+        / (1.0 - SDF_banker_D * (1.0 - delta_b_D) * surv_cont_D)
     )
     return q_b_D
 
