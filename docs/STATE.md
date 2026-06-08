@@ -42,6 +42,45 @@
 - `goods_mkt_F` not in `targets_tp` (clears by Walras). Linearisation residual ~7e-4 at impact is acceptable but worth monitoring if shocks are large.
 - ECB/ESM backstop and macroprudential extensions are conceptual only.
 
+## def_scale calibration: empirical targets (2026-06-08)
+
+### Analytical slopes
+
+Two structural slopes tie `def_scale` and `phi_lamb` to the literature:
+
+**1. Spread-debt slope** = d(ex-ante spread)/d(annual B/Y):
+- Endogenous channel: `def_scale × f'(0) × 4 × d(spread)/d(def_rate)`
+- `f'(0) = curv × offset^(curv−1) = 0.5 × 0.05^(−0.5) = 2.236`
+- `d(spread)/d(def_rate) ≈ delta_b × (1−recovery) / q_b = 0.05×0.60/0.623 ≈ 0.048 per pp`
+- **Net: ≈ def_scale × 430 bps per pp of annual B/Y**
+
+| Calibration scenario | Lit target | Implied def_scale |
+|---|---|---|
+| Pre-crisis periphery | 3–5 bps/pp (Laubach 2009) | 0.007–0.012 |
+| Crisis regime | 10–20 bps/pp (Haugh et al 2009) | 0.023–0.047 |
+| GR 2011 peak | 50–100 bps/pp | 0.12–0.23 |
+
+**2. Bohn coefficient** = d(PB/Y)/d(annual B/Y):
+- `phi_lamb` acts on quarterly b_gov: `d(PB/Y)/d(ann B/Y) = phi_lamb × 4 = 0.4 × 4 = 1.6`
+- Literature: 0.03–0.07 (Bohn 1998; Checherita-Westphal 2012), 0.10–0.15 (EA periphery, Staehr 2008)
+- **Current phi_lamb = 0.4 implies Bohn = 1.6 — 10–50× above literature range**
+- phi_lamb was calibrated for numerical stability, not fiscal reaction function
+- To match EA periphery (0.10–0.15): phi_lamb_target = 0.10 / 4 = 0.025 to 0.15/4 = 0.038
+- **Implication**: over-strong Bohn rule suppresses the fiscal-financial feedback; for papers that study debt-default spirals, phi_lamb should be reduced
+
+### Paper scenarios (recommended)
+
+| Scenario | def_scale | phi_lamb | Spread-debt | Bohn coef |
+|---|---|---|---|---|
+| Baseline (exogenous) | 0.0 | 0.40 | 0 endogenous | 1.6 (over-stabilised) |
+| Moderate endogenous | 0.05 | 0.03 | ~22 bps/pp | 0.12 |
+| Strong endogenous | 0.10 | 0.03 | ~43 bps/pp | 0.12 |
+| Crisis | 0.20 | 0.03 | ~86 bps/pp | 0.12 |
+
+Note: phi_lamb = 0.03 gives annual Bohn = 0.12 — top of EA periphery range. Reduce further to 0.015 for core-country baseline.
+
+⚠️ Keep def_scale ≤ 0.20 — bifurcation at def_scale ≈ 0.305 (see below).
+
 ## def_scale probe: endogenous default risk (2026-06-08)
 
 `def_scale_D` controls how strongly debt-to-output feeds back into default risk:
