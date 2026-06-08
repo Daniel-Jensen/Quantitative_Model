@@ -129,24 +129,14 @@ def import_demand_D(C_D, omega, epsilon_trade, p, P_CES_D):
 
 
 @simple
-def steady_auxilliary_D(rk_D, rdep_D, delta_D, alpha_D, Y_D, K_D, N_D,
+def steady_auxilliary_D(theta_D, rk_D, rdep_D, delta_D, alpha_D, Y_D, K_D, N_D,
                         beta_D, ksi_D, rn_D, f_D,
-                        rb_actual_D, rb_actual_F,
-                        Q_D, n_inter_D, q_b_D, q_b_F, b_D_D, b_F_D,
-                        Delta_bD_D, Delta_bF_D):
+                        rb_actual_D, rb_actual_F):
     iota_D       = delta_D
     mpk_D        = alpha_D * (Y_D / K_D)
     w_D          = (1 - alpha_D) * Y_D / N_D
-    # Divertability-weighted leverage: the binding multi-asset IC pins
-    # value = lambda_gk * theta_div (NOT lambda_gk * theta_raw).
-    # Using theta_raw here would mis-calibrate lambda_gk and Omega, causing
-    # theta to drift to ~13 when the dynamic model is evaluated at this SS.
-    kappa_D      = Q_D * K_D / n_inter_D
-    phi_bD_D     = q_b_D * b_D_D / n_inter_D
-    phi_bF_D     = q_b_F * b_F_D / n_inter_D
-    theta_div_D  = kappa_D + Delta_bD_D * phi_bD_D + Delta_bF_D * phi_bF_D
-    lambda_gk_D  = f_D / (theta_div_D * (1 / (beta_D * (1 + rn_D)) - (1 - f_D)))
-    Omega_D      = f_D + (1 - f_D) * lambda_gk_D * theta_div_D
+    lambda_gk_D  = f_D / (theta_D * (1 / (beta_D * (1 + rn_D)) - (1 - f_D)))
+    Omega_D      = f_D + (1 - f_D) * lambda_gk_D * theta_D
     nu_K_D       = beta_D * Omega_D * (rk_D        - rdep_D)
     nu_bD_D      = beta_D * Omega_D * (rb_actual_D - rdep_D)
     nu_bF_D      = beta_D * Omega_D * (rb_actual_F - rdep_D)
@@ -252,9 +242,9 @@ def intermediation_IC_D(nu_K_D, nu_bD_D, nu_bF_D, eta_D,
                         Q_D, K_D, q_b_D, q_b_F, b_D_D, b_F_D, n_inter_D,
                         lambda_gk_D, Delta_bD_D, Delta_bF_D, theta_D,
                         def_rate_D,def_rate_F, psi_lambda_B_D):
-    kappa_D      = Q_D   * K_D   / n_inter_D(-1)
-    phi_bD_D     = q_b_D * b_D_D / n_inter_D(-1)
-    phi_bF_D     = q_b_F * b_F_D / n_inter_D(-1)
+    kappa_D      = Q_D   * K_D   / n_inter_D
+    phi_bD_D     = q_b_D * b_D_D / n_inter_D
+    phi_bF_D     = q_b_F * b_F_D / n_inter_D
     # GK multi-asset IC: franchise value = lambda_gk·(divertable assets), where each
     # bond class is weighted by its relative divertability Delta_i vs capital (=1).
     # theta_tgt = value/lambda_gk + (1-Delta_bD)·phi_bD + (1-Delta_bF)·phi_bF.
@@ -267,7 +257,7 @@ def intermediation_IC_D(nu_K_D, nu_bD_D, nu_bF_D, eta_D,
                     + (1 - Delta_bD_eff) * phi_bD_D
                     + (1 - Delta_bF_eff) * phi_bF_D)
     ic_res_D     = theta_D - theta_tgt_D
-    return ic_res_D, value_D
+    return ic_res_D
 
 
 @simple
@@ -286,16 +276,11 @@ def bank_return_D(theta_D, rk_D, rdep_D, b_D_D, b_F_D, n_inter_D,
 @simple
 def intermediation_P1_D(rk_D, rb_actual_D, rb_actual_F, rdep_D,
                         nu_K_D, nu_bD_D, nu_bF_D, eta_D,
-                        value_D, SDF_D, f_D,
-                        def_rate_D, def_rate_F,
-                        psi_nu_bD_D, psi_nu_bF_D):
-    # Omega = f*1 + (1-f)*(franchise value / nw). Use value_D from IC block (= lambda_gk*theta_div
-    # at the binding multi-asset IC). The old shortcut lambda_gk*theta_raw is only valid when
-    # Delta = 1 for every asset. psi_nu > 0 adds a direct risk discount on bond shadow values.
-    Omega_p1_D    = f_D + (1 - f_D) * value_D(+1)
+                        lambda_gk_D, theta_D, SDF_D, f_D):
+    Omega_p1_D    = f_D + (1 - f_D) * lambda_gk_D * theta_D(+1)
     nu_K_res_D    = nu_K_D  - SDF_D * Omega_p1_D * (rk_D(+1)        - rdep_D(+1))
-    nu_bD_res_D   = nu_bD_D - SDF_D * Omega_p1_D * (rb_actual_D(+1) - rdep_D(+1) - psi_nu_bD_D * def_rate_D(+1))
-    nu_bF_res_D   = nu_bF_D - SDF_D * Omega_p1_D * (rb_actual_F(+1) - rdep_D(+1) - psi_nu_bF_D * def_rate_F(+1))
+    nu_bD_res_D   = nu_bD_D - SDF_D * Omega_p1_D * (rb_actual_D(+1) - rdep_D(+1))
+    nu_bF_res_D   = nu_bF_D - SDF_D * Omega_p1_D * (rb_actual_F(+1) - rdep_D(+1))
     eta_res_D     = eta_D   - SDF_D * Omega_p1_D * (1 + rdep_D(+1))
     return nu_K_res_D, nu_bD_res_D, nu_bF_res_D, eta_res_D
 
@@ -369,12 +354,8 @@ def domestic_bond_foc_D(rb_actual_D, rdep_D, b_D_D, n_inter_D, q_b_D,
 
 # ==> GOVERMENT EQUATIONS
 @simple
-def government_default_D(shock_def_D, b_gov_D, Y_D, b_gov_ss_D, Y_ss_D,
-                          def_scale_D, def_curvature_D, def_offset_D):
-    debt_gap_D = b_gov_D(-1) / Y_D(-1) - b_gov_ss_D / Y_ss_D
-    endog_D    = ((debt_gap_D + def_offset_D) ** def_curvature_D
-                  - def_offset_D ** def_curvature_D)
-    def_rate_D = shock_def_D + def_scale_D * endog_D
+def government_default_D(shock_def_D):
+    def_rate_D = shock_def_D
     return def_rate_D
 
 
