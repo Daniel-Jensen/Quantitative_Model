@@ -70,18 +70,17 @@ Two structural slopes tie `def_scale` and `phi_lamb` to the literature:
 
 ### Paper scenarios (recommended)
 
-phi_lamb **recalibrated to 0.03** (annual Bohn = 0.12, EA periphery range). This shrinks the safe def_scale range.
+phi_lamb **recalibrated to 0.03** (annual Bohn = 0.12, EA periphery range). With new delta_b=0.036/0.038 (long-duration bonds), the spectral radius landscape is non-monotonic: a "fragility zone" at def_scale≈0.03-0.05 where rho briefly exceeds 1. Safe windows confirmed by scan:
 
 | Scenario | def_scale | phi_lamb | Spread-debt | Bohn coef | Status |
 |---|---|---|---|---|---|
-| Baseline (exogenous) | 0.00 | 0.03 | 0 bps/pp | 0.12 | ✓ stable, ρ≈0.98 |
-| Moderate endogenous | 0.05 | 0.03 | ~22 bps/pp | 0.12 | ✓ stable, ρ≈0.99 |
-| Strong endogenous | 0.10 | 0.03 | ~43 bps/pp | 0.12 | ✓ stable, ρ≈0.93 |
+| Baseline (exogenous) | 0.00 | 0.03 | 0 bps/pp | 0.12 | ✓ stable, ρ≈0.97 |
+| Moderate endogenous | 0.02 | 0.03 | ~9 bps/pp | 0.12 | ✓ stable, ρ≈0.98 |
+| Strong endogenous | 0.07 | 0.03 | ~30 bps/pp | 0.12 | ✓ stable, ρ≈0.97 |
 
-⚠️ **New bifurcation with phi_lamb=0.03: def_scale ≈ 0.13** (was 0.305 at phi_lamb=0.40).  
-Drop def_scale=0.20 from paper — explosive with weaker fiscal rule.
+⚠️ **Fragility zone with new delta_b: def_scale ∈ [0.03, 0.06]** has rho>1 (multi-peak eigenvalue structure). Old delta_b=0.05 had single bifurcation at 0.13; longer-duration bonds create a non-monotonic landscape. Drop def_scale=0.05 from paper — marginally explosive (rho=1.001).
 
-**n_inter_D impact sign with endogenous default**: for def_scale>0 the GK Bellman is forward-looking — higher future default risk raises required bond yields, increasing bank franchise value on impact. n_inter_D[0] flips positive at def_scale=0.05-0.10. This is a feature of the GK model, not a bug; net worth deterioration appears at t=5+ as debt accumulates.
+**n_inter_D impact sign with endogenous default**: for def_scale>0.015 the GK Bellman is forward-looking — higher future default risk raises required bond yields, increasing bank franchise value on impact. n_inter_D[0] flips positive at def_scale≥0.02. This is a feature of the GK model, not a bug; net worth deterioration appears at t=5+ as debt accumulates.
 
 ## def_scale probe: endogenous default risk (2026-06-08)
 
@@ -127,9 +126,9 @@ Slide figures in cell `49863390` → `docs/figures/slide_default_shock_main.pdf`
 ## phi_lamb recalibration (2026-06-08)
 
 - `phi_lamb` changed from 0.40 → 0.03 (annual Bohn 1.6 → 0.12; EA periphery range)
-- Diagnostic sweep confirms stable range: def_scale ∈ {0.00, 0.05, 0.10}
-- def_scale=0.20 is explosive at phi_lamb=0.03 — removed from paper scenarios
-- Diagnostic cell (cell `7d7d6cbe`) updated: ρ threshold 0.95→0.99, nw_D check at t=5, scenarios {0.00, 0.05, 0.10}
+- With new delta_b=0.036/0.038: spectral radius scan reveals fragility zone 0.03-0.06; safe scenarios updated to {0.00, 0.02, 0.07}
+- def_scale ∈ {0.03-0.06} is explosive at phi_lamb=0.03 + delta_b_new — removed from paper scenarios
+- Diagnostic cell (cell `7d7d6cbe`) updated: ρ threshold 0.95→0.99, nw_D check at t=5, scenarios {0.00, 0.02, 0.07}
 
 ## Next focus
 
