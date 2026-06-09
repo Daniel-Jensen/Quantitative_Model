@@ -106,6 +106,24 @@ At SS `debt_gap = 0` so SS is identical for all `def_scale` values. Only the Jac
 
 **Recommended calibration range**: `def_scale ∈ [0.0, 0.20]` — monotonic, well-behaved amplification. `def_scale = 0.1` gives +22% spread amplification and +26% bank loss amplification vs pure exogenous. `def_scale > 0.25` approaches instability and linearization breaks down.
 
+## Bond duration calibration (2026-06-09)
+
+**delta_b updated: 0.05 → D=0.036, F=0.038** (Hatchondo-Martinez perpetuity)
+
+| Country | delta_b | Modified duration | Avg maturity (2011 data) |
+|---------|---------|-------------------|--------------------------|
+| Greece (D) | 0.036 | 26.8Q = 6.7yr | ~7yr ✓ |
+| Germany (F) | 0.038 | 25.3Q = 6.3yr | ~6.5yr ✓ |
+
+Effect on SS:
+- q_b_D: 0.623 → ~0.543 (−13%); q_b_F: 0.607 → ~0.540 (−11%)
+- Bond market value falls; capital K rises ~0.23 to compensate
+- Bank balance sheet: bonds 15.2% → 13.3% of assets; more capital
+
+**Key result: impact IRF magnitude is duration-invariant.** Linearized `rb_actual` sensitivity to 1pp default shock = `−haircut·(r_bond + 1−delta_b)`. Since `r_bond = delta_b/q_b` is pinned by household SDF regardless of delta_b, sensitivity ≈ −0.618 for both old and new calibration. Duration affects **persistence**, not impact magnitude: lower delta_b → balance sheet losses decay more slowly.
+
+Slide figures in cell `49863390` → `docs/figures/slide_default_shock_main.pdf` and `slide_default_shock_balance.pdf`.
+
 ## phi_lamb recalibration (2026-06-08)
 
 - `phi_lamb` changed from 0.40 → 0.03 (annual Bohn 1.6 → 0.12; EA periphery range)
