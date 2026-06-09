@@ -61,9 +61,9 @@ def make_grids_D(Depmax_D, nDep_D, nZ_D, rho_z_D, sigma_z_D):
     return dep_D_grid, e_grid_D, Pi_D
 
 
-def income_D(e_grid_D, w_D, N_D, div_D, tau_D, lamb_D, P_CES_D):
-    y_pre_D  = (w_D * N_D * e_grid_D + div_D) / P_CES_D   # real income in bundle units
-    z_D      = lamb_D * (y_pre_D ** (1 - tau_D))
+def income_D(e_grid_D, w_D, N_D, div_D, tau_D, lamb_D, P_CES_D, T_ls_D):
+    y_pre_D  = (w_D * N_D * e_grid_D + div_D) / P_CES_D
+    z_D      = lamb_D * (y_pre_D ** (1 - tau_D)) - T_ls_D
     t_paid_D = y_pre_D - z_D
     return z_D, t_paid_D
 
@@ -364,15 +364,21 @@ def domestic_bond_foc_D(rb_actual_D, rdep_D, b_D_D, n_inter_D, q_b_D,
 
 # ==> GOVERMENT EQUATIONS
 @simple
-def government_default_D(shock_def_D):
-    def_rate_D = shock_def_D
+def government_default_D(shock_def_D, b_gov_D, Y_ss_D, b_gov_ss_D,
+                          def_scale_D, def_curvature_D, def_offset_D):
+    debt_ratio_D = b_gov_D(-1) / Y_ss_D
+    ss_ratio_D   = b_gov_ss_D  / Y_ss_D
+    def_rate_D   = shock_def_D + def_scale_D * (
+        (debt_ratio_D + def_offset_D) ** def_curvature_D
+      - (ss_ratio_D  + def_offset_D) ** def_curvature_D
+    )
     return def_rate_D
 
 
 @simple
-def tax_rule_D(b_gov_D, lamb_ss_D, b_gov_ss_D, phi_lamb_D):
-    lamb_D = lamb_ss_D - phi_lamb_D * (b_gov_D(-1) - b_gov_ss_D)
-    return lamb_D
+def tax_rule_D(b_gov_D, b_gov_ss_D, phi_lamb_D):
+    T_ls_D = phi_lamb_D * (b_gov_D(-1) - b_gov_ss_D)
+    return T_ls_D
 
 
 @simple
@@ -389,10 +395,11 @@ def budget_residual_D(b_gov_D, G_D, TAX_D, q_b_D, def_rate_D, recovery_rate_D, z
 @simple
 def divert_bond_foc_D(rb_actual_D, rdep_D, b_D_D, n_inter_D, q_b_D,
                       phi_bD_D_ss, psi_bD_D, excess_return_bD_D_ss, tau_mp_D,
-                      lambda_BD_D, psi_lambda_B_D, def_rate_D):
+                      psi_spread_D, def_rate_D):
     phi_bD_D   = q_b_D * b_D_D / n_inter_D
-    lam_eff    = lambda_BD_D + psi_lambda_B_D * def_rate_D(+1)
-    req_spread = (lam_eff / lambda_BD_D) * excess_return_bD_D_ss
+    # IC-theory derived required spread: additive default loading independent of SS excess return.
+    # psi_spread_D = lambda_gk_D * psi_lambda_B_D / (beta_inter_D * Omega_D), computed in _apply_ss_anchors.
+    req_spread = excess_return_bD_D_ss + psi_spread_D * def_rate_D(+1)
     rb_D_res   = (rb_actual_D(+1) - rdep_D(+1)) - req_spread \
                  - psi_bD_D * (phi_bD_D - phi_bD_D_ss) \
                  - tau_mp_D

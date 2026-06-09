@@ -57,9 +57,9 @@ def make_grids_F(Depmax_F, nDep_F, nZ_F, rho_z_F, sigma_z_F):
 
     return dep_F_grid, e_grid_F, Pi_F
 
-def income_F(e_grid_F, w_F, N_F, div_F, tau_F, lamb_F, P_CES_F):
-    y_pre_F  = (w_F * N_F * e_grid_F + div_F) / P_CES_F   # real income in bundle units
-    z_F      = lamb_F * (y_pre_F ** (1 - tau_F))
+def income_F(e_grid_F, w_F, N_F, div_F, tau_F, lamb_F, P_CES_F, T_ls_F):
+    y_pre_F  = (w_F * N_F * e_grid_F + div_F) / P_CES_F
+    z_F      = lamb_F * (y_pre_F ** (1 - tau_F)) - T_ls_F
     t_paid_F = y_pre_F - z_F
     return z_F, t_paid_F
 
@@ -338,14 +338,20 @@ def domestic_bond_foc_F(rb_actual_F, rdep_F, b_F_F, n_inter_F, q_b_F,
 
 
 @simple
-def government_default_F(shock_def_F):
-    def_rate_F = shock_def_F
+def government_default_F(shock_def_F, b_gov_F, Y_ss_F, b_gov_ss_F,
+                          def_scale_F, def_curvature_F, def_offset_F):
+    debt_ratio_F = b_gov_F(-1) / Y_ss_F
+    ss_ratio_F   = b_gov_ss_F  / Y_ss_F
+    def_rate_F   = shock_def_F + def_scale_F * (
+        (debt_ratio_F + def_offset_F) ** def_curvature_F
+      - (ss_ratio_F  + def_offset_F) ** def_curvature_F
+    )
     return def_rate_F
 
 @simple
-def tax_rule_F(b_gov_F, lamb_ss_F, b_gov_ss_F, phi_lamb_F):
-    lamb_F = lamb_ss_F - phi_lamb_F * (b_gov_F(-1) - b_gov_ss_F)
-    return lamb_F
+def tax_rule_F(b_gov_F, b_gov_ss_F, phi_lamb_F):
+    T_ls_F = phi_lamb_F * (b_gov_F(-1) - b_gov_ss_F)
+    return T_ls_F
 
 
 @simple
@@ -367,10 +373,11 @@ def budget_residual_F(b_gov_F, G_F, TAX_F, q_b_F, def_rate_F, recovery_rate_F, z
 @simple
 def divert_bond_foc_F(rb_actual_F, rdep_F, b_F_F, n_inter_F, q_b_F,
                       phi_bF_F_ss, psi_bF_F, excess_return_bF_F_ss, tau_mp_F, p,
-                      lambda_BF_F, psi_lambda_B_F, def_rate_F):
+                      psi_spread_F, def_rate_F):
     phi_bF_F   = q_b_F * b_F_F / (p * n_inter_F)
-    lam_eff    = lambda_BF_F + psi_lambda_B_F * def_rate_F(+1)
-    req_spread = (lam_eff / lambda_BF_F) * excess_return_bF_F_ss
+    # IC-theory derived required spread: additive default loading independent of SS excess return.
+    # psi_spread_F = lambda_gk_F * psi_lambda_B_F / (beta_inter_F * Omega_F), computed in _apply_ss_anchors.
+    req_spread = excess_return_bF_F_ss + psi_spread_F * def_rate_F(+1)
     rb_F_res   = (rb_actual_F(+1) - rdep_F(+1)) - req_spread \
                  - psi_bF_F * (phi_bF_F - phi_bF_F_ss) \
                  - tau_mp_F
