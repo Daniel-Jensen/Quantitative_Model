@@ -320,16 +320,16 @@ def macro_pru_tax_D(b_D_D, b_F_D, def_rate_D, T0_D, T1_D):
 
 
 @simple
-def intermediation_P2_D(rn_D, n_inter_D, m_D, f_D, cap_profit_D, Phi_D, T_D):
+def intermediation_P2_D(rn_D, n_inter_D, m_D, f_D, cap_profit_D):
     gross_income_D = (1 + rn_D) * n_inter_D(-1) + cap_profit_D
-    n_inter_val_D  = (1 - f_D) * gross_income_D + m_D - Phi_D - T_D - n_inter_D
+    n_inter_val_D  = (1 - f_D) * gross_income_D + m_D - n_inter_D
     return n_inter_val_D
 
 
 @simple
-def banker_div_res_D(rn_D, n_inter_D, div_D, m_D, f_D, cap_profit_D):
+def banker_div_res_D(rn_D, n_inter_D, div_D, m_D, f_D, cap_profit_D, Phi_D, T_D):
     gross_income_D = (1 + rn_D) * n_inter_D(-1) + cap_profit_D
-    net_div_D      = f_D * gross_income_D - m_D
+    net_div_D      = f_D * gross_income_D - m_D - Phi_D - T_D
     div_res_D      = div_D - net_div_D
     return div_res_D
 

@@ -294,17 +294,17 @@ def macro_pru_tax_F(b_F_F, b_D_F, def_rate_F, T0_F, T1_F, p):
 
 
 @simple
-def intermediation_P2_F(rn_F, n_inter_F, m_F, f_F, cap_profit_F, Phi_F, T_F):
+def intermediation_P2_F(rn_F, n_inter_F, m_F, f_F, cap_profit_F):
     # Writedown terms removed: rb_actual already embeds the default haircut via
     # rb_actual = (1 − def·haircut)/q_b(-1) − 1, so deducting them again double-counts.
     gross_income_F = (1 + rn_F) * n_inter_F(-1) + cap_profit_F
-    n_inter_val_F  = (1 - f_F) * gross_income_F + m_F - Phi_F - T_F - n_inter_F
+    n_inter_val_F  = (1 - f_F) * gross_income_F + m_F - n_inter_F
     return n_inter_val_F
 
 @simple
-def banker_div_res_F(rn_F, n_inter_F, div_F, m_F, f_F, cap_profit_F):
+def banker_div_res_F(rn_F, n_inter_F, div_F, m_F, f_F, cap_profit_F, Phi_F, T_F):
     gross_income_F = (1 + rn_F) * n_inter_F(-1) + cap_profit_F
-    net_div_F      = f_F * gross_income_F - m_F
+    net_div_F      = f_F * gross_income_F - m_F - Phi_F - T_F
     div_res_F      = div_F - net_div_F
     return div_res_F
 
