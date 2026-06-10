@@ -1,0 +1,8 @@
+sequence_jacobian
+numpy
+scipy
+matplotlib
+notebook
+nbstripout
+nbdime
+ipykernel
