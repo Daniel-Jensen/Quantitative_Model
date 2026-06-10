@@ -57,9 +57,9 @@ def make_grids_F(Depmax_F, nDep_F, nZ_F, rho_z_F, sigma_z_F):
 
     return dep_F_grid, e_grid_F, Pi_F
 
-def income_F(e_grid_F, w_F, N_F, div_F, tau_F, lamb_F, P_CES_F):
-    y_pre_F  = (w_F * N_F * e_grid_F + div_F) / P_CES_F   # real income in bundle units
-    z_F      = lamb_F * (y_pre_F ** (1 - tau_F))
+def income_F(e_grid_F, w_F, N_F, div_F, tau_F, lamb_F, P_CES_F, T_ls_F):
+    y_pre_F  = (w_F * N_F * e_grid_F + div_F) / P_CES_F
+    z_F      = lamb_F * (y_pre_F ** (1 - tau_F)) - T_ls_F
     t_paid_F = y_pre_F - z_F
     return z_F, t_paid_F
 
@@ -122,18 +122,17 @@ def import_demand_F(C_F, omega, epsilon_trade, p, P_CES_F):
 
 @simple
 def steady_auxilliary_F(theta_F, rk_F, rdep_F, delta_F, alpha_F, Y_F, K_F, N_F,
-                        beta_F, ksi_F, rn_F, f_F,
+                        beta_inter_F, ksi_F, rn_F, f_F,
                         rb_actual_F, rb_actual_D):
-    # See steady_auxilliary_D for derivation.
     iota_F       = delta_F
     mpk_F        = alpha_F * (Y_F / K_F)
     w_F          = (1 - alpha_F) * Y_F / N_F
-    lambda_gk_F  = f_F / (theta_F * (1 / (beta_F * (1 + rn_F)) - (1 - f_F)))
+    lambda_gk_F  = f_F / (theta_F * (1 / (beta_inter_F * (1 + rn_F)) - (1 - f_F)))
     Omega_F      = f_F + (1 - f_F) * lambda_gk_F * theta_F
-    nu_K_F       = beta_F * Omega_F * (rk_F        - rdep_F)
-    nu_bF_F      = beta_F * Omega_F * (rb_actual_F - rdep_F)
-    nu_bD_F      = beta_F * Omega_F * (rb_actual_D - rdep_F)
-    eta_F        = beta_F * Omega_F * (1 + rdep_F)
+    nu_K_F       = beta_inter_F * Omega_F * (rk_F        - rdep_F)
+    nu_bF_F      = beta_inter_F * Omega_F * (rb_actual_F - rdep_F)
+    nu_bD_F      = beta_inter_F * Omega_F * (rb_actual_D - rdep_F)
+    eta_F        = beta_inter_F * Omega_F * (1 + rdep_F)
     gamma0_F     = delta_F ** ksi_F / (1 - ksi_F)
     gamma1_F     = -delta_F * ksi_F / (1 - ksi_F)
     return iota_F, mpk_F, w_F, Omega_F, lambda_gk_F, nu_K_F, nu_bF_F, nu_bD_F, eta_F, gamma0_F, gamma1_F
@@ -155,6 +154,16 @@ def sdf_F(beta_F, X_F, eis_F):
     # GHH: SDF uses composite x = c - v(N) instead of c
     SDF_F = beta_F * (X_F(+1) / X_F) ** (-1 / eis_F)
     return SDF_F
+
+@simple
+def sdf_banker_ss_F(beta_inter_F):
+    SDF_banker_F = beta_inter_F
+    return SDF_banker_F
+
+@simple
+def sdf_banker_F(beta_inter_F, X_F, eis_F):
+    SDF_banker_F = beta_inter_F * (X_F(+1) / X_F) ** (-1 / eis_F)
+    return SDF_banker_F
 
 
 @simple
@@ -226,13 +235,13 @@ def labor_demand_F(w_F, Y_F, N_F, alpha_F):
 def intermediation_IC_F(nu_K_F, nu_bF_F, nu_bD_F, eta_F,
                         Q_F, K_F, q_b_F, q_b_D, b_F_F, b_D_F, n_inter_F,
                         lambda_gk_F, Delta_bF_F, Delta_bD_F, theta_F, p,
-                        def_rate_F, psi_lambda_B_F):
+                        def_rate_F, def_rate_D, psi_lambda_B_F):
     kappa_F      = Q_F   * K_F   / n_inter_F
     phi_bF_F     = q_b_F * b_F_F / (p * n_inter_F)
     phi_bD_F     = q_b_D * b_D_F / (p * n_inter_F)
     # GK multi-asset IC — see intermediation_IC_D for derivation.
     Delta_bF_eff = Delta_bF_F + psi_lambda_B_F * def_rate_F(+1)
-    Delta_bD_eff = Delta_bD_F + psi_lambda_B_F * def_rate_F(+1)
+    Delta_bD_eff = Delta_bD_F + psi_lambda_B_F * def_rate_D(+1)
     value_F      = nu_K_F * kappa_F + nu_bF_F * phi_bF_F + nu_bD_F * phi_bD_F + eta_F
     theta_tgt_F  = (value_F / lambda_gk_F
                     + (1 - Delta_bF_eff) * phi_bF_F
@@ -255,12 +264,12 @@ def bank_return_F(theta_F, rk_F, rdep_F, b_F_F, b_D_F, n_inter_F,
 @simple
 def intermediation_P1_F(rk_F, rb_actual_F, rb_actual_D, rdep_F,
                         nu_K_F, nu_bF_F, nu_bD_F, eta_F,
-                        lambda_gk_F, theta_F, SDF_F, f_F):
+                        lambda_gk_F, theta_F, SDF_banker_F, f_F):
     Omega_p1_F    = f_F + (1 - f_F) * lambda_gk_F * theta_F(+1)
-    nu_K_res_F    = nu_K_F  - SDF_F * Omega_p1_F * (rk_F(+1)        - rdep_F(+1))
-    nu_bF_res_F   = nu_bF_F - SDF_F * Omega_p1_F * (rb_actual_F(+1) - rdep_F(+1))
-    nu_bD_res_F   = nu_bD_F - SDF_F * Omega_p1_F * (rb_actual_D(+1) - rdep_F(+1))
-    eta_res_F     = eta_F   - SDF_F * Omega_p1_F * (1 + rdep_F(+1))
+    nu_K_res_F    = nu_K_F  - SDF_banker_F * Omega_p1_F * (rk_F(+1)        - rdep_F(+1))
+    nu_bF_res_F   = nu_bF_F - SDF_banker_F * Omega_p1_F * (rb_actual_F(+1) - rdep_F(+1))
+    nu_bD_res_F   = nu_bD_F - SDF_banker_F * Omega_p1_F * (rb_actual_D(+1) - rdep_F(+1))
+    eta_res_F     = eta_F   - SDF_banker_F * Omega_p1_F * (1 + rdep_F(+1))
     return nu_K_res_F, nu_bF_res_F, nu_bD_res_F, eta_res_F
 
 @simple
@@ -285,17 +294,17 @@ def macro_pru_tax_F(b_F_F, b_D_F, def_rate_F, T0_F, T1_F, p):
 
 
 @simple
-def intermediation_P2_F(rn_F, n_inter_F, m_F, f_F, cap_profit_F, Phi_F, T_F):
+def intermediation_P2_F(rn_F, n_inter_F, m_F, f_F, cap_profit_F):
     # Writedown terms removed: rb_actual already embeds the default haircut via
     # rb_actual = (1 − def·haircut)/q_b(-1) − 1, so deducting them again double-counts.
     gross_income_F = (1 + rn_F) * n_inter_F(-1) + cap_profit_F
-    n_inter_val_F  = (1 - f_F) * gross_income_F + m_F - Phi_F - T_F - n_inter_F
+    n_inter_val_F  = (1 - f_F) * gross_income_F + m_F - n_inter_F
     return n_inter_val_F
 
 @simple
-def banker_div_res_F(rn_F, n_inter_F, div_F, m_F, f_F, cap_profit_F):
+def banker_div_res_F(rn_F, n_inter_F, div_F, m_F, f_F, cap_profit_F, Phi_F, T_F):
     gross_income_F = (1 + rn_F) * n_inter_F(-1) + cap_profit_F
-    net_div_F      = f_F * gross_income_F - m_F
+    net_div_F      = f_F * gross_income_F - m_F - Phi_F - T_F
     div_res_F      = div_F - net_div_F
     return div_res_F
 
@@ -305,13 +314,13 @@ def intermediation_P3_F(Q_F, K_F, n_inter_F, b_F_F, b_D_F, q_b_F, q_b_D, p):
     return D_supply_F
 
 @simple
-def bond_price_ss_F(SDF_F, def_rate_F, recovery_rate_F, delta_b_F, zeta_writeoff_F, writeoff_enabled_F):
+def bond_price_ss_F(SDF_banker_F, def_rate_F, recovery_rate_F, delta_b_F, zeta_writeoff_F, writeoff_enabled_F):
     haircut_F      = 1.0 - recovery_rate_F
     haircut_mult_F = writeoff_enabled_F
     surv_cont_F    = 1.0 - zeta_writeoff_F * def_rate_F * haircut_F * haircut_mult_F
     q_b_F          = (
-        SDF_F * delta_b_F * (1.0 - def_rate_F * haircut_F * haircut_mult_F)
-        / (1.0 - SDF_F * (1.0 - delta_b_F) * surv_cont_F)
+        SDF_banker_F * delta_b_F * (1.0 - def_rate_F * haircut_F * haircut_mult_F)
+        / (1.0 - SDF_banker_F * (1.0 - delta_b_F) * surv_cont_F)
     )
     return q_b_F
 
@@ -329,18 +338,20 @@ def domestic_bond_foc_F(rb_actual_F, rdep_F, b_F_F, n_inter_F, q_b_F,
 
 
 @simple
-def government_default_F(shock_def_F, b_gov_F, Y_F, b_gov_ss_F, Y_ss_F,
+def government_default_F(shock_def_F, b_gov_F, Y_ss_F, b_gov_ss_F,
                           def_scale_F, def_curvature_F, def_offset_F):
-    debt_gap_F = b_gov_F(-1) / Y_F(-1) - b_gov_ss_F / Y_ss_F
-    endog_F    = ((debt_gap_F + def_offset_F) ** def_curvature_F
-                  - def_offset_F ** def_curvature_F)
-    def_rate_F = shock_def_F + def_scale_F * endog_F
+    debt_ratio_F = b_gov_F(-1) / Y_ss_F
+    ss_ratio_F   = b_gov_ss_F  / Y_ss_F
+    def_rate_F   = shock_def_F + def_scale_F * (
+        (debt_ratio_F + def_offset_F) ** def_curvature_F
+      - (ss_ratio_F  + def_offset_F) ** def_curvature_F
+    )
     return def_rate_F
 
 @simple
-def tax_rule_F(b_gov_F, lamb_ss_F, b_gov_ss_F, phi_lamb_F):
-    lamb_F = lamb_ss_F - phi_lamb_F * (b_gov_F(-1) - b_gov_ss_F)
-    return lamb_F
+def tax_rule_F(b_gov_F, b_gov_ss_F, phi_lamb_F):
+    T_ls_F = phi_lamb_F * (b_gov_F(-1) - b_gov_ss_F)
+    return T_ls_F
 
 
 @simple
@@ -362,10 +373,11 @@ def budget_residual_F(b_gov_F, G_F, TAX_F, q_b_F, def_rate_F, recovery_rate_F, z
 @simple
 def divert_bond_foc_F(rb_actual_F, rdep_F, b_F_F, n_inter_F, q_b_F,
                       phi_bF_F_ss, psi_bF_F, excess_return_bF_F_ss, tau_mp_F, p,
-                      lambda_BF_F, psi_lambda_B_F, def_rate_F):
+                      psi_spread_F, def_rate_F):
     phi_bF_F   = q_b_F * b_F_F / (p * n_inter_F)
-    lam_eff    = lambda_BF_F + psi_lambda_B_F * def_rate_F(+1)
-    req_spread = (lam_eff / lambda_BF_F) * excess_return_bF_F_ss
+    # IC-theory derived required spread: additive default loading independent of SS excess return.
+    # psi_spread_F = lambda_gk_F * psi_lambda_B_F / (beta_inter_F * Omega_F), computed in _apply_ss_anchors.
+    req_spread = excess_return_bF_F_ss + psi_spread_F * def_rate_F(+1)
     rb_F_res   = (rb_actual_F(+1) - rdep_F(+1)) - req_spread \
                  - psi_bF_F * (phi_bF_F - phi_bF_F_ss) \
                  - tau_mp_F

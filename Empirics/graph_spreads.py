@@ -56,6 +56,7 @@ def fred(series):
     )
 
 
+# Reverted back to the original Serif font design
 plt.rcParams.update({
     "font.family": "serif",
     "font.serif": ["Times New Roman", "Times", "DejaVu Serif"],
@@ -66,7 +67,6 @@ plt.rcParams.update({
     "figure.dpi": 150,
 })
 
-
 r = fred(rates)
 spreads = r.drop(columns="DEU").sub(r["DEU"], axis=0)
 
@@ -75,7 +75,7 @@ all_rec = fred(recs).reindex(spreads.index).ffill().eq(1).all(axis=1)
 
 def shade(ax, x):
     for _, b in x.groupby(x.ne(x.shift()).cumsum()):
-        if b.iloc[0]:
+        if not b.empty and b.iloc[0]:
             ax.axvspan(
                 b.index[0],
                 b.index[-1],
@@ -87,49 +87,77 @@ def shade(ax, x):
             )
 
 
-def plot_spreads(title, ymax=None):
-    fig, ax = plt.subplots(figsize=(10.5, 5.6))
+def plot_spreads(title, start_date, end_date):
+    # Added facecolor='none' to make the figure background transparent
+    fig, ax = plt.subplots(figsize=(10.5, 6), facecolor="none")
+    
+    # Make the plot area background transparent as well
+    ax.set_facecolor("none")
 
-    shade(ax, all_rec)
+    s_date = pd.to_datetime(start_date)
+    e_date = pd.to_datetime(end_date)
 
-    for c in spreads:
+    mask = (spreads.index >= s_date) & (spreads.index <= e_date)
+    sub_spreads = spreads.loc[mask]
+    sub_rec = all_rec.loc[mask]
+
+    shade(ax, sub_rec)
+
+    for c in sub_spreads:
         ax.plot(
-            spreads.index,
-            spreads[c],
+            sub_spreads.index,
+            sub_spreads[c],
             color=cols[c],
             ls=styles[c],
             lw=2.4,
-            label=f"{c} - Germany",
+            label=f"{c}",
             zorder=2,
         )
 
     ax.axhline(0, color="#888888", lw=1.2, ls=":", zorder=1)
 
-    if ymax:
-        ax.set_ylim(min(0, spreads.min().min()), ymax)
-
     y0, y1 = ax.get_ylim()
 
     for label, date in events.items():
-        date = pd.to_datetime(date)
-        ax.axvline(date, color="#888888", lw=1.1, ls=":", alpha=0.9, zorder=1)
-        ax.text(
-            date,
-            y1 - 0.04 * (y1 - y0),
-            f" {label}",
-            rotation=90,
-            va="top",
-            ha="left",
-            fontsize=9,
-            color="#555555",
-        )
+        event_date = pd.to_datetime(date)
+        if s_date <= event_date <= e_date:
+            ax.axvline(event_date, color="#888888", lw=2.2, ls=":", alpha=0.9, zorder=1)
+            
+            # Specific rule for TPI: place it strictly above the graph
+            if label == "TPI":
+                ax.annotate(
+                    f"{label}",
+                    xy=(event_date, y1),
+                    xytext=(0, 6),
+                    textcoords="offset points",
+                    rotation=90,
+                    va="bottom",
+                    ha="center",
+                    fontsize=10,
+                    color="#555555",
+                    clip_on=False
+                )
+            # All other events: place them inside the graph, offset to the right
+            else:
+                ax.annotate(
+                    f" {label}",
+                    xy=(event_date, y1 - 0.04 * (y1 - y0)),
+                    xytext=(6, 0),
+                    textcoords="offset points",
+                    rotation=90,
+                    va="top",
+                    ha="left",
+                    fontsize=10,
+                    color="#555555",
+                )
 
     ax.set(
-        title=title,
         xlabel="Year",
-        ylabel="Spread over Germany, percentage points",
-        xlim=(spreads.index.min(), spreads.index.max()),
+        ylabel="Spread, percentage points", 
+        xlim=(sub_spreads.index.min(), sub_spreads.index.max()),
     )
+    
+    ax.set_title(title, pad=35)
 
     ax.spines[["top", "right"]].set_visible(False)
     ax.tick_params(direction="out", length=4, width=1)
@@ -139,33 +167,50 @@ def plot_spreads(title, ymax=None):
     h, l = ax.get_legend_handles_labels()
 
     seen = set()
-    h2, l2 = [], []
+    h_countries, l_countries = [], []
+    h_rec, l_rec = [], []
 
     for handle, label in zip(h, l):
         if label not in seen:
-            h2.append(handle)
-            l2.append(label)
             seen.add(label)
+            if label == "All four in recession":
+                h_rec.append(handle)
+                l_rec.append(label)
+            else:
+                h_countries.append(handle)
+                l_countries.append(label)
 
-    if "All four in recession" in l2:
-        i = l2.index("All four in recession")
-        h2, l2 = h2[:i] + h2[i + 1:] + [h2[i]], l2[:i] + l2[i + 1:] + [l2[i]]
-
-    ax.legend(
-        h2,
-        l2,
+    # Main Legend (Countries)
+    leg1 = ax.legend(
+        h_countries,
+        l_countries,
         frameon=False,
-        loc="upper left",
-        bbox_to_anchor=(0.015, 0.985),
+        loc="upper right",
         handlelength=2.8,
-        borderaxespad=0,
+        borderaxespad=1,
     )
+    ax.add_artist(leg1) 
 
-    fig.tight_layout()
+    # Secondary Legend (Recession)
+    if h_rec:  
+        ax.legend(
+            h_rec,
+            l_rec,
+            frameon=False,
+            loc="upper center",
+            bbox_to_anchor=(0.5, -0.14),
+            handlelength=2.8,
+            borderaxespad=0,
+        )
+
+    fig.subplots_adjust(top=0.88, bottom=0.2)
     return fig, ax
 
 
-plot_spreads("Long-Term Interest Rate Spreads vs Germany")
-plot_spreads("Long-Term Interest Rate Spreads vs Germany, Y-Axis Capped at 5", ymax=5)
+# Graph 1: 1995 to 2020
+plot_spreads("Long-Term Interest Rate Spreads (1995 - 2020)", "1995-01-01", "2020-01-01")
+
+# Graph 2: 2020 to Now
+plot_spreads("Long-Term Interest Rate Spreads (2020 - Present)", "2020-01-01", pd.Timestamp.today())
 
 plt.show()
