@@ -74,8 +74,12 @@ hh_extended_D = hh_D.add_hetinputs([make_grids_D, income_D])
 @simple
 def deposit_return_D(rdep_D, P_CES_D):
     # Bundle-real gross deposit return: corrects for P_CES revaluation between t-1 and t.
+    # T-2 fix: deposits are one-period non-contingent contracts — the rate paid at t
+    # was locked at t-1 (rdep_D(-1)). Previously rdep_D (a period-t unknown) was paid
+    # on the t-1 deposit stock, making deposits state-contingent and generating a
+    # large bank windfall on impact of shocks (audit.md T-2).
     # At SS P_CES_D(-1)/P_CES_D = 1, so Rgross_D = 1 + rdep_D identically.
-    Rgross_D = (1 + rdep_D) * P_CES_D(-1) / P_CES_D
+    Rgross_D = (1 + rdep_D(-1)) * P_CES_D(-1) / P_CES_D
     return Rgross_D
 
 
@@ -100,7 +104,10 @@ def smart_steady_D(theta_D, Y_D, n_inter_D, rdep_D, alpha_D, delta_D, f_D, N_D,
 
 
 
-    m_D          = n_inter_D * (1 - (1 - f_D) * (1 + rn_D)) + Phi_D + T_D
+    # A-2 fix: P2 requires m = n(1-(1-f)(1+rn)) at SS; Phi and T are paid out of
+    # dividends (banker_div_res), not via the startup transfer. Including +Phi+T here
+    # made the SS not a rest point of intermediation_P2 whenever Phi or T != 0.
+    m_D          = n_inter_D * (1 - (1 - f_D) * (1 + rn_D))
     k_inter_D    = K_D
     I_D          = K_D * delta_D
     D_supply_D   = (theta_D - 1) * n_inter_D
@@ -216,7 +223,9 @@ def bond_return_D(def_rate_D, recovery_rate_D, q_b_D, delta_b_D, zeta_writeoff_D
 @simple
 def capital_adj_D(K_D, Q_D, I_D, Z_D, N_D, alpha_D, delta_D, gamma0_D, gamma1_D, ksi_D):
     iota_D        = I_D / K_D(-1)
-    mpk_D         = alpha_D * Z_D * K_D ** (alpha_D - 1) * N_D ** (1 - alpha_D)
+    # W-1 fix: production at t uses K(-1), so mpk paid on K(-1) exhausts capital income
+    # (Y = wN + mpk*K(-1)); restores Walras (CA = dNFA). See audit.md W-1.
+    mpk_D         = alpha_D * Z_D * K_D(-1) ** (alpha_D - 1) * N_D ** (1 - alpha_D)
     rk_D          = (mpk_D + (1 - delta_D) * Q_D) / Q_D(-1) - 1
     q_res_D       = Q_D - 1 / (gamma0_D * (1 - ksi_D) * iota_D ** (-ksi_D))
     capital_res_D = K_D - (1 - delta_D) * K_D(-1) - (gamma0_D * iota_D ** (1 - ksi_D) + gamma1_D) * K_D(-1)
@@ -230,7 +239,8 @@ def capital_producer_profit_D(Q_D, K_D, I_D, delta_D):
 
 @simple
 def labor_D(N_D, Z_D, K_D, alpha_D):
-    Y_D = Z_D * K_D ** alpha_D * N_D ** (1 - alpha_D)
+    # W-1 fix: K(-1) — capital installed at t-1 produces at t (standard SSJ timing)
+    Y_D = Z_D * K_D(-1) ** alpha_D * N_D ** (1 - alpha_D)
     return Y_D
 
 
@@ -276,10 +286,11 @@ def bank_return_D(theta_D, rk_D, rdep_D, b_D_D, b_F_D, n_inter_D,
     phi_bD_lag_D = q_b_D(-1) * b_D_D(-1) / n_inter_D(-1)
     phi_bF_lag_D = q_b_F(-1) * b_F_D(-1) / n_inter_D(-1)
     kappa_lag_D  = theta_D(-1) - phi_bD_lag_D - phi_bF_lag_D
-    rn_D = (kappa_lag_D  * (rk_D        - rdep_D)
-            + phi_bD_lag_D * (rb_actual_D - rdep_D)
-            + phi_bF_lag_D * (rb_actual_F - rdep_D)
-            + rdep_D)
+    # T-2 fix: funding cost on the t-1 balance sheet is the rate locked at t-1.
+    rn_D = (kappa_lag_D  * (rk_D        - rdep_D(-1))
+            + phi_bD_lag_D * (rb_actual_D - rdep_D(-1))
+            + phi_bF_lag_D * (rb_actual_F - rdep_D(-1))
+            + rdep_D(-1))
     return rn_D
 
 
@@ -288,10 +299,11 @@ def intermediation_P1_D(rk_D, rb_actual_D, rb_actual_F, rdep_D,
                         nu_K_D, nu_bD_D, nu_bF_D, eta_D,
                         lambda_gk_D, theta_D, SDF_banker_D, f_D):
     Omega_p1_D    = f_D + (1 - f_D) * lambda_gk_D * theta_D(+1)
-    nu_K_res_D    = nu_K_D  - SDF_banker_D * Omega_p1_D * (rk_D(+1)        - rdep_D(+1))
-    nu_bD_res_D   = nu_bD_D - SDF_banker_D * Omega_p1_D * (rb_actual_D(+1) - rdep_D(+1))
-    nu_bF_res_D   = nu_bF_D - SDF_banker_D * Omega_p1_D * (rb_actual_F(+1) - rdep_D(+1))
-    eta_res_D     = eta_D   - SDF_banker_D * Omega_p1_D * (1 + rdep_D(+1))
+    # T-2 fix: the deposit rate for the t->t+1 holding period is rdep_D (locked at t).
+    nu_K_res_D    = nu_K_D  - SDF_banker_D * Omega_p1_D * (rk_D(+1)        - rdep_D)
+    nu_bD_res_D   = nu_bD_D - SDF_banker_D * Omega_p1_D * (rb_actual_D(+1) - rdep_D)
+    nu_bF_res_D   = nu_bF_D - SDF_banker_D * Omega_p1_D * (rb_actual_F(+1) - rdep_D)
+    eta_res_D     = eta_D   - SDF_banker_D * Omega_p1_D * (1 + rdep_D)
     return nu_K_res_D, nu_bD_res_D, nu_bF_res_D, eta_res_D
 
 
@@ -400,7 +412,8 @@ def divert_bond_foc_D(rb_actual_D, rdep_D, b_D_D, n_inter_D, q_b_D,
     # IC-theory derived required spread: additive default loading independent of SS excess return.
     # psi_spread_D = lambda_gk_D * psi_lambda_B_D / (beta_inter_D * Omega_D), computed in _apply_ss_anchors.
     req_spread = excess_return_bD_D_ss + psi_spread_D * def_rate_D(+1)
-    rb_D_res   = (rb_actual_D(+1) - rdep_D(+1)) - req_spread \
+    # T-2 fix: compare t+1 bond return with rdep_D locked at t.
+    rb_D_res   = (rb_actual_D(+1) - rdep_D) - req_spread \
                  - psi_bD_D * (phi_bD_D - phi_bD_D_ss) \
                  - tau_mp_D
     return rb_D_res
