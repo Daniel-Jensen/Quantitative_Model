@@ -2,7 +2,7 @@
 
 ## Where to start
 
-- Active notebook: `code/model_v12.ipynb` on branch `audit`.
+- Active notebook: `code/model_v12.ipynb` on branch `AB-audit`.
 - Core equations: `code/equations_D.py`, `code/equations_F.py`, `code/equations_global.py`.
 - Read `docs/STATE.md` for current model status and open issues.
 - Read `docs/bank_cal_review.md` for the calibration porting roadmap (next major task).
@@ -23,7 +23,7 @@ nbstripout --install && nbdime config-git --enable
 
 ## Current model state (2026-06-11)
 
-Branch `audit` is the working baseline. Six structural bugs were fixed in the 2026-06-11 audit (PR #26 open for review). Main is pre-fix — do not use for new work.
+Branch `AB-audit` is the working baseline. Six structural bugs were fixed in the 2026-06-11 audit (PR #27 open for review). Main is pre-fix — do not use for new work.
 
 **Calibration (audit branch):**
 - `phi_lamb_D = phi_lamb_F = 0.15` — min stable at current amplification (Bohn=0.60/yr; over-strong vs literature, see STATE.md)
