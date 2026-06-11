@@ -206,8 +206,8 @@ def bond_return_F(def_rate_F, recovery_rate_F, q_b_F, delta_b_F, zeta_writeoff_F
 @simple
 def capital_adj_F(K_F, Q_F, I_F, Z_F, N_F, alpha_F, delta_F, gamma0_F, gamma1_F, ksi_F):
     iota_F        = I_F / K_F(-1)
-    # W-1 fix: production at t uses K(-1) — see capital_adj_D
-    mpk_F         = alpha_F * Z_F * K_F(-1) ** (alpha_F - 1) * N_F ** (1 - alpha_F)
+    # W-1 (author convention): mpk of current K_t — see capital_adj_D
+    mpk_F         = alpha_F * Z_F * K_F ** (alpha_F - 1) * N_F ** (1 - alpha_F)
     rk_F          = (mpk_F + (1 - delta_F) * Q_F) / Q_F(-1) - 1
     q_res_F       = Q_F - 1 / (gamma0_F * (1 - ksi_F) * iota_F ** (-ksi_F))
     capital_res_F = K_F - (1 - delta_F) * K_F(-1) - (gamma0_F * iota_F ** (1 - ksi_F) + gamma1_F) * K_F(-1)
@@ -215,8 +215,8 @@ def capital_adj_F(K_F, Q_F, I_F, Z_F, N_F, alpha_F, delta_F, gamma0_F, gamma1_F,
 
 @simple
 def labor_F(N_F, Z_F, K_F, alpha_F):
-    # W-1 fix: K(-1) — see labor_D
-    Y_F = Z_F * K_F(-1) ** alpha_F * N_F ** (1 - alpha_F)
+    # W-1 (author convention): current K_t — see labor_D
+    Y_F = Z_F * K_F ** alpha_F * N_F ** (1 - alpha_F)
     return Y_F
 
 @simple
@@ -366,8 +366,9 @@ def tax_rule_F(b_gov_F, b_gov_ss_F, phi_lamb_F):
 
 
 @simple
-def capital_producer_profit_F(Q_F, K_F, I_F, delta_F):
-    cap_profit_F = Q_F * (K_F - (1 - delta_F) * K_F(-1)) - I_F
+def capital_producer_profit_F(Q_F, K_F, I_F, delta_F, mpk_F):
+    # W-1 fix under the K_t convention — see capital_producer_profit_D.
+    cap_profit_F = Q_F * (K_F - (1 - delta_F) * K_F(-1)) - I_F + mpk_F * (K_F - K_F(-1))
     return cap_profit_F
 
 @simple

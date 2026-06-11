@@ -223,24 +223,33 @@ def bond_return_D(def_rate_D, recovery_rate_D, q_b_D, delta_b_D, zeta_writeoff_D
 @simple
 def capital_adj_D(K_D, Q_D, I_D, Z_D, N_D, alpha_D, delta_D, gamma0_D, gamma1_D, ksi_D):
     iota_D        = I_D / K_D(-1)
-    # W-1 fix: production at t uses K(-1), so mpk paid on K(-1) exhausts capital income
-    # (Y = wN + mpk*K(-1)); restores Walras (CA = dNFA). See audit.md W-1.
-    mpk_D         = alpha_D * Z_D * K_D(-1) ** (alpha_D - 1) * N_D ** (1 - alpha_D)
+    # W-1 (author convention): mpk is the marginal product of current K_t,
+    # consistent with labor_D. Banks receive mpk on their K(-1) holdings via rk;
+    # the product of newly installed capital goes to the capital producer.
+    mpk_D         = alpha_D * Z_D * K_D ** (alpha_D - 1) * N_D ** (1 - alpha_D)
     rk_D          = (mpk_D + (1 - delta_D) * Q_D) / Q_D(-1) - 1
     q_res_D       = Q_D - 1 / (gamma0_D * (1 - ksi_D) * iota_D ** (-ksi_D))
     capital_res_D = K_D - (1 - delta_D) * K_D(-1) - (gamma0_D * iota_D ** (1 - ksi_D) + gamma1_D) * K_D(-1)
     return iota_D, mpk_D, rk_D, q_res_D, capital_res_D
 
 @simple
-def capital_producer_profit_D(Q_D, K_D, I_D, delta_D):
-    cap_profit_D = Q_D * (K_D - (1 - delta_D) * K_D(-1)) - I_D
+def capital_producer_profit_D(Q_D, K_D, I_D, delta_D, mpk_D):
+    # W-1 fix under the K_t production convention: new capital installed at t is
+    # productive within t, and its marginal product mpk*(K - K(-1)) accrues to the
+    # capital producer. Banks earn mpk on K(-1) (via rk), so total capital income
+    # mpk*K(-1) + mpk*(K - K(-1)) = mpk*K = alpha*Y — factor payments exhaust
+    # output and Walras's law / CA = dNFA hold. Term vanishes at SS (K = K(-1)).
+    cap_profit_D = Q_D * (K_D - (1 - delta_D) * K_D(-1)) - I_D + mpk_D * (K_D - K_D(-1))
     return cap_profit_D
 
 
 @simple
 def labor_D(N_D, Z_D, K_D, alpha_D):
-    # W-1 fix: K(-1) — capital installed at t-1 produces at t (standard SSJ timing)
-    Y_D = Z_D * K_D(-1) ** alpha_D * N_D ** (1 - alpha_D)
+    # W-1 (author convention): production uses current K_t — investment is
+    # productive within the period. Accounting closes because the marginal
+    # product of new capital accrues to the capital producer (see
+    # capital_producer_profit_D); banks earn mpk only on K(-1).
+    Y_D = Z_D * K_D ** alpha_D * N_D ** (1 - alpha_D)
     return Y_D
 
 
