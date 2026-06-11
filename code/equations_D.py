@@ -385,9 +385,12 @@ def domestic_bond_foc_D(rb_actual_D, rdep_D, b_D_D, n_inter_D, q_b_D,
 
 # ==> GOVERMENT EQUATIONS
 @simple
-def government_default_D(shock_def_D, b_gov_D, Y_ss_D, b_gov_ss_D,
+def government_default_D(shock_def_D, b_gov_D, Y_D, Y_ss_D, b_gov_ss_D,
                           def_scale_D, def_curvature_D, def_offset_D):
-    debt_ratio_D = b_gov_D(-1) / Y_ss_D
+    # def_rate_D = f(Debt_t / GDP_t) + eps_t
+    # debt_ratio uses actual Y_D so output contractions raise Debt/GDP endogenously
+    # ss_ratio uses Y_ss_D (constant) so the f(.) = 0 rest point is unchanged
+    debt_ratio_D = b_gov_D(-1) / Y_D
     ss_ratio_D   = b_gov_ss_D  / Y_ss_D
     def_rate_D   = shock_def_D + def_scale_D * (
         (debt_ratio_D + def_offset_D) ** def_curvature_D

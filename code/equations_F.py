@@ -349,9 +349,10 @@ def domestic_bond_foc_F(rb_actual_F, rdep_F, b_F_F, n_inter_F, q_b_F,
 
 
 @simple
-def government_default_F(shock_def_F, b_gov_F, Y_ss_F, b_gov_ss_F,
+def government_default_F(shock_def_F, b_gov_F, Y_F, Y_ss_F, b_gov_ss_F,
                           def_scale_F, def_curvature_F, def_offset_F):
-    debt_ratio_F = b_gov_F(-1) / Y_ss_F
+    # def_rate_F = f(Debt_t / GDP_t) + eps_t  (symmetric with country D)
+    debt_ratio_F = b_gov_F(-1) / Y_F
     ss_ratio_F   = b_gov_ss_F  / Y_ss_F
     def_rate_F   = shock_def_F + def_scale_F * (
         (debt_ratio_F + def_offset_F) ** def_curvature_F
