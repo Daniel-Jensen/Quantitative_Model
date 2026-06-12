@@ -68,8 +68,9 @@ hh_extended_F = hh_F.add_hetinputs([make_grids_F, income_F])
 @simple
 def deposit_return_F(rdep_F, P_CES_F):
     # Bundle-real gross deposit return: corrects for P_CES revaluation between t-1 and t.
+    # T-2 fix: rate paid at t was locked at t-1 — see deposit_return_D.
     # At SS P_CES_F(-1)/P_CES_F = 1, so Rgross_F = 1 + rdep_F identically.
-    Rgross_F = (1 + rdep_F) * P_CES_F(-1) / P_CES_F
+    Rgross_F = (1 + rdep_F(-1)) * P_CES_F(-1) / P_CES_F
     return Rgross_F
 
 
@@ -93,7 +94,8 @@ def smart_steady_F(theta_F, Y_F, n_inter_F, rdep_F, alpha_F, delta_F, f_F, N_F,
                     + phi_bF_F * (rb_actual_F - rdep_F)
                     + phi_bD_F * (rb_actual_D - rdep_F)
                     + rdep_F)
-    m_F          = n_inter_F * (1 - (1 - f_F) * (1 + rn_F)) + Phi_F + T_F
+    # A-2 fix: see smart_steady_D — Phi/T are paid out of dividends, not via m.
+    m_F          = n_inter_F * (1 - (1 - f_F) * (1 + rn_F))
     k_inter_F    = K_F
     I_F          = K_F * delta_F
     D_supply_F   = (theta_F - 1) * n_inter_F
@@ -204,6 +206,7 @@ def bond_return_F(def_rate_F, recovery_rate_F, q_b_F, delta_b_F, zeta_writeoff_F
 @simple
 def capital_adj_F(K_F, Q_F, I_F, Z_F, N_F, alpha_F, delta_F, gamma0_F, gamma1_F, ksi_F):
     iota_F        = I_F / K_F(-1)
+    # W-1 (author convention): mpk of current K_t — see capital_adj_D
     mpk_F         = alpha_F * Z_F * K_F ** (alpha_F - 1) * N_F ** (1 - alpha_F)
     rk_F          = (mpk_F + (1 - delta_F) * Q_F) / Q_F(-1) - 1
     q_res_F       = Q_F - 1 / (gamma0_F * (1 - ksi_F) * iota_F ** (-ksi_F))
@@ -212,6 +215,7 @@ def capital_adj_F(K_F, Q_F, I_F, Z_F, N_F, alpha_F, delta_F, gamma0_F, gamma1_F,
 
 @simple
 def labor_F(N_F, Z_F, K_F, alpha_F):
+    # W-1 (author convention): current K_t — see labor_D
     Y_F = Z_F * K_F ** alpha_F * N_F ** (1 - alpha_F)
     return Y_F
 
@@ -255,10 +259,16 @@ def bank_return_F(theta_F, rk_F, rdep_F, b_F_F, b_D_F, n_inter_F,
     phi_bF_lag_F = q_b_F(-1) * b_F_F(-1) / (p(-1) * n_inter_F(-1))
     phi_bD_lag_F = q_b_D(-1) * b_D_F(-1) / (p(-1) * n_inter_F(-1))
     kappa_lag_F  = theta_F(-1) - phi_bF_lag_F - phi_bD_lag_F
-    rn_F = (kappa_lag_F  * (rk_F        - rdep_F)
-            + phi_bF_lag_F * (rb_actual_F - rdep_F)
-            + phi_bD_lag_F * (rb_actual_D - rdep_F)
-            + rdep_F)
+    # W-2 fix: bonds are D-good claims; realized F-good return includes the
+    # terms-of-trade revaluation p(-1)/p. Without it the bank's measured income
+    # misses capital gains/losses on the bond book and Walras fails (audit.md W-2).
+    rb_F_fg = (1 + rb_actual_F) * p(-1) / p - 1
+    rb_D_fg = (1 + rb_actual_D) * p(-1) / p - 1
+    # T-2 fix: funding cost on the t-1 balance sheet is the rate locked at t-1.
+    rn_F = (kappa_lag_F  * (rk_F    - rdep_F(-1))
+            + phi_bF_lag_F * (rb_F_fg - rdep_F(-1))
+            + phi_bD_lag_F * (rb_D_fg - rdep_F(-1))
+            + rdep_F(-1))
     return rn_F
 
 @simple
@@ -266,10 +276,11 @@ def intermediation_P1_F(rk_F, rb_actual_F, rb_actual_D, rdep_F,
                         nu_K_F, nu_bF_F, nu_bD_F, eta_F,
                         lambda_gk_F, theta_F, SDF_banker_F, f_F):
     Omega_p1_F    = f_F + (1 - f_F) * lambda_gk_F * theta_F(+1)
-    nu_K_res_F    = nu_K_F  - SDF_banker_F * Omega_p1_F * (rk_F(+1)        - rdep_F(+1))
-    nu_bF_res_F   = nu_bF_F - SDF_banker_F * Omega_p1_F * (rb_actual_F(+1) - rdep_F(+1))
-    nu_bD_res_F   = nu_bD_F - SDF_banker_F * Omega_p1_F * (rb_actual_D(+1) - rdep_F(+1))
-    eta_res_F     = eta_F   - SDF_banker_F * Omega_p1_F * (1 + rdep_F(+1))
+    # T-2 fix: the deposit rate for the t->t+1 holding period is rdep_F (locked at t).
+    nu_K_res_F    = nu_K_F  - SDF_banker_F * Omega_p1_F * (rk_F(+1)        - rdep_F)
+    nu_bF_res_F   = nu_bF_F - SDF_banker_F * Omega_p1_F * (rb_actual_F(+1) - rdep_F)
+    nu_bD_res_F   = nu_bD_F - SDF_banker_F * Omega_p1_F * (rb_actual_D(+1) - rdep_F)
+    eta_res_F     = eta_F   - SDF_banker_F * Omega_p1_F * (1 + rdep_F)
     return nu_K_res_F, nu_bF_res_F, nu_bD_res_F, eta_res_F
 
 @simple
@@ -355,8 +366,9 @@ def tax_rule_F(b_gov_F, b_gov_ss_F, phi_lamb_F):
 
 
 @simple
-def capital_producer_profit_F(Q_F, K_F, I_F, delta_F):
-    cap_profit_F = Q_F * (K_F - (1 - delta_F) * K_F(-1)) - I_F
+def capital_producer_profit_F(Q_F, K_F, I_F, delta_F, mpk_F):
+    # W-1 fix under the K_t convention — see capital_producer_profit_D.
+    cap_profit_F = Q_F * (K_F - (1 - delta_F) * K_F(-1)) - I_F + mpk_F * (K_F - K_F(-1))
     return cap_profit_F
 
 @simple
@@ -378,7 +390,11 @@ def divert_bond_foc_F(rb_actual_F, rdep_F, b_F_F, n_inter_F, q_b_F,
     # IC-theory derived required spread: additive default loading independent of SS excess return.
     # psi_spread_F = lambda_gk_F * psi_lambda_B_F / (beta_inter_F * Omega_F), computed in _apply_ss_anchors.
     req_spread = excess_return_bF_F_ss + psi_spread_F * def_rate_F(+1)
-    rb_F_res   = (rb_actual_F(+1) - rdep_F(+1)) - req_spread \
+    # W-3 fix: expected F-good return on the D-good-denominated bond converts with
+    # p/p(+1), as in domestic_bond_foc_F and divert_portfolio_adj.
+    rb_F_fg_next = (1 + rb_actual_F(+1)) * p / p(+1) - 1
+    # T-2 fix: compare t+1 bond return with rdep_F locked at t.
+    rb_F_res   = (rb_F_fg_next - rdep_F) - req_spread \
                  - psi_bF_F * (phi_bF_F - phi_bF_F_ss) \
                  - tau_mp_F
     return rb_F_res
