@@ -81,8 +81,8 @@ These are deliberate design decisions — do not "fix" them without checking `do
 
 ## Branch convention
 
-- `audit` — **use this for all new work**. Contains all six structural fixes (W-1, W-2, W-3, T-2, A-2, TPI-1) verified post-fix.
-- `main` — pre-fix state; preserved for the PR diff. Do not commit new model work here.
+- `main` — **use this for all new work**. Contains all six structural fixes (W-1, W-2, W-3, T-2, A-2, TPI-1, merged via PR #27) plus the modular-file reorganisation (PR #28).
+- `audit` / `AB-audit` — historical audit branches. `AB-audit` was merged into `main` (PR #27); `audit` (PR #26) was closed as superseded. Do not reuse.
 - `bank-cal` — old calibration branch predating structural fixes. **Do not merge.** Port calibration values only (see `docs/bank_cal_review.md`).
 
 ## Current model state and open issues

@@ -1,14 +1,14 @@
 # Project State
 
-**Branch:** `audit` | **Date:** 2026-06-11 | **Status:** post-forensic-audit baseline
+**Branch:** `main` | **Date:** 2026-06-22 | **Status:** post-forensic-audit baseline (all fixes merged)
 
 ## Current status
 
-Six structural/accounting bugs were found and fixed in the 2026-06-11 forensic audit (W-1, W-2, W-3, T-2, A-2, TPI-1). See `docs/audit.md` for the full ranked finding list and `docs/verification_report.md` for verified fix status. All six are applied on branch `audit`; PR #26 is open for co-author review.
+Six structural/accounting bugs were found and fixed in the 2026-06-11 forensic audit (W-1, W-2, W-3, T-2, A-2, TPI-1). See `docs/audit.md` for the full ranked finding list and `docs/verification_report.md` for verified fix status. All six are **merged into `main`** via PR #27 (`AB-audit`, merged 2026-06-11). PR #26 (`audit` branch) was closed as superseded. `main` was subsequently reorganised into modular Python files via PR #28 (merged 2026-06-22).
 
-Core equations: `code/equations_D.py`, `code/equations_F.py`, `code/equations_global.py`. Active notebook: `code/model_v12.ipynb`. TPI output figures: `plots/`.
+Core equations: `code/equations_D.py`, `code/equations_F.py`, `code/equations_global.py`. The model now also runs from modular Python entry points added by PR #28 (`code/main.py`, `code/full_model.py`, `code/steady_state.py`, `code/tpi.py`); the legacy notebook `code/model_v12.ipynb` is retained. TPI/IRF figures are produced by `code/tpi_plots.py` and `code/irf_plots.py` (no committed `plots/` dir).
 
-`main` is deliberately left at the pre-fix state to preserve a clean PR diff. Do not use `main` for new work until PR #26 is merged.
+`main` now contains all six fixes (PR #27) plus the modular-file reorganisation (PR #28). Use `main` — or a feature branch off it — for all new work. The `audit` / `AB-audit` branches are historical and should not be reused.
 
 ## What is complete (post-audit)
 
@@ -33,9 +33,9 @@ Core equations: `code/equations_D.py`, `code/equations_F.py`, `code/equations_gl
 | ca_res_D = CA−ΔNFA (untargeted) | ≤5.8e−8 | ≤3.5e−8 |
 | deposit_mkt_D/F | ≤4e−15 | ≤4e−15 |
 
-Pre-fix peaks for reference: goods_mkt_F 2.0e−2 (~2% of F GDP); ca_res_D 1.5e−4. All cross-country spillover and welfare results from the pre-fix model are first-order invalid and must be regenerated from `audit` branch.
+Pre-fix peaks for reference: goods_mkt_F 2.0e−2 (~2% of F GDP); ca_res_D 1.5e−4. All cross-country spillover and welfare results from the pre-fix model are first-order invalid and must be regenerated from `main`.
 
-## IRF summary (post-fix, audit branch, phi_lamb=0.15)
+## IRF summary (post-fix, main, phi_lamb=0.15)
 
 **1pp default shock to D (ρ=0.8):**
 - `n_inter_D[0] = −3.5%` (falls), `Y_D[0] = −2.5e−4` (falls) — both signs correct post-T-2-fix; were positive/perverse pre-fix.
@@ -43,9 +43,9 @@ Pre-fix peaks for reference: goods_mkt_F 2.0e−2 (~2% of F GDP); ca_res_D 1.5e�
 - Spread widens on impact; doom loop is live with correct sign.
 
 **TPI (γ=10, post-fix):**
-- ΔW_D = +1.88% SS consumption equivalent; ΔW_F = −1.90%. TPI is approximately a zero-sum burden transfer from D to F; spread is not compressed (rises slightly with γ because default is debt-driven). All pre-fix TPI welfare figures in `plots/` are stale until notebook is re-run from `audit` branch.
+- ΔW_D = +1.88% SS consumption equivalent; ΔW_F = −1.90%. TPI is approximately a zero-sum burden transfer from D to F; spread is not compressed (rises slightly with γ because default is debt-driven). All pre-fix TPI welfare figures are stale until regenerated from `main`.
 
-## Calibration summary (current, audit branch)
+## Calibration summary (current, main)
 
 | Parameter | Value | Source / note |
 |-----------|-------|---------------|
@@ -73,7 +73,7 @@ Pre-fix peaks for reference: goods_mkt_F 2.0e−2 (~2% of F GDP); ca_res_D 1.5e�
 
 ## Next priorities
 
-1. **Port bank-cal calibration values** onto `audit` branch: `delta_b=0.036/0.038`, `f=0.03`, EBA bilateral exposures (verified targets from bank-cal cell `96c6bd50`), hardcode `Delta=0.2/0.4` (resolves C-1), `recovery=0.40`. See `docs/bank_cal_review.md` §Recommendation for the full porting list.
+1. **Port bank-cal calibration values** onto `main`: `delta_b=0.036/0.038`, `f=0.03`, EBA bilateral exposures (verified targets from bank-cal cell `96c6bd50`), hardcode `Delta=0.2/0.4` (resolves C-1), `recovery=0.40`. See `docs/bank_cal_review.md` §Recommendation for the full porting list.
 2. **Decide S-1**: set `writeoff_enabled=1` to give default realized losses, or keep pure risk-premium framing and state it explicitly in the paper.
 3. **Re-map (phi_lamb, def_scale) stability on the fixed model** with ported duration and amplification. Bank-cal's bifurcation diagram (bifurcation at def_scale≈0.13 at phi_lamb=0.03) is invalid post-T-2-fix — the accidental deposit-windfall stabilizer is gone. Find the lowest empirically-plausible phi_lamb that gives a non-trivial, stable doom loop. This is the gating calibration result.
-4. **Re-generate all figures** from `audit` branch. All figures in `plots/` and in the notebook were produced on a pre-fix or mid-fix model state.
+4. **Re-generate all figures** from `main` (via `code/tpi_plots.py` / `code/irf_plots.py`). All previously produced figures were generated on a pre-fix or mid-fix model state.

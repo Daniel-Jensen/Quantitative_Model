@@ -2,7 +2,7 @@
 
 ## Where to start
 
-- Active notebook: `code/model_v12.ipynb` on branch `AB-audit`.
+- Working branch: `main` (all audit fixes merged). Modular entry points in `code/` (`main.py`, `full_model.py`, `steady_state.py`, `tpi.py`); legacy notebook `code/model_v12.ipynb` retained.
 - Core equations: `code/equations_D.py`, `code/equations_F.py`, `code/equations_global.py`.
 - Read `docs/STATE.md` for current model status and open issues.
 - Read `docs/bank_cal_review.md` for the calibration porting roadmap (next major task).
@@ -21,11 +21,11 @@ pip install sequence-jacobian numpy scipy matplotlib nbstripout nbdime
 nbstripout --install && nbdime config-git --enable
 ```
 
-## Current model state (2026-06-11)
+## Current model state (2026-06-22)
 
-Branch `AB-audit` is the working baseline. Six structural bugs were fixed in the 2026-06-11 audit (PR #27 open for review). Main is pre-fix — do not use for new work.
+`main` is the working baseline. The six structural bugs fixed in the 2026-06-11 audit were merged into `main` via PR #27 (`AB-audit`, 2026-06-11); `main` was then reorganised into modular Python files via PR #28 (2026-06-22). Use `main` for new work; the `audit` / `AB-audit` branches are historical.
 
-**Calibration (audit branch):**
+**Calibration (main):**
 - `phi_lamb_D = phi_lamb_F = 0.15` — min stable at current amplification (Bohn=0.60/yr; over-strong vs literature, see STATE.md)
 - `def_scale_D = 0.25` — strong, above GR crisis peak
 - `delta_b_D = delta_b_F = 0.10` — 2.5yr duration; needs porting to 0.036/0.038 (7yr/6.5yr)
@@ -47,7 +47,7 @@ Branch `AB-audit` is the working baseline. Six structural bugs were fixed in the
 
 In order from `docs/bank_cal_review.md` §Recommendation:
 
-1. **Port calibration values from bank-cal onto audit branch** (not a merge — port values only):
+1. **Port calibration values from bank-cal onto `main`** (not a merge — port values only):
    - `delta_b_D = 0.036`, `delta_b_F = 0.038`
    - `f_D = f_F = 0.03`
    - `Delta_D = 0.2`, `Delta_F = 0.4` (hardcoded, resolves C-1)
@@ -60,7 +60,7 @@ In order from `docs/bank_cal_review.md` §Recommendation:
 
 3. **Re-map (phi_lamb, def_scale) bifurcation** on the fixed model at the ported amplification (lower psi_lambda_B, longer duration). The bank-cal bifurcation diagram is invalid post-T-2-fix (accidental stabilizer removed). Target: lowest phi_lamb consistent with stability at a non-trivial doom loop strength. Use `audit_artifacts/philamb_test.py` as the template.
 
-4. **Re-generate all figures** from `audit` branch once calibration is settled.
+4. **Re-generate all figures** from `main` once calibration is settled.
 
 ## Important file locations
 
@@ -78,7 +78,7 @@ In order from `docs/bank_cal_review.md` §Recommendation:
 | `docs/bank_cal_review.md` | bank-cal branch analysis; calibration porting roadmap |
 | `docs/walras_forensics.md` | Analytical Walras derivation; all leaks proven |
 | `audit_artifacts/run_audit.py` | Full Walras regression pipeline |
-| `plots/` | TPI output figures (stale; regenerate from audit branch) |
+| `code/tpi_plots.py`, `code/irf_plots.py` | Figure-generation scripts (regenerate from `main`) |
 | Overleaf | https://www.overleaf.com/project/698b4f88aeef1d0e1d08cc0c |
 
 ## Run environment

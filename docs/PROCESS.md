@@ -67,8 +67,8 @@ assert abs(b_F_F + b_F_D - B_supply_F) < 1e-6
 
 ## Branch convention
 
-- `audit`: working branch with all structural fixes. Use this for new work.
-- `main`: pre-fix state preserved for PR diff. Do not commit new model work to main.
+- `main`: working branch with all structural fixes (merged via PR #27) plus the modular-file reorganisation (PR #28). Use this for new work.
+- `audit` / `AB-audit`: historical audit branches; `AB-audit` merged into `main` (PR #27), `audit` (PR #26) closed as superseded. Do not reuse.
 - `bank-cal`: calibration branch predating all structural fixes. Do not merge; port calibration VALUES only (see `docs/bank_cal_review.md`).
 
 ## Key debugging resources
