@@ -107,6 +107,12 @@ def build_and_solve(ss_results):
     ]
     T = 500
 
+    # ── Market-value fiscal-rule SS reference (mv_rule=1 path) ────────────────
+    # mv_gov_ss = q_b_ss · b_gov_ss so the market-value debt gap is zero at SS.
+    # Set exactly from the solved SS; harmless when mv_rule=0 (term is ×0).
+    ss_final.toplevel['mv_gov_ss_D'] = float(ss_final['q_b_D']) * float(ss_final['b_gov_ss_D'])
+    ss_final.toplevel['mv_gov_ss_F'] = float(ss_final['q_b_F']) * float(ss_final['b_gov_ss_F'])
+
     # ── Jacobian ──────────────────────────────────────────────────────────────
     exogenous = ['Z_D', 'shock_def_D', 'Z_F', 'shock_def_F']
     print(f"Computing Jacobian G (T={T}, {len(exogenous)} exogenous inputs)...")

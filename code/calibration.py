@@ -55,6 +55,11 @@ def get_calibration():
         # phi_lamb raised from 0.02 after T-2 fix: deposit re-dating makes the
         # debt→spread spiral live; phi_lamb < ~0.12 is explosive at current amplification.
         'phi_lamb_D':   0.15,    'phi_lamb_F':   0.15,
+        # Fiscal-rule debt measure: 0 = par/face value (default), 1 = market value
+        # (q_b·b_gov(-1)). mv_gov_ss is recomputed exactly from the solved SS in
+        # build_and_solve; these are placeholders (unused when mv_rule=0).
+        'mv_rule_D':    0.0,     'mv_rule_F':    0.0,
+        'mv_gov_ss_D':  0.6*4,   'mv_gov_ss_F':  0.6*4,
 
         # ── Sovereign Default ─────────────────────────────────────────────────
         'shock_def_D':      0.000,  'shock_def_F':      0.0,
