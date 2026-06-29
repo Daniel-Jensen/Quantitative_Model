@@ -92,8 +92,9 @@ See `docs/STATE.md` for the full calibration table. Key tensions:
 | Issue | Description |
 |-------|-------------|
 | **C-1** | `Delta_cross=1.45>1`: back-solved divertable fraction exceeds 1; multi-asset IC is degenerate. Preferred resolution: hardcode `Delta_D=0.2, Delta_F=0.4` per bank-cal branch. |
-| **S-1** | `writeoff_enabled=0`: default shock produces no realized bank losses. Model is currently a pure risk-premium loop. Enabling writeoff (`writeoff_enabled=1`, `recovery_rate=0.40`) gives the balance-sheet doom loop. Author decision pending. |
-| **Calibration** | `delta_b_D/F=0.10` (2.5yr) is empirically too short; target is `0.036/0.038` (7yr/6.5yr GR/DE). Porting from bank-cal is the next major task (see `docs/bank_cal_review.md`). |
+| **S-1** | `writeoff_enabled=0`: default shock produces no realized bank losses. Model is currently a pure risk-premium loop. Enabling writeoff (`writeoff_enabled=1`, `recovery_rate=0.40`) gives the balance-sheet doom loop. Author decision pending — **now coupled to F-1: with the market-value fiscal rule, writeoff must stay OFF (risk-premium framing), else the default response is perverse.** |
+| **Calibration** | `delta_b_D/F=0.10` (2.5yr) is empirically too short; target is `0.036/0.038` (7yr/6.5yr GR/DE). Porting from bank-cal is the next major task (see `docs/bank_cal_review.md`). **But empirical long duration is explosive under the par-value fiscal rule at every `phi_lamb` (F-1) — it requires `mv_rule=1`.** |
+| **F-1** | Par-value Bohn rule is explosive with empirical long-duration bonds at all `phi_lamb`. The switchable **market-value rule** (`mv_rule_D/F`, default 0=par) restores stationarity at `phi_lamb≈0.10` in the risk-premium framing. See `docs/STATE.md` Finding F-1. |
 
 ## Typical iteration
 

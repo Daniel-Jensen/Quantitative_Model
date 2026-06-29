@@ -56,9 +56,9 @@ In order from `docs/bank_cal_review.md` §Recommendation:
    - Frisch: decide 0.5 (current) vs 1.0 (bank-cal)
    - Income process: consider bank-cal's `rho_z_F=0.97/sigma=0.8` but keep `nZ=15` (bank-cal's 7 is too coarse)
 
-2. **Decide S-1** (writeoff_enabled).
+2. **Decide S-1** (writeoff_enabled). Now coupled to F-1: adopting the market-value rule forces writeoff OFF (risk-premium framing).
 
-3. **Re-map (phi_lamb, def_scale) bifurcation** on the fixed model at the ported amplification (lower psi_lambda_B, longer duration). The bank-cal bifurcation diagram is invalid post-T-2-fix (accidental stabilizer removed). Target: lowest phi_lamb consistent with stability at a non-trivial doom loop strength. Use `audit_artifacts/philamb_test.py` as the template.
+3. **Re-map (phi_lamb, def_scale) bifurcation** — *done; see `docs/STATE.md` Finding F-1.* Empirical long duration is explosive under the par-value rule at every phi_lamb (both channels). The **market-value fiscal rule** (`mv_rule=1`, promoted as a switchable option) restores stationarity at phi_lamb≈0.10 in the risk-premium framing. Remaining task: decide whether to adopt it as baseline (`mv_rule=1` + port `delta_b`/`f` + `phi_lamb≈0.10`) — coupled to #1–#2. Sweeps: `audit_artifacts/philamb_sweep*.py`.
 
 4. **Re-generate all figures** from `main` once calibration is settled.
 
