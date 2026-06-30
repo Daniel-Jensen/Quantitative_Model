@@ -360,8 +360,14 @@ def government_default_F(shock_def_F, b_gov_F, Y_ss_F, b_gov_ss_F,
     return def_rate_F
 
 @simple
-def tax_rule_F(b_gov_F, b_gov_ss_F, phi_lamb_F):
-    T_ls_F = phi_lamb_F * (b_gov_F(-1) - b_gov_ss_F)
+def tax_rule_F(q_b_F, b_gov_F, b_gov_ss_F, mv_gov_ss_F, phi_lamb_F, mv_rule_F):
+    # Bohn fiscal rule. Switch mv_rule_F in {0,1}: 0 (default) = par/face-value
+    # debt gap; 1 = market-value gap q_b·b_gov(-1) - mv_gov_ss (mv_gov_ss =
+    # q_b_ss·b_gov_ss). See tax_rule_D for the rationale (MTM reacts to the
+    # current spread; restores stationarity under long-duration bonds).
+    par_gap = b_gov_F(-1) - b_gov_ss_F
+    mv_gap  = q_b_F * b_gov_F(-1) - mv_gov_ss_F
+    T_ls_F  = phi_lamb_F * ((1.0 - mv_rule_F) * par_gap + mv_rule_F * mv_gap)
     return T_ls_F
 
 

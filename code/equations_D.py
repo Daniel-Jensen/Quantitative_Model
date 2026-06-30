@@ -397,8 +397,17 @@ def government_default_D(shock_def_D, b_gov_D, Y_ss_D, b_gov_ss_D,
 
 
 @simple
-def tax_rule_D(b_gov_D, b_gov_ss_D, phi_lamb_D):
-    T_ls_D = phi_lamb_D * (b_gov_D(-1) - b_gov_ss_D)
+def tax_rule_D(q_b_D, b_gov_D, b_gov_ss_D, mv_gov_ss_D, phi_lamb_D, mv_rule_D):
+    # Bohn fiscal rule. Switch mv_rule_D in {0,1}:
+    #   0 (default) = par/face-value debt gap (b_gov(-1) - b_gov_ss).
+    #   1           = market-value debt gap: inherited stock at current price,
+    #                 q_b·b_gov(-1) - mv_gov_ss, where mv_gov_ss = q_b_ss·b_gov_ss
+    #                 (set in build_and_solve from the solved SS). The MTM variant
+    #                 reacts to the current spread and is what restores stationarity
+    #                 with empirical long-duration bonds (risk-premium calibration).
+    par_gap = b_gov_D(-1) - b_gov_ss_D
+    mv_gap  = q_b_D * b_gov_D(-1) - mv_gov_ss_D
+    T_ls_D  = phi_lamb_D * ((1.0 - mv_rule_D) * par_gap + mv_rule_D * mv_gap)
     return T_ls_D
 
 
