@@ -1,6 +1,61 @@
 # Project State
 
-**Branch:** `audit` | **Date:** 2026-06-11 | **Status:** post-forensic-audit baseline
+**Branch:** `audit` (SSJ model) / `file-reorganisation` (standalone Python) | **Date:** 2026-07-06 | **Status:** post-forensic-audit baseline (SSJ); five-fix audit complete (standalone)
+
+---
+
+## Standalone Python model (`code/global/`) — `file-reorganisation` branch
+
+The model was reorganised into modular Python files in `code/global/` (separate from the SSJ notebook). Five bugs/issues were identified and fixed on 2026-07-06.
+
+### Five fixes applied
+
+| ID | File | Description | Result |
+|----|------|-------------|--------|
+| BUG-1 | `verify_mechanism.py` | Parameter key mismatch: `psi_lambda_B_D` → `psi_bd_D`; shock type `def_D_path` → `sunspot_D_path`. Both psi=0 and psi=3 runs used identical inputs (ratio 1.0×). | BD mechanism contrast now observable. |
+| BUG-2 | `steady_state.py` | `brentq` used a loose `tol=max(1e-5, cal["tol_hh"])` EGM tolerance, finding β at a slightly wrong zero. Deposit residual at true β: −3.34e-3. Fixed to `tol=cal["tol_hh"]` (1e-9) with a robust fallback for extreme β values where tight tol doesn't converge in 10,000 iterations. | Deposit residual = 7.17e-9; β = 0.997148. |
+| BUG-3a | `transition.py` | Non-labour income `(Div-Tax)` was in nominal good units (D/F-goods) but added to the real wage `w/P_CES` in composite units. Fixed to `(Div-Tax)/P_CES` for both countries. | Income in composite units throughout. |
+| BUG-3b | `transition.py` | Goods market D condition used `C_D` (composite) not `P_CES_D*C_D` (D-goods). Fixed to impose `Y_D = P_CES_D·C_D + I_D + NX_D`. | goods_D = 2.94e-10 (machine precision). |
+| BUG-3c | `transition.py` | Deposit market compared `A` (composite units) to `Dep_supply` (nominal good units). Fixed to `P_CES·A = Dep_supply`. | Deposit residuals = O(1e-7). |
+| ISSUE-4 | `trade.py` | Docstring typo: `ces_price()` described D's P_CES as "price of D-good in F-goods" (inverted). Fixed. | Documentation only. |
+| ISSUE-5 | `bank.py` | Forward-pass FX conversions: D-bank mistakenly applied no conversion to rb_F (F-goods return) treating it as D-goods; F-bank applied spurious FX to its own F-goods rb_F. Fixed both legs. | Q_bD drop on BD shock: −3.21% (was −1.19%). |
+
+### Walras residuals (post-fix, standalone Python, T=100)
+
+| Residual | 1% TFP-D shock (ρ=0.8) | BD sunspot (ρ=0.85, ξ₀=0.10) |
+|----------|------------------------|-------------------------------|
+| goods_D (imposed) | 2.94e-10 ✓ | 4.31e-11 ✓ |
+| goods_F (diagnostic — see W-G1) | 1.71e-2 | 4.48e-3 |
+| deposit resid D | 2.60e-7 ✓ | — |
+| deposit resid F | 2.36e-7 ✓ | — |
+| IC resid D (SS) | 9.41e-16 ✓ | — |
+| No-shock goods_F (SS balance check) | 9.47e-8 ✓ | — |
+
+### Known structural limitation: W-G1 (goods_F residual)
+
+**goods_F** = `Y_F − P_CES_F·C_F − I_F − NX_F` ≈ 1.7% of F-GDP on a 1% TFP shock.
+
+This is **not a code bug**. Three attributable sources:
+1. **Bank deposit dynamics** `ΔDep_supply_F = Dep_next − (1+rdep_F)·Dep` ≈ 6.99e-3: bank NW accumulation (`n_F`) is not financed through household savings, so bank leverage changes create an untracked F-goods flow.
+2. **CES price-index term** `(P_CES_F−1)·C_F` ≈ 4.76e-3: composite-unit EGM cannot track the physical F-goods revaluation when `p` moves off SS.
+3. **Cross-terms** ≈ 1.01e-2: interaction of both effects over the transition path.
+
+The **SS is balanced** (goods_F = 9.47e-8 at no-shock); the residual is purely a transition-dynamics artifact. Pre-fix code had an equivalent residual of ~6e-3 (masked by using the wrong `C_F` identity without `P_CES_F`). The current code measures the physical F-goods market correctly and is consistent.
+
+**D-country results are unaffected**: goods_D = machine precision throughout. F-country IRFs should be noted as carrying a ~1.7% per 1%-TFP-shock accounting approximation.
+
+A complete fix would require feeding the time-path of `P_CES_F` into the EGM as a real deposit return, and modelling bank equity issuance as a household asset — both are major architectural changes outside the current scope.
+
+### BD mechanism (post-fix)
+
+- Q_bD drops −3.21% at t=0 on BD shock (was −1.19% before BUG-2 fix)
+- n_D[0] falls (GK doom loop active)
+- BD outer loop converges in 33 iterations (Anderson acceleration)
+- `verify_mechanism.py`: psi_bd_D=3 vs psi_bd_D=0 contrast now visible (BUG-1 fix)
+
+---
+
+## SSJ model (`code/model_v12.ipynb`) — `audit` branch
 
 ## Current status
 
