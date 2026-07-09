@@ -1,134 +1,206 @@
 # Project State
 
-**Branch:** `audit` (SSJ model) / `file-reorganisation` (standalone Python) | **Date:** 2026-07-06 | **Status:** post-forensic-audit baseline (SSJ); five-fix audit complete (standalone)
+**Branch:** `file-reorganisation` | **Date:** 2026-07-07 | **Status:** Bocola (2016) / Cole-Kehoe sovereign-risk mechanism implemented and verified; **risk channel added** via two-branch default-branch pricing (standalone `code/global/` model)
+
+## Risk channel (added 2026-07-07, `risk_branch.py`)
+
+Bocola's second transmission channel — precautionary deleveraging — is now
+implemented. Bankers discount with the household SDF Λ = β·u_c′/u_c (Bocola
+uses log utility, **not** Epstein-Zin; verified from the paper) and weight a
+**representative post-default branch** by the priced default probability in
+every backward-pass expectation (Ω̃, μ, α, bond prices, cross-border FOCs):
+
+    Ω̃_{t+1} = (1−π)Ω^nd + π·Ω^d,   Ω^d = Λ^d·[(1−f)+f·α^d(0)]
+
+The branch is a full PF transition with the haircut realized at its period 0,
+launched from the base-path impact state (new `init=` support in
+solve_transition — also the scaffolding for future mid-crisis TPI runs) and
+absorbing (post-default debt exits the CK crisis zone). Outer fixed point
+base ↔ branch, damped, warm-started. `pi ≡ 0` nests the risk-neutral model
+exactly (regression-tested). Diagnostics: `bond_decomposition` splits the
+sovereign spread into default compensation + **risk premium** + liquidity
+premium via an exact per-period identity. Approximations (documented):
+single representative branch, Λ^nd ≡ β_inter, aggregate-composite SDF as the
+rep-agent proxy for the HA household, and household-side π-blindness — the
+deposit Euler never weights the default branch by π (deposits are safe in
+rate terms even in the branch, so what is omitted is only the
+precautionary-savings response to default-state income risk; risk pricing
+lives entirely in the bank block). Validation moment: risk-channel share
+of the lending-spread response vs Bocola's "up to 45%".
+
+Motivation (analysis of the flexible-rate caveat): without risk pricing,
+risk-neutral banks re-lever into capital when the deposit rate collapses in
+the crisis — the model's investment boomed. This is Bocola's own
+"comovement problem" (his §VI); per author decision the comovement fixes
+(union deposit market, working capital) are deferred, while the risk channel
+disciplines banks' expansion through the covariance premium on capital.
+
+**Default-state specification** (required for a correctly-signed premium —
+discovered numerically): with the plain Bohn rule, a default's 55% haircut
+became φ·(b−b_ss) ≈ −1.05 of *tax cuts* per quarter — default was
+expansionary for households (branch Y(0) = +1.1%) and the risk premium came
+out ≈ 0. Two canonical ingredients fix the default state:
+1. **Fiscal re-anchoring** (`b_anchor` in govt_transition): post-default the
+   Bohn rule anchors to the post-haircut stock — debt relief is not handed
+   to households as windfall transfers (Greek post-PSI reality).
+2. **Output cost of default** (Arellano 2008 tradition): branch TFP =
+   Z·(1 − 0.05·0.9^h) — conservative next to the Greek 2012 collapse
+   (`def_output_cost_D`, `def_output_rho_D` in calibration.py).
+
+## Validity of the default-pricing mechanism in the two-country HANK setting
+
+Reviewed 2026-07-08 (logic review vs Bocola 2016; FOC algebra, priced/realized
+split, HM haircut conventions, timing and p-conversions all verified correct).
+Assessment of why the Bocola pricing mechanism remains valid when embedded in
+a two-country heterogeneous-agent economy:
+
+1. **Pricing is bank-side by construction — no HA aggregation problem
+   contaminates Q.** Households hold only safe one-asset deposits
+   (household.py: non-contingent rate, locked one period ahead); they never
+   hold sovereign bonds. Every pricing equation lives in the bank block,
+   where the pricer is a representative banker with a well-defined
+   objective. Heterogeneity reaches Q only through equilibrium objects, all
+   inside the residual system: rdep (deposit-market clearing against the HA
+   wealth distribution → the discount in Q), rk (MPC-weighted goods demand →
+   MPK → μ → the liquidity spread), and the debt path (Bohn taxes →
+   consumption → output → the crisis-zone indicator). This also matches the
+   bank-centric holding structure of euro-area periphery debt.
+
+2. **Banker SDF is an assumption, not an approximation.** GK/Bocola's
+   "bankers inside a representative family" has no HANK analogue — there is
+   no single household SDF to inherit (the constrained household's and the
+   wealthy saver's differ enormously, and any aggregate-composite proxy is
+   an arbitrary aggregation rule, additionally wrong-signed here via the
+   comovement problem). Λ^d = β_inter·κ_d is therefore a banker-specific
+   discount with an empirically disciplined default-state loading — a
+   stated assumption (see calibration.py), disciplined by the ≈45%
+   risk-channel share target.
+
+3. **Household π-blindness is bounded.** Deposits stay risk-free in rate
+   terms even in the default branch (the haircut feasibility ladder exists
+   precisely to rule out equity wipeout / deposit impairment), so what the
+   household Euler misses by not weighting the branch is only default-state
+   *income* risk (wages, dividends, Bohn taxes). Second-order for pricing
+   (π enters Q only via rdep); potentially first-order for distributional /
+   welfare statements — paper caveat, not a pricing defect. A consistent fix
+   (HA problem under two-branch expectations) is a research extension.
+
+4. **What HANK genuinely adds is correctly wired and priced.** The fiscal
+   amplification loop is MPC-weighted: depressed Q → rollover at low prices
+   → debt ↑ → lump-sum Bohn tax ↑ → constrained households cut C
+   one-for-one → Y ↓ → feeds rk, μ and the zone indicator back into Q,
+   entirely inside the fixed point. Dividend-cut incidence is uniform
+   per-capita (stated assumption; mildly amplifying through constrained
+   households). The default branch launches from the actual HA distribution
+   snapshot (`extract_init_state` passes `D_start`), so α^d(0) is
+   distribution-consistent; representative-branch reuse ignores only
+   distribution drift across pricing dates (second-order, documented).
+
+5. **Residual design notes.** CK zone thresholds condition on b/Y_ss, not
+   current Y (avoids another fixed-point layer; understates zone-deepening
+   in deep recessions). Cross-border risk sharing flows only through banks
+   (households cannot hold foreign assets) — the right restriction for a
+   bank-centric monetary-union crisis model. In risk mode, F's own default
+   risk is priced risk-neutrally and independently of the D-event (survival
+   factor on both F-bond branch payoffs; no F default branch — see
+   bank_backward docstring).
 
 ---
 
-## Standalone Python model (`code/global/`) — `file-reorganisation` branch
+## Current model (`code/global/`) — Bocola–Cole-Kehoe rework (2026-07-07)
 
-The model was reorganised into modular Python files in `code/global/` (separate from the SSJ notebook). Five bugs/issues were identified and fixed on 2026-07-06.
+The sovereign-default mechanism was rebuilt to follow Bocola (2016, JPE)
+"The Pass-Through of Sovereign Risk" embedded in Cole-Kehoe crisis zones,
+after verification showed the previous ψ_bd reduced form produced an
+*expansionary* default-risk shock in general equilibrium.
 
-### Five fixes applied
+### Structural changes
 
-| ID | File | Description | Result |
-|----|------|-------------|--------|
-| BUG-1 | `verify_mechanism.py` | Parameter key mismatch: `psi_lambda_B_D` → `psi_bd_D`; shock type `def_D_path` → `sunspot_D_path`. Both psi=0 and psi=3 runs used identical inputs (ratio 1.0×). | BD mechanism contrast now observable. |
-| BUG-2 | `steady_state.py` | `brentq` used a loose `tol=max(1e-5, cal["tol_hh"])` EGM tolerance, finding β at a slightly wrong zero. Deposit residual at true β: −3.34e-3. Fixed to `tol=cal["tol_hh"]` (1e-9) with a robust fallback for extreme β values where tight tol doesn't converge in 10,000 iterations. | Deposit residual = 7.17e-9; β = 0.997148. |
-| BUG-3a | `transition.py` | Non-labour income `(Div-Tax)` was in nominal good units (D/F-goods) but added to the real wage `w/P_CES` in composite units. Fixed to `(Div-Tax)/P_CES` for both countries. | Income in composite units throughout. |
-| BUG-3b | `transition.py` | Goods market D condition used `C_D` (composite) not `P_CES_D*C_D` (D-goods). Fixed to impose `Y_D = P_CES_D·C_D + I_D + NX_D`. | goods_D = 2.94e-10 (machine precision). |
-| BUG-3c | `transition.py` | Deposit market compared `A` (composite units) to `Dep_supply` (nominal good units). Fixed to `P_CES·A = Dep_supply`. | Deposit residuals = O(1e-7). |
-| ISSUE-4 | `trade.py` | Docstring typo: `ces_price()` described D's P_CES as "price of D-good in F-goods" (inverted). Fixed. | Documentation only. |
-| ISSUE-5 | `bank.py` | Forward-pass FX conversions: D-bank mistakenly applied no conversion to rb_F (F-goods return) treating it as D-goods; F-bank applied spurious FX to its own F-goods rb_F. Fixed both legs. | Q_bD drop on BD shock: −3.21% (was −1.19%). |
+| Change | Where | Rationale |
+|--------|-------|-----------|
+| Single λ per bank (λ_K = λ_bD = λ_bF = 0.22) | `bank.py`, `calibration.py` | Bocola eq. (3): banker diverts a fraction of TOTAL assets. Asset-specific λ let banks substitute into capital when bond IC tightened → wrong GE sign. |
+| ψ_bd·ξ IC-tightening removed | `bank.py` | Replaced by expected-haircut pricing: sunspot = priced default probability. |
+| PRICED vs REALIZED default split (`def_price` / `def_real`) | `bank.py`, `government.py`, `transition.py` | Bocola experiment: news of default is priced (MTM losses) but default never happens. Realized-default variant = pass `def_real ≠ 0`. |
+| Endogenous debt in bond-market clearing | `transition.py`, `government.py` | Debt is forward-integrated (Bohn tax inside the recursion) within every residual evaluation; banks hold the true end-of-period stock. Closes the Walras leak (pre-fix: 0.47% of Y_F per 5% debt deviation) and restores the issuance-absorption amplification. Removes the old CK/BD outer debt loops. |
+| Split `solve_bank_paths` → `bank_backward` + `bank_forward` | `bank.py` | Prices come from marginal conditions only, so debt can be integrated between the passes. |
+| SS external balance = current account (not NX=0) | `steady_state.py` | With 20% cross-border bond books, net foreign income ≠ 0 matters. |
+| SS household income `/P_CES` conversion fix | `steady_state.py` | Was missing (invisible while p_ss=1 exactly); with any asymmetry it caused a 1.3e-4 goods wedge. |
+| Symmetric SS enforced (δ_b_F = δ_b_D) | `calibration.py` | p is weakly identified by external balance (η=0.5 ⇒ NX ∝ p^½·(P_F^½C_F − P_D^½C_D)); asymmetric SS opens an O(1e-4) wedge. Asymmetries enter through shocks. |
+| BD solver (`solve_transition_bd`), `verify_mechanism.py` deleted | `transition.py` | Superseded by the CK–Bocola design and `tests/`. Git history preserves them. |
 
-### Walras residuals (post-fix, standalone Python, T=100)
+### Calibration (current)
 
-| Residual | 1% TFP-D shock (ρ=0.8) | BD sunspot (ρ=0.85, ξ₀=0.10) |
-|----------|------------------------|-------------------------------|
-| goods_D (imposed) | 2.94e-10 ✓ | 4.31e-11 ✓ |
-| goods_F (diagnostic — see W-G1) | 1.71e-2 | 4.48e-3 |
-| deposit resid D | 2.60e-7 ✓ | — |
-| deposit resid F | 2.36e-7 ✓ | — |
-| IC resid D (SS) | 9.41e-16 ✓ | — |
-| No-shock goods_F (SS balance check) | 9.47e-8 ✓ | — |
+| Parameter | Value | Target / source |
+|-----------|-------|-----------------|
+| λ (single, both banks) | 0.22 | Leverage θ_ss = 4.45 (GK11/Bocola range 4–6) |
+| B_gov_ss (both) | 12.80 | D-bank sovereign exposure Q·b/n = 0.89 (Bocola: GIPS domestic sov holdings ≈ 93% of bank equity, 2009); face debt = 93% of annual GDP |
+| b_D_F_ss = b_F_D_ss | 2.56 | Foreign bank holds 20% of each bond supply (union contagion leg) |
+| δ_b (both) | 0.036 | ~7y duration (GR/DE pre-crisis average maturity) |
+| recovery_rate (both) | 0.45 | Haircut 0.55, Greek PSI 2012 (Zettelmeyer-Trebesch-Gulati; used by Bocola) |
+| b_ck_low_D / b_ck_high_D | 3.0 / 6.0 | SS b/Y_ss = 3.72 sits inside the crisis zone; fundamental default unreachable in the risk-only experiment |
+| φ_lamb (Bohn) | 0.15 | Sweep over {0.02, 0.05, 0.15} changes C/I shapes little (C crash is driven by the deposit-rate collapse, not taxes) |
+| f, ω_ent, β_inter | 0.028, 0.002, 0.96 | Unchanged; jointly give rk_ss − rdep = 1.77% ann (= SS sovereign spread under single λ) |
+| ψ_bF_D = ψ_bD_F | 0.01 | Cross-border portfolio adjustment cost |
+| a_max, n_a | 300, 250 | Deposit demand ≈ 35.3 per country (A = Dep_supply) |
 
-### Known structural limitation: W-G1 (goods_F residual)
+### Residuals (verified 2026-07-07, T=100)
 
-**goods_F** = `Y_F − P_CES_F·C_F − I_F − NX_F` ≈ 1.7% of F-GDP on a 1% TFP shock.
+| Check | Value |
+|-------|-------|
+| SS: IC resid, Bellman, bond-FOC identities | ≤ 1e-12 (machine) |
+| SS: goods market (Y − C − I) | 8.8e-07 (household-grid floor) |
+| Zero-shock transition: max deviation from SS | ≤ 1.4e-06; goods_F 6.1e-07 |
+| TFP shock (1%, ρ=0.8): goods_D / goods_F | 2.0e-11 / 6.0e-07 |
+| CK risk-only shock (ξ₀=7%, ρ=0.95): goods_D / goods_F | 4.8e-10 / 5.9e-07 |
+| Bond FOC E[rb]−rdep = λμ/Ω along shocked paths | ≤ 1e-12 per period |
 
-This is **not a code bug**. Three attributable sources:
-1. **Bank deposit dynamics** `ΔDep_supply_F = Dep_next − (1+rdep_F)·Dep` ≈ 6.99e-3: bank NW accumulation (`n_F`) is not financed through household savings, so bank leverage changes create an untracked F-goods flow.
-2. **CES price-index term** `(P_CES_F−1)·C_F` ≈ 4.76e-3: composite-unit EGM cannot track the physical F-goods revaluation when `p` moves off SS.
-3. **Cross-terms** ≈ 1.01e-2: interaction of both effects over the transition path.
+The old "W-G1 structural limitation" (goods_F ≈ 1.7e-2 on TFP shocks) is
+**gone** — it was accounting error, not structure; the diagnostic now sits at
+the household-grid floor (~6e-7) on all shocks including moving debt.
 
-The **SS is balanced** (goods_F = 9.47e-8 at no-shock); the residual is purely a transition-dynamics artifact. Pre-fix code had an equivalent residual of ~6e-3 (masked by using the wrong `C_F` identity without `P_CES_F`). The current code measures the physical F-goods market correctly and is consistent.
+### Centerpiece experiment (main.py): CK sunspot, risk only
 
-**D-country results are unaffected**: goods_D = machine precision throughout. F-country IRFs should be noted as carrying a ~1.7% per 1%-TFP-shock accounting approximation.
+ξ₀ = 7% quarterly default probability, ρ = 0.95, priced in the crisis zone,
+never realized. Solved with a 3-step homotopy (~30s). Results:
 
-A complete fix would require feeding the time-path of `P_CES_F` into the EGM as a real deposit return, and modelling bank equity issuance as a household asset — both are major architectural changes outside the current scope.
+- Q_bD −32% on impact (MTM repricing of 7y bonds)
+- n_D −23% (no default!), n_F −5.6% (contagion via 20% cross-holding)
+- Sovereign yield spread +770bps ann at peak; lending spread +1931bps at impact; pass-through 0.33 at peak
+- Y_D −0.33% trough; C_D −3.9% trough
+- b_gov +5% (rollover at depressed prices), Bohn taxes +0.097 peak
+- Banks recapitalize in ~8-12 quarters via ex-post excess bond returns
+  (bought at 60% of par, repaid in full — the fiscal cost of the belief shock)
 
-### BD mechanism (post-fix)
+### Known limitations (deliberate, next phases)
 
-- Q_bD drops −3.21% at t=0 on BD shock (was −1.19% before BUG-2 fix)
-- n_D[0] falls (GK doom loop active)
-- BD outer loop converges in 33 iterations (Anderson acceleration)
-- `verify_mechanism.py`: psi_bd_D=3 vs psi_bd_D=0 contrast now visible (BUG-1 fix)
+1. **Flexible prices / no union nominal rate**: rdep collapses in the crisis
+   (−350bps ann on impact), cushioning banks and pushing the contraction into
+   consumption while investment rises (real-model crowding-in). The
+   monetary-union nominal block is the next major layer and is required for
+   the TPI application.
+2. **No risk channel**: perfect foresight cannot price covariance risk;
+   only Bocola's liquidity/balance-sheet channel operates.
+3. **IC always binding** (Bocola's binds occasionally, μ≈0 in calm times).
+4. CK zones use Y_ss (no output feedback into the crisis zone).
+5. Debt/annual GDP = 93% (face) is below Greek crisis peaks; the binding
+   anchor is bank exposure/net worth ≈ 0.9 (banks hold 80% of supply).
+
+### Next priorities
+
+1. Nominal rigidities + single union policy rate (kills the rdep escape
+   valve; expected to flip investment response and deepen the recession).
+2. TPI/asset-purchase experiment: central bank buys D-bonds in the crisis
+   zone (Bocola's LTRO experiment is the template).
+3. Realized-default comparison run (`def_real` = PSI event at a chosen date).
+4. Optional: occasionally-binding IC; risk-channel proxy via exogenous SDF wedge.
 
 ---
 
-## SSJ model (`code/model_v12.ipynb`) — `audit` branch
+## Historical: SSJ model (`code/model_v12.ipynb`, branch `audit`) — superseded
 
-## Current status
-
-Six structural/accounting bugs were found and fixed in the 2026-06-11 forensic audit (W-1, W-2, W-3, T-2, A-2, TPI-1). See `docs/audit.md` for the full ranked finding list and `docs/verification_report.md` for verified fix status. All six are applied on branch `audit`; PR #26 is open for co-author review.
-
-Core equations: `code/equations_D.py`, `code/equations_F.py`, `code/equations_global.py`. Active notebook: `code/model_v12.ipynb`. TPI output figures: `plots/`.
-
-`main` is deliberately left at the pre-fix state to preserve a clean PR diff. Do not use `main` for new work until PR #26 is merged.
-
-## What is complete (post-audit)
-
-- Household deposit choice and GHH preferences for D (Greece) and F (Germany) households.
-- Bank steady-state and intermediation blocks: capital, bond returns, fees, GK Bellman (P1) and IC constraint (P3/lambda_gk).
-- Production, capital adjustment, and capital producer profit — W-1 fixed: production uses `Y=F(K_t)`, capital producer receives `mpk·(K−K(−1))` so all capital income is allocated.
-- Deposit return predetermined correctly: `Rgross = (1+rdep(−1))·P(−1)/P` — T-2 fix. Funding legs in `bank_return_*` and FOCs in `intermediation_P1_*`/`divert_*` use ex-ante deposit rate.
-- F-bank bond returns converted to F-goods via `p(−1)/p` in `bank_return_F` — W-2 fix (the dominant leak; was causing ~2% of F GDP goods_mkt_F residual on a 1% TFP shock).
-- Cross-border bond FOC in F-bank uses `p/p(+1)` for expected return — W-3 fix (optimality condition; does not affect Walras but required for internally consistent portfolio choice).
-- Smart steady-state blocks: `m = n·(1−(1−f)·(1+rn))` without spurious `+Phi+T` — A-2 fix (required for any `chi1≠0` calibration, e.g. bank-cal's chi1=0.5).
-- Global goods market, external account, bond clearing, and portfolio adjustment cost blocks.
-- Domestic and foreign bond pricing, yields, spreads, and Hatchondo-Martinez geometric-decay perpetuity default mechanics.
-- TPI extension (cells TPI-1/TPI-2 in notebook): CB budget closed via `budget_residual_D_tpi` with `rem_cb_D` remittance — TPI-1 fix. Before the fix, unbacked CB flows inflated welfare gains by ~40% at γ=10.
-- EBA bilateral sovereign exposures in calibration cell: b_D_D/asset=24.47%, b_F_F/asset=25.79%, b_F_D/asset=0.18%, b_D_F/asset=0.65%.
-
-## Walras accounting (post-fix, verified)
-
-| Residual | 1% TFP-D shock | 1pp default-D shock |
-|----------|----------------|---------------------|
-| goods_mkt_D (targeted) | ≤1e−16 | ≤1e−16 |
-| goods_mkt_F (untargeted) | ≤8e−10 | ≤1e−9 |
-| ca_res_D = CA−ΔNFA (untargeted) | ≤5.8e−8 | ≤3.5e−8 |
-| deposit_mkt_D/F | ≤4e−15 | ≤4e−15 |
-
-Pre-fix peaks for reference: goods_mkt_F 2.0e−2 (~2% of F GDP); ca_res_D 1.5e−4. All cross-country spillover and welfare results from the pre-fix model are first-order invalid and must be regenerated from `audit` branch.
-
-## IRF summary (post-fix, audit branch, phi_lamb=0.15)
-
-**1pp default shock to D (ρ=0.8):**
-- `n_inter_D[0] = −3.5%` (falls), `Y_D[0] = −2.5e−4` (falls) — both signs correct post-T-2-fix; were positive/perverse pre-fix.
-- `n_inter_F[0] ≈ −0.33%` — contagion small, sign correct.
-- Spread widens on impact; doom loop is live with correct sign.
-
-**TPI (γ=10, post-fix):**
-- ΔW_D = +1.88% SS consumption equivalent; ΔW_F = −1.90%. TPI is approximately a zero-sum burden transfer from D to F; spread is not compressed (rises slightly with γ because default is debt-driven). All pre-fix TPI welfare figures in `plots/` are stale until notebook is re-run from `audit` branch.
-
-## Calibration summary (current, audit branch)
-
-| Parameter | Value | Source / note |
-|-----------|-------|---------------|
-| `phi_lamb_D/F` | 0.15 | Bohn=0.60/yr; min stable at current amplification. Literature: 0.10–0.15/yr (Staehr 2008 EA periphery). Tension: bank-cal's 0.03 was tuned on pre-fix model. Re-map needed (see §Next priorities). |
-| `def_scale_D` | 0.25 | Strong amplification. Exceeds GR 2011 crisis peak (0.12–0.23 from spread-debt slope calibration). |
-| `delta_b_D/F` | 0.10 | 2.5yr avg maturity. Empirically too short; bank-cal has 0.036/0.038 matching GR/DE 2011 ~7yr/6.5yr. |
-| `theta_D/F` | 4.0 | GK leverage; conservative vs 2011 historical 10–25×. |
-| `psi_lambda_B_D/F` | 3.0 | State-dependent divertability; primary amplification dial; no direct empirical counterpart. |
-| `f_D/F` | 0.12 | Bank exit rate; bank-cal has 0.03 (standard GK range). |
-| `Delta_cross` | 1.4545 | Back-solved (`_ic_delta`, ratio=2.0); degenerate >1. See C-1. |
-| `recovery_rate_D` | 0.00 | No realized losses; inert while writeoff_enabled=0. |
-| `writeoff_enabled_D/F` | 0.0 | Default produces no balance-sheet losses. See S-1. |
-| `chi1_D/F` | 0.0 | Intermediation adjustment cost off. A-2 fix makes chi1≠0 safe. |
-| `frisch` | 0.5 | Frisch elasticity. |
-| nDep_D/F | 500/500 | Household deposit grid points. |
-| income rho_z/sigma/nZ | 0.90/0.30/15 | D and F income process (Markov approximation). |
-
-## Open issues
-
-| ID | Description | Status |
-|----|-------------|--------|
-| C-1 | `Delta_cross=1.45 > 1`: divertable fraction exceeds 1, making the multi-asset IC constraint degenerate. `lambda_gk` absorbs the slack but the theoretical interpretation breaks down. | Author decision. Preferred resolution: hardcode `Delta=0.2/0.4` per bank-cal (avoids back-solve entirely). |
-| S-1 | `writeoff_enabled=0`: default shock produces zero realized bank losses. `recovery_rate` and `zeta_writeoff` are set but inert. Model is currently a pure risk-premium loop, not a balance-sheet doom loop. | Author decision. Resolution: set `writeoff_enabled=1` with `recovery=0.40, zeta=1.0` (GR 2012 ~50% haircut → ~0.4–0.5 recovery). |
-| X-1 | Dead-code imports in notebook cell 7: blocks no longer in the model remain in the import list. | Minor cleanup; no numerical effect. |
-
-## Next priorities
-
-1. **Port bank-cal calibration values** onto `audit` branch: `delta_b=0.036/0.038`, `f=0.03`, EBA bilateral exposures (verified targets from bank-cal cell `96c6bd50`), hardcode `Delta=0.2/0.4` (resolves C-1), `recovery=0.40`. See `docs/bank_cal_review.md` §Recommendation for the full porting list.
-2. **Decide S-1**: set `writeoff_enabled=1` to give default realized losses, or keep pure risk-premium framing and state it explicitly in the paper.
-3. **Re-map (phi_lamb, def_scale) stability on the fixed model** with ported duration and amplification. Bank-cal's bifurcation diagram (bifurcation at def_scale≈0.13 at phi_lamb=0.03) is invalid post-T-2-fix — the accidental deposit-windfall stabilizer is gone. Find the lowest empirically-plausible phi_lamb that gives a non-trivial, stable doom loop. This is the gating calibration result.
-4. **Re-generate all figures** from `audit` branch. All figures in `plots/` and in the notebook were produced on a pre-fix or mid-fix model state.
+The SSJ-era state (six structural fixes W-1, W-2, W-3, T-2, A-2, TPI-1;
+Walras forensics; TPI welfare results; C-1/S-1 open issues) is preserved in
+`docs/audit.md`, `docs/verification_report.md`, `docs/walras_forensics.md`
+and in this file's git history (pre-2026-07-07 versions). The
+`/opt/anaconda3/envs/ssj` environment no longer exists; do not use the
+`audit`/`bank-cal` branches for new work.

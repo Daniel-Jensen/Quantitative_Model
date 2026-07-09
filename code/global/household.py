@@ -1,19 +1,6 @@
-"""Household block: endogenous grid method (EGM) for a one-asset,
-incomplete-markets consumption-savings problem with GHH utility.
+"Household block: endogenous grid method (EGM) for a one-asset, incomplete-markets consumption-savings problem with GHH utility."
 
-GHH composite: x = c − v(N) where v(N) = chi·N^(1+1/frisch)/(1+1/frisch).
-Utility: u(x) = x^(1−sigma)/(1−sigma).
-Labour supply (static FOC): chi·N^(1/frisch) = w/P_CES (income-effect-free).
 
-For the individual household's deposit problem, aggregate N is taken as
-given (competitive labour market with idiosyncratic productivity e). The
-EGM Euler equation operates on the composite x, and vN (the aggregate
-labour disutility evaluated at the period's N) is passed in from outside.
-Setting vN=0 everywhere recovers the standard CRRA-separable case.
-
-State: (a, e). Choice: a' (savings), with c = (1+r)·a + y(e) − a'.
-Borrowing constraint: a' ≥ a_min.
-"""
 import numpy as np
 
 

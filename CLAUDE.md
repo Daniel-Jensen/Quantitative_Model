@@ -4,116 +4,124 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Two-country heterogeneous-agent New Keynesian model with Gertler-Karadi financial intermediaries and sovereign debt, calibrated to the 2010–2012 Greek sovereign debt crisis. Application: the ECB's Transmission Protection Instrument (TPI). Primary output is a research paper (Overleaf: https://www.overleaf.com/project/698b4f88aeef1d0e1d08cc0c).
+Two-country heterogeneous-agent model of a monetary union with Gertler-Karadi
+financial intermediaries and sovereign default risk, calibrated to the
+2010–2012 Greek sovereign debt crisis. The default mechanism follows
+**Bocola (2016, JPE) "The Pass-Through of Sovereign Risk"** embedded in
+**Cole-Kehoe (2000)** crisis zones: a sunspot raises the *priced* probability
+of default, bond prices fall, banks take mark-to-market losses, the single-λ
+incentive constraint tightens, lending spreads rise and output falls — with
+no default ever realized. Application: ECB asset purchases (TPI). Primary
+output is a research paper (Overleaf: https://www.overleaf.com/project/698b4f88aeef1d0e1d08cc0c).
 
 ## Environment
 
-Always use `/opt/anaconda3/envs/ssj/bin/python`. The base Anaconda environment has a broken `liblapack` symlink that causes silent numerical failures.
+Plain `python3` (numpy/scipy/matplotlib). **Do not use the old
+`/opt/anaconda3/envs/ssj` environment or the `sequence_jacobian` library** —
+that was the previous implementation (see "History" below); the path no
+longer exists.
 
-```bash
-conda activate ssj
-jupyter notebook code/model_v12.ipynb
-```
+## Model code (`code/global/`)
 
-Install dependencies if needed:
-```bash
-pip install sequence-jacobian numpy scipy matplotlib nbstripout nbdime
-nbstripout --install && nbdime config-git --enable
-```
+The model is solved with global nonlinear methods: scipy `root` (hybr) over
+7T stacked unknowns `[N_D, N_F, Kap_D, Kap_F, rdep_D, rdep_F, p]` under
+perfect foresight (MIT shocks), T=100.
+
+| File | Contents |
+|------|----------|
+| `calibration.py` | All parameters. Single λ per bank (Bocola IC); Bocola/Greece anchors documented inline. |
+| `steady_state.py` | Two-stage SS solve: {rk_D, rk_F, p} on capital markets + current account, then {β_D, β_F} on deposit markets. Symmetric SS required (see docstring). |
+| `bank.py` | GK/Bocola bank block. `bank_backward` (α, μ, bond prices, cross-border FOC holdings), `bank_forward` (net worth, dividends, deposit supply). PRICED (`def_price`) vs REALIZED (`def_real`) default split. |
+| `government.py` | HM perpetuity bonds, Bohn rule, CK crisis zones. `govt_transition` forward-integrates the debt stock in one pass. |
+| `transition.py` | 7T Newton solver. Debt is endogenous inside every residual call; banks clear bonds against the true end-of-period stock (`b_D_D = b_gov_eop − b_D_F`). Supports mid-crisis initial conditions (`init=`) for default branches and policy runs. `solve_transition_ck` = risk-neutral CK wrapper. |
+| `risk_branch.py` | **Bocola risk channel**: representative post-default branch, two-branch risk inputs for `bank_backward`, `solve_transition_ck_risk` outer loop (base ↔ branch fixed point), and `bond_decomposition` (default comp. + risk premium + liquidity premium, exact identity). |
+| `household.py`, `distribution.py` | EGM with GHH utility; stationary distribution and forward iteration. |
+| `firms.py`, `capital.py`, `trade.py` | Flexible-price production, Jermann adjustment costs, CES/Armington trade. |
+| `main.py` | End-to-end run: SS → TFP IRF → CK–Bocola pass-through experiment (with sunspot homotopy). ~1 min total. |
+| `tests/` | Regression suite (see below). |
 
 ## Running and testing
 
-**Structural regression test** — run after any equation change; prints max Walras residuals across all shocks (~6 min total):
 ```bash
-/opt/anaconda3/envs/ssj/bin/python audit_artifacts/run_audit.py
+cd code/global
+python3 main.py                              # full pipeline + figures (~1 min)
+python3 tests/test_ss_identities.py          # SS theory identities (fast)
+python3 tests/test_bank_block.py             # bank FOC/no-arbitrage identities (fast)
+python3 tests/test_transition_walras.py      # fixed point + Walras with moving debt (~1 min)
+python3 tests/test_signs_bocola.py           # sign acceptance criteria (~1 min)
+python3 tests/test_risk_channel.py           # risk-channel nesting/identity/signs (~3 min)
 ```
 
-**Acceptance thresholds** (from `docs/verification_report.md`):
-- `goods_mkt_D` ≤ 1e−14
-- `goods_mkt_F` ≤ 1e−7
-- `ca_res_D` ≤ 1e−7
-- `deposit_mkt_D/F` ≤ 1e−13
+**Acceptance thresholds** (all enforced in tests):
+- goods_D (imposed) ≤ 1e−9; goods_F (Walras-redundant diagnostic) ≤ 2e−6 —
+  including when the debt stock moves.
+- Zero-shock transition stays at SS to ≤ 1e−5.
+- Risk-only sunspot: Q_bD↓, n_D↓, n_F↓, Y_D[0]↓, C_D[0]↓, lending spread↑,
+  b_gov↑, Tax↑ (a positive Y or n response to sovereign risk = bug).
 
-**Targeted audit scripts:**
-```bash
-/opt/anaconda3/envs/ssj/bin/python audit_artifacts/fix_test.py        # W-1/W-2 Walras repair
-/opt/anaconda3/envs/ssj/bin/python audit_artifacts/tpi_test.py        # TPI CB accounting
-/opt/anaconda3/envs/ssj/bin/python audit_artifacts/philamb_test.py    # phi_lamb stability sweep
-/opt/anaconda3/envs/ssj/bin/python audit_artifacts/bankcal_stability_test.py  # low-amplification probe
-```
+## Key modelling choices — do not "fix" without checking docs/SPEC.md
 
-Each Jacobian solve at current calibration (T=500) takes ~3 min.
+- **Single λ (Bocola 2016 eq. 3):** all three asset classes carry the same
+  divertability. Diverging them re-opens the portfolio-substitution margin
+  that made sovereign risk *expansionary* pre-rework.
+- **Priced vs realized default:** `def_price` enters bond pricing and
+  expected-return FOCs; `def_real` enters realized returns and government
+  flows. The baseline experiment prices risk but never realizes it
+  (Bocola's pass-through design); a realized-default variant just passes
+  `def_real ≠ 0`.
+- **Endogenous debt in clearing:** the government's end-of-period stock is
+  forward-integrated inside every residual evaluation and absorbed by banks.
+  Clearing against a fixed `B_gov_ss` instead re-opens a Walras leak of
+  ~0.5% of GDP per 5% debt deviation.
+- **Symmetric steady state:** country asymmetries enter through shocks only.
+  An asymmetric SS (e.g. δ_b_D ≠ δ_b_F) shifts p_ss off 1 and opens an
+  O(1e−4) SS goods-market wedge (p is weakly identified by external balance
+  at trade elasticity 0.5; see steady_state.py docstring).
+- **Risk channel (Bocola) = two-branch expectations, not a wedge:** bankers
+  discount with the household SDF (Λ = β·u_c′/u_c — Bocola uses log utility,
+  NOT Epstein-Zin) and weight a post-default branch by the priced default
+  probability. The premium is endogenous: Ω^d > Ω^nd multiplies the low
+  default-branch payoffs. Approximations (documented in risk_branch.py):
+  Λ^nd ≡ beta_inter on the base path, ONE representative branch reused across
+  dates, aggregate-composite SDF as the HA rep-agent proxy. `pi ≡ 0` nests
+  the risk-neutral model exactly — regression-tested.
+- **Predetermined deposit rate:** the rate paid at t was locked at t−1
+  throughout (bank funding legs, household EGM returns, μ timing).
+- **Hatchondo-Martinez perpetuity:** stock decays at rate 1−δ_b; duration
+  ≈ 1/δ_b quarters (0.036 ⇒ ~7y). Long duration is what makes priced risk
+  generate large MTM losses.
+- **Walras redundancy:** goods_F and the current account are *dropped* from
+  the residual system and monitored as diagnostics.
+- **No macroprudential policy** (by design, current phase). The only policy
+  rule is the Bohn tax.
 
-## Architecture
+## Known limitations (documented, next thesis phases)
 
-The model is implemented in the `sequence_jacobian` (SSJ) library. Blocks are defined as `@simple` or `@het` decorated Python functions in three equation files, then assembled and solved in the notebook.
-
-### Equation files (edit these; notebook imports them)
-
-- `code/equations_D.py` — Country D (Greece): household EGM het block (`hh_D`), deposit return, bank steady-state and intermediation, production, capital, government fiscal, bond pricing/default
-- `code/equations_F.py` — Country F (Germany): symmetric analogues of all D blocks
-- `code/equations_global.py` — global goods market, external account, bond clearing, portfolio adjustment costs, trade balance, bond yield formula
-
-### Active notebook
-
-- `code/model_v12.ipynb` — calibration cell, steady-state solve, Jacobian computation, IRFs (TFP + default shocks), TPI policy experiment, welfare calculation
-
-### Routines
-
-- `routines/grids.py` — deposit and income grids; supports both standard Rouwenhorst Markov chains and GMAR discrete-time process (loaded from `Discretisation/Outputs/`)
-- `routines/income.py`, `routines/calculate_gini.py` — income process and distributional statistics
-
-### Audit artifacts
-
-- `audit_artifacts/run_audit.py` — full regression pipeline (the canonical post-fix verification tool)
-- `audit_artifacts/*.py` — targeted tests for individual bugs (W-1/W-2, TPI-1, phi_lamb sweep)
-- `audit_artifacts/*.json` — result logs from each audit run
-
-## Key modelling choices
-
-These are deliberate design decisions — do not "fix" them without checking `docs/SPEC.md`:
-
-- **`Y = F(K_t)` (current-period capital):** production uses same-period capital stock; capital producer receives `mpk·(K−K(-1))` to close capital income accounting (W-1 fix). The alternative `K(-1)` timing eliminates this term but is equally valid.
-- **Predetermined deposit rate:** `Rgross = (1+rdep(-1))·P(-1)/P`. Deposit contracts are non-contingent — the rate is locked at t−1. Using `rdep` (a period-t unknown) instead was T-2, the critical doom-loop sign inversion.
-- **Hatchondo-Martinez perpetuity:** bond coupon decays at rate `1−delta_b`; duration ≈ 1/delta_b quarters. This is what generates MTM capital losses on bank balance sheets.
-- **Walras redundancy:** `ca_res_D` and `goods_mkt_F` are *dropped* from the solver target system (not a bug). Post-fix they hold to machine tolerance; monitoring them is the primary regression check.
-- **p-conversion in F-bank returns:** F-bank's D-bond book is denominated in D-goods; returns must be converted via `p(-1)/p` to F-goods before entering the F-goods budget constraint (W-2 fix). Missing this causes `goods_mkt_F` to leak up to 2% of GDP.
+- Flexible prices, no union-wide nominal rate: the deposit rate falls
+  sharply in crises, so consumption bears much of the contraction
+  (Bocola's own "comovement problem", his §VI; kept deliberately for
+  benchmark fidelity). Future dials: integrated union deposit market
+  (rdep_D = rdep_F), Neumeyer-Perri working-capital loans, NK/union block
+  (needed for the TPI application).
+- Risk channel approximations: single representative default branch,
+  Λ^nd ≡ beta_inter, rep-agent SDF proxy, household-side π-blindness (the
+  deposit Euler never weights the default branch — no precautionary savings
+  against the default state; see risk_branch.py docstring). Validation
+  moment: risk-channel share of the lending-spread response vs Bocola's
+  "up to 45%".
+- IC imposed always-binding (Bocola's binds occasionally).
 
 ## Branch convention
 
-- `audit` — **use this for all new work**. Contains all six structural fixes (W-1, W-2, W-3, T-2, A-2, TPI-1) verified post-fix.
-- `main` — pre-fix state; preserved for the PR diff. Do not commit new model work here.
-- `bank-cal` — old calibration branch predating structural fixes. **Do not merge.** Port calibration values only (see `docs/bank_cal_review.md`).
+- `file-reorganisation` — current working branch (standalone global-methods model).
+- `main` — merge target.
+- `audit`, `bank-cal` — historical SSJ-era branches; do not use for new work.
 
-## Current model state and open issues
+## History
 
-See `docs/STATE.md` for the full calibration table. Key tensions:
-
-| Issue | Description |
-|-------|-------------|
-| **C-1** | `Delta_cross=1.45>1`: back-solved divertable fraction exceeds 1; multi-asset IC is degenerate. Preferred resolution: hardcode `Delta_D=0.2, Delta_F=0.4` per bank-cal branch. |
-| **S-1** | `writeoff_enabled=0`: default shock produces no realized bank losses. Model is currently a pure risk-premium loop. Enabling writeoff (`writeoff_enabled=1`, `recovery_rate=0.40`) gives the balance-sheet doom loop. Author decision pending. |
-| **Calibration** | `delta_b_D/F=0.10` (2.5yr) is empirically too short; target is `0.036/0.038` (7yr/6.5yr GR/DE). Porting from bank-cal is the next major task (see `docs/bank_cal_review.md`). |
-
-## Typical iteration
-
-1. Edit equation files (`equations_D.py`, `equations_F.py`, `equations_global.py`).
-2. Restart notebook kernel and re-run calibration → steady-state → Jacobian cells.
-3. Inspect residuals: `goods_mkt_D`, `goods_mkt_F`, `ca_res_D`, `deposit_mkt_D/F` — all ≤ 1e−7.
-4. Verify default shock: `n_inter_D[0]` and `Y_D[0]` must both fall (positive = timing bug).
-5. Run `audit_artifacts/run_audit.py` to confirm no regression.
-6. Update `docs/STATE.md` after any calibration or structural change.
-7. Commit cleaned notebook (nbstripout strips outputs automatically).
-
-## Docs reference
-
-| File | Contains |
-|------|----------|
-| `docs/STATE.md` | Current calibration table, Walras residuals, open issues, next priorities |
-| `docs/SPEC.md` | Research goals, functional requirements, modelling choices, calibration targets |
-| `docs/PROCESS.md` | Workflow, debugging steps, EBA verification assertions |
-| `docs/HANDOFF.md` | Quick-start, session priorities, important file locations |
-| `docs/audit.md` | Master audit log: all findings ranked by severity, fix history, open hypotheses |
-| `docs/walras_forensics.md` | Analytical derivation of all three Walras leaks and their proofs |
-| `docs/bank_cal_review.md` | bank-cal branch analysis; calibration porting roadmap |
-| `docs/verification_report.md` | Post-fix numerical verification with residual tables |
+The previous implementation used the `sequence_jacobian` (SSJ) library
+(`code/model_v12.ipynb`, `equations_*.py`, `audit_artifacts/`) — superseded
+by the standalone `code/global/` model in July 2026. The SSJ-era audit trail
+(six structural fixes W-1…TPI-1, Walras forensics) lives in `docs/audit.md`,
+`docs/walras_forensics.md`, `docs/verification_report.md` and git history.
+`docs/STATE.md` records the current model state and calibration.

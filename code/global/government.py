@@ -1,4 +1,20 @@
-"Government block: Hatchondo-Martinez (2009) geometric-decay perpetuity bonds, Bohn (1998) fiscal rule, Cole-Kehoe (2000) self-fulfilling default crisis zones."
+"""Government block: Hatchondo-Martinez (2009) geometric-decay perpetuity bonds,
+Bohn (1998) fiscal rule, Cole-Kehoe (2000) self-fulfilling crisis zones.
+
+Structure follows Bocola (2016) eq. (9): each period the government pays
+coupons on the surviving stock, and rolls over by issuing new bonds at the
+market price Q (which embeds PRICED default risk from the bank block).  Taxes
+follow the Bohn rule on beginning-of-period debt.  The debt path is a single
+forward recursion — no fixed-point iteration is needed given a Q path.
+
+PRICED vs REALIZED default:
+  Only the REALIZED default path def_real enters the government's flows
+  (coupon survival and stock write-down).  Priced risk affects the government
+  solely through the depressed issuance price Q: with def_real = 0 (Cole-Kehoe
+  risk-only experiment) the government keeps servicing debt in full but rolls
+  over at low prices, so the debt stock rises and Bohn taxes rise — beliefs
+  worsen fiscal fundamentals without any default event.
+"""
 import numpy as np
 
 
@@ -50,10 +66,11 @@ def ck_default_prob(b_gov, Y_ss, cal, sunspot, country):
       Crisis zone (b_ck_low ≤ b/Y < b_ck_high): returns sunspot ∈ [0,1].
       Certain-default (b/Y ≥ b_ck_high):      returns 1.
 
-    `sunspot` is the exogenous probability of default conditional on the crisis
-    zone being active.  In a perfect-foresight MIT-shock setting, sunspot is an
-    AR(1) path that starts at some peak and decays; it replaces the old AR(1)
-    def_D_path.
+    `sunspot` is the exogenous probability that lenders coordinate on the
+    no-rollover equilibrium, conditional on the crisis zone being active —
+    the analogue of Bocola (2016)'s exogenous AR(1) default-risk process s_t
+    (his eq. 12), restricted to the CK crisis zone.  In the risk-only
+    experiment this probability is PRICED but default is never REALIZED.
     """
     b_low  = cal[f"b_ck_low_{country}"]
     b_high = cal[f"b_ck_high_{country}"]
@@ -62,130 +79,82 @@ def ck_default_prob(b_gov, Y_ss, cal, sunspot, country):
                           np.where(b_y >= b_high, 1.0, sunspot)))
 
 
-# ── Bocola-Dovis fundamental default probability ─────────────────────────────
-
-def bd_fundamental_default_prob(b_gov, Y_ss, cal, country):
-    """BD fundamental default: only when debt exceeds the hard upper bound b_ck_high.
-
-    Unlike Cole-Kehoe, there is no crisis zone — the sunspot enters through the
-    IC spread in bank.py.  This function purely captures the solvency threshold
-    (Bocola-Dovis B̄): certain default once debt is unsustainable regardless of
-    lender beliefs.
-    """
-    b_high = cal.get(f"b_ck_high_{country}", 99.0)
-    return 1.0 if b_gov / Y_ss >= b_high else 0.0
-
-
-# ── Endogenous debt accumulation ─────────────────────────────────────────────
-
-def integrate_b_gov(b_gov0, Q_bD_path, def_rate_path, Tax_path, cal, country):
-    """Forward-integrate government debt stock from the HM budget identity.
-
-    At each t the government:
-      - Has outstanding bonds b_gov[t] (beginning of period, = b_gov0 at t=0).
-      - Fraction delta_b matures; outstanding stock falls by factor (1-delta_b).
-      - Default: fraction def_rate[t] of bonds partially haircut; effective
-        survival surv[t] = 1 - def_rate[t]*(1 - recovery_rate).
-      - Budget: Tax[t] - G = coupon[t] - issuance_proceeds[t]
-          coupon[t]    = delta_b * b_gov[t] * surv[t]
-          new_bonds[t] = (G + coupon[t] - Tax[t]) / Q_bD[t]
-          b_gov[t+1]   = (1-delta_b)*b_gov[t]*surv[t] + new_bonds[t]
-
-    Verification at SS: Tax_ss = G + delta_b*B_gov_ss*(1-Q_bD_ss)
-      → b_gov[1] = (1-db)*B_ss + (G + db*B_ss - Tax_ss)/Q_ss = B_ss. ✓
-
-    Parameters
-    ----------
-    b_gov0        : scalar, initial stock (= B_gov_ss at period 0)
-    Q_bD_path     : (T,) bond price path from bank backward pass
-    def_rate_path : (T,) default probability path (from CK outer loop)
-    Tax_path      : (T,) tax revenue path (from govt_transition)
-    cal           : calibration dict
-    country       : "D" or "F"
-
-    Returns
-    -------
-    b_gov_path : (T,) array — stocks at beginning of periods 1..T
-    """
-    delta_b       = cal[f"delta_b_{country}"]
-    recovery_rate = cal[f"recovery_rate_{country}"]
-    G             = cal[f"G_{country}"]
-    T             = len(Q_bD_path)
-
-    b_gov_path = np.empty(T)
-    b_gov      = float(b_gov0)
-
-    for t in range(T):
-        surv_t    = 1.0 - def_rate_path[t] * (1.0 - recovery_rate)
-        coupon_t  = delta_b * b_gov * surv_t
-        new_bonds = (G + coupon_t - Tax_path[t]) / Q_bD_path[t]
-        b_gov     = (1.0 - delta_b) * b_gov * surv_t + new_bonds
-        b_gov_path[t] = b_gov
-
-    return b_gov_path
-
-
 # ── Transition-path government block ─────────────────────────────────────────
 
-def bohn_tax(b_gov, b_gov_ss, Tax_ss, phi_lamb):
-    """Bohn fiscal rule: lump-sum tax rises when debt exceeds steady state."""
-    return Tax_ss + phi_lamb * (b_gov - b_gov_ss)
+def govt_transition(cal, gs, Q_B_path, def_real_path, country, b_gov0=None,
+                    b_anchor=None):
+    """Government flows along a transition path: single forward recursion.
 
+    At each t (b_gov = beginning-of-period stock, b_gov[0] = b_gov_ss):
+      Tax[t]       = Tax_ss + phi_lamb·(b_gov[t] − b_gov_ss)      [Bohn rule]
+      surv[t]      = 1 − def_real[t]·(1 − recovery_rate)          [REALIZED]
+      coupon[t]    = delta_b · b_gov[t] · surv[t]
+      new_bonds[t] = (G + coupon[t] − Tax[t]) / Q_B[t]
+      b_eop[t]     = (1−delta_b)·b_gov[t]·surv[t] + new_bonds[t]
+      b_gov[t+1]   = b_eop[t]
 
-def govt_transition(cal, gs, Q_B_path, def_rate_path, b_gov_path, country, p_path=None):
-    """Government flows along a transition path.
+    Verification at SS (def_real=0, Q=Q_ss): Tax_ss = G + delta_b·B_ss·(1−Q_ss)
+      → b_eop = (1−db)B_ss + db·B_ss = B_ss.  ✓ stationary.
+
+    Currency convention: D-bonds are D-good claims, F-bonds are F-good claims;
+    each country's flows are in its own good (no p conversion).
 
     Parameters
     ----------
-    gs           : steady-state government dict (from govt_steady_state).
-    Q_B_path     : (T,) bond price path from bank backward pass.
-    def_rate_path: (T,) default probability path from CK outer loop.
-    b_gov_path   : (T,) beginning-of-period debt stock path.
-                   Entry t is the stock carried into period t (= b_gov_ss initially).
-    p_path       : (T,) real exchange rate (required for country="F").
+    gs            : steady-state government dict (from govt_steady_state,
+                    with Tax_ss/Q_B_ss overridden to IC-consistent values
+                    by steady_state.py).
+    Q_B_path      : (T,) bond price path from bank_backward (embeds priced risk).
+    def_real_path : (T,) REALIZED default path (None → zeros).
+    b_gov0        : beginning-of-period-0 debt stock (None → b_gov_ss).
+                    Used when the path starts mid-crisis (default branches,
+                    policy experiments).
+    b_anchor      : Bohn-rule debt anchor (None → b_gov_ss).  Post-default
+                    branches re-anchor to the post-haircut stock so the
+                    haircut does NOT translate into windfall tax cuts
+                    (φ·(b − b_ss) would otherwise be a large transfer to
+                    households, making default expansionary).  The base tax
+                    is re-set to balance the budget at the anchor:
+                    Tax_base = G + delta_b·b_anchor·(1 − Q_B_ss).
 
-    The Bohn fiscal rule adjusts taxes in response to lagged debt:
-      Tax[t] = Tax_ss + phi_lamb * (b_gov_path[t] - b_gov_ss)
-
-    Survival factor always active (no writeoff gate):
-      surv[t] = 1 - def_rate[t] * (1 - recovery_rate)
-
-    Currency convention:
-      All bonds are D-good claims; coupons and issuance proceeds are D-good flows.
-      For country="F" the D-good flows are converted to F-goods via p_path so
-      that Tax_F is in F-goods, consistent with F-household income accounting.
-
-    Returns dict: Tax, coupon, net_issuance, b_gov — all shape (T,), own-good units.
+    Returns dict (own-good units, shape (T,)):
+      Tax, coupon, net_issuance (= Q·new_bonds), b_gov (beginning-of-period),
+      b_gov_eop (end-of-period stock = what banks must hold at t).
     """
     delta_b       = cal[f"delta_b_{country}"]
     recovery_rate = cal[f"recovery_rate_{country}"]
     phi_lamb      = cal[f"phi_lamb_{country}"]
+    G             = cal[f"G_{country}"]
     Tax_ss        = gs["Tax_ss"]
     b_gov_ss      = gs["b_gov_ss"]
+    T             = len(Q_B_path)
 
-    T = len(Q_B_path)
-    if p_path is None:
-        p_path = np.ones(T)
+    if def_real_path is None:
+        def_real_path = np.zeros(T)
 
-    # Bohn rule: tax responds to beginning-of-period (lagged) debt
-    Tax_D     = Tax_ss + phi_lamb * (b_gov_path - b_gov_ss)    # D-goods, shape (T,)
-
-    # Survival factor (always active in CK framework)
-    surv      = 1.0 - def_rate_path * (1.0 - recovery_rate)
-
-    # D-good coupon and roll-over issuance
-    coupon_D  = delta_b * b_gov_path * surv
-    net_iss_D = delta_b * b_gov_path * Q_B_path
-
-    if country == "F":
-        # Convert D-good bond flows to F-goods. p = price of F-goods in D-goods.
-        Tax_out      = Tax_D     / p_path
-        coupon_out   = coupon_D  / p_path
-        net_iss_out  = net_iss_D / p_path
+    if b_anchor is None:
+        b_anchor = b_gov_ss
+        Tax_base = Tax_ss
     else:
-        Tax_out     = Tax_D
-        coupon_out  = coupon_D
-        net_iss_out = net_iss_D
+        # Budget-balancing tax at the anchor (stationary at b = b_anchor)
+        Tax_base = cal[f"G_{country}"] + delta_b * b_anchor * (1.0 - gs["Q_B_ss"])
 
-    return dict(Tax=Tax_out, coupon=coupon_out, net_issuance=net_iss_out,
-                b_gov=b_gov_path)
+    b_gov_bop = np.empty(T)   # stock at beginning of period t
+    b_gov_eop = np.empty(T)   # stock at end of period t (held by banks over t→t+1)
+    Tax       = np.empty(T)
+    coupon    = np.empty(T)
+    net_iss   = np.empty(T)
+
+    b = float(b_gov_ss if b_gov0 is None else b_gov0)
+    for t in range(T):
+        b_gov_bop[t] = b
+        Tax[t]    = Tax_base + phi_lamb * (b - b_anchor)
+        surv_t    = 1.0 - def_real_path[t] * (1.0 - recovery_rate)
+        coupon[t] = delta_b * b * surv_t
+        new_bonds = (G + coupon[t] - Tax[t]) / Q_B_path[t]
+        net_iss[t] = Q_B_path[t] * new_bonds
+        b = (1.0 - delta_b) * b * surv_t + new_bonds
+        b_gov_eop[t] = b
+
+    return dict(Tax=Tax, coupon=coupon, net_issuance=net_iss,
+                b_gov=b_gov_bop, b_gov_eop=b_gov_eop)

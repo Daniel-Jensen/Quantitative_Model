@@ -57,14 +57,15 @@ def _panel(ax, t, data_D, data_F, title, ylabel,
     ax.legend(fontsize=7)
 
 
-def plot_default_irf(out, ss, cal, def_D_path, def_F_path,
-                     T_plot=40, filename="default_irf.png"):
-    """3×4 panel IRF: response to a default-risk shock in country D.
+def plot_default_irf(out, ss, cal, T_plot=40, filename="default_irf.png"):
+    """3×4 panel IRF: Cole-Kehoe risk-only sunspot shock in country D
+    (Bocola 2016 pass-through experiment).
 
     Each panel overlays country D (solid blue) and F (dashed red) so that
     cross-border spillovers through the GK financial channel are visible.
     Panels: real economy (Y, C, I, p), financial rates (rdep, rk, Q_b,
-    excess return), balance sheets (θ, n, bond spread, default rate).
+    excess return), balance sheets (θ, n), sovereign-spread decomposition
+    (default compensation vs liquidity premium), and priced risk + debt.
     """
     t = np.arange(T_plot)
 
@@ -93,8 +94,8 @@ def plot_default_irf(out, ss, cal, def_D_path, def_F_path,
         return 10000.0 * (np.asarray(series)[:T_plot] - ref)
 
     fig, axes = plt.subplots(3, 4, figsize=(16, 10))
-    fig.suptitle("IRF: default-risk shock in country D (Greece analogue)",
-                 fontsize=11, y=1.01)
+    fig.suptitle("IRF: Cole-Kehoe sunspot (risk-only) in country D — "
+                 "Bocola pass-through", fontsize=11, y=1.01)
 
     # ── Row 0: real economy ───────────────────────────────────────────────────
     _panel(axes[0, 0], t, pct(out["Y_D"], Y_D_ss), pct(out["Y_F"], Y_F_ss),
@@ -130,25 +131,87 @@ def plot_default_irf(out, ss, cal, def_D_path, def_F_path,
     _panel(axes[2, 1], t, pct(out["n_D"], n_D_ss), pct(out["n_F"], n_F_ss),
            "Bank net worth n", "% dev.")
 
+    # Sovereign yield-spread decomposition (annualized bps), Bocola style:
+    # total promised-yield spread; expected-return components: default
+    # compensation, RISK premium (Bocola channel; 0 in risk-neutral mode)
+    # and liquidity premium (IC component λμ/Ω̃).
+    from risk_branch import bond_decomposition
+    dec = bond_decomposition(out, ss, cal)
     ax = axes[2, 2]
-    ax.plot(t, bps(np.asarray(out["Q_bD"]) - np.asarray(out["Q_bF"])),
-            color="#2ca02c", lw=1.5)
+    ax.plot(t, dec["total_yield"][:T_plot], color="#2ca02c", lw=1.8,
+            label="sov yield spread")
+    ax.plot(t, dec["defcomp"][:T_plot], color="#1f77b4", lw=1.2, ls="--",
+            label="default compensation")
+    ax.plot(t, dec["risk"][:T_plot], color="#9467bd", lw=1.4, ls="-.",
+            label="risk premium (Bocola)")
+    ax.plot(t, dec["liquidity"][:T_plot], color="#d62728", lw=1.2, ls=":",
+            label="liquidity premium λμ/Ω̃")
     ax.axhline(0, color="k", lw=0.7, ls=":")
-    ax.set_title("Bond spread Q_bD − Q_bF", fontsize=9)
-    ax.set_ylabel("bps", fontsize=8)
+    ax.set_title("Sovereign spread decomposition (D)", fontsize=9)
+    ax.set_ylabel("bps ann. dev.", fontsize=8)
     ax.set_xlabel("quarter", fontsize=8)
+    ax.legend(fontsize=7)
 
-    c_D, c_F = "#1f77b4", "#d62728"
+    c_D = "#1f77b4"
     ax = axes[2, 3]
-    ax.plot(t, 100.0 * np.asarray(def_D_path)[:T_plot],
-            color=c_D, lw=1.5, label="def D (shock)")
-    ax.plot(t, 100.0 * np.asarray(def_F_path)[:T_plot],
-            color=c_F, lw=1.5, ls="--", label="def F (none)")
+    ax.plot(t, 100.0 * np.asarray(out["def_price_D"])[:T_plot],
+            color=c_D, lw=1.5, label="priced def. prob (sunspot)")
+    ax.plot(t, 100.0 * (np.asarray(out["b_gov_D"])[:T_plot] / cal["B_gov_D_ss"] - 1.0),
+            color="#ff7f0e", lw=1.5, ls="--", label="b_gov_D (% dev)")
     ax.axhline(0, color="k", lw=0.7, ls=":")
-    ax.set_title("Default risk", fontsize=9)
+    ax.set_title("Priced default risk & public debt", fontsize=9)
     ax.set_ylabel("%", fontsize=8)
     ax.set_xlabel("quarter", fontsize=8)
     ax.legend(fontsize=7)
+
+    fig.tight_layout()
+    os.makedirs(OUTDIR, exist_ok=True)
+    fig.savefig(os.path.join(OUTDIR, filename), dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
+def plot_risk_comparison(out_on, out_off, ss, cal, T_plot=40,
+                         filename="risk_channel_irf.png"):
+    """Risk channel on vs off (Bocola liquidity-only counterfactual):
+    2×3 panels for country D — Y, I, C, bank net worth, lending spread,
+    sovereign yield spread."""
+    t = np.arange(T_plot)
+    Y_ss, I_ss, C_ss = (ss["ss_firm_D"]["Y_ss"], ss["ss_firm_D"]["I_ss"],
+                        ss["C_D_ss"])
+    n_ss = ss["ss_bank_D"]["n_ss"]
+    db = cal["delta_b_D"]
+
+    def pct(x, ref):
+        return 100.0 * (np.asarray(x)[:T_plot] / ref - 1.0)
+
+    def lend(out):
+        rdep_lag = np.concatenate([[cal["r_dep_D_target"]], out["rdep_D"][:-1]])
+        return 1e4 * 4 * ((np.asarray(out["rk_D"]) - rdep_lag) - ss["rk_D_ss"])[:T_plot]
+
+    def sov(out):
+        y = db / np.asarray(out["Q_bD"]) - db
+        return 4e4 * (y - (db / ss["Q_bD_ss"] - db))[:T_plot]
+
+    panels = [
+        ("Output D", "% dev.", pct(out_on["Y_D"], Y_ss), pct(out_off["Y_D"], Y_ss)),
+        ("Investment D", "% dev.", pct(out_on["I_D"], I_ss), pct(out_off["I_D"], I_ss)),
+        ("Consumption D", "% dev.", pct(out_on["C_D"], C_ss), pct(out_off["C_D"], C_ss)),
+        ("Bank net worth D", "% dev.", pct(out_on["n_D"], n_ss), pct(out_off["n_D"], n_ss)),
+        ("Lending spread rk − rdep", "bps ann. dev.", lend(out_on), lend(out_off)),
+        ("Sovereign yield spread", "bps ann. dev.", sov(out_on), sov(out_off)),
+    ]
+
+    fig, axes = plt.subplots(2, 3, figsize=(13, 7))
+    fig.suptitle("Bocola risk channel: two-branch pricing (on) vs "
+                 "liquidity channel only (off)", fontsize=11, y=1.01)
+    for ax, (title, ylab, on, off) in zip(axes.flat, panels):
+        ax.plot(t, on, color="#9467bd", lw=1.8, label="risk channel ON")
+        ax.plot(t, off, color="#7f7f7f", lw=1.4, ls="--", label="risk channel OFF")
+        ax.axhline(0, color="k", lw=0.7, ls=":")
+        ax.set_title(title, fontsize=9)
+        ax.set_ylabel(ylab, fontsize=8)
+        ax.set_xlabel("quarter", fontsize=8)
+        ax.legend(fontsize=7)
 
     fig.tight_layout()
     os.makedirs(OUTDIR, exist_ok=True)

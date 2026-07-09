@@ -18,7 +18,19 @@ from trade import ces_price, import_demand, trade_balance
 
 
 def solve_steady_state(cal, verbose=True):
-    "Solve the two-country steady state."
+    """Solve the two-country steady state.
+
+    NOTE on symmetry: the stage-1 external-balance condition uses the no-trade
+    approximation C ≈ Y − I − G, and with trade elasticity epsilon_trade=0.5
+    the trade balance is nearly flat in p around the symmetric point
+    (NX ∝ p^(1/2)·(P_F^(1/2)C_F − P_D^(1/2)C_D)), so p is only weakly
+    identified by external balance.  Both facts are harmless when the SS is
+    SYMMETRIC (p_ss=1, cross-border income legs cancel exactly, walras → grid
+    floor), which the baseline calibration guarantees by using identical bank
+    and bond parameters in both countries.  Country asymmetries should enter
+    through SHOCKS, not through the steady state; an asymmetric SS calibration
+    re-opens an O(1e-4) goods-market wedge (see the post-stage-2 check below).
+    """
 
     # ── Income processes and asset grids ──────────────────────────────────────
     # Income grids
@@ -70,14 +82,15 @@ def solve_steady_state(cal, verbose=True):
             res_cap_D = (bk_D["n_ss_IC"] - bk_D["n_ss_ACCUM"]) / bk_D["n_ss_ACCUM"]
             res_cap_F = (bk_F["n_ss_IC"] - bk_F["n_ss_ACCUM"]) / bk_F["n_ss_ACCUM"]
 
-            # External balance: NX_D = 0 at SS (balanced trade / NFA = 0)
-            # Use goods-market identity: Y_D − I_D − G_D = C_D at SS
-            # and goods-market D: Y_D = C_D + I_D + NX_D + G_D → NX_D = Y_D − C_D − I_D − G_D
-            # CES-adjusted SS consumption is not available yet (needs household solve),
-            # so we use the TRADE BALANCE identity directly:
-            #   At SS: C_D and C_F implied by goods market = Y − I − G (before trade)
-            # Then NX_D = IM_F − p·IM_D must = 0 at symmetric SS (p=1) or balance otherwise.
-            # Approximate C with Y − I − G for the external balance condition:
+            # External balance at SS: CURRENT ACCOUNT = 0 (stationary NFA).
+            # With cross-border bond books the CA includes net investment
+            # income, so NX_D = −(net income) ≠ 0 in general:
+            #   CA_D = NX_D + rb_F·(p·Q_bF·b_F_D) − rb_D·(Q_bD·b_D_F) = 0
+            # using MARKET bond prices/returns (each bond priced by its
+            # domestic bank's IC).  Imposing NX_D=0 instead leaves a Walras
+            # gap of order (rdep+ic)·(Q_bF·b_F_D − Q_bD·b_D_F).
+            # CES-adjusted SS consumption is not available yet (needs the
+            # household solve), so approximate C with Y − I − G for imports:
             fm_D = steady_state_firm(cal, Kap_D, country="D")
             fm_F = steady_state_firm(cal, Kap_F, country="F")
             C_D_approx = fm_D["C_ss"]   # Y_D − I_D − G_D (no-trade SS value)
@@ -89,9 +102,15 @@ def solve_steady_state(cal, verbose=True):
             IM_F = import_demand(p, C_F_approx, P_CES_F, cal, country="F")
             NX_D, _ = trade_balance(p, IM_D, IM_F)
 
-            # External balance residual: NX_D = 0 at SS (NFA=0 assumed)
-            # Normalise by Y_D for scale
-            res_ext = NX_D / fm_D["Y_ss"]
+            # Market prices and returns (domestic bank is the marginal pricer)
+            Q_bD_mkt = bk_D["Q_bdom_IC"]
+            Q_bF_mkt = bk_F["Q_bdom_IC"]
+            rb_D_mkt = cal["r_dep_D_target"] + bk_D["IC_spread_dom"]
+            rb_F_mkt = cal["r_dep_F_target"] + bk_F["IC_spread_dom"]
+            income_in_D  = rb_F_mkt * p * Q_bF_mkt * b_F_D_ss   # D-bank's F-bond income (D-goods)
+            income_out_D = rb_D_mkt * Q_bD_mkt * b_D_F_ss       # F-bank's D-bond income (D-goods)
+
+            res_ext = (NX_D + income_in_D - income_out_D) / fm_D["Y_ss"]
 
         except (RuntimeError, ValueError, FloatingPointError, ZeroDivisionError):
             return [1e3, 1e3, 1e3]
@@ -201,8 +220,10 @@ def solve_steady_state(cal, verbose=True):
             return _egm_solve(a_grid, Pi, rdep_tgt, y_e, beta, country, _tol_sign)
 
     def deposit_resid_D(beta_D, tol=_tol_tight):
+        # Non-labour income is in D-goods; divide by P_CES to get composite
+        # units, matching the real wage and transition.py's income convention.
         w_real_D = fm_D_ss["w_ss"] / P_CES_D_ss
-        y_e_D = w_real_D * e_D + (Div_D_ss - Tax_D_ss)
+        y_e_D = w_real_D * e_D + (Div_D_ss - Tax_D_ss) / P_CES_D_ss
         c_ss_D, a_pol_D = _egm_solve_robust(a_grid_D, Pi_D, rdep_D_tgt, y_e_D, beta_D, "D", tol)
         D_ss_D = stationary_distribution(a_pol_D, a_grid_D, Pi_D, pi_D, cal["tol_dist"])
         A_ss_D = aggregate_assets(D_ss_D, a_grid_D)
@@ -213,7 +234,7 @@ def solve_steady_state(cal, verbose=True):
 
     def deposit_resid_F(beta_F, tol=_tol_tight):
         w_real_F = fm_F_ss["w_ss"] / P_CES_F_ss
-        y_e_F = w_real_F * e_F + (Div_F_ss - Tax_F_ss)
+        y_e_F = w_real_F * e_F + (Div_F_ss - Tax_F_ss) / P_CES_F_ss
         c_ss_F, a_pol_F = _egm_solve_robust(a_grid_F, Pi_F, rdep_F_tgt, y_e_F, beta_F, "F", tol)
         D_ss_F = stationary_distribution(a_pol_F, a_grid_F, Pi_F, pi_F, cal["tol_dist"])
         A_ss_F = aggregate_assets(D_ss_F, a_grid_F)
@@ -241,6 +262,17 @@ def solve_steady_state(cal, verbose=True):
         print(f"\nStage 2 solution: beta_D={beta_D_ss:.6f}  beta_F={beta_F_ss:.6f}")
         print(f"  A_D={A_D_ss:.4f}  Dep_supply_D={bk_D_ss['Dep_supply_ss']:.4f}")
         print(f"  A_F={A_F_ss:.4f}  Dep_supply_F={bk_F_ss['Dep_supply_ss']:.4f}")
+
+    # ── Post-solve goods-market check with TRUE stage-2 consumption ──────────
+    IM_D_chk = import_demand(p_ss, C_D_ss, P_CES_D_ss, cal, "D")
+    IM_F_chk = import_demand(p_ss, C_F_ss, P_CES_F_ss, cal, "F")
+    NX_D_chk, _ = trade_balance(p_ss, IM_D_chk, IM_F_chk)
+    walras_D_chk = fm_D_ss["Y_ss"] - P_CES_D_ss * C_D_ss - fm_D_ss["I_ss"] - cal["G_D"] - NX_D_chk
+    if verbose:
+        print(f"  SS goods-market check: walras_D = {walras_D_chk:.3e}")
+    if abs(walras_D_chk) > 5e-6:
+        print(f"  WARNING: SS goods market off by {walras_D_chk:.2e} — asymmetric SS "
+              "calibration? (see solve_steady_state docstring)")
 
     return dict(
         # Solved scalars

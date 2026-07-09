@@ -1,13 +1,4 @@
-"""Firm block: Cobb-Douglas production with full price flexibility.
-
-Under full price flexibility, mc = (epsilon−1)/epsilon is a constant.
-Functions accept a `country` argument ("D" or "F") to look up country-
-specific parameters (alpha, delta, Z_ss, epsilon) from the calibration.
-
-With GHH preferences, chi is calibrated so that chi·N_ss^(1/frisch) = w_ss
-(the static GHH labour-supply FOC at SS with P_CES=1). This replaces the
-old CRRA chi = w_ss / C_ss^sigma formula.
-"""
+"Firm block: Cobb-Douglas production with full price flexibility."
 
 
 def markup_ss(cal, country="D"):

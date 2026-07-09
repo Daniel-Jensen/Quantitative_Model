@@ -16,11 +16,25 @@ Walras-redundant (diagnostics only, not imposed):
   • Goods market F
   • Current account (external account D)
 
+Government debt is ENDOGENOUS inside every residual evaluation (no outer
+debt loop): bank_backward prices bonds from marginal conditions alone, the
+debt stock is then forward-integrated from the budget identity with the Bohn
+tax (government.govt_transition), and banks clear the bond market against the
+true end-of-period stock:
+  b_D_D[t] = b_gov_D_eop[t] − b_D_F[t]   (D-bank is the marginal/residual holder)
+  b_F_F[t] = b_gov_F_eop[t] − b_F_D[t]
+This keeps Walras exact when beliefs move the debt stock — new issuance at
+depressed prices must be absorbed by constrained banks (the Cole-Kehoe /
+Bocola amplification).
+
+PRICED vs REALIZED default (Bocola 2016 pass-through experiment):
+  def_price_* : probability of default priced into Q and expected-return FOCs.
+  def_real_*  : realized haircut path hitting bond returns and government flows.
+  Risk-only baseline: def_price = sunspot in the CK crisis zone, def_real = 0.
+
 Household income (GHH, all in composite-good units):
   y_t(e) = (w_t/P_CES_t)·N_t·e + (Div_t − Tax_t)/P_CES_t
-  where N_t is aggregate employment and e is the idiosyncratic productiviy.
-  Dividing by P_CES_t converts nominal D-good flows to composite units consistent
-  with the real wage w/P_CES and the EGM deposit stock (denominated in real units).
+  where N_t is aggregate employment and e is the idiosyncratic productivity.
   The GHH labour-disutility vN_t = chi·N_t^(1+1/frisch)/(1+1/frisch) is
   subtracted from effective income in the EGM composite (passed via vN_path).
 """
@@ -29,58 +43,81 @@ from scipy.optimize import root
 
 from firms import solve_firm_path, markup_ss
 from capital import solve_capital_path
-from bank import solve_bank_paths
+from bank import bank_backward, bank_forward
 from household import solve_backward_transition
 from distribution import forward_iterate, aggregate_assets, aggregate_consumption
 from trade import ces_price, import_demand, trade_balance
-from government import govt_transition, ck_default_prob, integrate_b_gov, bd_fundamental_default_prob
+from government import govt_transition, ck_default_prob
 
 
 def _inner_economy(N_D, N_F, Kap_D, Kap_F, rdep_D, rdep_F, p_path,
-                   Z_D_path, Z_F_path, def_D_path, def_F_path, ss, cal,
-                   b_gov_D_path=None, b_gov_F_path=None,
-                   sunspot_D_path=None, sunspot_F_path=None):
+                   Z_D_path, Z_F_path, ss, cal,
+                   def_price_D=None, def_price_F=None,
+                   def_real_D=None, def_real_F=None,
+                   init=None, risk_D=None):
     """Given the outer guesses, solve all inner blocks for both countries.
+
+    init   : optional dict of period-(-1)/period-0 initial conditions for
+             paths that start mid-crisis (default branches, policy runs):
+             D_D, D_F (household distributions), bank_D, bank_F (see
+             bank_forward), b_gov0_D/F, Kap_lag_D/F, Q_lag_D/F,
+             Q_bD_lag, Q_bF_lag, p_lag, P_lag_D/F.  Missing keys → SS.
+    risk_D : optional Bocola risk-channel inputs for bank_backward
+             (two-branch expectations over the D-default event).
 
     Returns a comprehensive dict of all time paths and residual inputs.
     """
+    T = len(p_path)
+    if init is None:
+        init = {}
+
     # ── Firms ─────────────────────────────────────────────────────────────────
     firm_D = solve_firm_path(N_D, Kap_D, Z_D_path, cal, country="D")
     firm_F = solve_firm_path(N_F, Kap_F, Z_F_path, cal, country="F")
 
     # ── Capital ───────────────────────────────────────────────────────────────
-    cap_D = solve_capital_path(Kap_D, ss["Kap_D_ss"], 1.0, firm_D["mpk"], cal, country="D")
-    cap_F = solve_capital_path(Kap_F, ss["Kap_F_ss"], 1.0, firm_F["mpk"], cal, country="F")
+    cap_D = solve_capital_path(Kap_D, init.get("Kap_lag_D", ss["Kap_D_ss"]),
+                               init.get("Q_lag_D", 1.0), firm_D["mpk"], cal, country="D")
+    cap_F = solve_capital_path(Kap_F, init.get("Kap_lag_F", ss["Kap_F_ss"]),
+                               init.get("Q_lag_F", 1.0), firm_F["mpk"], cal, country="F")
 
     # ── Trade / CES ───────────────────────────────────────────────────────────
     P_CES_D = np.array([ces_price(p, cal, "D") for p in p_path])
     P_CES_F = np.array([ces_price(p, cal, "F") for p in p_path])
 
-    T = len(p_path)
-    if b_gov_D_path is None:
-        b_gov_D_path = np.full(T, cal["B_gov_D_ss"])
-    if b_gov_F_path is None:
-        b_gov_F_path = np.full(T, cal["B_gov_F_ss"])
-
-    # ── Bank paths (both banks simultaneously) ─────────────────────────────────
-    # Bond market clearing uses the SS supply (fixed).  The endogenous b_gov
-    # from the BD/CK outer loop feeds ONLY into govt_transition() (Bohn tax
-    # rule and coupon accounting), NOT into the bank's IC clearing.  This
-    # decouples the bank Newton problem from outer-loop iteration in b_gov,
-    # ensuring the BD fixed-point map is contracting (Jacobian ≈ 0.85 < 1).
-    bk = solve_bank_paths(
-        Kap_D, Kap_F, cap_D["Q"], cap_F["Q"],
-        cap_D["rk"], cap_F["rk"], rdep_D, rdep_F,
-        p_path, cal["B_gov_D_ss"], cal["B_gov_F_ss"],
+    # ── Bank backward pass: prices and cross-border FOC holdings ─────────────
+    bwd = bank_backward(
+        cap_D["rk"], cap_F["rk"], rdep_D, rdep_F, p_path,
         cal, ss["ss_bank_D"], ss["ss_bank_F"],
-        def_D_path=def_D_path, def_F_path=def_F_path,
-        sunspot_D_path=sunspot_D_path, sunspot_F_path=sunspot_F_path,
+        def_price_D=def_price_D, def_price_F=def_price_F, risk_D=risk_D,
     )
 
-    # ── Government tax paths (Bohn rule on b_gov_path; CK survival in coupon) ──
-    gov_D = govt_transition(cal, ss["gs_D"], bk["Q_bD"], def_D_path, b_gov_D_path, "D")
-    gov_F = govt_transition(cal, ss["gs_F"], bk["Q_bF"], def_F_path, b_gov_F_path, "F",
-                            p_path=p_path)
+    # ── Government: forward-integrate debt with Bohn tax (realized flows) ────
+    gov_D = govt_transition(cal, ss["gs_D"], bwd["Q_bD"], def_real_D, "D",
+                            b_gov0=init.get("b_gov0_D"),
+                            b_anchor=init.get("b_anchor_D"))
+    gov_F = govt_transition(cal, ss["gs_F"], bwd["Q_bF"], def_real_F, "F",
+                            b_gov0=init.get("b_gov0_F"),
+                            b_anchor=init.get("b_anchor_F"))
+
+    # ── Bond market clearing against the TRUE end-of-period stock ────────────
+    b_D_D_path = gov_D["b_gov_eop"] - bwd["b_D_F"]   # D-bank residual holder
+    b_F_F_path = gov_F["b_gov_eop"] - bwd["b_F_D"]   # F-bank residual holder
+    if np.any(b_D_D_path <= 0) or np.any(b_F_F_path <= 0):
+        raise RuntimeError("Domestic bond holdings non-positive: cross-border "
+                           "FOC holdings exceed outstanding government stock.")
+
+    # ── Bank forward pass: net worth, dividends, deposit supply ──────────────
+    fwd = bank_forward(
+        Kap_D, Kap_F, cap_D["Q"], cap_F["Q"],
+        cap_D["rk"], cap_F["rk"], rdep_D, rdep_F, p_path,
+        b_D_D_path, b_F_F_path, bwd, cal, ss["ss_bank_D"], ss["ss_bank_F"],
+        def_real_D=def_real_D, def_real_F=def_real_F,
+        init_D=init.get("bank_D"), init_F=init.get("bank_F"),
+        Q_bD_lag0=init.get("Q_bD_lag"), Q_bF_lag0=init.get("Q_bF_lag"),
+        p_lag0=init.get("p_lag"),
+    )
+    bk = {**bwd, **fwd}
 
     # ── Dividends ─────────────────────────────────────────────────────────────
     mc_D = markup_ss(cal, "D")
@@ -103,14 +140,23 @@ def _inner_economy(N_D, N_F, Kap_D, Kap_F, rdep_D, rdep_F, p_path,
     e_D = ss["e_D"];  e_F = ss["e_F"]
 
     # y_path shape (T, n_e): individual income in composite-good units.
-    # Non-labour income (Div_D - Tax_D) is in nominal D-goods; divide by P_CES to match
-    # the real wage (w/P_CES) and the EGM deposit stock (real composite units).
     y_D_path = (w_real_D * N_D)[:, None] * e_D[None, :] + ((Div_D - gov_D["Tax"]) / P_CES_D)[:, None]
     y_F_path = (w_real_F * N_F)[:, None] * e_F[None, :] + ((Div_F - gov_F["Tax"]) / P_CES_F)[:, None]
 
     # ── Household EGM backward ────────────────────────────────────────────────
-    r_D_path = np.concatenate(([cal["r_dep_D_target"]], rdep_D))
-    r_F_path = np.concatenate(([cal["r_dep_F_target"]], rdep_F))
+    # Fisher-equation real returns: r_real[t] = (1+rdep[t-1]) * P_CES[t-1]/P_CES[t] - 1
+    # Period -1 anchors (rate locked pre-path, price level pre-path) come from
+    # init when the path starts mid-crisis; SS otherwise.
+    rdep_prev_D = (init["bank_D"]["rdep_prev"] if "bank_D" in init
+                   else cal["r_dep_D_target"])
+    rdep_prev_F = (init["bank_F"]["rdep_prev"] if "bank_F" in init
+                   else cal["r_dep_F_target"])
+    P_CES_D_ext = np.concatenate([[init.get("P_lag_D", 1.0)], P_CES_D, [1.0]])
+    P_CES_F_ext = np.concatenate([[init.get("P_lag_F", 1.0)], P_CES_F, [1.0]])
+    rdep_D_full = np.concatenate([[rdep_prev_D], rdep_D])  # length T+1
+    rdep_F_full = np.concatenate([[rdep_prev_F], rdep_F])
+    r_D_path = (1.0 + rdep_D_full) * P_CES_D_ext[:-1] / P_CES_D_ext[1:] - 1.0
+    r_F_path = (1.0 + rdep_F_full) * P_CES_F_ext[:-1] / P_CES_F_ext[1:] - 1.0
 
     c_D_path, a_pol_D_path = solve_backward_transition(
         ss["a_grid_D"], ss["Pi_D"], r_D_path, y_D_path, ss["c_D_ss"],
@@ -127,16 +173,25 @@ def _inner_economy(N_D, N_F, Kap_D, Kap_F, rdep_D, rdep_F, p_path,
     A_F_path = np.empty(T)
     C_F_path = np.empty(T)
 
-    D_D = ss["D_D_ss"]
-    D_F = ss["D_F_ss"]
+    D_D = init.get("D_D", ss["D_D_ss"])
+    D_F = init.get("D_F", ss["D_F_ss"])
+
+    # Start-of-period distributions (D_start[t] enters period t); D_start[0]
+    # is the initial condition.  Needed to launch default branches mid-path.
+    D_start_D = np.empty((T + 1,) + D_D.shape)
+    D_start_F = np.empty((T + 1,) + D_F.shape)
 
     for t in range(T):
+        D_start_D[t] = D_D
+        D_start_F[t] = D_F
         C_D_path[t] = aggregate_consumption(D_D, c_D_path[t])
         C_F_path[t] = aggregate_consumption(D_F, c_F_path[t])
         D_D = forward_iterate(D_D, a_pol_D_path[t], ss["a_grid_D"], ss["Pi_D"])
         D_F = forward_iterate(D_F, a_pol_F_path[t], ss["a_grid_F"], ss["Pi_F"])
         A_D_path[t] = aggregate_assets(D_D, ss["a_grid_D"])
         A_F_path[t] = aggregate_assets(D_F, ss["a_grid_F"])
+    D_start_D[T] = D_D
+    D_start_F[T] = D_F
 
     # ── Trade ─────────────────────────────────────────────────────────────────
     IM_D = np.array([import_demand(p_path[t], C_D_path[t], P_CES_D[t], cal, "D")
@@ -161,14 +216,16 @@ def _inner_economy(N_D, N_F, Kap_D, Kap_F, rdep_D, rdep_F, p_path,
         A_F=A_F_path, C_F=C_F_path,
         NX_D=NX_D_path, NX_F=NX_F_path,
         IM_D=IM_D, IM_F=IM_F,
+        D_start_D=D_start_D, D_start_F=D_start_F,
     )
 
 
 def solve_transition(ss, cal, Z_D_path, Z_F_path,
-                     def_D_path=None, def_F_path=None,
-                     b_gov_D_path=None, b_gov_F_path=None,
-                     sunspot_D_path=None, sunspot_F_path=None,
-                     verbose=True, maxiter=300):
+                     def_price_D=None, def_price_F=None,
+                     def_real_D=None, def_real_F=None,
+                     verbose=True, maxiter=300, y0=None,
+                     init=None, risk_D=None, try_krylov=True,
+                     hybr_factor=100.0):
     """Solve the two-country transition path.
 
     Arguments
@@ -177,36 +234,42 @@ def solve_transition(ss, cal, Z_D_path, Z_F_path,
     cal           : calibration dict (mutated in-place with chi, excess_return)
     Z_D_path      : TFP path for D (length T)
     Z_F_path      : TFP path for F (length T)
-    def_D_path    : default rate path for D or None (zeros)
-    def_F_path    : default rate path for F or None (zeros)
-    b_gov_D_path  : beginning-of-period debt stock path for D, or None (B_gov_ss)
-    b_gov_F_path  : beginning-of-period debt stock path for F, or None (B_gov_ss)
+    def_price_D/F : PRICED default probability paths or None (zeros)
+    def_real_D/F  : REALIZED default (haircut) paths or None (zeros)
+    y0            : optional warm-start for the 7T unknown vector (homotopy)
+    init          : optional initial-conditions dict for mid-crisis starts
+                    (see _inner_economy docstring); None → SS start
+    risk_D        : optional Bocola risk-channel inputs (see bank_backward /
+                    risk_branch.py); None → risk-neutral pricing
+    hybr_factor   : hybr initial trust-region factor (scipy default 100).
+                    Large trial steps can cross the alpha-explosion penalty
+                    wall in bank_backward and poison the finite-difference
+                    Jacobian, stalling hybr at the warm start; a small
+                    factor (e.g. 0.1) keeps early steps feasible — used by
+                    risk_branch's ladder rescue for flat (near-SS) starts.
 
     Returns
     -------
-    dict with all 7T outer unknowns and all inner time paths.
+    dict with all 7T outer unknowns and all inner time paths, including the
+    endogenous government debt paths b_gov_D/b_gov_F (end-of-period).
     """
     T = cal["T"]
     assert len(Z_D_path) == T and len(Z_F_path) == T
-
-    if def_D_path is None:
-        def_D_path = np.zeros(T)
-    if def_F_path is None:
-        def_F_path = np.zeros(T)
 
     Kap_D_ss = ss["Kap_D_ss"]
     Kap_F_ss = ss["Kap_F_ss"]
     N_ss     = 1.0
 
-    y0 = np.concatenate([
-        np.full(T, N_ss),             # N_D
-        np.full(T, N_ss),             # N_F
-        np.full(T, Kap_D_ss),         # Kap_D
-        np.full(T, Kap_F_ss),         # Kap_F
-        np.full(T, cal["r_dep_D_target"]),  # rdep_D
-        np.full(T, cal["r_dep_F_target"]),  # rdep_F
-        np.full(T, ss["p_ss"]),       # p
-    ])
+    if y0 is None:
+        y0 = np.concatenate([
+            np.full(T, N_ss),             # N_D
+            np.full(T, N_ss),             # N_F
+            np.full(T, Kap_D_ss),         # Kap_D
+            np.full(T, Kap_F_ss),         # Kap_F
+            np.full(T, cal["r_dep_D_target"]),  # rdep_D
+            np.full(T, cal["r_dep_F_target"]),  # rdep_F
+            np.full(T, ss["p_ss"]),       # p
+        ])
 
     ncalls = [0]
     chi_D   = cal["chi_D"];   frisch_D = cal["frisch_D"]
@@ -223,12 +286,19 @@ def solve_transition(ss, cal, Z_D_path, Z_F_path,
         rdep_D, rdep_F = y[4*T:5*T], y[5*T:6*T]
         p_path       = y[6*T:7*T]
 
+        # Domain guard: fractional powers of non-positive p/N/K produce NaNs
+        # that do NOT raise — penalize explicitly before they poison hybr.
+        if (np.any(p_path <= 0.05) or np.any(N_D <= 0.01) or np.any(N_F <= 0.01)
+                or np.any(Kap_D <= 0.1) or np.any(Kap_F <= 0.1)):
+            return np.full(7 * T, 10.0)
+
         try:
             out = _inner_economy(
                 N_D, N_F, Kap_D, Kap_F, rdep_D, rdep_F, p_path,
-                Z_D_path, Z_F_path, def_D_path, def_F_path, ss, cal,
-                b_gov_D_path=b_gov_D_path, b_gov_F_path=b_gov_F_path,
-                sunspot_D_path=sunspot_D_path, sunspot_F_path=sunspot_F_path,
+                Z_D_path, Z_F_path, ss, cal,
+                def_price_D=def_price_D, def_price_F=def_price_F,
+                def_real_D=def_real_D, def_real_F=def_real_F,
+                init=init, risk_D=risk_D,
             )
         except (ValueError, RuntimeError, FloatingPointError) as e:
             if verbose:
@@ -252,14 +322,12 @@ def solve_transition(ss, cal, Z_D_path, Z_F_path,
         lab_F_demand = firm_F["w"] / out["P_CES_F"]
         lab_F_resid  = (lab_F_supply - lab_F_demand) / (lab_F_demand + 1e-12)
 
-        # 3. Deposit markets: bank supplies Dep_supply in nominal good units (D-goods/F-goods);
-        # household A is in real composite units. Multiply by P_CES to convert to nominal before
-        # comparing, so the residual is dimensionally homogeneous and Walras-consistent.
+        # 3. Deposit markets: bank supplies Dep_supply in nominal good units;
+        # household A is in real composite units — multiply by P_CES to compare.
         dep_D_resid = (out["P_CES_D"] * out["A_D"] - bk["Dep_supply_D"]) / Kap_D_ss
         dep_F_resid = (out["P_CES_F"] * out["A_F"] - bk["Dep_supply_F"]) / Kap_F_ss
 
         # 4. Goods market D (pins p): Y_D = P_CES_D·C_D + I_D + NX_D + G_D
-        # C_D is the composite-good index; expenditure in D-goods = P_CES_D·C_D.
         goods_D_resid = (firm_D["Y"] - out["P_CES_D"] * out["C_D"] - out["cap_D"]["I"]
                          - out["NX_D"] - G_D) / Y_ss_D
 
@@ -269,6 +337,8 @@ def solve_transition(ss, cal, Z_D_path, Z_F_path,
             dep_D_resid, dep_F_resid,
             goods_D_resid,
         ])
+        if not np.all(np.isfinite(resid)):
+            return np.full(7 * T, 10.0)
 
         if verbose:
             walras_D = np.max(np.abs(firm_D["Y"] - out["P_CES_D"] * out["C_D"] - out["cap_D"]["I"] - out["NX_D"] - G_D))
@@ -280,10 +350,11 @@ def solve_transition(ss, cal, Z_D_path, Z_F_path,
 
     accept_tol = max(cal["tol_mkt"] * 100, 1e-6)
     sol = root(residual, y0, method="hybr",
-               options={"maxfev": max(maxiter * (7 * T + 1), 5000)})
+               options={"maxfev": max(maxiter * (7 * T + 1), 5000),
+                        "factor": hybr_factor})
     resid_norm = np.max(np.abs(residual(sol.x)))
 
-    if resid_norm > accept_tol:
+    if resid_norm > accept_tol and try_krylov:
         sol2 = root(residual, y0, method="krylov",
                     options={"fatol": cal["tol_mkt"], "maxiter": maxiter})
         resid_norm2 = np.max(np.abs(residual(sol2.x)))
@@ -299,10 +370,13 @@ def solve_transition(ss, cal, Z_D_path, Z_F_path,
     p_path       = sol.x[6*T:7*T]
 
     out = _inner_economy(N_D, N_F, Kap_D, Kap_F, rdep_D, rdep_F, p_path,
-                         Z_D_path, Z_F_path, def_D_path, def_F_path, ss, cal,
-                         b_gov_D_path=b_gov_D_path, b_gov_F_path=b_gov_F_path,
-                         sunspot_D_path=sunspot_D_path, sunspot_F_path=sunspot_F_path)
+                         Z_D_path, Z_F_path, ss, cal,
+                         def_price_D=def_price_D, def_price_F=def_price_F,
+                         def_real_D=def_real_D, def_real_F=def_real_F,
+                         init=init, risk_D=risk_D)
 
+    T_arr = cal["T"]
+    zeros = np.zeros(T_arr)
     return dict(
         N_D=N_D, N_F=N_F, Kap_D=Kap_D, Kap_F=Kap_F,
         rdep_D=rdep_D, rdep_F=rdep_F, p=p_path,
@@ -312,170 +386,47 @@ def solve_transition(ss, cal, Z_D_path, Z_F_path,
         I_D=out["cap_D"]["I"],    Q_D=out["cap_D"]["Q"],    rk_D=out["cap_D"]["rk"],
         I_F=out["cap_F"]["I"],    Q_F=out["cap_F"]["Q"],    rk_F=out["cap_F"]["rk"],
         A_D=out["A_D"], C_D=out["C_D"], A_F=out["A_F"], C_F=out["C_F"],
+        vN_D=out["vN_D"], vN_F=out["vN_F"],
+        D_start_D=out["D_start_D"], D_start_F=out["D_start_F"],
         NX_D=out["NX_D"], NX_F=out["NX_F"],
         Div_D=out["Div_D"], Div_F=out["Div_F"],
         Tax_D=out["gov_D"]["Tax"], Tax_F=out["gov_F"]["Tax"],
         P_CES_D=out["P_CES_D"], P_CES_F=out["P_CES_F"],
-        **out["bk"],   # all bank paths (alpha_D, mu_D, n_IC_D, n_D, ..., Q_bD, Q_bF, ...)
+        # Endogenous government debt (end-of-period = bank-held stock)
+        b_gov_D=out["gov_D"]["b_gov_eop"], b_gov_F=out["gov_F"]["b_gov_eop"],
+        b_gov_bop_D=out["gov_D"]["b_gov"], b_gov_bop_F=out["gov_F"]["b_gov"],
+        coupon_D=out["gov_D"]["coupon"], coupon_F=out["gov_F"]["coupon"],
+        net_issuance_D=out["gov_D"]["net_issuance"], net_issuance_F=out["gov_F"]["net_issuance"],
+        # Default paths actually used (for plotting/tests)
+        def_price_D=(def_price_D if def_price_D is not None else zeros),
+        def_price_F=(def_price_F if def_price_F is not None else zeros),
+        def_real_D=(def_real_D if def_real_D is not None else zeros),
+        def_real_F=(def_real_F if def_real_F is not None else zeros),
+        **out["bk"],   # all bank paths (alpha, mu, Omega, n, Q_b, rb, holdings, spreads)
+        y_vec=sol.x,   # solved unknown vector (warm start for homotopy)
     )
 
 
 def solve_transition_ck(ss, cal, Z_D_path, Z_F_path,
-                        sunspot_D_path=None, sunspot_F_path=None, verbose=True):
-    """Cole-Kehoe transition solver: outer fixed-point on (def_rate, b_gov).
+                        sunspot_D_path=None, sunspot_F_path=None,
+                        def_real_D=None, def_real_F=None,
+                        verbose=True, y0=None):
+    """Cole-Kehoe sunspot solver (Bocola 2016 pass-through experiment).
 
-    The CK circularity — bond price Q_bD needs def_rate needs b_gov needs Q_bD —
-    is resolved by iterating the (def_rate, b_gov) pair around the existing 7T
-    Newton solver until self-consistency is reached.
+    The sunspot xi_t ∈ [0,1] is the probability that lenders coordinate on
+    the no-rollover equilibrium at t, conditional on the crisis zone being
+    active (Bocola's exogenous default-risk process restricted to the CK
+    zone).  It is PRICED into bonds:  def_price[t] = ck_default_prob(b[t]).
+    In the risk-only baseline default is never REALIZED (def_real = 0):
+    net worth falls purely from the mark-to-market revaluation of bonds.
 
-    Parameters
-    ----------
-    sunspot_D_path : (T,) AR(1) sunspot path ∈ [0,1] for country D.
-                     0 = good equilibrium, 1 = full default probability.
-    sunspot_F_path : (T,) same for F (usually zeros; F has no default).
+    Because the debt stock is forward-integrated inside every residual
+    evaluation (see _inner_economy), the only remaining fixed point is the
+    crisis-zone indicator itself: def_price depends on b_gov/Y_ss crossing
+    b_ck_low/b_ck_high.  When debt stays inside the crisis zone (the typical
+    configuration: SS is in the zone), the map converges in one iteration.
 
-    Returns
-    -------
-    Standard solve_transition dict plus 'b_gov_D', 'b_gov_F', 'def_D', 'def_F'.
-    """
-    T        = cal["T"]
-    b_ss_D   = cal["B_gov_D_ss"]
-    b_ss_F   = cal["B_gov_F_ss"]
-    Y_ss_D   = ss["ss_firm_D"]["Y_ss"]
-    Y_ss_F   = ss["ss_firm_F"]["Y_ss"]
-
-    if sunspot_D_path is None:
-        sunspot_D_path = np.zeros(T)
-    if sunspot_F_path is None:
-        sunspot_F_path = np.zeros(T)
-
-    # Initial def_rate: evaluated at SS debt level
-    def_D = np.array([ck_default_prob(b_ss_D, Y_ss_D, cal, s, "D") for s in sunspot_D_path])
-    def_F = np.array([ck_default_prob(b_ss_F, Y_ss_F, cal, s, "F") for s in sunspot_F_path])
-    b_gov_D = np.full(T, b_ss_D)
-    b_gov_F = np.full(T, b_ss_F)
-
-    max_iter = cal.get("ck_max_iter", 25)
-    tol      = cal.get("ck_tol", 1e-5)
-    damp     = cal.get("ck_damping", 0.5)
-
-    for ck_it in range(max_iter):
-        out = solve_transition(
-            ss, cal, Z_D_path, Z_F_path,
-            def_D_path=def_D, def_F_path=def_F,
-            b_gov_D_path=b_gov_D, b_gov_F_path=b_gov_F,
-            verbose=False,
-        )
-
-        # Forward-integrate new debt stock from budget identity.
-        # integrate_b_gov returns END-of-period stocks [b1, b2, ..., bT].
-        b_gov_D_eop = integrate_b_gov(
-            b_ss_D, out["Q_bD"], def_D, out["Tax_D"], cal, "D")
-        b_gov_F_eop = integrate_b_gov(
-            b_ss_F, out["Q_bF"], def_F, out["Tax_F"], cal, "F")
-
-        # Convert to BEGINNING-of-period stocks (lagged by one) for:
-        # (a) Bohn rule in govt_transition  (b) CK threshold check.
-        # b_gov_bop[t] = stock at start of period t = end of period t-1.
-        b_gov_D_new = np.concatenate([[b_ss_D], b_gov_D_eop[:-1]])
-        b_gov_F_new = np.concatenate([[b_ss_F], b_gov_F_eop[:-1]])
-
-        # New default probabilities from Cole-Kehoe crisis-zone function
-        def_D_new = np.array([
-            ck_default_prob(b_gov_D_new[t], Y_ss_D, cal, sunspot_D_path[t], "D")
-            for t in range(T)])
-        def_F_new = np.array([
-            ck_default_prob(b_gov_F_new[t], Y_ss_F, cal, sunspot_F_path[t], "F")
-            for t in range(T)])
-
-        err_def   = max(np.max(np.abs(def_D_new - def_D)),
-                        np.max(np.abs(def_F_new - def_F)))
-        err_bgov  = max(np.max(np.abs(b_gov_D_new - b_gov_D)) / b_ss_D,
-                        np.max(np.abs(b_gov_F_new - b_gov_F)) / b_ss_F)
-        err = max(err_def, err_bgov)
-
-        if verbose:
-            print(f"  CK iter {ck_it + 1:2d}: err={err:.2e}"
-                  f"  (def={err_def:.2e}  b_gov={err_bgov:.2e})")
-
-        # Damped update
-        def_D   = (1.0 - damp) * def_D   + damp * def_D_new
-        def_F   = (1.0 - damp) * def_F   + damp * def_F_new
-        b_gov_D = (1.0 - damp) * b_gov_D + damp * b_gov_D_new
-        b_gov_F = (1.0 - damp) * b_gov_F + damp * b_gov_F_new
-
-        if err < tol:
-            if verbose:
-                print(f"  CK converged in {ck_it + 1} iterations.")
-            break
-    else:
-        if verbose:
-            print(f"  CK warning: did not converge after {max_iter} iterations (err={err:.2e}).")
-
-    # Report end-of-period debt stocks for diagnostics/plotting
-    out["b_gov_D"] = b_gov_D_eop
-    out["b_gov_F"] = b_gov_F_eop
-    out["def_D"]   = def_D
-    out["def_F"]   = def_F
-    return out
-
-
-def _anderson_step(G_hist, F_hist, m=3, reg=1e-10):
-    """Anderson(m) mixing step for fixed-point iteration g(x) = x.
-
-    G_hist : list of g(x_k) values (most recent last).
-    F_hist : list of f(x_k) = g(x_k) - x_k residuals (most recent last).
-
-    Returns the Anderson-accelerated next iterate x_{k+1}.
-    Solves: min_{c, 1'c=1} ||F @ c||_2  →  x_next = G @ c.
-    """
-    mk = min(len(G_hist), m)
-    G = np.column_stack(G_hist[-mk:])   # (n, mk)
-    F = np.column_stack(F_hist[-mk:])   # (n, mk)
-
-    if mk == 1:
-        return G[:, 0].copy()
-
-    FtF = F.T @ F + reg * np.eye(mk)
-    ones = np.ones(mk)
-    try:
-        v = np.linalg.solve(FtF, ones)
-        c = v / (ones @ v)
-    except np.linalg.LinAlgError:
-        c = np.ones(mk) / mk
-    return G @ c
-
-
-def solve_transition_bd(ss, cal, Z_D_path, Z_F_path,
-                        sunspot_D_path=None, sunspot_F_path=None, verbose=True):
-    """Bocola-Dovis (2019) transition solver.
-
-    Mechanism:
-      sunspot xi_{t+1} → GK IC tightens (lbD_eff = lbD + psi_bd * xi)
-        → Q_bD falls (bond price compressed)
-        → government issues MORE face-value bonds to raise the same revenue
-        → b_gov rises (beliefs → fundamentals)
-        → if b_gov/Y_ss >= b_ck_high: fundamental default fires (surv < 1)
-        → bank NW falls → investment falls → amplification
-
-    Unlike CK, the sunspot does NOT directly cause default — it only lowers
-    the bond price through the IC denominator.  Fundamental default only
-    triggers if debt crosses b_ck_high (the Bocola-Dovis B̄ boundary).
-
-    The outer loop uses Anderson(m) acceleration to converge the
-    (b_gov, def_fund) fixed-point while the sunspot path is held fixed.
-
-    Parameters
-    ----------
-    sunspot_D_path : (T,) path xi_t ∈ [0,1] — exogenous rollover-risk shock.
-    sunspot_F_path : (T,) same for F (default zeros; F has no default).
-
-    Returns
-    -------
-    Standard solve_transition dict plus:
-      'b_gov_D', 'b_gov_F' : end-of-period debt paths
-      'def_D',  'def_F'    : fundamental default rate paths (0/1)
-      'sunspot_D', 'sunspot_F' : the exogenous sunspot paths
+    Returns the solve_transition dict plus 'sunspot_D', 'sunspot_F'.
     """
     T      = cal["T"]
     b_ss_D = cal["B_gov_D_ss"]
@@ -488,86 +439,51 @@ def solve_transition_bd(ss, cal, Z_D_path, Z_F_path,
     if sunspot_F_path is None:
         sunspot_F_path = np.zeros(T)
 
-    # Initial guess: no fundamental default; debt at SS level
-    def_fund_D = np.zeros(T)
-    def_fund_F = np.zeros(T)
-    b_gov_D    = np.full(T, b_ss_D)
-    b_gov_F    = np.full(T, b_ss_F)
+    # Initial zone check at SS debt
+    def_price_D = np.array([ck_default_prob(b_ss_D, Y_ss_D, cal, s, "D")
+                            for s in sunspot_D_path])
+    def_price_F = np.array([ck_default_prob(b_ss_F, Y_ss_F, cal, s, "F")
+                            for s in sunspot_F_path])
 
-    max_iter = cal.get("bd_max_iter", 50)
-    tol      = cal.get("bd_tol", 1e-4)
-    m_aa     = cal.get("bd_anderson_m", 3)
+    max_iter = cal.get("ck_max_iter", 25)
+    tol      = cal.get("ck_tol", 1e-8)
+    damp     = cal.get("ck_damping", 1.0)
 
-    G_hist_D, F_hist_D = [], []   # Anderson history for b_gov_D
-    G_hist_F, F_hist_F = [], []   # Anderson history for b_gov_F
-
-    for bd_it in range(max_iter):
+    out = None
+    for ck_it in range(max_iter):
         out = solve_transition(
             ss, cal, Z_D_path, Z_F_path,
-            def_D_path=def_fund_D, def_F_path=def_fund_F,
-            b_gov_D_path=b_gov_D, b_gov_F_path=b_gov_F,
-            sunspot_D_path=sunspot_D_path, sunspot_F_path=sunspot_F_path,
-            verbose=False,
+            def_price_D=def_price_D, def_price_F=def_price_F,
+            def_real_D=def_real_D, def_real_F=def_real_F,
+            verbose=False, y0=y0,
         )
+        y0 = out["y_vec"]   # warm start for the next zone iteration
 
-        # Forward-integrate new debt stocks from budget identity
-        b_gov_D_eop = integrate_b_gov(
-            b_ss_D, out["Q_bD"], def_fund_D, out["Tax_D"], cal, "D")
-        b_gov_F_eop = integrate_b_gov(
-            b_ss_F, out["Q_bF"], def_fund_F, out["Tax_F"], cal, "F")
-
-        # Beginning-of-period stocks (lagged one period) for Bohn rule and threshold check
-        b_gov_D_new = np.concatenate([[b_ss_D], b_gov_D_eop[:-1]])
-        b_gov_F_new = np.concatenate([[b_ss_F], b_gov_F_eop[:-1]])
-
-        # Fundamental default: ONLY when b/Y >= b_ck_high (BD threshold B̄)
-        def_fund_D_new = np.array([
-            bd_fundamental_default_prob(b_gov_D_new[t], Y_ss_D, cal, "D")
+        # Re-evaluate the crisis zone on the solved beginning-of-period debt
+        def_price_D_new = np.array([
+            ck_default_prob(out["b_gov_bop_D"][t], Y_ss_D, cal, sunspot_D_path[t], "D")
             for t in range(T)])
-        def_fund_F_new = np.array([
-            bd_fundamental_default_prob(b_gov_F_new[t], Y_ss_F, cal, "F")
+        def_price_F_new = np.array([
+            ck_default_prob(out["b_gov_bop_F"][t], Y_ss_F, cal, sunspot_F_path[t], "F")
             for t in range(T)])
 
-        err_def  = max(np.max(np.abs(def_fund_D_new - def_fund_D)),
-                       np.max(np.abs(def_fund_F_new - def_fund_F)))
-        err_bgov = max(np.max(np.abs(b_gov_D_new - b_gov_D)) / b_ss_D,
-                       np.max(np.abs(b_gov_F_new - b_gov_F)) / b_ss_F)
-        err = max(err_def, err_bgov)
-
+        err = max(np.max(np.abs(def_price_D_new - def_price_D)),
+                  np.max(np.abs(def_price_F_new - def_price_F)))
         if verbose:
-            bd_spread_peak = cal.get("psi_bd_D", 0.0) * np.max(sunspot_D_path)
-            print(f"  BD iter {bd_it + 1:2d}: err={err:.2e}"
-                  f"  b_gov_D_peak={np.max(b_gov_D_new):.4f}"
-                  f"  bd_spread_peak={bd_spread_peak:.4f}"
-                  f"  (def={err_def:.2e}  bgov={err_bgov:.2e})")
-
+            print(f"  CK iter {ck_it + 1:2d}: zone err={err:.2e}"
+                  f"  b_gov_D peak={np.max(out['b_gov_D']):.4f}"
+                  f"  Q_bD[0]={out['Q_bD'][0]:.4f}")
         if err < tol:
             if verbose:
-                print(f"  BD converged in {bd_it + 1} iterations.")
+                print(f"  CK converged in {ck_it + 1} iteration(s).")
             break
-
-        # Anderson acceleration for b_gov paths (binary def_fund accepted directly)
-        G_hist_D.append(b_gov_D_new.copy())
-        F_hist_D.append((b_gov_D_new - b_gov_D).copy())
-        G_hist_F.append(b_gov_F_new.copy())
-        F_hist_F.append((b_gov_F_new - b_gov_F).copy())
-
-        b_gov_D = _anderson_step(G_hist_D, F_hist_D, m=m_aa)
-        b_gov_F = _anderson_step(G_hist_F, F_hist_F, m=m_aa)
-        # Safety clip: debt cannot go below 50% of SS (numerical guard)
-        b_gov_D = np.maximum(b_gov_D, 0.5 * b_ss_D)
-        b_gov_F = np.maximum(b_gov_F, 0.5 * b_ss_F)
-
-        def_fund_D = def_fund_D_new.copy()
-        def_fund_F = def_fund_F_new.copy()
+        def_price_D = (1 - damp) * def_price_D + damp * def_price_D_new
+        def_price_F = (1 - damp) * def_price_F + damp * def_price_F_new
     else:
         if verbose:
-            print(f"  BD warning: did not converge after {max_iter} iters (err={err:.2e}).")
+            print(f"  CK warning: zone indicator did not settle after {max_iter} iters "
+                  f"(err={err:.2e}).")
 
-    out["b_gov_D"]   = b_gov_D_eop
-    out["b_gov_F"]   = b_gov_F_eop
-    out["def_D"]     = def_fund_D
-    out["def_F"]     = def_fund_F
     out["sunspot_D"] = sunspot_D_path
     out["sunspot_F"] = sunspot_F_path
     return out
