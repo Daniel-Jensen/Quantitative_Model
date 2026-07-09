@@ -26,7 +26,7 @@ def get_calibration():
 
         # ── FIRMS (Cobb-Douglas + full price flexibility) ────────────────────
         epsilon_D=6.0, epsilon_F=6.0,   # demand elasticity → mc = (ε-1)/ε
-        Z_ss_D=0.448,  Z_ss_F=0.448,  # scaled so Y_ss = 1 (Z = (1/Y_old)^(1-α), Y_old ≈ 3.44)
+        Z_ss_D=0.44804075,  Z_ss_F=0.44804075,  # scaled so Y_ss = 1 (Z = (1/Y_old)^(1-α))
 
         # ── CAPITAL (Jermann 1998 adjustment cost) ────────────────────────────
         alpha_D=0.35,  alpha_F=0.35,    # capital share
@@ -99,7 +99,7 @@ def get_calibration():
         # Outer Cole-Kehoe zone-indicator iteration (converges in 1 pass when
         # debt stays inside the crisis zone; damping 1.0 = undamped)
         ck_max_iter=25,
-        ck_tol=1e-8,
+        ck_tol=1e-11,
         ck_damping=1.0,
 
         # ── FISCAL ────────────────────────────────────────────────────────────
@@ -111,9 +111,9 @@ def get_calibration():
 
         # ── SOLVER SETTINGS ───────────────────────────────────────────────────
         T=100,
-        tol_hh=1e-9,
-        tol_dist=1e-9,
-        tol_mkt=1e-9,
+        tol_hh=1e-11,
+        tol_dist=1e-11,
+        tol_mkt=1e-11,
 
         # ── INITIAL GUESSES FOR STEADY-STATE SOLVER ───────────────────────────
         rk_D_guess=0.0045,      rk_F_guess=0.0045,

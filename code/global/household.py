@@ -15,12 +15,7 @@ def make_asset_grid(cal, country="D"):
 
 def egm_step(c_next, a_grid, Pi, r_today, r_next, y_e, beta, sigma, a_min,
              vN_today=0.0, vN_next=0.0):
-    """One backward EGM step.
-
-    vN_today, vN_next: aggregate labour disutility v(N_t) and v(N_{t+1}).
-    With GHH: Euler operates on composite x = c − vN. Pass vN=0 for
-    standard CRRA-separable behaviour.
-    """
+    #ONE BACKWARD EGM STEP: GIVEN C_T+1, SOLVE FOR C_T AND A_T
     n_a, n_e = c_next.shape
 
     # GHH composite tomorrow: x_{t+1} = c_{t+1} − v(N_{t+1})
@@ -56,10 +51,9 @@ def egm_step(c_next, a_grid, Pi, r_today, r_next, y_e, beta, sigma, a_min,
 
 def solve_steady_state_household(a_grid, Pi, r_ss, y_e, beta, sigma, a_min, tol,
                                   maxiter=10_000, vN_ss=0.0):
-    """Solve the household problem in steady state via EGM iteration.
-
-    vN_ss: aggregate labour disutility at the steady state (scalar).
-    """
+    #Solve the household problem in steady state via EGM iteration.
+ 
+    #consumption today
     c = np.maximum((1 + r_ss) * a_grid[:, None] + y_e[None, :] - a_grid[:, None], 1e-11)
 
     for _ in range(maxiter):

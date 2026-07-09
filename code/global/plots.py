@@ -219,6 +219,139 @@ def plot_risk_comparison(out_on, out_off, ss, cal, T_plot=40,
     plt.close(fig)
 
 
+def plot_household_policies(ss, cal, filename="household_policies.png"):
+    """2×2 panel: consumption policy, savings policy, MPC with quartile
+    averages, and a bar-chart summary of average MPC by wealth quartile.
+
+    Country D only (symmetric SS ⟹ F is identical).
+    """
+    a_grid = ss["a_grid_D"]
+    c      = ss["c_D_ss"]
+    a_pol  = ss["a_pol_D_ss"]
+    D      = ss["D_D_ss"]
+    e      = ss["e_D"]
+    A_ss   = ss["A_D_ss"]
+    a_lim  = min(cal["a_max_D"], 4 * A_ss + 1)
+
+    # ── MPC: forward finite differences on consumption policy ─────────────────
+    mpc   = np.clip(np.diff(c, axis=0) / np.diff(a_grid)[:, None], 0.0, 1.0)
+    a_mid = 0.5 * (a_grid[:-1] + a_grid[1:])
+
+    # ── Wealth quartile boundaries ────────────────────────────────────────────
+    marg = D.sum(axis=1)
+    cdf  = np.cumsum(marg)
+    # q_bounds_idx: 5 index values [0, Q1, Q2, Q3, n_a]
+    q_bounds_idx = ([0]
+                    + [int(np.searchsorted(cdf, q)) for q in (0.25, 0.50, 0.75)]
+                    + [len(a_grid) - 1])
+    q_bounds_a = a_grid[q_bounds_idx]          # asset levels at each boundary
+
+    # ── Quartile-average MPC (distribution-weighted within each quartile) ─────
+    # weights[i, j] = D[i, j] aligned to mpc midpoint i  (use D[:-1])
+    weights = D[:-1, :]
+    mpc_q   = []
+    for lo, hi in zip(q_bounds_idx[:-1], q_bounds_idx[1:]):
+        hi_m = min(hi, len(mpc))
+        w = weights[lo:hi_m, :]
+        m = mpc[lo:hi_m, :]
+        wsum = w.sum()
+        mpc_q.append(float(np.sum(w * m) / wsum) if wsum > 0 else 0.0)
+
+    # ── Overall distribution-weighted average MPC ─────────────────────────────
+    mpc_avg = float(np.sum(weights * mpc) / weights.sum())
+
+    # ── Style ─────────────────────────────────────────────────────────────────
+    c_lo = "#1f77b4"
+    c_hi = "#d62728"
+    q_colors = ["#2ca02c", "#bcbd22", "#ff7f0e", "#9467bd"]
+    q_labels = ["Q1\n(0–25%)", "Q2\n(25–50%)", "Q3\n(50–75%)", "Q4\n(75–100%)"]
+    lbl_lo = f"e = {e[0]:.2f}  (low income)"
+    lbl_hi = f"e = {e[1]:.2f}  (high income)"
+
+    fig, axes = plt.subplots(2, 2, figsize=(13, 9))
+    fig.suptitle("Household policy functions — country D (Greece) steady state",
+                 fontsize=10, y=1.01)
+
+    # ── [0,0] Consumption policy ──────────────────────────────────────────────
+    ax = axes[0, 0]
+    ax.plot(a_grid, c[:, 0], color=c_lo, lw=1.5, label=lbl_lo)
+    ax.plot(a_grid, c[:, 1], color=c_hi, lw=1.5, ls="--", label=lbl_hi)
+    ax.set_xlim(0, a_lim)
+    ax.set_title("Consumption policy  c(a, e)", fontsize=9)
+    ax.set_xlabel("a  (wealth)", fontsize=8)
+    ax.set_ylabel("c", fontsize=8)
+    ax.legend(fontsize=7)
+
+    # ── [0,1] Savings policy + 45° line ───────────────────────────────────────
+    ax = axes[0, 1]
+    ax.plot(a_grid, a_pol[:, 0], color=c_lo, lw=1.5, label=lbl_lo)
+    ax.plot(a_grid, a_pol[:, 1], color=c_hi, lw=1.5, ls="--", label=lbl_hi)
+    ax.plot(a_grid, a_grid, "k--", lw=0.8, label="45°  (a′ = a)")
+    ax.set_xlim(0, a_lim); ax.set_ylim(0, a_lim)
+    ax.set_title("Savings policy  a′(a, e)", fontsize=9)
+    ax.set_xlabel("a  (wealth)", fontsize=8)
+    ax.set_ylabel("a′", fontsize=8)
+    ax.legend(fontsize=7)
+
+    # ── [1,0] MPC curves + quartile-average steps + overall average ───────────
+    ax = axes[1, 0]
+    # Shaded quartile bands
+    for i, (a_lo, a_hi, qc) in enumerate(
+            zip(q_bounds_a[:-1], q_bounds_a[1:], q_colors)):
+        ax.axvspan(a_lo, a_hi, alpha=0.07, color=qc)
+    # MPC curves (thin, for reference)
+    mask = a_mid <= a_lim
+    ax.plot(a_mid[mask], mpc[mask, 0], color=c_lo, lw=1.0, alpha=0.6, label=lbl_lo)
+    ax.plot(a_mid[mask], mpc[mask, 1], color=c_hi, lw=1.0, alpha=0.6,
+            ls="--", label=lbl_hi)
+    # Quartile-average MPC: bold horizontal step across each band
+    for i, (a_lo, a_hi, qc, mq) in enumerate(
+            zip(q_bounds_a[:-1], q_bounds_a[1:], q_colors, mpc_q)):
+        ax.hlines(mq, a_lo, a_hi, colors=qc, lw=3.0, zorder=4)
+        mid = (a_lo + a_hi) / 2
+        va  = "bottom" if mq < 0.85 else "top"
+        off = 0.025 if va == "bottom" else -0.025
+        ax.text(mid, mq + off, f"Q{i+1}: {mq:.3f}",
+                ha="center", va=va, fontsize=7.5,
+                color=qc, fontweight="bold",
+                bbox=dict(fc="white", ec="none", alpha=0.7, pad=1))
+    # Overall average MPC
+    ax.axhline(mpc_avg, color="k", lw=1.2, ls=":",
+               label=f"avg MPC = {mpc_avg:.3f}")
+    ax.set_xlim(0, a_lim); ax.set_ylim(0, 1.08)
+    ax.set_title("MPC(a, e)  —  distribution-weighted quartile averages", fontsize=9)
+    ax.set_xlabel("a  (wealth)", fontsize=8)
+    ax.set_ylabel("MPC", fontsize=8)
+    ax.legend(fontsize=7, loc="upper right")
+
+    # ── [1,1] Bar chart: average MPC by wealth quartile ───────────────────────
+    ax = axes[1, 1]
+    x = np.arange(4)
+    bars = ax.bar(x, mpc_q, color=q_colors, width=0.6, zorder=3,
+                  edgecolor="white", linewidth=0.5)
+    # Value labels on bars
+    for bar, mq in zip(bars, mpc_q):
+        ax.text(bar.get_x() + bar.get_width() / 2,
+                mq + 0.008, f"{mq:.3f}",
+                ha="center", va="bottom", fontsize=8, fontweight="bold")
+    # Overall average line
+    ax.axhline(mpc_avg, color="k", lw=1.2, ls="--",
+               label=f"avg MPC = {mpc_avg:.3f}", zorder=4)
+    ax.set_xticks(x)
+    ax.set_xticklabels(q_labels, fontsize=8)
+    ax.set_ylim(0, max(mpc_q) * 1.25)
+    ax.set_title("Average MPC by wealth quartile", fontsize=9)
+    ax.set_ylabel("MPC  (distribution-weighted mean)", fontsize=8)
+    ax.legend(fontsize=7)
+    ax.yaxis.grid(True, lw=0.5, alpha=0.5)
+    ax.set_axisbelow(True)
+
+    fig.tight_layout()
+    os.makedirs(OUTDIR, exist_ok=True)
+    fig.savefig(os.path.join(OUTDIR, filename), dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
 def plot_irf(out, ss, cal, T_plot=60):
     """3×4 panel IRF: D-country, F-country, financial, and global variables."""
     t = np.arange(T_plot)

@@ -226,8 +226,8 @@ def solve_steady_state(cal, verbose=True):
     beta_upper_F = 1 / (1 + rdep_F_tgt) - 1e-4
 
     #ACTUALLY SOLVE FOR THE STEADY STATE DISCOUNT FACTORS USING THE BRENTQ METHOD
-    beta_D_ss = brentq(lambda b: deposit_resid_D(b)[0], 0.5, beta_upper_D, xtol=1e-9)
-    beta_F_ss = brentq(lambda b: deposit_resid_F(b)[0], 0.5, beta_upper_F, xtol=1e-9)
+    beta_D_ss = brentq(lambda b: deposit_resid_D(b)[0], 0.5, beta_upper_D, xtol=1e-11)
+    beta_F_ss = brentq(lambda b: deposit_resid_F(b)[0], 0.5, beta_upper_F, xtol=1e-11)
 
     # Re-solve at tight tolerance to get accurate policy functions
     _, (c_D_ss, a_pol_D_ss, D_D_ss, A_D_ss, y_e_D) = deposit_resid_D(beta_D_ss, tol=cal["tol_hh"])

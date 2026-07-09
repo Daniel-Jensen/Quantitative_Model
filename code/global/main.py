@@ -10,11 +10,16 @@ from calibration import get_calibration
 from steady_state import solve_steady_state
 from transition import solve_transition, solve_transition_ck
 from risk_branch import solve_transition_ck_risk, bond_decomposition
-from plots import (OUTDIR, plot_steady_state, plot_irf, plot_default_irf,
-                   plot_risk_comparison)
+from plots import (OUTDIR, plot_steady_state, plot_household_policies,
+                   plot_irf, plot_default_irf, plot_risk_comparison)
 
 
 def main():
+    # ── Output flags ─────────────────────────────────────────────────────────
+    PRINT_SS         = True   # steady-state tables
+    PRINT_TRANSITION = True   # TFP transition residuals
+    PRINT_CK         = True   # Cole-Kehoe / Bocola diagnostics
+
     t0_total = time.perf_counter()
     os.makedirs(OUTDIR, exist_ok=True)
     cal = get_calibration()
@@ -31,49 +36,68 @@ def main():
     fm_D = ss["ss_firm_D"]
     fm_F = ss["ss_firm_F"]
 
-    print("\n── Country D (domestic / Greece) ──────────────────────────────")
-    print(f"  rk_D_ss      = {ss['rk_D_ss']:.4%}  beta_D = {ss['beta_D_ss']:.6f}")
-    print(f"  Kap_D_ss     = {ss['Kap_D_ss']:.4f}   Y_D = {fm_D['Y_ss']:.4f}  I_D = {fm_D['I_ss']:.4f}")
-    print(f"  C_D_ss       = {ss['C_D_ss']:.4f}   A_D = {ss['A_D_ss']:.4f}")
-    print(f"  w_D_ss       = {fm_D['w_ss']:.4f}   chi_D = {cal['chi_D']:.4f}")
-    print(f"  n_D_ss       = {bk_D['n_ss']:.4f}   theta_D = {bk_D['theta_ss']:.4f}")
-    print(f"  alpha_D_ss   = {bk_D['alpha_ss']:.4f}   mu_D_ss = {bk_D['mu_ss']:.6f}")
-    print(f"  kappa_D_ss   = {bk_D['kappa_ss']:.4f}   phi_bdom = {bk_D['phi_bdom_ss']:.4f}  phi_bfor = {bk_D['phi_bfor_ss']:.4f}")
-    print(f"  sov exposure = {ss['Q_bD_ss'] * ss['b_D_D_ss'] / bk_D['n_ss']:.3f}"
-          f" of net worth  (Bocola GIPS fact: ≈0.93)")
-    print(f"  Dep_supply_D = {bk_D['Dep_supply_ss']:.4f}   rb_dom_ss = {bk_D['rb_dom_ss']:.4%}")
+    if PRINT_SS:
+        W = 26  # label column width
+        def row(label, vD, vF, note=""):
+            note_str = f"  {note}" if note else ""
+            return f"  {label:<{W}} {vD:>10}  {vF:>10}{note_str}"
 
-    print("\n── Country F (foreign / Germany) ───────────────────────────────")
-    print(f"  rk_F_ss      = {ss['rk_F_ss']:.4%}  beta_F = {ss['beta_F_ss']:.6f}")
-    print(f"  Kap_F_ss     = {ss['Kap_F_ss']:.4f}   Y_F = {fm_F['Y_ss']:.4f}  I_F = {fm_F['I_ss']:.4f}")
-    print(f"  C_F_ss       = {ss['C_F_ss']:.4f}   A_F = {ss['A_F_ss']:.4f}")
-    print(f"  n_F_ss       = {bk_F['n_ss']:.4f}   theta_F = {bk_F['theta_ss']:.4f}")
-    print(f"  kappa_F_ss   = {bk_F['kappa_ss']:.4f}   phi_bdom = {bk_F['phi_bdom_ss']:.4f}  phi_bfor = {bk_F['phi_bfor_ss']:.4f}")
-    print(f"  Dep_supply_F = {bk_F['Dep_supply_ss']:.4f}   rb_dom_ss = {bk_F['rb_dom_ss']:.4%}")
+        print(f"\n{'':─<65}")
+        print(f"  {'Variable':<{W}} {'D (Greece)':>10}  {'F (Germany)':>10}  Note")
+        print(f"{'':─<65}")
 
-    print("\n── Global / cross-border ────────────────────────────────────────")
-    print(f"  p_ss          = {ss['p_ss']:.6f}  (real exchange rate; 1 = symmetric)")
-    print(f"  Q_bD_ss       = {ss['Q_bD_ss']:.5f}   Q_bF_ss = {ss['Q_bF_ss']:.5f}")
-    print(f"  b_D_D_ss      = {ss['b_D_D_ss']:.5f}   b_F_D_ss = {ss['b_F_D_ss']:.5f}  (D-bank holdings)")
-    print(f"  b_F_F_ss      = {ss['b_F_F_ss']:.5f}   b_D_F_ss = {ss['b_D_F_ss']:.5f}  (F-bank holdings)")
-    print(f"  F-bank share of D-debt = {ss['b_D_F_ss'] / cal['B_gov_D_ss']:.1%}  (contagion leg)")
-    print(f"  face debt/annual GDP D = {cal['B_gov_D_ss'] / (4 * fm_D['Y_ss']):.1%}")
+        # Real economy
+        print(row("Y_ss",      f"{fm_D['Y_ss']:.4f}",   f"{fm_F['Y_ss']:.4f}",  "normalised (Z rescaled)"))
+        print(row("K_ss",      f"{ss['Kap_D_ss']:.4f}", f"{ss['Kap_F_ss']:.4f}"))
+        print(row("I_ss",      f"{fm_D['I_ss']:.4f}",   f"{fm_F['I_ss']:.4f}",  "= δ·K"))
+        print(row("C_ss",      f"{ss['C_D_ss']:.4f}",   f"{ss['C_F_ss']:.4f}",  "HA aggregate"))
+        print(row("A_ss (HH deposits)", f"{ss['A_D_ss']:.4f}", f"{ss['A_F_ss']:.4f}"))
+        print(row("w_ss",      f"{fm_D['w_ss']:.4f}",   f"{fm_F['w_ss']:.4f}"))
+        print(row("rk_ss (ann %)",  f"{ss['rk_D_ss']*400:.3f}", f"{ss['rk_F_ss']*400:.3f}", "target ≈ 1.8% ann"))
+        print(row("beta_ss",   f"{ss['beta_D_ss']:.6f}", f"{ss['beta_F_ss']:.6f}"))
+        print(row("chi (GHH)",  f"{cal['chi_D']:.4f}",  f"{cal['chi_F']:.4f}",  "pinned to N_ss = 1"))
 
-    print("\n── Steady-state residuals ──────────────────────────────────────")
-    ic_resid_D = (bk_D["n_ss_IC"] - bk_D["n_ss_ACCUM"]) / bk_D["n_ss_ACCUM"]
-    ic_resid_F = (bk_F["n_ss_IC"] - bk_F["n_ss_ACCUM"]) / bk_F["n_ss_ACCUM"]
-    dep_resid_D = ss["A_D_ss"] - bk_D["Dep_supply_ss"]
-    dep_resid_F = ss["A_F_ss"] - bk_F["Dep_supply_ss"]
-    walras_D = fm_D["Y_ss"] - ss["C_D_ss"] - fm_D["I_ss"] - cal["G_D"]
-    walras_F = fm_F["Y_ss"] - ss["C_F_ss"] - fm_F["I_ss"] - cal["G_F"]
-    print(f"  IC resid D (n_IC/n_ACCUM - 1)   = {ic_resid_D:.2e}")
-    print(f"  IC resid F (n_IC/n_ACCUM - 1)   = {ic_resid_F:.2e}")
-    print(f"  deposit resid D (A - Dep_supply) = {dep_resid_D:.2e}")
-    print(f"  deposit resid F (A - Dep_supply) = {dep_resid_F:.2e}")
-    print(f"  Walras D (Y - C - I - G)         = {walras_D:.2e}")
-    print(f"  Walras F (Y - C - I - G)         = {walras_F:.2e}  [diagnostic, not imposed]")
+        # Financial intermediary
+        print(f"{'':─<65}")
+        print(row("n_ss (net worth)",  f"{bk_D['n_ss']:.4f}",     f"{bk_F['n_ss']:.4f}"))
+        print(row("theta (leverage)",  f"{bk_D['theta_ss']:.4f}", f"{bk_F['theta_ss']:.4f}", "target 4–6 (GK11)"))
+        print(row("kappa (K/n)",       f"{bk_D['kappa_ss']:.4f}", f"{bk_F['kappa_ss']:.4f}"))
+        print(row("phi_bdom (dom bond/n)", f"{bk_D['phi_bdom_ss']:.4f}", f"{bk_F['phi_bdom_ss']:.4f}"))
+        print(row("phi_bfor (for bond/n)", f"{bk_D['phi_bfor_ss']:.4f}", f"{bk_F['phi_bfor_ss']:.4f}"))
+        sov_D = ss['Q_bD_ss'] * ss['b_D_D_ss'] / bk_D['n_ss']
+        sov_F = ss['Q_bF_ss'] * ss['b_F_F_ss'] / bk_F['n_ss']
+        print(row("Q·b_dom / n",  f"{sov_D:.3f}", f"{sov_F:.3f}", "Bocola GIPS target ≈ 0.93"))
+        print(row("alpha (V/n)",  f"{bk_D['alpha_ss']:.4f}", f"{bk_F['alpha_ss']:.4f}", "franchise value"))
+        print(row("mu (IC mult)", f"{bk_D['mu_ss']:.6f}", f"{bk_F['mu_ss']:.6f}"))
+        print(row("Dep_supply",   f"{bk_D['Dep_supply_ss']:.4f}", f"{bk_F['Dep_supply_ss']:.4f}"))
+        print(row("rb_dom (ann %)", f"{bk_D['rb_dom_ss']*400:.3f}", f"{bk_F['rb_dom_ss']*400:.3f}", "= rdep + IC spread"))
+
+        # Sovereign / cross-border
+        print(f"{'':─<65}")
+        print(row("p_ss (RER)",    f"{ss['p_ss']:.6f}", "—", "1 = symmetric SS"))
+        print(row("Q_bD_ss",       f"{ss['Q_bD_ss']:.5f}", f"{ss['Q_bF_ss']:.5f}", "IC-consistent prices"))
+        print(row("b_D_D / b_F_D (D-bank)", f"{ss['b_D_D_ss']:.4f}", f"{ss['b_F_D_ss']:.4f}", "dom / for holdings"))
+        print(row("b_F_F / b_D_F (F-bank)", f"{ss['b_F_F_ss']:.4f}", f"{ss['b_D_F_ss']:.4f}"))
+        print(row("F-bank share of D-debt", f"{ss['b_D_F_ss']/cal['B_gov_D_ss']:.1%}", "—", "contagion leg, target 20%"))
+        print(row("B_gov / 4Y (debt/GDP)", f"{cal['B_gov_D_ss']/(4*fm_D['Y_ss']):.1%}", f"{cal['B_gov_F_ss']/(4*fm_F['Y_ss']):.1%}", "target ≈ 93%"))
+
+        # Residuals
+        ic_resid_D  = (bk_D["n_ss_IC"] - bk_D["n_ss_ACCUM"]) / bk_D["n_ss_ACCUM"]
+        ic_resid_F  = (bk_F["n_ss_IC"] - bk_F["n_ss_ACCUM"]) / bk_F["n_ss_ACCUM"]
+        dep_resid_D = ss["A_D_ss"] - bk_D["Dep_supply_ss"]
+        dep_resid_F = ss["A_F_ss"] - bk_F["Dep_supply_ss"]
+        walras_D    = fm_D["Y_ss"] - ss["C_D_ss"] - fm_D["I_ss"] - cal["G_D"]
+        walras_F    = fm_F["Y_ss"] - ss["C_F_ss"] - fm_F["I_ss"] - cal["G_F"]
+        print(f"{'':─<65}")
+        print(f"  {'Residual':<{W}} {'D':>10}  {'F':>10}  Threshold")
+        print(f"{'':─<65}")
+        print(row("IC  (n_IC/n_ACCUM − 1)", f"{ic_resid_D:.2e}",  f"{ic_resid_F:.2e}",  "≤ 1e-9"))
+        print(row("Deposit (A − Dep)",       f"{dep_resid_D:.2e}", f"{dep_resid_F:.2e}", "≤ 1e-9"))
+        print(row("Walras (Y−C−I−G)",        f"{walras_D:.2e}",   f"{walras_F:.2e}",    "F = diagnostic only"))
+        print(f"{'':─<65}")
 
     plot_steady_state(ss, cal)
+    plot_household_policies(ss, cal)
     print(f"\nFigures saved to {OUTDIR}")
 
     print("\n" + "=" * 65)
@@ -86,7 +110,8 @@ def main():
     t0 = time.perf_counter()
     out = solve_transition(ss, cal, Z_D_path, Z_F_path, verbose=False)
     print(f"  [TFP transition]  {time.perf_counter() - t0:.1f}s")
-    _print_transition_residuals(out, cal)
+    if PRINT_TRANSITION:
+        _print_transition_residuals(out, cal)
 
     plot_irf(out, ss, cal)
     print(f"\nFigures saved to {OUTDIR}")
@@ -134,7 +159,8 @@ def main():
         verbose=True, y0=y_warm,
     )
     print(f"  [risk-on, branch fixed point]  {time.perf_counter() - t0:.1f}s")
-    _print_transition_residuals(out_ck, cal)
+    if PRINT_TRANSITION:
+        _print_transition_residuals(out_ck, cal)
 
     # Comparable liquidity-only counterfactual: if the feasible priced event
     # is a PARTIAL restructuring (haircut ladder in risk_branch), re-solve the
@@ -165,32 +191,53 @@ def main():
     ip_l   = int(np.argmax(lend_on))
     risk_share = 1.0 - lend_off[ip_l] / lend_on[ip_l] if lend_on[ip_l] != 0 else np.nan
 
-    print("\n── Cole-Kehoe / Bocola diagnostics (RISK CHANNEL ON) ─────────")
-    print(f"  Q_bD[0]    = {out_ck['Q_bD'][0]:.5f}  (ss={ss['Q_bD_ss']:.5f})"
-          f"  =>  MTM repricing = {(out_ck['Q_bD'][0] / ss['Q_bD_ss'] - 1) * 100:.2f}%"
-          f"   [risk-off: {(out_off['Q_bD'][0] / ss['Q_bD_ss'] - 1) * 100:.2f}%]")
-    print(f"  n_D[0]     dev = {(out_ck['n_D'][0] / bk_D['n_ss'] - 1) * 100:+.2f}%"
-          f"   [risk-off: {(out_off['n_D'][0] / bk_D['n_ss'] - 1) * 100:+.2f}%]  (no default)")
-    print(f"  n_F[0]     dev = {(out_ck['n_F'][0] / bk_F['n_ss'] - 1) * 100:+.2f}%  (contagion)")
-    print(f"  Y_D trough = {np.min(out_ck['Y_D'] / fm_D['Y_ss'] - 1) * 100:+.3f}%"
-          f"   [risk-off: {np.min(out_off['Y_D'] / fm_D['Y_ss'] - 1) * 100:+.3f}%]")
-    print(f"  I_D[0]     = {(out_ck['I_D'][0] / fm_D['I_ss'] - 1) * 100:+.3f}%"
-          f"   [risk-off: {(out_off['I_D'][0] / fm_D['I_ss'] - 1) * 100:+.3f}%]")
-    print(f"  sov spread peak = {sov_spread_ann[i_peak]:+.0f} bps ann (t={i_peak}):"
-          f"  default comp {dec['defcomp'][i_peak]:+.0f}"
-          f"  + RISK PREMIUM {dec['risk'][i_peak]:+.0f}"
-          f"  + liquidity {dec['liquidity'][i_peak]:+.0f}")
-    print(f"  lending spread peak = {lend_on[ip_l]:+.0f} bps ann"
-          f"   [risk-off: {lend_off[ip_l]:+.0f}]")
-    print(f"  RISK-CHANNEL SHARE of lending-spread response = {risk_share:.0%}"
-          f"   (Bocola 2016 estimate: up to 45%)")
-    print(f"  b_gov_D peak = {np.max(out_ck['b_gov_D']):.3f}  (ss={cal['B_gov_D_ss']:.3f})"
-          f"   Tax_D peak dev = {np.max(out_ck['Tax_D']) - ss['Tax_D_ss']:+.4f}")
-    print(f"  def_real ≡ 0 on base path: {np.all(out_ck['def_real_D'] == 0)}")
-    br = out_ck["branch"]
-    print(f"  [branch] n_D(0)/n_ss = {br['n_D'][0] / bk_D['n_ss']:.3f}"
-          f"   Y_D(0) dev = {(br['Y_D'][0] / fm_D['Y_ss'] - 1) * 100:+.2f}%"
-          f"   (the default state bankers fear)")
+    if PRINT_CK:
+        br = out_ck["branch"]
+        W2 = 30
+        def ck_row(label, risk_on, risk_off="", note=""):
+            off_str  = f"  {risk_off:>10}" if risk_off else ""
+            note_str = f"  {note}" if note else ""
+            return f"  {label:<{W2}} {risk_on:>10}{off_str}{note_str}"
+
+        print(f"\n{'':─<72}")
+        print(f"  Cole-Kehoe / Bocola pass-through  (xi_0={sun0:.0%}, rho={rho_sun})")
+        print(f"  {'Statistic':<{W2}} {'Risk-on':>10}  {'Risk-off':>10}  Note")
+        print(f"{'':─<72}")
+        print(ck_row("Q_bD[0]  (% dev from SS)",
+                     f"{(out_ck['Q_bD'][0]/ss['Q_bD_ss']-1)*100:+.2f}%",
+                     f"{(out_off['Q_bD'][0]/ss['Q_bD_ss']-1)*100:+.2f}%",
+                     "MTM repricing"))
+        print(ck_row("n_D[0]  (% dev)",
+                     f"{(out_ck['n_D'][0]/bk_D['n_ss']-1)*100:+.2f}%",
+                     f"{(out_off['n_D'][0]/bk_D['n_ss']-1)*100:+.2f}%",
+                     "no default on base path"))
+        print(ck_row("n_F[0]  (% dev)",
+                     f"{(out_ck['n_F'][0]/bk_F['n_ss']-1)*100:+.2f}%",
+                     note="contagion leg"))
+        print(ck_row("Y_D trough (% dev)",
+                     f"{np.min(out_ck['Y_D']/fm_D['Y_ss']-1)*100:+.3f}%",
+                     f"{np.min(out_off['Y_D']/fm_D['Y_ss']-1)*100:+.3f}%"))
+        print(ck_row("I_D[0]  (% dev)",
+                     f"{(out_ck['I_D'][0]/fm_D['I_ss']-1)*100:+.3f}%",
+                     f"{(out_off['I_D'][0]/fm_D['I_ss']-1)*100:+.3f}%"))
+        print(ck_row("Sov spread peak (bps ann)",
+                     f"{sov_spread_ann[i_peak]:+.0f}",
+                     note=f"t={i_peak}: def {dec['defcomp'][i_peak]:+.0f} + risk {dec['risk'][i_peak]:+.0f} + liq {dec['liquidity'][i_peak]:+.0f}"))
+        print(ck_row("Lending spread peak (bps)",
+                     f"{lend_on[ip_l]:+.0f}",
+                     f"{lend_off[ip_l]:+.0f}"))
+        print(ck_row("Risk-channel share",
+                     f"{risk_share:.0%}",
+                     note="Bocola 2016 estimate: up to 45%"))
+        print(ck_row("b_gov_D peak",
+                     f"{np.max(out_ck['b_gov_D']):.3f}",
+                     note=f"SS={cal['B_gov_D_ss']:.3f}; Tax peak dev {np.max(out_ck['Tax_D'])-ss['Tax_D_ss']:+.4f}"))
+        print(ck_row("def_real ≡ 0 on base path",
+                     str(np.all(out_ck['def_real_D'] == 0))))
+        print(ck_row("[branch] n_D(0)/n_ss",
+                     f"{br['n_D'][0]/bk_D['n_ss']:.3f}",
+                     note=f"Y_D(0) dev {(br['Y_D'][0]/fm_D['Y_ss']-1)*100:+.2f}%  (feared default state)"))
+        print(f"{'':─<72}")
 
     plot_default_irf(out_ck, ss, cal)
     plot_risk_comparison(out_ck, out_off, ss, cal)
