@@ -7,7 +7,7 @@ import numpy as np
 
 
 def stationary_distribution(a_pol, a_grid, Pi, pi_e_stationary, tol, maxiter=100_000):
-    "Compute the stationary distribution of assets and income given policy functions"
+    # COMPUTE STATIONARY DISTRIBUTION OF ASSETS AND INCOME GIVEN POLICY FUNCTIONS
     n_a, n_e = a_pol.shape
 
     # This is the propability distribution over (a, e). 
@@ -26,7 +26,7 @@ def stationary_distribution(a_pol, a_grid, Pi, pi_e_stationary, tol, maxiter=100
 
 
 def forward_iterate(D, a_pol, a_grid, Pi):
-    "Gets the output from the get_lottery_weights function and then uses np.add.at to update the distribution D."
+    # GETS THE OUTPUT FROM THE get_lottery_weights FUNCTION AND THEN USES np.add.at TO UPDATE THE DISTRIBUTION D.
     n_a, n_e = D.shape
     idx_lo, idx_hi, w_lo, w_hi = get_lottery_weights(a_pol, a_grid)
 
@@ -39,7 +39,7 @@ def forward_iterate(D, a_pol, a_grid, Pi):
 
 
 def get_lottery_weights(a_pol, a_grid):
-    "Young (2010) lottery method"
+    # YOUNG (2010) LOTTERY METHOD
     a_min, a_max = a_grid[0], a_grid[-1]
     a_pol_c = np.clip(a_pol, a_min, a_max)
 

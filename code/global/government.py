@@ -1,46 +1,24 @@
-"""Government block: Hatchondo-Martinez (2009) geometric-decay perpetuity bonds,
-Bohn (1998) fiscal rule, Cole-Kehoe (2000) self-fulfilling crisis zones.
+"Government block: Hatchondo-Martinez (2009) geometric-decay perpetuity bonds, Bohn (1998) fiscal rule, Cole-Kehoe (2000) self-fulfilling crisis zones."
 
-Structure follows Bocola (2016) eq. (9): each period the government pays
-coupons on the surviving stock, and rolls over by issuing new bonds at the
-market price Q (which embeds PRICED default risk from the bank block).  Taxes
-follow the Bohn rule on beginning-of-period debt.  The debt path is a single
-forward recursion — no fixed-point iteration is needed given a Q path.
 
-PRICED vs REALIZED default:
-  Only the REALIZED default path def_real enters the government's flows
-  (coupon survival and stock write-down).  Priced risk affects the government
-  solely through the depressed issuance price Q: with def_real = 0 (Cole-Kehoe
-  risk-only experiment) the government keeps servicing debt in full but rolls
-  over at low prices, so the debt stock rises and Bohn taxes rise — beliefs
-  worsen fiscal fundamentals without any default event.
-"""
 import numpy as np
 
 
 # ── Steady-state helpers ──────────────────────────────────────────────────────
 
 def hm_bond_price_ss(rdep_ss, delta_b):
-    """HM perpetuity price at a risk-free steady state.
-
-    Bond pays coupon delta_b per period, decays at rate (1-delta_b).
-    No-arbitrage SS price: Q_B_ss = delta_b / (rdep_ss + delta_b).
-    """
+    # Price of bond in steady state (it pays out coupon delta)
     return delta_b / (rdep_ss + delta_b)
 
 
 def hm_bond_return_ss(Q_B_ss, delta_b):
-    """Realised return at SS on HM perpetuity (= rdep_ss by no-arbitrage)."""
+    #Realised return at SS on HM perpetuity (= rdep_ss by no-arbitrage).
     return (delta_b + (1 - delta_b) * Q_B_ss) / Q_B_ss - 1
 
 
 def govt_steady_state(cal, rdep_ss, country):
-    """Steady-state government block.
+    # Steady-state government block. Zero risk of default in SS, and bond stock constant
 
-    At SS: def_rate = 0, bond stock = B_gov_ss (exogenous), no net issuance.
-
-    Returns dict: Q_B_ss, rb_ss, Tax_ss, b_gov_ss, coupon_ss.
-    """
     delta_b  = cal[f"delta_b_{country}"]
     B_gov_ss = cal[f"B_gov_{country}_ss"]
     G        = cal[f"G_{country}"]
@@ -48,10 +26,10 @@ def govt_steady_state(cal, rdep_ss, country):
     Q_B_ss    = hm_bond_price_ss(rdep_ss, delta_b)
     rb_ss     = hm_bond_return_ss(Q_B_ss, delta_b)
     coupon_ss = delta_b * B_gov_ss
+    
     # Government budget at SS: G + coupon = Tax + issuance_proceeds
     # Issuance = delta_b*B_gov new bonds at price Q_B_ss
-    Tax_ss    = G + coupon_ss * (1.0 - Q_B_ss)   # = G + delta_b*B_gov*rdep/(rdep+delta_b)
-
+    Tax_ss    = G + coupon_ss * (1.0 - Q_B_ss)
     return dict(Q_B_ss=Q_B_ss, rb_ss=rb_ss,
                 Tax_ss=Tax_ss, b_gov_ss=B_gov_ss, coupon_ss=coupon_ss)
 

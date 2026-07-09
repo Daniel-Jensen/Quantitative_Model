@@ -13,56 +13,6 @@ Bond denomination convention (consistent throughout):
 
 NOTE on p convention: p = price of F-goods in D-good units (D-goods per
 F-good). An increase in p means F-goods are more expensive.
-
-Multi-asset incentive constraint (IC), Bocola (2016) eq. (3):
-  A banker can divert a fraction lambda of TOTAL assets, so with the linear
-  value function V_t(n) = alpha_t · n the constraint is
-    D-bank (D-goods):
-      lambda_K · Q_D·K_D + lambda_bD · Q_bD·b_D_D + lambda_bF · p·Q_bF·b_F_D ≤ alpha_D · n_D
-    F-bank (F-goods):
-      lambda_K · Q_F·K_F + lambda_bF · Q_bF·b_F_F + lambda_bD · Q_bD·b_D_F/p ≤ alpha_F · n_F
-  Following Bocola the baseline calibration sets a SINGLE lambda per bank
-  (lambda_K = lambda_bD = lambda_bF), so the constraint is on total assets and
-  banks cannot relax it by substituting between bonds and capital.  The code
-  keeps the three slots separate for robustness exercises.
-
-When the IC binds (imposed throughout, standard in perfect foresight), the
-closed-form backward pass is (Bocola 2016 eq. (1)-(2), GK 2011):
-
-  Omega_{t+1}   = beta_inter · [(1−f) + f · alpha_{t+1}]
-  mu_t          = Omega_{t+1} · (rk_{t+1} − rdep_t) / lambda_K    [capital FOC]
-  alpha_t       = Omega_{t+1} · (1 + rdep_t) / (1 − mu_t)          [Bellman]
-  Q_bX_t        = surv^e_{t+1} · (delta_bX + (1−delta_bX)·Q_bX_{t+1})
-                    / (1 + rdep_t + lambda_bX·mu_t/Omega_{t+1})
-
-PRICED vs REALIZED default (Bocola 2016 experiment design):
-  surv^e_{t+1} = 1 − def_price_{t+1}·(1−recovery)   [expected — enters PRICES
-                  and all expected-return FOCs; the Bocola pass-through shock]
-  surv^r_t     = 1 − def_real_t·(1−recovery)        [realized — enters realized
-                  returns rb and the government's coupon/stock flows]
-  The baseline Cole-Kehoe experiment sets def_price = sunspot (in the crisis
-  zone) and def_real = 0: pure news of future default lowers Q on impact,
-  inflicting a mark-to-market loss on legacy bond holders — net worth falls
-  although no default ever happens (Bocola's "pass-through of sovereign risk").
-  Ex post, banks earn above-required bond returns while beliefs persist
-  (bought cheap, repaid in full), so net worth recovers as the sunspot decays.
-
-Cross-border positions from portfolio adjustment-cost FOC (expected returns
-use def_price):
-  b_F_D_t = b_F_D_ss + [E_t rb_F_in_D_{t+1} − rdep_D_t
-                         − excess_return_F_D_ss − lambda_bF·mu_D_t/Omega_D_{t+1}] / psi_bF_D
-  (and symmetrically for F-bank's D-bond holding b_D_F_t)
-
-Bond market clearing (in transition.py): banks jointly hold the END-of-period
-outstanding stock from the government's budget identity:
-  b_D_D_t + b_D_F_t = b_gov_D_eop_t
-  b_F_D_t + b_F_F_t = b_gov_F_eop_t
-
-Net worth has two characterisations that must agree (outer residual):
-  n_IC    = IC-binding allocation size (desired by bank given alpha)
-  n_ACCUM = forward accumulation (true state, carried from last period)
-Their difference (n_IC − n_ACCUM) / n_ss is the capital-market residual
-fed to the outer Newton solver to pin Kap_path for each country.
 """
 import numpy as np
 from scipy.optimize import brentq
@@ -74,14 +24,8 @@ from scipy.optimize import brentq
 
 def _alpha_ss_fixed_point(beta_inter, f, lambda_K, rk_ss, rdep_ss,
                            v_lo=1e-6, v_hi=1e6, n_scan=300):
-    """Solve the self-referential fixed point for alpha_ss.
-
-    At SS: alpha = Omega(alpha) · (1+rdep) / (1−mu(alpha))
-    where Omega = beta_inter · [(1−f) + f·alpha]
-          mu    = Omega · (rk − rdep) / lambda_K
-
-    Uses scan-then-brentq (identical pattern to old bank.py).
-    """
+    # Calculates the marginal value of networth for a banker V(n)=alpha_ss*n_t.  Omega = beta_inter*((1-f)+f*alpha_ss).  And IC multiplier
+    
     def resid(a):
         Omega = beta_inter * ((1 - f) + f * a)
         mu    = Omega * (rk_ss - rdep_ss) / lambda_K
@@ -108,45 +52,25 @@ def _alpha_ss_fixed_point(beta_inter, f, lambda_K, rk_ss, rdep_ss,
 
 def steady_state_bank(cal, rk_ss, Kap_ss, Q_bD_ss, Q_bF_ss,
                       b_dom_ss, b_for_ss, p_ss, country="D"):
-    """Steady-state bank block for one country.
-
-    Arguments
-    ---------
-    rk_ss   : steady-state capital return (from outer solve)
-    Kap_ss  : capital stock (from Cobb-Douglas demand)
-    Q_bD_ss : D-bond price at SS (from government.py)
-    Q_bF_ss : F-bond price at SS
-    b_dom_ss: domestic-bond holding (D-good units; = B_gov_D - b_D_F_ss or B_gov_F - b_F_D_ss)
-    b_for_ss: foreign-bond holding (D-good units; e.g. b_F_D_ss for D-bank)
-    p_ss    : real exchange rate at SS (= 1 at symmetric SS)
-    country : "D" or "F"
-
-    Returns
-    -------
-    dict with keys: alpha_ss, mu_ss, Omega_ss, n_ss, n_ss_IC, n_ss_ACCUM,
-                    kappa_ss, phi_bdom_ss, phi_bfor_ss, theta_ss,
-                    rn_ss, div_ss, entrant_ss, Dep_supply_ss,
-                    rb_dom_ss, rb_for_ss,
-                    lambda_K, lambda_bD, lambda_bF, Kap_ss
-    """
+    
+    #Steady-state bank block for one country.
     f           = cal[f"f_{country}"]
     rdep_ss     = cal[f"r_dep_{country}_target"]
     beta_inter  = cal[f"beta_inter_{country}"]
     lambda_K    = cal[f"lambda_K_{country}"]
+    
     # Divertability of each bond type as seen by this bank
-    lambda_bD   = cal[f"lambda_bD_{country}"]   # D-bond divertability for this bank
-    lambda_bF   = cal[f"lambda_bF_{country}"]   # F-bond divertability for this bank
-    omega_ent   = cal[f"omega_ent_{country}"]
+    lambda_bD   = cal[f"lambda_bD_{country}"]   # D-bond divertability for this bank (Equal)
+    lambda_bF   = cal[f"lambda_bF_{country}"]   # F-bond divertability for this bank (Equal)
+    omega_ent   = cal[f"omega_ent_{country}"]   # Entrant transfer fraction of total assets
     delta_b_D   = cal["delta_b_D"]
     delta_b_F   = cal["delta_b_F"]
 
+    #Getting to see the multipliers on IC-consistent bond prices
     alpha_ss, mu_ss, Omega_ss = _alpha_ss_fixed_point(
         beta_inter, f, lambda_K, rk_ss, rdep_ss
     )
-
-    # IC-consistent SS bond prices: GK excess-return on each bond = lambda_b*mu/Omega.
-    # Bond FOC at SS gives the MARKET price Q_bX = delta_bX/(rdep+delta_bX+IC_spread).
-    # This is the fixed point of the backward pricing recurrence used in bank_backward.
+    #Getting the spreads on the bonds from the IC constraint
     IC_spread_dom = lambda_bD * mu_ss / Omega_ss  # IC spread on domestic bond
     IC_spread_for = lambda_bF * mu_ss / Omega_ss  # IC spread on foreign bond
 
@@ -154,17 +78,15 @@ def steady_state_bank(cal, rk_ss, Kap_ss, Q_bD_ss, Q_bF_ss,
         Q_bdom_ss = delta_b_D / (rdep_ss + delta_b_D + IC_spread_dom)  # D-bond market price
         Q_bfor_ss = delta_b_F / (rdep_ss + delta_b_F + IC_spread_for)  # F-bond market price
     else:
-        # F-bank: domestic = F-bonds (divertability lambda_bD is lambda_bF_F in cal)
-        #         foreign  = D-bonds (divertability lambda_bF is lambda_bD_F in cal)
+
         Q_bdom_ss = delta_b_F / (rdep_ss + delta_b_F + IC_spread_dom)  # F-bond price
         Q_bfor_ss = delta_b_D / (rdep_ss + delta_b_D + IC_spread_for)  # D-bond price
 
-    # Bond excess returns at SS (= IC spread above deposit rate)
+    # Bond excess returns at SS
     rb_dom_ss = rdep_ss + IC_spread_dom
     rb_for_ss = rdep_ss + IC_spread_for
 
-    # n from IC binding: n_IC = (lambda_K·Q_K·K + lambda_bD·Q_bD·b_dom + lambda_bF·Q_bF·b_for) / alpha
-    # For F-bank, D-bonds are D-good claims; divide by p to get F-good IC value
+    # Net worth from IC-consistent bond prices:  n = (λ_K·K + λ_bD·Q_bD·b_D + λ_bF·p·Q_bF·b_F) 
     if country == "D":
         ic_numerator = (lambda_K * Kap_ss
                         + lambda_bD * Q_bdom_ss * b_dom_ss
@@ -176,9 +98,8 @@ def steady_state_bank(cal, rk_ss, Kap_ss, Q_bD_ss, Q_bF_ss,
 
     n_ss_IC = ic_numerator / alpha_ss
 
-    # n from forward accumulation: D·n = excess returns + entrant transfer
-    # D = 1 − (1−f)·(1+rdep)
-    D_val = 1.0 - (1 - f) * (1 + rdep_ss)
+    # Net worth from forward accumulation
+    D_val = 1.0 - (1 - f) * (1 + rdep_ss) #Internmediary discount factor
     if D_val <= 0:
         raise ValueError(f"[{country}] D={D_val} ≤ 0: no stationary net-worth rest point.")
 
@@ -190,11 +111,9 @@ def steady_state_bank(cal, rk_ss, Kap_ss, Q_bD_ss, Q_bF_ss,
             + ((1 - f) * IC_spread_for + omega_ent) * p_ss * Q_bfor_ss * b_for_ss
         ) / D_val
     else:
-        # F-bank: assets in F-goods. F-bonds (Q_bF) are F-good claims → no conversion.
-        # D-bonds (Q_bD) are D-good claims → divide by p_ss to get F-goods.
         Kap_val   = Kap_ss
-        bdom_val  = Q_bdom_ss * b_dom_ss            # F-bonds: Q_bF × b_F_F already F-goods
-        bfor_val  = Q_bfor_ss * b_for_ss / p_ss     # D-bonds: Q_bD × b_D_F ÷ p → F-goods
+        bdom_val  = Q_bdom_ss * b_dom_ss           
+        bfor_val  = Q_bfor_ss * b_for_ss / p_ss 
         total_assets = Kap_val + bdom_val + bfor_val
         n_ss_ACCUM = (
             ((1 - f) * (rk_ss     - rdep_ss) + omega_ent) * Kap_val
@@ -206,17 +125,20 @@ def steady_state_bank(cal, rk_ss, Kap_ss, Q_bD_ss, Q_bF_ss,
     if n_ss <= 0:
         raise ValueError(f"[{country}] n_ss={n_ss:.4f} ≤ 0 at rk_ss={rk_ss:.6f}.")
 
+    #Leverage ratios
     if country == "D":
         kappa_ss    = Kap_ss / n_ss
         phi_bdom_ss = Q_bdom_ss * b_dom_ss / n_ss
-        phi_bfor_ss = p_ss * Q_bfor_ss * b_for_ss / n_ss          # F-bonds valued in D-goods
+        phi_bfor_ss = p_ss * Q_bfor_ss * b_for_ss / n_ss         
     else:
         kappa_ss    = Kap_ss / n_ss
-        phi_bdom_ss = Q_bdom_ss * b_dom_ss / n_ss                  # F-bonds already F-goods
-        phi_bfor_ss = Q_bfor_ss * b_for_ss / (p_ss * n_ss)        # D-bonds ÷p
+        phi_bdom_ss = Q_bdom_ss * b_dom_ss / n_ss                  
+        phi_bfor_ss = Q_bfor_ss * b_for_ss / (p_ss * n_ss)        
 
+    #Total leverge ratio
     theta_ss = kappa_ss + phi_bdom_ss + phi_bfor_ss
 
+    #Returns on net worth and gross income
     rn_ss = (kappa_ss * (rk_ss - rdep_ss)
              + phi_bdom_ss * (rb_dom_ss - rdep_ss)
              + phi_bfor_ss * (rb_for_ss - rdep_ss)
@@ -233,7 +155,6 @@ def steady_state_bank(cal, rk_ss, Kap_ss, Q_bD_ss, Q_bF_ss,
         theta_ss=theta_ss, rn_ss=rn_ss, div_ss=div_ss, entrant_ss=entrant_ss,
         Dep_supply_ss=Dep_supply_ss,
         rb_dom_ss=rb_dom_ss, rb_for_ss=rb_for_ss,
-        # IC-consistent bond prices (used by steady_state.py to update Tax_ss)
         Q_bdom_IC=Q_bdom_ss, Q_bfor_IC=Q_bfor_ss,
         IC_spread_dom=IC_spread_dom, IC_spread_for=IC_spread_for,
         lambda_K=lambda_K, lambda_bD=lambda_bD, lambda_bF=lambda_bF,

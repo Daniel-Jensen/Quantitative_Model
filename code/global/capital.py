@@ -19,14 +19,12 @@ def gamma_params(cal, country="D"):
 
 
 def capital_demand(rk_ss, mc_ss, cal, country="D"):
-    """Cobb-Douglas capital-demand FOC inverted for Kap_ss.
+    # Inverted capital demand from Cobb-Douglas 
 
-    Returns the Kap_ss such that mc·alpha·Z·N^(1-alpha)/Kap - delta = rk_ss,
-    given N_ss = 1.
-    """
     alpha = cal[f"alpha_{country}"]
     delta = cal[f"delta_{country}"]
     Z_ss  = cal[f"Z_ss_{country}"]
+    
     return (mc_ss * alpha * Z_ss / (rk_ss + delta)) ** (1 / (1 - alpha))
 
 

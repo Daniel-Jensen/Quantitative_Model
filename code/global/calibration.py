@@ -4,15 +4,6 @@ Notes:
   F-bonds are F-good claims (priced by F-bank using rdep_F).
   Cross-border values: D-bank's F-bond leg in D-goods = p·Q_bF·b_F_D;
                        F-bank's D-bond leg in F-goods = Q_bD·b_D_F/p.
-* Bank incentive constraint follows Bocola (2016) eq. (3): a banker can divert
-  a fraction lambda of TOTAL assets, so lambda_K = lambda_bD = lambda_bF
-  (single lambda per bank).  The three keys are kept separate only for
-  robustness exercises — diverging them re-opens the portfolio-substitution
-  margin and weakens the sovereign-risk pass-through.
-* Sovereign risk: Cole-Kehoe sunspot xi = probability of the no-rollover
-  equilibrium, PRICED into Q_bD inside the crisis zone (def_price); the
-  baseline experiment never REALIZES default (def_real = 0), following
-  Bocola's pass-through-of-sovereign-risk design.
 """
 
 
@@ -30,12 +21,12 @@ def get_calibration():
         rho_e_F=0.9,   sigma_e_F=0.2,
 
         # ── ASSET GRIDS ──────────────────────────────────────────────────────
-        a_min_D=0.0, a_max_D=300.0, n_a_D=250, a_curve_D=2.0,
-        a_min_F=0.0, a_max_F=300.0, n_a_F=250, a_curve_F=2.0,
+        a_min_D=0.0, a_max_D=87.2, n_a_D=250, a_curve_D=2.0,
+        a_min_F=0.0, a_max_F=87.2, n_a_F=250, a_curve_F=2.0,
 
         # ── FIRMS (Cobb-Douglas + full price flexibility) ────────────────────
         epsilon_D=6.0, epsilon_F=6.0,   # demand elasticity → mc = (ε-1)/ε
-        Z_ss_D=1.0,    Z_ss_F=1.0,
+        Z_ss_D=0.448,  Z_ss_F=0.448,  # scaled so Y_ss = 1 (Z = (1/Y_old)^(1-α), Y_old ≈ 3.44)
 
         # ── CAPITAL (Jermann 1998 adjustment cost) ────────────────────────────
         alpha_D=0.35,  alpha_F=0.35,    # capital share
@@ -43,11 +34,6 @@ def get_calibration():
         ksi_D=0.50,    ksi_F=0.50,      # adjustment-cost curvature
 
         # ── FINANCIAL INTERMEDIARY ─────────────────────────────────────────────
-        # Single divertable fraction per bank (Bocola 2016 eq. 3): all three
-        # asset classes carry the same lambda.  Calibrated with B_gov to hit
-        # leverage theta_ss ≈ 4.5 and sovereign exposure Q·b_dom/n ≈ 0.9
-        # (domestic sovereign holdings ≈ 93% of bank equity, GIPS 2009 fact
-        # cited by Bocola 2016).
         f_D=0.028,              f_F=0.028,
         r_dep_D_target=0.000,   r_dep_F_target=0.000,
         beta_inter_D=0.96,      beta_inter_F=0.96,
@@ -60,18 +46,14 @@ def get_calibration():
         # b_D_F_ss / b_F_D_ss ≈ 20% of the respective bond supply: foreign
         # banks' pre-crisis holdings of peripheral debt (union contagion leg).
         psi_bF_D=0.01,          psi_bD_F=0.01,
-        b_F_D_ss=2.56,          b_D_F_ss=2.56,
+        b_F_D_ss=0.744,         b_D_F_ss=0.744,
         excess_return_F_D_ss=0.0,               # overwritten after SS solve
         excess_return_D_F_ss=0.0,               # overwritten after SS solve
 
         # ── GOVERNMENT BONDS ─────────────────
-        # delta_b = quarterly amortization rate; duration ≈ 1/delta_b quarters
-        # (≈7y, both countries' pre-crisis average maturities).  Long duration
-        # is what makes priced default risk generate large MTM losses (Bocola
-        # 2016).  Kept SYMMETRIC: an asymmetric delta_b shifts p_ss off 1 and
-        # opens an O(1e-4) SS goods-market wedge (see steady_state.py note).
+        # delta_b = quarterly amortization rate
         delta_b_D=0.036,        delta_b_F=0.036,
-        B_gov_D_ss=12.80,       B_gov_F_ss=12.80,
+        B_gov_D_ss=3.722,       B_gov_F_ss=3.722,   # 93% of annual GDP (= 0.93×4×Y_ss=1)
 
         # ── DEFAULT RISK (Cole-Kehoe zones × Bocola pricing) ─────────────────
         # Thresholds are FACE-value debt to quarterly Y_ss ratios.  F is always

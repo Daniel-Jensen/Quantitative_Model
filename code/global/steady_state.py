@@ -18,19 +18,7 @@ from trade import ces_price, import_demand, trade_balance
 
 
 def solve_steady_state(cal, verbose=True):
-    """Solve the two-country steady state.
-
-    NOTE on symmetry: the stage-1 external-balance condition uses the no-trade
-    approximation C ≈ Y − I − G, and with trade elasticity epsilon_trade=0.5
-    the trade balance is nearly flat in p around the symmetric point
-    (NX ∝ p^(1/2)·(P_F^(1/2)C_F − P_D^(1/2)C_D)), so p is only weakly
-    identified by external balance.  Both facts are harmless when the SS is
-    SYMMETRIC (p_ss=1, cross-border income legs cancel exactly, walras → grid
-    floor), which the baseline calibration guarantees by using identical bank
-    and bond parameters in both countries.  Country asymmetries should enter
-    through SHOCKS, not through the steady state; an asymmetric SS calibration
-    re-opens an O(1e-4) goods-market wedge (see the post-stage-2 check below).
-    """
+    "For now only works for symmetric countries! Solve the two-country steady state"
 
     # ── Income processes and asset grids ──────────────────────────────────────
     # Income grids
@@ -41,15 +29,14 @@ def solve_steady_state(cal, verbose=True):
     a_grid_D = make_asset_grid(cal, country="D")
     a_grid_F = make_asset_grid(cal, country="F")
 
-
-
-
+    # Markups 
     mc_D = markup_ss(cal, "D")
     mc_F = markup_ss(cal, "F")
 
-    # Government SS (rdep targets → bond prices)
+    # Government SS
     rdep_D_tgt = cal["r_dep_D_target"]
     rdep_F_tgt = cal["r_dep_F_target"]
+    #Dictionary of the government block
     gs_D = govt_steady_state(cal, rdep_D_tgt, "D")
     gs_F = govt_steady_state(cal, rdep_F_tgt, "F")
     Q_bD_ss = gs_D["Q_B_ss"]
@@ -59,8 +46,6 @@ def solve_steady_state(cal, verbose=True):
     B_gov_D  = cal["B_gov_D_ss"]
     B_gov_F  = cal["B_gov_F_ss"]
 
-    # D-bank: holds b_D_D = B_gov_D − b_D_F_ss (domestic) and b_F_D_ss (foreign)
-    # F-bank: holds b_F_F = B_gov_F − b_F_D_ss (domestic) and b_D_F_ss (foreign)
     b_D_D_ss = B_gov_D - b_D_F_ss
     b_F_F_ss = B_gov_F - b_F_D_ss
 
@@ -70,6 +55,7 @@ def solve_steady_state(cal, verbose=True):
         rk_D, rk_F, p = x
         ncalls[0] += 1
         try:
+            #Get capital values for each country given the current guess of rk_D and rk_F
             Kap_D = capital_demand(rk_D, mc_D, cal, country="D")
             Kap_F = capital_demand(rk_F, mc_F, cal, country="F")
 
@@ -77,38 +63,34 @@ def solve_steady_state(cal, verbose=True):
                                       b_D_D_ss, b_F_D_ss, p, country="D")
             bk_F = steady_state_bank(cal, rk_F, Kap_F, Q_bD_ss, Q_bF_ss,
                                       b_F_F_ss, b_D_F_ss, p, country="F")
-
+            
             # Capital market residuals
             res_cap_D = (bk_D["n_ss_IC"] - bk_D["n_ss_ACCUM"]) / bk_D["n_ss_ACCUM"]
             res_cap_F = (bk_F["n_ss_IC"] - bk_F["n_ss_ACCUM"]) / bk_F["n_ss_ACCUM"]
 
-            # External balance at SS: CURRENT ACCOUNT = 0 (stationary NFA).
-            # With cross-border bond books the CA includes net investment
-            # income, so NX_D = −(net income) ≠ 0 in general:
-            #   CA_D = NX_D + rb_F·(p·Q_bF·b_F_D) − rb_D·(Q_bD·b_D_F) = 0
-            # using MARKET bond prices/returns (each bond priced by its
-            # domestic bank's IC).  Imposing NX_D=0 instead leaves a Walras
-            # gap of order (rdep+ic)·(Q_bF·b_F_D − Q_bD·b_D_F).
-            # CES-adjusted SS consumption is not available yet (needs the
-            # household solve), so approximate C with Y − I − G for imports:
+            #Dictionary of the firm block 
             fm_D = steady_state_firm(cal, Kap_D, country="D")
             fm_F = steady_state_firm(cal, Kap_F, country="F")
-            C_D_approx = fm_D["C_ss"]   # Y_D − I_D − G_D (no-trade SS value)
-            C_F_approx = fm_F["C_ss"]
+            
 
+            C_D_approx = fm_D["C_ss"]
+            C_F_approx = fm_F["C_ss"]
+            # Price of consumption basket
             P_CES_D = ces_price(p, cal, country="D")
             P_CES_F = ces_price(p, cal, country="F")
+            # Import demand for each country
             IM_D = import_demand(p, C_D_approx, P_CES_D, cal, country="D")
             IM_F = import_demand(p, C_F_approx, P_CES_F, cal, country="F")
+            #Net exports 
             NX_D, _ = trade_balance(p, IM_D, IM_F)
 
-            # Market prices and returns (domestic bank is the marginal pricer)
+            # Market prices and returns
             Q_bD_mkt = bk_D["Q_bdom_IC"]
             Q_bF_mkt = bk_F["Q_bdom_IC"]
             rb_D_mkt = cal["r_dep_D_target"] + bk_D["IC_spread_dom"]
             rb_F_mkt = cal["r_dep_F_target"] + bk_F["IC_spread_dom"]
-            income_in_D  = rb_F_mkt * p * Q_bF_mkt * b_F_D_ss   # D-bank's F-bond income (D-goods)
-            income_out_D = rb_D_mkt * Q_bD_mkt * b_D_F_ss       # F-bank's D-bond income (D-goods)
+            income_in_D  = rb_F_mkt * p * Q_bF_mkt * b_F_D_ss   #coupon is priced in price of the bond. 
+            income_out_D = rb_D_mkt * Q_bD_mkt * b_D_F_ss       
 
             res_ext = (NX_D + income_in_D - income_out_D) / fm_D["Y_ss"]
 
@@ -121,6 +103,7 @@ def solve_steady_state(cal, verbose=True):
 
         return [res_cap_D, res_cap_F, res_ext]
 
+    ### -- ACTUAL SOLVER FOR THE FIRST STAGE ---
     x0 = [cal["rk_D_guess"], cal["rk_F_guess"], 1.0]
     if verbose:
         print("=== Stage 1: capital markets + external balance {rk_D, rk_F, p} ===")
@@ -131,22 +114,25 @@ def solve_steady_state(cal, verbose=True):
     rk_D_ss, rk_F_ss, p_ss = sol1.x
 
     # Re-evaluate at solution to get all SS objects
+    # capital
     Kap_D_ss = capital_demand(rk_D_ss, mc_D, cal, "D")
     Kap_F_ss = capital_demand(rk_F_ss, mc_F, cal, "F")
+
+    #bank dict
     bk_D_ss  = steady_state_bank(cal, rk_D_ss, Kap_D_ss, Q_bD_ss, Q_bF_ss,
                                   b_D_D_ss, b_F_D_ss, p_ss, "D")
     bk_F_ss  = steady_state_bank(cal, rk_F_ss, Kap_F_ss, Q_bD_ss, Q_bF_ss,
-                                  b_F_F_ss, b_D_F_ss, p_ss, "F")
+                               b_F_F_ss, b_D_F_ss, p_ss, "F")
+
+    #firm dict 
     fm_D_ss  = steady_state_firm(cal, Kap_D_ss, "D")
     fm_F_ss  = steady_state_firm(cal, Kap_F_ss, "F")
 
-    # Override government SS with IC-consistent bond prices from bank SS block.
-    # The bank backward pass has fixed point Q_bX = delta_b/(rdep+delta_b+IC_spread),
-    # which differs from the risk-free government.py price delta_b/(rdep+delta_b).
-    # Using the IC-consistent price for Tax_ss makes the SS a true fixed point of
-    # the transition dynamics (no-shock transition stays exactly at SS).
-    Q_bD_IC = bk_D_ss["Q_bdom_IC"]   # IC-consistent D-bond market price
-    Q_bF_IC = bk_F_ss["Q_bdom_IC"]   # IC-consistent F-bond market price
+    # Two price inconsistency -> use IC-consistent bond prices 
+    # Q_B_risk_free = δ_b / (rdep + δ_b) vs Q_bdom_IC = δ_b / (rdep + δ_b + IC_spread)
+
+    Q_bD_IC = bk_D_ss["Q_bdom_IC"]   
+    Q_bF_IC = bk_F_ss["Q_bdom_IC"]   
     gs_D = dict(gs_D)   # mutable copy
     gs_F = dict(gs_F)
     gs_D["Q_B_ss"] = Q_bD_IC
@@ -155,18 +141,15 @@ def solve_steady_state(cal, verbose=True):
                       + cal["delta_b_D"] * cal["B_gov_D_ss"] * (1.0 - Q_bD_IC))
     gs_F["Tax_ss"] = (cal["G_F"]
                       + cal["delta_b_F"] * cal["B_gov_F_ss"] * (1.0 - Q_bF_IC))
-    Q_bD_ss = Q_bD_IC   # update for Stage 2 income and output dict
+    Q_bD_ss = Q_bD_IC 
     Q_bF_ss = Q_bF_IC
 
-    # Store chi back into cal (GHH labour-supply prefactor)
+    # Store GHH chi and p back into cal
     cal["chi_D"] = fm_D_ss["chi"]
     cal["chi_F"] = fm_F_ss["chi"]
     cal["p_ss"]  = p_ss
 
-    # Compute and store excess_return_*_ss (for use in transition dynamics):
-    # With IC-consistent rb_for_ss = rdep + IC_spread_for, the adj-cost FOC at SS gives:
-    #   (rdep + IC_spread) - rdep - IC_spread = 0
-    # So excess_return = 0 exactly at symmetric SS.
+    # Compute Excessive Returns 
     ic_spread_bF_D = bk_D_ss["IC_spread_for"]   # = lambda_bF_D * mu_D / Omega_D
     ic_spread_bD_F = bk_F_ss["IC_spread_for"]   # = lambda_bD_F * mu_F / Omega_F
     cal["excess_return_F_D_ss"] = bk_D_ss["rb_for_ss"] - rdep_D_tgt - ic_spread_bF_D
@@ -180,7 +163,7 @@ def solve_steady_state(cal, verbose=True):
         print(f"  IC resid F={(bk_F_ss['n_ss_IC']-bk_F_ss['n_ss_ACCUM'])/bk_F_ss['n_ss_ACCUM']:.2e}")
 
     # ── Stage 2: deposit markets — solve {beta_D, beta_F} ────────────────────
-    # Government tax paths at SS
+    # Government taxes and dividends
     Tax_D_ss = gs_D["Tax_ss"]
     Tax_F_ss = gs_F["Tax_ss"]
     Div_D_ss = (1 - mc_D) * fm_D_ss["Y_ss"] + bk_D_ss["div_ss"]
@@ -196,12 +179,7 @@ def solve_steady_state(cal, verbose=True):
     if verbose:
         print("\n=== Stage 2: deposit markets {beta_D, beta_F} ===")
 
-    # Deposit-market solve: brentq over beta using tight EGM tolerance throughout.
-    # This ensures the zero we find is the true tight-tolerance zero (eliminating the
-    # ~7e-7 beta error and ~3e-3 deposit residual from using loose tol in brentq).
-    # At extreme beta values (far from the solution), EGM may not reach tight tol in
-    # the allotted iterations; we fall back to a coarser sign-only tolerance there.
-    # The residual sign is unambiguous at extreme beta so brentq direction is preserved.
+
     _tol_tight  = cal["tol_hh"]
     _tol_sign   = max(1e-5, _tol_tight * 1e4)   # fallback: only need correct sign
 
@@ -213,15 +191,14 @@ def solve_steady_state(cal, verbose=True):
         )
 
     def _egm_solve_robust(a_grid, Pi, rdep_tgt, y_e, beta, country, tol):
-        """EGM solve with fallback: tight tol near solution, sign-only tol at extremes."""
+        #EGM SOLVE WITH A FALLBACK ON LOWER TOLERENCE IF THE FIRST ATTEMPT FAILS
         try:
             return _egm_solve(a_grid, Pi, rdep_tgt, y_e, beta, country, tol)
         except RuntimeError:
             return _egm_solve(a_grid, Pi, rdep_tgt, y_e, beta, country, _tol_sign)
 
     def deposit_resid_D(beta_D, tol=_tol_tight):
-        # Non-labour income is in D-goods; divide by P_CES to get composite
-        # units, matching the real wage and transition.py's income convention.
+        # CALCULATE THE DEPOSITS MARKET RESIDUAL FROM THE STEADY STATE HOUSEHOLD PROBLEM
         w_real_D = fm_D_ss["w_ss"] / P_CES_D_ss
         y_e_D = w_real_D * e_D + (Div_D_ss - Tax_D_ss) / P_CES_D_ss
         c_ss_D, a_pol_D = _egm_solve_robust(a_grid_D, Pi_D, rdep_D_tgt, y_e_D, beta_D, "D", tol)
@@ -233,6 +210,7 @@ def solve_steady_state(cal, verbose=True):
         return val, (c_ss_D, a_pol_D, D_ss_D, A_ss_D, y_e_D)
 
     def deposit_resid_F(beta_F, tol=_tol_tight):
+        # CALCULATE THE DEPOSITS MARKET RESIDUAL FROM THE STEADY STATE HOUSEHOLD PROBLEM
         w_real_F = fm_F_ss["w_ss"] / P_CES_F_ss
         y_e_F = w_real_F * e_F + (Div_F_ss - Tax_F_ss) / P_CES_F_ss
         c_ss_F, a_pol_F = _egm_solve_robust(a_grid_F, Pi_F, rdep_F_tgt, y_e_F, beta_F, "F", tol)
@@ -242,11 +220,14 @@ def solve_steady_state(cal, verbose=True):
         if verbose:
             print(f"  beta_F={beta_F:.8f}  A_F − Dep_F = {val:.4e}")
         return val, (c_ss_F, a_pol_F, D_ss_F, A_ss_F, y_e_F)
-
+    
+    #calculate the upper bound for beta to ensure that the deposit rate is positive
     beta_upper_D = 1 / (1 + rdep_D_tgt) - 1e-4
     beta_upper_F = 1 / (1 + rdep_F_tgt) - 1e-4
-    beta_D_ss = brentq(lambda b: deposit_resid_D(b)[0], 0.5, beta_upper_D, xtol=1e-8)
-    beta_F_ss = brentq(lambda b: deposit_resid_F(b)[0], 0.5, beta_upper_F, xtol=1e-8)
+
+    #ACTUALLY SOLVE FOR THE STEADY STATE DISCOUNT FACTORS USING THE BRENTQ METHOD
+    beta_D_ss = brentq(lambda b: deposit_resid_D(b)[0], 0.5, beta_upper_D, xtol=1e-9)
+    beta_F_ss = brentq(lambda b: deposit_resid_F(b)[0], 0.5, beta_upper_F, xtol=1e-9)
 
     # Re-solve at tight tolerance to get accurate policy functions
     _, (c_D_ss, a_pol_D_ss, D_D_ss, A_D_ss, y_e_D) = deposit_resid_D(beta_D_ss, tol=cal["tol_hh"])

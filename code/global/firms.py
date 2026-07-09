@@ -2,17 +2,13 @@
 
 
 def markup_ss(cal, country="D"):
-    "Real marginal cost (inverse markup). Constant under full price flexibility."
+    #Calculates the steady-state markup (flex prices) 
     return (cal[f"epsilon_{country}"] - 1) / cal[f"epsilon_{country}"]
 
 
 def steady_state_firm(cal, Kap_ss, country="D"):
-    """Steady-state firm block. N_ss = 1 by normalisation; back-solves chi
-    from the GHH labour-supply FOC chi·N^(1/frisch) = w/P_CES (P_CES=1 at SS).
-
-    Returns: chi, mc_ss, w_ss, mpk_ss, N_ss, Y_ss, C_ss, I_ss.
-    C_ss is residual Y − I − G (goods-market identity at SS).
-    """
+    # Easy peasy steady state in a Cobb-Douglas firm 
+    
     alpha  = cal[f"alpha_{country}"]
     delta  = cal[f"delta_{country}"]
     Z_ss   = cal[f"Z_ss_{country}"]
@@ -27,8 +23,7 @@ def steady_state_firm(cal, Kap_ss, country="D"):
     I_ss   = delta * Kap_ss
     C_ss   = Y_ss - I_ss - G
 
-    # GHH static FOC at SS (P_CES normalised to 1 at symmetric SS):
-    #   chi * N_ss^(1/frisch) = w_ss  →  chi = w_ss / N_ss^(1/frisch)
+    # GHH static FOC at SS.
     chi = w_ss / (N_ss ** (1 / frisch))
 
     return dict(chi=chi, mc_ss=mc_ss, w_ss=w_ss, mpk_ss=mpk_ss,
