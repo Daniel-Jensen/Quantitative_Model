@@ -61,44 +61,9 @@ def ck_default_prob(b_gov, Y_ss, cal, sunspot, country):
 
 def govt_transition(cal, gs, Q_B_path, def_real_path, country, b_gov0=None,
                     b_anchor=None):
-    """Government flows along a transition path: single forward recursion.
+  # CALCULATES TAX ADJUSTMENT TAKING PRICES AS GIVEN (NO FEEDBACK FROM TAXES TO PRICES), AND THE ENTIRE SPENDING PATH
 
-    At each t (b_gov = beginning-of-period stock, b_gov[0] = b_gov_ss):
-      Tax[t]       = Tax_ss + phi_lamb·(b_gov[t] − b_gov_ss)      [Bohn rule]
-      surv[t]      = 1 − def_real[t]·(1 − recovery_rate)          [REALIZED]
-      coupon[t]    = delta_b · b_gov[t] · surv[t]
-      new_bonds[t] = (G + coupon[t] − Tax[t]) / Q_B[t]
-      b_eop[t]     = (1−delta_b)·b_gov[t]·surv[t] + new_bonds[t]
-      b_gov[t+1]   = b_eop[t]
-
-    Verification at SS (def_real=0, Q=Q_ss): Tax_ss = G + delta_b·B_ss·(1−Q_ss)
-      → b_eop = (1−db)B_ss + db·B_ss = B_ss.  ✓ stationary.
-
-    Currency convention: D-bonds are D-good claims, F-bonds are F-good claims;
-    each country's flows are in its own good (no p conversion).
-
-    Parameters
-    ----------
-    gs            : steady-state government dict (from govt_steady_state,
-                    with Tax_ss/Q_B_ss overridden to IC-consistent values
-                    by steady_state.py).
-    Q_B_path      : (T,) bond price path from bank_backward (embeds priced risk).
-    def_real_path : (T,) REALIZED default path (None → zeros).
-    b_gov0        : beginning-of-period-0 debt stock (None → b_gov_ss).
-                    Used when the path starts mid-crisis (default branches,
-                    policy experiments).
-    b_anchor      : Bohn-rule debt anchor (None → b_gov_ss).  Post-default
-                    branches re-anchor to the post-haircut stock so the
-                    haircut does NOT translate into windfall tax cuts
-                    (φ·(b − b_ss) would otherwise be a large transfer to
-                    households, making default expansionary).  The base tax
-                    is re-set to balance the budget at the anchor:
-                    Tax_base = G + delta_b·b_anchor·(1 − Q_B_ss).
-
-    Returns dict (own-good units, shape (T,)):
-      Tax, coupon, net_issuance (= Q·new_bonds), b_gov (beginning-of-period),
-      b_gov_eop (end-of-period stock = what banks must hold at t).
-    """
+    # unpack parameters
     delta_b       = cal[f"delta_b_{country}"]
     recovery_rate = cal[f"recovery_rate_{country}"]
     phi_lamb      = cal[f"phi_lamb_{country}"]
@@ -107,6 +72,7 @@ def govt_transition(cal, gs, Q_B_path, def_real_path, country, b_gov0=None,
     b_gov_ss      = gs["b_gov_ss"]
     T             = len(Q_B_path)
 
+    # initialize arrays
     if def_real_path is None:
         def_real_path = np.zeros(T)
 
@@ -123,12 +89,18 @@ def govt_transition(cal, gs, Q_B_path, def_real_path, country, b_gov0=None,
     coupon    = np.empty(T)
     net_iss   = np.empty(T)
 
+    # steady state value of bonds
     b = float(b_gov_ss if b_gov0 is None else b_gov0)
     for t in range(T):
         b_gov_bop[t] = b
+        #tax rule
         Tax[t]    = Tax_base + phi_lamb * (b - b_anchor)
+
+        # Coupon payments calculation
         surv_t    = 1.0 - def_real_path[t] * (1.0 - recovery_rate)
         coupon[t] = delta_b * b * surv_t
+
+        #new bonds
         new_bonds = (G + coupon[t] - Tax[t]) / Q_B_path[t]
         net_iss[t] = Q_B_path[t] * new_bonds
         b = (1.0 - delta_b) * b * surv_t + new_bonds

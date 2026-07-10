@@ -1,16 +1,9 @@
-"""Capital block: Cobb-Douglas capital demand and the Jermann (1998)
-convex capital-adjustment cost (capital producer).
-
-Functions accept a `country` argument ("D" or "F") to select country-
-specific parameters (alpha, delta, ksi) from the calibration dict.
-The Jermann inversion is identical for both countries; only the parameters
-and the level of Kap differ.
-"""
+"Capital block: Cobb-Douglas capital demand and the Jermann (1998) convex capital-adjustment cost (capital producer)."
 import numpy as np
 
 
 def gamma_params(cal, country="D"):
-    "Jermann (1998) steady-state-consistency parameters (Q_ss=1 at SS)."
+    # JERMANN (1998) CAPITAL-ADJUSTMENT COST PARAMETERS
     delta = cal[f"delta_{country}"]
     ksi   = cal[f"ksi_{country}"]
     gamma0 = delta ** ksi / (1 - ksi)
@@ -19,7 +12,7 @@ def gamma_params(cal, country="D"):
 
 
 def capital_demand(rk_ss, mc_ss, cal, country="D"):
-    # Inverted capital demand from Cobb-Douglas 
+    # INVERTED CAPITAL DEMAND FROM COBB-DOUGLAS
 
     alpha = cal[f"alpha_{country}"]
     delta = cal[f"delta_{country}"]
@@ -29,26 +22,20 @@ def capital_demand(rk_ss, mc_ss, cal, country="D"):
 
 
 def solve_capital_path(Kap_path, Kap_ss, Q_ss, mpk_path, cal, country="D"):
-    """Jermann adjustment-cost block along the transition.
+    # CAPITAL ALONG THE TRANSTION 
 
-    Given guessed Kap_path (outer unknown) and mpk_path (from firms.py),
-    inverts the law of motion for investment iota_t and computes Tobin's Q
-    and the realised capital return rk_t.
-
-    Returns dict: iota, Q, rk, I, cap_profit — all shape (T,).
-    """
     delta  = cal[f"delta_{country}"]
     ksi    = cal[f"ksi_{country}"]
+    # get the jerman adjustment cost parameters
     gamma0, gamma1 = gamma_params(cal, country)
+    
     T = len(Kap_path)
 
     Kap_lag = np.concatenate(([Kap_ss], Kap_path[:-1]))
     bracket = (Kap_path / Kap_lag - (1 - delta) - gamma1) / gamma0
-    if np.any(bracket < 0):
-        raise ValueError(
-            f"[{country}] Jermann inversion: negative bracket "
-            "(capital falling faster than adjustment-cost technology allows)"
-        )
+
+    
+    # compute the capital-adjustment cost and the price of capital Q given firm path
     iota  = bracket ** (1 / (1 - ksi))
     Q     = 1.0 / (gamma0 * (1 - ksi) * iota ** (-ksi))
 

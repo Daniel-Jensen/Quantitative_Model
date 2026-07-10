@@ -209,37 +209,39 @@ def bank_backward(rk_D, rk_F, rdep_D, rdep_F, p_path,
     """
     T = len(rk_D)
 
+    # checks if there's anything that changes the risk of default
     if def_price_D is None:
         def_price_D = np.zeros(T)
     if def_price_F is None:
         def_price_F = np.zeros(T)
 
+    # unpack some calibration params
     f_D        = cal["f_D"];          f_F        = cal["f_F"]
     bi_D       = cal["beta_inter_D"]; bi_F       = cal["beta_inter_F"]
     lK_D       = cal["lambda_K_D"];   lK_F       = cal["lambda_K_F"]
     lbD_D      = cal["lambda_bD_D"];  lbD_F      = cal["lambda_bD_F"]
     lbF_D      = cal["lambda_bF_D"];  lbF_F      = cal["lambda_bF_F"]
     db_D       = cal["delta_b_D"];    db_F       = cal["delta_b_F"]
-    psi_bFD    = cal["psi_bF_D"]      # D-bank adj cost for F-bond deviation
-    psi_bDF    = cal["psi_bD_F"]      # F-bank adj cost for D-bond deviation
+    psi_bFD    = cal["psi_bF_D"]      
+    psi_bDF    = cal["psi_bD_F"]      
     b_F_D_ss   = cal["b_F_D_ss"]
     b_D_F_ss   = cal["b_D_F_ss"]
     exc_FD_ss  = cal["excess_return_F_D_ss"]
     exc_DF_ss  = cal["excess_return_D_F_ss"]
     rec_D      = cal["recovery_rate_D"]; rec_F = cal["recovery_rate_F"]
 
+    # Initialize paths for backward recursion -> margin slopes, bond prices, and FOC holdings.
     alpha_D_path = np.empty(T);  mu_D_path = np.empty(T)
     alpha_F_path = np.empty(T);  mu_F_path = np.empty(T)
     Omega_D_path = np.empty(T);  Omega_F_path = np.empty(T)
     Q_bD_path    = np.empty(T);  Q_bF_path = np.empty(T)
     b_F_D_path   = np.empty(T);  b_D_F_path = np.empty(T)
-    ic_bD_D_path = np.empty(T)   # lambda_bD_D·mu_D/Omega_D (liquidity premium on D-bonds)
-    ic_bF_F_path = np.empty(T)   # lambda_bF_F·mu_F/Omega_F (liquidity premium on F-bonds)
+    ic_bD_D_path = np.empty(T)   
+    ic_bF_F_path = np.empty(T)   
 
+    # Terminal period conditions 
     alpha_D_next = ss_bk_D["alpha_ss"]
     alpha_F_next = ss_bk_F["alpha_ss"]
-
-    # IC-consistent SS bond prices (terminal condition for backward pass).
     ic_spread_bD_ss = ss_bk_D["lambda_bD"] * ss_bk_D["mu_ss"] / ss_bk_D["Omega_ss"]
     ic_spread_bF_ss = ss_bk_F["lambda_bF"] * ss_bk_F["mu_ss"] / ss_bk_F["Omega_ss"]
     Q_bD_ss_val = cal["delta_b_D"] / (cal["r_dep_D_target"] + cal["delta_b_D"] + ic_spread_bD_ss)
@@ -247,7 +249,7 @@ def bank_backward(rk_D, rk_F, rdep_D, rdep_F, p_path,
     Q_bD_next   = Q_bD_ss_val
     Q_bF_next   = Q_bF_ss_val
 
-    # Risk-channel inputs (two-branch expectations over the D-default event)
+    # Risk-channel inputs - in the case of no change in the risk of default it doesn't matter
     risk_mode = risk_D is not None
     if risk_mode:
         pi_path   = np.asarray(risk_D["pi"])
@@ -260,30 +262,33 @@ def bank_backward(rk_D, rk_F, rdep_D, rdep_F, p_path,
         # must match the default branch's realized haircut)
         surv_d    = float(np.asarray(risk_D.get("surv_d", rec_D)))
 
+    # Backward recursion over time
     for t in range(T - 1, -1, -1):
-        # At the terminal period, rk[T] is unknown; use rk[T-1] as the SS approximation.
+        # terminal conditions rk[T] is unknown; use rk[T-1] as the SS approximation.
         rk_D_next = rk_D[t + 1] if t + 1 < T else rk_D[T - 1]
         rk_F_next = rk_F[t + 1] if t + 1 < T else rk_F[T - 1]
-        # Next-period PRICED default probability (expected haircut in prices)
+
         defp_D_next = def_price_D[t + 1] if t + 1 < T else 0.0
         defp_F_next = def_price_F[t + 1] if t + 1 < T else 0.0
         p_next = p_path[t + 1] if t + 1 < T else p_path[t]  # terminal: p constant
 
         if not risk_mode:
-            # ── Risk-neutral backward step (expected-haircut surv form) ──
-            # D-bank
+            # Risk-neutral backward step
+            #continuation value of the bankers 
             Omega_D = bi_D * ((1 - f_D) + f_D * alpha_D_next)
+            #the ic multiplier
             mu_D    = Omega_D * (rk_D_next - rdep_D[t]) / lK_D
             if mu_D >= 1.0:
                 raise RuntimeError(f"D-bank mu_D={mu_D:.4f} ≥ 1 at t={t}; IC infeasible.")
+            # the franchise value (marginal value of net worth)
             alpha_D = Omega_D * (1 + rdep_D[t]) / (1 - mu_D)
 
             # HM pricing: Q_bD = surv^e_{t+1}·(db + (1-db)·Q_next) / (1 + rdep + IC_spread)
             ic_spread_bD_D = lbD_D * mu_D / Omega_D
-            surv_D_price   = 1.0 - defp_D_next * (1.0 - rec_D)
-            Q_bD = surv_D_price * (db_D + (1 - db_D) * Q_bD_next) / (1 + rdep_D[t] + ic_spread_bD_D)
+            surv_D_price   = 1.0 - defp_D_next * (1.0 - rec_D) #here its zero i think 
+            Q_bD = surv_D_price * (db_D + (1 - db_D) * Q_bD_next) / (1 + rdep_D[t] + ic_spread_bD_D) #nominator: coupons and un depreciated value, denominator: alternative cost
 
-            # F-bank
+            # F-bank repetition 
             Omega_F = bi_F * ((1 - f_F) + f_F * alpha_F_next)
             mu_F    = Omega_F * (rk_F_next - rdep_F[t]) / lK_F
             if mu_F >= 1.0:
@@ -294,7 +299,7 @@ def bank_backward(rk_D, rk_F, rdep_D, rdep_F, p_path,
             surv_F_price   = 1.0 - defp_F_next * (1.0 - rec_F)
             Q_bF = surv_F_price * (db_F + (1 - db_F) * Q_bF_next) / (1 + rdep_F[t] + ic_spread_bF_F)
 
-            # Cross-border FOCs: expected returns with priced survival
+            # Cross-border FOCs: expected returns with priced survival and their pricing parameter
             rb_F_in_D = ((surv_F_price * (db_F + (1 - db_F) * Q_bF_next) / Q_bF)
                          * p_next / p_path[t] - 1)
             ic_required_bF_D = lbF_D * mu_D / Omega_D
@@ -361,6 +366,7 @@ def bank_backward(rk_D, rk_F, rdep_D, rdep_F, p_path,
             Omega_D = Omega_til_D   # stored below (Ω̃ used at t)
             Omega_F = Omega_til_F
 
+        # Cross-border FOC holdings (end-of-period, after realized returns)
         b_F_D_t = (b_F_D_ss
                    + (rb_F_in_D - rdep_D[t] - exc_FD_ss - ic_required_bF_D)
                    / psi_bFD)
@@ -397,28 +403,7 @@ def bank_forward(Kap_D, Kap_F, Q_D, Q_F, rk_D, rk_F, rdep_D, rdep_F, p_path,
                  def_real_D=None, def_real_F=None,
                  init_D=None, init_F=None,
                  Q_bD_lag0=None, Q_bF_lag0=None, p_lag0=None):
-    """Forward pass for both banks: realized returns, net-worth accumulation,
-    IC-implied net worth, dividends and deposit supply.
-
-    b_D_D_path, b_F_F_path : domestic bond holdings from market clearing
-                             (end-of-period government stock minus the foreign
-                             bank's FOC holding — computed in transition.py)
-    bwd                    : output dict of bank_backward()
-    def_real_D/F           : (T,) REALIZED default (haircut) paths — enter
-                             realized bond returns only.  None → 0 (Bocola
-                             risk-only experiment: priced but never realized).
-    init_D/init_F          : optional dicts with keys (n_prev, kappa_prev,
-                             phi_bdom_prev, phi_bfor_prev, rdep_prev) — the
-                             bank state carried into period 0 when the path
-                             starts mid-crisis (default branch / policy runs).
-                             None → steady-state values (current behaviour).
-    Q_bD_lag0, Q_bF_lag0   : period −1 bond prices for realized returns at
-                             t=0 (None → IC-consistent SS prices).
-    p_lag0                 : period −1 real exchange rate (None → p_ss).
-
-    Returns dict of paths: n_IC_D, n_D, rn_D, div_D, theta_D, Dep_supply_D,
-    rb_D, and F analogues, plus pass-through of holdings b_D_D, b_F_F.
-    """
+    # GIVEN THE PRICES AND CROSS BORDER HOLDINGS FROM THE BACKWARD PASS, LET US CALCULATE THE FORWARD PATHS OF NET WORTH AND DIVIDENDS
     T = len(Kap_D)
 
     if def_real_D is None:
@@ -426,6 +411,7 @@ def bank_forward(Kap_D, Kap_F, Q_D, Q_F, rk_D, rk_F, rdep_D, rdep_F, p_path,
     if def_real_F is None:
         def_real_F = np.zeros(T)
 
+    # unpack calibration
     f_D   = cal["f_D"];           f_F   = cal["f_F"]
     lK_D  = cal["lambda_K_D"];    lK_F  = cal["lambda_K_F"]
     lbD_D = cal["lambda_bD_D"];   lbD_F = cal["lambda_bD_F"]
@@ -433,6 +419,7 @@ def bank_forward(Kap_D, Kap_F, Q_D, Q_F, rk_D, rk_F, rdep_D, rdep_F, p_path,
     rec_D = cal["recovery_rate_D"]; rec_F = cal["recovery_rate_F"]
     db_D  = cal["delta_b_D"];     db_F  = cal["delta_b_F"]
 
+    # unpack from the backward path 
     Q_bD_path = bwd["Q_bD"];  Q_bF_path = bwd["Q_bF"]
     b_F_D_path = bwd["b_F_D"];  b_D_F_path = bwd["b_D_F"]
     alpha_D_path = bwd["alpha_D"];  alpha_F_path = bwd["alpha_F"]
@@ -448,12 +435,14 @@ def bank_forward(Kap_D, Kap_F, Q_D, Q_F, rk_D, rk_F, rdep_D, rdep_F, p_path,
     rb_D_path = (db_D * surv_D_real + (1 - db_D) * Q_bD_path * surv_D_real) / Q_bD_lag - 1
     rb_F_path = (db_F * surv_F_real + (1 - db_F) * Q_bF_path * surv_F_real) / Q_bF_lag - 1
 
+
+    # initialize forward paths
     n_IC_D = np.empty(T);  n_ACCUM_D = np.empty(T)
     rn_D   = np.empty(T);  div_D     = np.empty(T)
     n_IC_F = np.empty(T);  n_ACCUM_F = np.empty(T)
     rn_F   = np.empty(T);  div_F     = np.empty(T)
 
-    # D-bank forward state (SS by default; overridable for mid-path starts)
+    # D-bank forward state (SS by default
     if init_D is None:
         init_D = dict(n_prev=ss_bk_D["n_ss"], kappa_prev=ss_bk_D["kappa_ss"],
                       phi_bdom_prev=ss_bk_D["phi_bdom_ss"],
@@ -480,6 +469,7 @@ def bank_forward(Kap_D, Kap_F, Q_D, Q_F, rk_D, rk_F, rdep_D, rdep_F, p_path,
     p_l0 = cal.get("p_ss", 1.0) if p_lag0 is None else p_lag0
 
     for t in range(T):
+        #price conversion
         p_t   = p_path[t]
         p_lag = p_path[t - 1] if t > 0 else p_l0
 
@@ -487,6 +477,7 @@ def bank_forward(Kap_D, Kap_F, Q_D, Q_F, rk_D, rk_F, rdep_D, rdep_F, p_path,
         rb_D_t = rb_D_path[t]
         rb_F_t = (1.0 + rb_F_path[t]) * p_t / p_lag - 1   # F-goods → D-goods
 
+        #return on net worth 
         rn_D_t = (kappa_D_prev * (rk_D[t] - rdep_D_prev)
                   + phi_bdom_D_prev * (rb_D_t - rdep_D_prev)
                   + phi_bfor_D_prev * (rb_F_t - rdep_D_prev)
@@ -495,7 +486,9 @@ def bank_forward(Kap_D, Kap_F, Q_D, Q_F, rk_D, rk_F, rdep_D, rdep_F, p_path,
         total_assets_D = (Q_D[t] * Kap_D[t] + Q_bD_path[t] * b_D_D_path[t]
                           + p_t * Q_bF_path[t] * b_F_D_path[t])
         entrant_D   = cal["omega_ent_D"] * total_assets_D
+        #assets that remain in the bank after dividend payout and new entrants
         n_ACCUM_D_t = (1 - f_D) * gross_D + entrant_D
+        #net dividends paid to shareholders (after new entrants)
         div_D_t     = f_D * gross_D - entrant_D
         n_ACCUM_D[t] = n_ACCUM_D_t
         rn_D[t]  = rn_D_t
@@ -506,7 +499,7 @@ def bank_forward(Kap_D, Kap_F, Q_D, Q_F, rk_D, rk_F, rdep_D, rdep_F, p_path,
                     + lbD_D * Q_bD_path[t] * b_D_D_path[t]
                     + lbF_D * p_t * Q_bF_path[t] * b_F_D_path[t]) / alpha_D_path[t]
         n_IC_D[t] = n_IC_D_t
-
+        #calculate the leverage ratios for the next period
         kappa_D_prev    = Q_D[t] * Kap_D[t] / n_IC_D_t
         phi_bdom_D_prev = Q_bD_path[t] * b_D_D_path[t] / n_IC_D_t
         phi_bfor_D_prev = p_t * Q_bF_path[t] * b_F_D_path[t] / n_IC_D_t

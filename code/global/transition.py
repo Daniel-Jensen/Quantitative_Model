@@ -55,6 +55,8 @@ def _inner_economy(N_D, N_F, Kap_D, Kap_F, rdep_D, rdep_F, p_path,
                    def_price_D=None, def_price_F=None,
                    def_real_D=None, def_real_F=None,
                    init=None, risk_D=None):
+    
+    #GIVEN GUESSES CALCULATE EVERYTHING THATS INNER ECONOMY
     """Given the outer guesses, solve all inner blocks for both countries.
 
     init   : optional dict of period-(-1)/period-0 initial conditions for
@@ -71,21 +73,21 @@ def _inner_economy(N_D, N_F, Kap_D, Kap_F, rdep_D, rdep_F, p_path,
     if init is None:
         init = {}
 
-    # ── Firms ─────────────────────────────────────────────────────────────────
+    # ── Firms
     firm_D = solve_firm_path(N_D, Kap_D, Z_D_path, cal, country="D")
     firm_F = solve_firm_path(N_F, Kap_F, Z_F_path, cal, country="F")
 
-    # ── Capital ───────────────────────────────────────────────────────────────
+    # ── Capital 
     cap_D = solve_capital_path(Kap_D, init.get("Kap_lag_D", ss["Kap_D_ss"]),
                                init.get("Q_lag_D", 1.0), firm_D["mpk"], cal, country="D")
     cap_F = solve_capital_path(Kap_F, init.get("Kap_lag_F", ss["Kap_F_ss"]),
                                init.get("Q_lag_F", 1.0), firm_F["mpk"], cal, country="F")
 
-    # ── Trade / CES ───────────────────────────────────────────────────────────
+    # ── Trade / CES 
     P_CES_D = np.array([ces_price(p, cal, "D") for p in p_path])
     P_CES_F = np.array([ces_price(p, cal, "F") for p in p_path])
 
-    # ── Bank backward pass: prices and cross-border FOC holdings ─────────────
+    # ── Bank backward pass: prices and cross-border FOC holdings
     bwd = bank_backward(
         cap_D["rk"], cap_F["rk"], rdep_D, rdep_F, p_path,
         cal, ss["ss_bank_D"], ss["ss_bank_F"],
@@ -119,22 +121,24 @@ def _inner_economy(N_D, N_F, Kap_D, Kap_F, rdep_D, rdep_F, p_path,
     )
     bk = {**bwd, **fwd}
 
-    # ── Dividends ─────────────────────────────────────────────────────────────
+    # Why we have both bank forward and backward: backward is used to get the expected returns and the FOCs, 
+    # while forward is used to get the actual realized flows and net worth of the banks. 
+    # The backward pass uses the expected default probabilities to price the bonds and determine the optimal holdings, while the forward pass uses the realized default probabilities to update the banks' balance sheets and dividends.
+
+
+    # ── Calculate bunch of things
     mc_D = markup_ss(cal, "D")
     mc_F = markup_ss(cal, "F")
     Div_D = (1 - mc_D) * firm_D["Y"] + cap_D["cap_profit"] + bk["div_D"]
     Div_F = (1 - mc_F) * firm_F["Y"] + cap_F["cap_profit"] + bk["div_F"]
 
-    # ── GHH income and labour disutility ───────────────────────────────────────
     chi_D   = cal["chi_D"];   frisch_D = cal["frisch_D"]
     chi_F   = cal["chi_F"];   frisch_F = cal["frisch_F"]
     sigma_D = cal["sigma_D"]; sigma_F  = cal["sigma_F"]
 
-    # Labour disutility v(N) = chi·N^(1+1/frisch)/(1+1/frisch)
     vN_D = chi_D * N_D ** (1 + 1 / frisch_D) / (1 + 1 / frisch_D)
     vN_F = chi_F * N_F ** (1 + 1 / frisch_F) / (1 + 1 / frisch_F)
 
-    # Effective real income (real wage × idiosyncratic e + non-labour income)
     w_real_D = firm_D["w"] / P_CES_D     # real wage in D-consumption units
     w_real_F = firm_F["w"] / P_CES_F
     e_D = ss["e_D"];  e_F = ss["e_F"]
@@ -226,42 +230,20 @@ def solve_transition(ss, cal, Z_D_path, Z_F_path,
                      verbose=True, maxiter=300, y0=None,
                      init=None, risk_D=None, try_krylov=True,
                      hybr_factor=100.0):
-    """Solve the two-country transition path.
+    
+    # SOLVE THE 2 COUNTRY TRANSITION PATH
 
-    Arguments
-    ---------
-    ss            : steady-state dict from solve_steady_state()
-    cal           : calibration dict (mutated in-place with chi, excess_return)
-    Z_D_path      : TFP path for D (length T)
-    Z_F_path      : TFP path for F (length T)
-    def_price_D/F : PRICED default probability paths or None (zeros)
-    def_real_D/F  : REALIZED default (haircut) paths or None (zeros)
-    y0            : optional warm-start for the 7T unknown vector (homotopy)
-    init          : optional initial-conditions dict for mid-crisis starts
-                    (see _inner_economy docstring); None → SS start
-    risk_D        : optional Bocola risk-channel inputs (see bank_backward /
-                    risk_branch.py); None → risk-neutral pricing
-    hybr_factor   : hybr initial trust-region factor (scipy default 100).
-                    Large trial steps can cross the alpha-explosion penalty
-                    wall in bank_backward and poison the finite-difference
-                    Jacobian, stalling hybr at the warm start; a small
-                    factor (e.g. 0.1) keeps early steps feasible — used by
-                    risk_branch's ladder rescue for flat (near-SS) starts.
-
-    Returns
-    -------
-    dict with all 7T outer unknowns and all inner time paths, including the
-    endogenous government debt paths b_gov_D/b_gov_F (end-of-period).
-    """
     T = cal["T"]
     assert len(Z_D_path) == T and len(Z_F_path) == T
 
+    # Steay state anchor
     Kap_D_ss = ss["Kap_D_ss"]
     Kap_F_ss = ss["Kap_F_ss"]
     N_ss     = 1.0
 
+    # Empty arrays for initial guess if not provided--
     if y0 is None:
-        y0 = np.concatenate([
+        y0 = np.concatenate([ 
             np.full(T, N_ss),             # N_D
             np.full(T, N_ss),             # N_F
             np.full(T, Kap_D_ss),         # Kap_D
@@ -280,19 +262,20 @@ def solve_transition(ss, cal, Z_D_path, Z_F_path,
     G_D     = cal["G_D"]
 
     def residual(y):
+        #GET ME THE RESIDUALS FOR THE 7T MARKET CLEARING CONDITIONS
         ncalls[0] += 1
         N_D, N_F     = y[:T], y[T:2*T]
         Kap_D, Kap_F = y[2*T:3*T], y[3*T:4*T]
         rdep_D, rdep_F = y[4*T:5*T], y[5*T:6*T]
         p_path       = y[6*T:7*T]
 
-        # Domain guard: fractional powers of non-positive p/N/K produce NaNs
-        # that do NOT raise — penalize explicitly before they poison hybr.
+        # Domain guard if any those are below the treshhold -> punish severely
         if (np.any(p_path <= 0.05) or np.any(N_D <= 0.01) or np.any(N_F <= 0.01)
                 or np.any(Kap_D <= 0.1) or np.any(Kap_F <= 0.1)):
-            return np.full(7 * T, 10.0)
+            return np.full(7 * T, 100.0)
 
         try:
+            # calculate a full inner economy given the outer guess for the 7T unknowns 
             out = _inner_economy(
                 N_D, N_F, Kap_D, Kap_F, rdep_D, rdep_F, p_path,
                 Z_D_path, Z_F_path, ss, cal,
@@ -302,8 +285,9 @@ def solve_transition(ss, cal, Z_D_path, Z_F_path,
             )
         except (ValueError, RuntimeError, FloatingPointError) as e:
             if verbose:
+                # Again punish if anything goes wrong 
                 print(f"  call {ncalls[0]:3d}: FAILED ({e}); penalising")
-            return np.full(7 * T, 10.0)
+            return np.full(7 * T, 100.0)
 
         bk     = out["bk"]
         firm_D = out["firm_D"]
@@ -348,9 +332,9 @@ def solve_transition(ss, cal, Z_D_path, Z_F_path,
 
         return resid
 
-    accept_tol = max(cal["tol_mkt"] * 100, 1e-6)
+    accept_tol = max(cal["tol_mkt"], 1e-6)
     sol = root(residual, y0, method="hybr",
-               options={"maxfev": max(maxiter * (7 * T + 1), 5000),
+               options={"maxfev": max(maxiter * (7 * T + 1), 50000),
                         "factor": hybr_factor})
     resid_norm = np.max(np.abs(residual(sol.x)))
 

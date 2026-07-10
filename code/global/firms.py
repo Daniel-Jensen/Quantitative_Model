@@ -2,12 +2,12 @@
 
 
 def markup_ss(cal, country="D"):
-    #Calculates the steady-state markup (flex prices) 
+    #CALCULATES THE STEADY STATE MARKUP (FLEX PRICES)
     return (cal[f"epsilon_{country}"] - 1) / cal[f"epsilon_{country}"]
 
 
 def steady_state_firm(cal, Kap_ss, country="D"):
-    # Easy peasy steady state in a Cobb-Douglas firm 
+    # EASY PEASY COBB DOUGLAS PRODUCTION FUNCTION
     
     alpha  = cal[f"alpha_{country}"]
     delta  = cal[f"delta_{country}"]
@@ -31,6 +31,8 @@ def steady_state_firm(cal, Kap_ss, country="D"):
 
 
 def solve_firm_path(N_path, Kap_path, Z_path, cal, country="D"):
+    # WE CAN SOLVE THE ENTIRE FIRM BLOCK IN ONE GO, GIVEN THE PATHS OF N, K, AND Z.
+
     """Firm quantities along a transition path (purely contemporaneous).
 
     Returns dict: Y, w, mpk, mc — all shape (T,).

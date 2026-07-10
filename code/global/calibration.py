@@ -13,7 +13,7 @@ def get_calibration():
         # ── HOUSEHOLD PREFERENCES (GHH) ─────────────────────────────────────
         sigma_D=2.0,   sigma_F=2.0,
         frisch_D=0.5,  frisch_F=0.5,
-        chi_D=1.0,     chi_F=1.0,      # initial guess; overwritten in SS solve to match Nss=1
+        chi_D= 0.5417,     chi_F= 0.5417,      #guess from one of the previous runs of the model 
 
         # ── IDIOSYNCRATIC INCOME PROCESS (Rouwenhorst) ───────────────────────
         n_e_D=2,     n_e_F=2,
@@ -62,8 +62,6 @@ def get_calibration():
         # fundamental default in the risk-only experiment).
         b_ck_low_D=3.00,        b_ck_low_F=99.0,
         b_ck_high_D=6.00,       b_ck_high_F=99.0,
-        # Recovery = 1 − haircut; haircut 0.55 per Greek PSI 2012
-        # (Zettelmeyer-Trebesch-Gulati 2013, used by Bocola 2016).
         recovery_rate_D=0.45,   recovery_rate_F=0.45,
 
         # ── DEFAULT STATE (risk-channel branch) ──────────────────────────────
@@ -110,7 +108,7 @@ def get_calibration():
         omega_home=0.85,       epsilon_trade=0.5,
 
         # ── SOLVER SETTINGS ───────────────────────────────────────────────────
-        T=100,
+        T=300,
         tol_hh=1e-11,
         tol_dist=1e-11,
         tol_mkt=1e-11,

@@ -100,14 +100,19 @@ def main():
     plot_household_policies(ss, cal)
     print(f"\nFigures saved to {OUTDIR}")
 
+    ### TFP SHOCK TRANSITION (baseline, no default) ───────────────────────────────
+
     print("\n" + "=" * 65)
     print("  TFP shock in country D: rho=0.8, shock=0.01")
     print("=" * 65)
+
+    #Generating a shock path 
     rho_z, shock0 = 0.8, 0.01
-    Z_D_path = cal["Z_ss_D"] * np.exp(shock0 * rho_z ** np.arange(cal["T"]))
+    Z_D_path = cal["Z_ss_D"] * np.exp(shock0 * rho_z ** np.arange(cal["T"])) #this makes it in logs
     Z_F_path = np.full(cal["T"], cal["Z_ss_F"])
 
     t0 = time.perf_counter()
+
     out = solve_transition(ss, cal, Z_D_path, Z_F_path, verbose=False)
     print(f"  [TFP transition]  {time.perf_counter() - t0:.1f}s")
     if PRINT_TRANSITION:
@@ -116,22 +121,16 @@ def main():
     plot_irf(out, ss, cal)
     print(f"\nFigures saved to {OUTDIR}")
 
-    # ── Centerpiece: Cole-Kehoe sunspot, Bocola (2016) pass-through ──────────
-    # xi_t = probability lenders coordinate on no-rollover at t (crisis zone
-    # active at SS).  PRICED into Q_bD; default never REALIZED (def_real=0).
-    # Transmission: xi ↑ → Q_bD ↓ (expected-haircut pricing) → MTM loss on
-    # legacy bonds → n_D ↓ → single-λ IC tightens → lending spread rk−rdep ↑
-    # → I_D, Y_D ↓.  Government rolls over at depressed prices → b_gov ↑ →
-    # Bohn taxes ↑ (beliefs worsen fundamentals, Cole-Kehoe).
-    # Persistence matters: a 7-year bond's yield averages default risk over
-    # its life, so Greek-scale spreads need a persistent sunspot (Bocola's
-    # estimated s_t process is highly persistent).
+    ### DEFAULT SHOCK TRANSITION (baseline, no default) ───────────────────────────────
+
     print("\n" + "=" * 65)
     print("  Cole-Kehoe sunspot (risk-only, Bocola pass-through):")
     rho_sun, sun0 = 0.95, 0.07
     print(f"  peak default prob xi_0 = {sun0:.0%} q, rho = {rho_sun}")
     print("=" * 65)
     T = cal["T"]
+
+    #Generate a sunspot path for the default shock
     sunspot_D_path = sun0 * rho_sun ** np.arange(T)
     Z_flat_D = np.full(T, cal["Z_ss_D"])
     Z_flat_F = np.full(T, cal["Z_ss_F"])
@@ -267,3 +266,8 @@ def _print_transition_residuals(out, cal):
 
 if __name__ == "__main__":
     main()
+
+    
+
+
+

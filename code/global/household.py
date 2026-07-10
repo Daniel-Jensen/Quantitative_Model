@@ -70,13 +70,7 @@ def solve_steady_state_household(a_grid, Pi, r_ss, y_e, beta, sigma, a_min, tol,
 
 def solve_backward_transition(a_grid, Pi, r_path, y_path, c_ss, beta, sigma, a_min,
                                vN_path=None):
-    """Backward induction over a finite horizon, terminal condition c_ss.
-
-    r_path: length T+1 (r_path[0]=r_dep_ss pre-shock; r_path[t] for t≥1
-            is the rate locked in at t−1, realized at t).
-    vN_path: (T,) array of aggregate labour disutility per period, or None
-             (treated as zeros, i.e. standard CRRA-separable).
-    """
+    # BACKWARD INDUCTION OVER A FINITE HORIZON, TERMINAL CONDITION C_SS.
     T = y_path.shape[0]
     n_a, n_e = a_grid.shape[0], y_path.shape[1]
 
