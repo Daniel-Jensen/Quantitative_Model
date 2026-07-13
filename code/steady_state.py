@@ -38,6 +38,16 @@ def _apply_ss_anchors(ss_in, cal):
                         / (float(ss_in['beta_inter_F']) * float(ss_in['Omega_F'])),
         'psi_spread_D': float(ss_in['lambda_gk_D']) * cal['psi_lambda_B_D']
                         / (float(ss_in['beta_inter_D']) * float(ss_in['Omega_D'])),
+        # macro-pru-fix: fundamental expected-loss loading per unit default probability,
+        # priced by bondholders independent of the psi_lambda_B collateral friction (so it
+        # survives psi_lambda_B=0). EL = (1-recovery)*[delta_b + zeta*(1-delta_b)*q_b]/q_b
+        # (SS q_b(-1)=q_b). Enters only the bond FOCs (∝ def_rate(+1)=0 at SS) → SS-neutral.
+        'EL_price_D': (1.0 - cal['recovery_rate_D'])
+                      * (cal['delta_b_D'] + cal['zeta_writeoff_D'] * (1.0 - cal['delta_b_D']) * float(ss_in['q_b_D']))
+                      / float(ss_in['q_b_D']),
+        'EL_price_F': (1.0 - cal['recovery_rate_F'])
+                      * (cal['delta_b_F'] + cal['zeta_writeoff_F'] * (1.0 - cal['delta_b_F']) * float(ss_in['q_b_F']))
+                      / float(ss_in['q_b_F']),
         'q_b_D':   float(ss_in['q_b_D']),
         'q_b_F':   float(ss_in['q_b_F']),
         'p':       float(ss_in['p']),

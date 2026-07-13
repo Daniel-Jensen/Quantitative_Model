@@ -425,11 +425,16 @@ def budget_residual_D(b_gov_D, G_D, TAX_D, q_b_D, def_rate_D, recovery_rate_D, z
 @simple
 def divert_bond_foc_D(rb_actual_D, rdep_D, b_D_D, n_inter_D, q_b_D,
                       phi_bD_D_ss, psi_bD_D, excess_return_bD_D_ss, tau_mp_D,
-                      psi_spread_D, def_rate_D):
+                      psi_spread_D, EL_price_D, def_rate_D):
     phi_bD_D   = q_b_D * b_D_D / n_inter_D
     # IC-theory derived required spread: additive default loading independent of SS excess return.
     # psi_spread_D = lambda_gk_D * psi_lambda_B_D / (beta_inter_D * Omega_D), computed in _apply_ss_anchors.
-    req_spread = excess_return_bD_D_ss + psi_spread_D * def_rate_D(+1)
+    # macro-pru-fix: EL_price_D is the FUNDAMENTAL expected-loss loading (per unit default
+    # probability) priced by bondholders, INDEPENDENT of the psi_lambda_B collateral friction.
+    # It makes q_b_D fall on higher def_rate even when psi_lambda_B=0 (psi_spread=0); psi_lambda_B
+    # is now a pure amplifier on top. SS-neutral: multiplies def_rate(+1)=0 at SS.
+    # See diagnostics/recommended_fix.md.
+    req_spread = excess_return_bD_D_ss + (EL_price_D + psi_spread_D) * def_rate_D(+1)
     # T-2 fix: compare t+1 bond return with rdep_D locked at t.
     rb_D_res   = (rb_actual_D(+1) - rdep_D) - req_spread \
                  - psi_bD_D * (phi_bD_D - phi_bD_D_ss) \

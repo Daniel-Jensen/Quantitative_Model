@@ -30,6 +30,11 @@ sys.path.insert(0, CODE)
 
 RUN_LOG = os.path.join(HERE, "run_log.md")
 
+# Optional output tag: `python solve_configs.py postfix` writes *_postfix artifacts
+# so pre-fix (committed) and post-fix evidence coexist without clobbering.
+TAG = sys.argv[1] if len(sys.argv) > 1 else ""
+SUF = f"_{TAG}" if TAG else ""
+
 
 def ts():
     return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -89,7 +94,7 @@ def summarize(irf, shock_name):
 
 def main():
     log("\n---\n")
-    log(f"## Solve run — {ts()}")
+    log(f"## Solve run{(' ['+TAG+']') if TAG else ''} — {ts()}")
     logts("Importing pipeline modules from code/ (unmodified).")
 
     from calibration import get_calibration
@@ -191,9 +196,9 @@ def main():
         np.savez(path, **payload)
         return sorted(payload.keys())
 
-    kb = dump(os.path.join(HERE, "irfs_baseline.npz"), irf_def_base, irf_tfp_base)
-    k0 = dump(os.path.join(HERE, "irfs_psilam0.npz"), irf_def_0, irf_tfp_0)
-    logts(f"Saved irfs_baseline.npz ({len(kb)} series), irfs_psilam0.npz ({len(k0)} series).")
+    kb = dump(os.path.join(HERE, f"irfs_baseline{SUF}.npz"), irf_def_base, irf_tfp_base)
+    k0 = dump(os.path.join(HERE, f"irfs_psilam0{SUF}.npz"), irf_def_0, irf_tfp_0)
+    logts(f"Saved irfs_baseline{SUF}.npz ({len(kb)} series), irfs_psilam0{SUF}.npz ({len(k0)} series).")
 
     # ---- Summary statistics ----
     summary = {
@@ -213,9 +218,9 @@ def main():
             "psi_lambda0": summarize(irf_tfp_0, "tfp"),
         },
     }
-    with open(os.path.join(HERE, "summary.json"), "w") as f:
+    with open(os.path.join(HERE, f"summary{SUF}.json"), "w") as f:
         json.dump(summary, f, indent=2)
-    logts("Wrote summary.json")
+    logts(f"Wrote summary{SUF}.json")
 
     # ---- Human-readable comparison tables in the log ----
     def table(title, base_rows, zero_rows):

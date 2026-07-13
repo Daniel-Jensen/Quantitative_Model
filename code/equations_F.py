@@ -391,11 +391,13 @@ def budget_residual_F(b_gov_F, G_F, TAX_F, q_b_F, def_rate_F, recovery_rate_F, z
 @simple
 def divert_bond_foc_F(rb_actual_F, rdep_F, b_F_F, n_inter_F, q_b_F,
                       phi_bF_F_ss, psi_bF_F, excess_return_bF_F_ss, tau_mp_F, p,
-                      psi_spread_F, def_rate_F):
+                      psi_spread_F, EL_price_F, def_rate_F):
     phi_bF_F   = q_b_F * b_F_F / (p * n_inter_F)
     # IC-theory derived required spread: additive default loading independent of SS excess return.
     # psi_spread_F = lambda_gk_F * psi_lambda_B_F / (beta_inter_F * Omega_F), computed in _apply_ss_anchors.
-    req_spread = excess_return_bF_F_ss + psi_spread_F * def_rate_F(+1)
+    # macro-pru-fix: EL_price_F is the fundamental expected-loss loading, independent of
+    # psi_lambda_B (see divert_bond_foc_D). SS-neutral.
+    req_spread = excess_return_bF_F_ss + (EL_price_F + psi_spread_F) * def_rate_F(+1)
     # W-3 fix: expected F-good return on the D-good-denominated bond converts with
     # p/p(+1), as in domestic_bond_foc_F and divert_portfolio_adj.
     rb_F_fg_next = (1 + rb_actual_F(+1)) * p / p(+1) - 1
