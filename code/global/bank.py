@@ -50,6 +50,58 @@ def _alpha_ss_fixed_point(beta_inter, f, lambda_K, rk_ss, rdep_ss,
     return alpha_ss, mu_ss, Omega_ss
 
 
+def calibrate_bank_targets(beta_inter, f, rdep, theta_target, spread_target,
+                           v_lo=1e-6, v_hi=1e6, n_scan=300):
+    """Single-λ Gertler-Karadi SS calibration.
+
+    Solves the divertability λ (common to all asset classes — Bocola IC) and the
+    entrant transfer ω_ent that make the deterministic steady state hit:
+      • leverage       θ = (total assets)/n = theta_target   (binding IC ⇒ θ = α/λ)
+      • credit spread  rk − rdep = spread_target             (equal across assets
+                                                              under a single λ)
+
+    Inverts `_alpha_ss_fixed_point`: with λ = α/θ folded in, μ = Ω·s·θ/α and
+    α = Ω(1+rdep)/(1−μ) is a scalar fixed point in α; then λ = α/θ and, from the
+    net-worth accumulation SS, ω_ent = [1−(1−f)(1+rdep)]/θ − (1−f)·s.
+
+    Returns (lambda_single, omega_ent, alpha, mu, Omega).
+    """
+    s = spread_target
+
+    def resid(a):
+        Omega = beta_inter * ((1 - f) + f * a)
+        mu    = Omega * s * theta_target / a
+        if mu >= 1.0:
+            return np.inf
+        return Omega * (1 + rdep) / (1 - mu) - a
+
+    grid = np.geomspace(v_lo, v_hi, n_scan)
+    vals = np.array([resid(v) for v in grid])
+    fin  = np.isfinite(vals)
+    sc   = np.where(np.diff(np.sign(vals[fin])) != 0)[0]
+    if len(sc) == 0:
+        raise RuntimeError(
+            f"No sign change in bank-target α fixed point (theta={theta_target}, "
+            f"spread={s}); check beta_inter / f / targets."
+        )
+    gf = grid[fin]
+    i  = sc[0]
+    alpha = brentq(resid, gf[i], gf[i + 1], xtol=1e-13, rtol=1e-13)
+
+    Omega = beta_inter * ((1 - f) + f * alpha)
+    mu    = Omega * s * theta_target / alpha
+    lambda_single = alpha / theta_target
+
+    D_val     = 1.0 - (1 - f) * (1 + rdep)
+    omega_ent = D_val / theta_target - (1 - f) * s
+    if omega_ent <= 0.0:
+        raise RuntimeError(
+            f"Infeasible targets: omega_ent={omega_ent:.4e} ≤ 0 "
+            f"(theta={theta_target}, spread={s}, f={f}, rdep={rdep})."
+        )
+    return lambda_single, omega_ent, alpha, mu, Omega
+
+
 def steady_state_bank(cal, rk_ss, Kap_ss, Q_bD_ss, Q_bF_ss,
                       b_dom_ss, b_for_ss, p_ss, country="D"):
     
@@ -285,8 +337,10 @@ def bank_backward(rk_D, rk_F, rdep_D, rdep_F, p_path,
 
             # HM pricing: Q_bD = surv^e_{t+1}·(db + (1-db)·Q_next) / (1 + rdep + IC_spread)
             ic_spread_bD_D = lbD_D * mu_D / Omega_D
-            surv_D_price   = 1.0 - defp_D_next * (1.0 - rec_D) #here its zero i think 
-            Q_bD = surv_D_price * (db_D + (1 - db_D) * Q_bD_next) / (1 + rdep_D[t] + ic_spread_bD_D) #nominator: coupons and un depreciated value, denominator: alternative cost
+            # surv = 1 when no priced risk (TFP run); < 1 in the CK sunspot
+            # experiment — this is exactly where the sunspot enters pricing.
+            surv_D_price   = 1.0 - defp_D_next * (1.0 - rec_D)
+            Q_bD = surv_D_price * (db_D + (1 - db_D) * Q_bD_next) / (1 + rdep_D[t] + ic_spread_bD_D)  # numerator: expected payoff; denominator: funding + IC cost
 
             # F-bank repetition 
             Omega_F = bi_F * ((1 - f_F) + f_F * alpha_F_next)
@@ -419,6 +473,15 @@ def bank_forward(Kap_D, Kap_F, Q_D, Q_F, rk_D, rk_F, rdep_D, rdep_F, p_path,
     rec_D = cal["recovery_rate_D"]; rec_F = cal["recovery_rate_F"]
     db_D  = cal["delta_b_D"];     db_F  = cal["delta_b_F"]
 
+    # Entrant equity: "proportional" (GK, entrant = ω·assets_t) leaves n with
+    # an exact unit root conditional on returns; "anchored" fixes the injection
+    # at the SS level (optionally scaled by franchise value α^phi_entry), which
+    # lowers the conditional eigenvalue to 1 − ω_ent·θ_ss (see calibration.py).
+    entrant_mode = cal.get("entrant_mode", "proportional")
+    phi_entry    = cal.get("phi_entry", 0.0)
+    assets_ss_D  = ss_bk_D["total_assets_ss"];  alpha_ss_D = ss_bk_D["alpha_ss"]
+    assets_ss_F  = ss_bk_F["total_assets_ss"];  alpha_ss_F = ss_bk_F["alpha_ss"]
+
     # unpack from the backward path 
     Q_bD_path = bwd["Q_bD"];  Q_bF_path = bwd["Q_bF"]
     b_F_D_path = bwd["b_F_D"];  b_D_F_path = bwd["b_D_F"]
@@ -485,7 +548,11 @@ def bank_forward(Kap_D, Kap_F, Q_D, Q_F, rk_D, rk_F, rdep_D, rdep_F, p_path,
         gross_D = (1 + rn_D_t) * n_D_prev
         total_assets_D = (Q_D[t] * Kap_D[t] + Q_bD_path[t] * b_D_D_path[t]
                           + p_t * Q_bF_path[t] * b_F_D_path[t])
-        entrant_D   = cal["omega_ent_D"] * total_assets_D
+        if entrant_mode == "anchored":
+            entrant_D = (cal["omega_ent_D"] * assets_ss_D
+                         * (alpha_D_path[t] / alpha_ss_D) ** phi_entry)
+        else:
+            entrant_D = cal["omega_ent_D"] * total_assets_D
         #assets that remain in the bank after dividend payout and new entrants
         n_ACCUM_D_t = (1 - f_D) * gross_D + entrant_D
         #net dividends paid to shareholders (after new entrants)
@@ -518,7 +585,11 @@ def bank_forward(Kap_D, Kap_F, Q_D, Q_F, rk_D, rk_F, rdep_D, rdep_F, p_path,
         total_assets_F = (Q_F[t] * Kap_F[t]
                           + Q_bF_path[t] * b_F_F_path[t]
                           + Q_bD_path[t] * b_D_F_path[t] / p_t)
-        entrant_F   = cal["omega_ent_F"] * total_assets_F
+        if entrant_mode == "anchored":
+            entrant_F = (cal["omega_ent_F"] * assets_ss_F
+                         * (alpha_F_path[t] / alpha_ss_F) ** phi_entry)
+        else:
+            entrant_F = cal["omega_ent_F"] * total_assets_F
         n_ACCUM_F_t = (1 - f_F) * gross_F + entrant_F
         div_F_t     = f_F * gross_F - entrant_F
         n_ACCUM_F[t] = n_ACCUM_F_t

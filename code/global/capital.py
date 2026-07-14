@@ -34,7 +34,15 @@ def solve_capital_path(Kap_path, Kap_ss, Q_ss, mpk_path, cal, country="D"):
     Kap_lag = np.concatenate(([Kap_ss], Kap_path[:-1]))
     bracket = (Kap_path / Kap_lag - (1 - delta) - gamma1) / gamma0
 
-    
+    # bracket < 0 → fractional power returns NaN silently (no exception);
+    # raise here so the transition solver's try/except penalizes the guess
+    # immediately instead of running the full inner economy on NaNs.
+    if np.any(bracket < 0):
+        raise ValueError(
+            f"[{country}] Jermann inversion: negative bracket "
+            "(capital falling faster than adjustment-cost technology allows)"
+        )
+
     # compute the capital-adjustment cost and the price of capital Q given firm path
     iota  = bracket ** (1 / (1 - ksi))
     Q     = 1.0 / (gamma0 * (1 - ksi) * iota ** (-ksi))

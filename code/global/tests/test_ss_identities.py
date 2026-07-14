@@ -56,7 +56,14 @@ def test_calibration_targets():
     bk = ss["ss_bank_D"]
     exposure = ss["Q_bD_ss"] * ss["b_D_D_ss"] / bk["n_ss"]
     assert 0.7 < exposure < 1.1, f"sov exposure/net worth = {exposure:.2f}"
-    assert 3.5 < bk["theta_ss"] < 6.5, f"leverage = {bk['theta_ss']:.2f}"
+    # λ and ω_ent are calibrated to hit leverage and credit-spread targets
+    for c in ("D", "F"):
+        bkc = ss[f"ss_bank_{c}"]
+        assert abs(bkc["theta_ss"] - cal[f"leverage_target_{c}"]) < 1e-6, \
+            f"[{c}] leverage {bkc['theta_ss']:.4f} ≠ target {cal[f'leverage_target_{c}']}"
+        spread = ss[f"rk_{c}_ss"] - cal[f"r_dep_{c}_target"]
+        assert abs(spread - cal[f"credit_spread_target_{c}"]) < 1e-6, \
+            f"[{c}] credit spread {spread:.5f} ≠ target {cal[f'credit_spread_target_{c}']}"
     b_y = cal["B_gov_D_ss"] / ss["ss_firm_D"]["Y_ss"]
     assert cal["b_ck_low_D"] < b_y < cal["b_ck_high_D"], "SS must sit in the CK crisis zone"
 

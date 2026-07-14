@@ -12,13 +12,32 @@ from household import make_asset_grid, solve_steady_state_household
 from distribution import stationary_distribution, aggregate_assets, aggregate_consumption
 from firms import steady_state_firm, markup_ss
 from capital import capital_demand
-from bank import steady_state_bank
+from bank import steady_state_bank, calibrate_bank_targets
 from government import govt_steady_state, hm_bond_price_ss
 from trade import ces_price, import_demand, trade_balance
 
 
 def solve_steady_state(cal, verbose=True):
     "For now only works for symmetric countries! Solve the two-country steady state"
+
+    # ── Bank agency-friction calibration ─────────────────────────────────────
+    # Solve the single divertability λ (Bocola IC) and the entrant transfer ω_ent
+    # to hit the leverage and credit-spread targets in the deterministic SS, then
+    # write them into `cal` so every downstream block sees the calibrated values.
+    # rk_guess is set to the target spread so Stage 1 converges there (res_cap → 0
+    # ⇔ rk = rdep + spread given these λ, ω_ent).
+    for c in ("D", "F"):
+        lam, om, *_ = calibrate_bank_targets(
+            cal[f"beta_inter_{c}"], cal[f"f_{c}"], cal[f"r_dep_{c}_target"],
+            cal[f"leverage_target_{c}"], cal[f"credit_spread_target_{c}"],
+        )
+        cal[f"lambda_K_{c}"] = cal[f"lambda_bD_{c}"] = cal[f"lambda_bF_{c}"] = lam
+        cal[f"omega_ent_{c}"] = om
+        cal[f"rk_{c}_guess"]  = cal[f"r_dep_{c}_target"] + cal[f"credit_spread_target_{c}"]
+        if verbose:
+            print(f"[bank-cal {c}] λ={lam:.6f}  ω_ent={om:.6f}  "
+                  f"(target θ={cal[f'leverage_target_{c}']:.2f}, "
+                  f"spread={cal[f'credit_spread_target_{c}']*4*1e4:.0f} bps/yr)")
 
     # ── Income processes and asset grids ──────────────────────────────────────
     # Income grids
@@ -113,6 +132,18 @@ def solve_steady_state(cal, verbose=True):
         print(f"  Warning: stage1 hybr did not flag success (resid={np.max(np.abs(sol1.fun)):.2e})")
     rk_D_ss, rk_F_ss, p_ss = sol1.x
 
+    # ── Rescale TFP so Y_ss = 1 (a target, not a hard-coded constant) ─────────
+    # Cobb-Douglas with N_ss=1 gives Y_ss = Z^(1/(1-α))·(mc·α/(rk+δ))^(α/(1-α)),
+    # so the Z that pins Y_ss = 1 is Z = ((rk+δ)/(mc·α))^α.  rk_ss is fixed by the
+    # credit-spread target and Stage 1's solution is independent of the level of Z
+    # (the balance-sheet scale cancels in res_cap; res_ext = 0 by symmetry), so
+    # this one-shot rescale is exact.  The capital/firm/bank objects re-evaluated
+    # just below then inherit the corrected Z.
+    for c, rk_c, mc_c in (("D", rk_D_ss, mc_D), ("F", rk_F_ss, mc_F)):
+        a_c = cal[f"alpha_{c}"]
+        d_c = cal[f"delta_{c}"]
+        cal[f"Z_ss_{c}"] = ((rk_c + d_c) / (mc_c * a_c)) ** a_c
+
     # Re-evaluate at solution to get all SS objects
     # capital
     Kap_D_ss = capital_demand(rk_D_ss, mc_D, cal, "D")
@@ -155,12 +186,28 @@ def solve_steady_state(cal, verbose=True):
     cal["excess_return_F_D_ss"] = bk_D_ss["rb_for_ss"] - rdep_D_tgt - ic_spread_bF_D
     cal["excess_return_D_F_ss"] = bk_F_ss["rb_for_ss"] - rdep_F_tgt - ic_spread_bD_F
 
+    # ── Verify the bank calibration targets were hit ─────────────────────────
+    for c, bk, rk, rdep_c in (("D", bk_D_ss, rk_D_ss, rdep_D_tgt),
+                              ("F", bk_F_ss, rk_F_ss, rdep_F_tgt)):
+        assert abs(bk["theta_ss"] - cal[f"leverage_target_{c}"]) < 1e-6, \
+            f"[{c}] leverage {bk['theta_ss']:.6f} ≠ target {cal[f'leverage_target_{c}']}"
+        assert abs((rk - rdep_c) - cal[f"credit_spread_target_{c}"]) < 1e-6, \
+            f"[{c}] spread {(rk - rdep_c):.6f} ≠ target {cal[f'credit_spread_target_{c}']}"
+    # Y_ss = 1 target (TFP rescaled above)
+    assert abs(fm_D_ss["Y_ss"] - 1.0) < 1e-9, f"Y_ss_D={fm_D_ss['Y_ss']:.8f} ≠ 1"
+    assert abs(fm_F_ss["Y_ss"] - 1.0) < 1e-9, f"Y_ss_F={fm_F_ss['Y_ss']:.8f} ≠ 1"
+
     if verbose:
         print(f"\nStage 1 solution: rk_D={rk_D_ss:.5f}  rk_F={rk_F_ss:.5f}  p_ss={p_ss:.4f}")
+        print(f"  Z_ss (rescaled): D={cal['Z_ss_D']:.6f}  F={cal['Z_ss_F']:.6f}  "
+              f"→ Y_ss: D={fm_D_ss['Y_ss']:.6f}  F={fm_F_ss['Y_ss']:.6f}")
         print(f"  Kap_D={Kap_D_ss:.3f}  Kap_F={Kap_F_ss:.3f}")
         print(f"  n_ss_D={bk_D_ss['n_ss']:.4f}  n_ss_F={bk_F_ss['n_ss']:.4f}")
         print(f"  IC resid D={(bk_D_ss['n_ss_IC']-bk_D_ss['n_ss_ACCUM'])/bk_D_ss['n_ss_ACCUM']:.2e}")
         print(f"  IC resid F={(bk_F_ss['n_ss_IC']-bk_F_ss['n_ss_ACCUM'])/bk_F_ss['n_ss_ACCUM']:.2e}")
+        print(f"  leverage θ: D={bk_D_ss['theta_ss']:.4f}  F={bk_F_ss['theta_ss']:.4f}  (target 4)")
+        print(f"  credit spread bps/yr: D={(rk_D_ss-rdep_D_tgt)*4*1e4:.1f}  "
+              f"F={(rk_F_ss-rdep_F_tgt)*4*1e4:.1f}  (target 200)")
 
     # ── Stage 2: deposit markets — solve {beta_D, beta_F} ────────────────────
     # Government taxes and dividends

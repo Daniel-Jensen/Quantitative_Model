@@ -85,12 +85,14 @@ def _shifted_y0(out, tau, T):
 
 def solve_default_branch(out, ss, cal, tau=1, verbose=False, y0=None,
                          target_scale=None):
-    """Post-default PF transition: haircut realized at branch period 0,
-    starting from the base-path state entering period tau.
+    """Post-default PF transition: the FULL haircut (1 − recovery) realized
+    at branch period 0, starting from the base-path state entering period tau.
 
-    The branch is absorbing (no further priced risk): verified via the CK
-    safe-zone condition on post-default debt.  Uses a haircut homotopy with
-    warm starts for robustness from deep-crisis states.
+    The haircut feasibility ladder was removed (2026-07-13): with
+    recovery_rate_D = 0.90 the event costs banks ~10% of their sovereign
+    exposure and never threatens equity, so the largest-feasible-event
+    search is moot.  haircut_scale ≡ 1.0.  (`target_scale` kept for caller
+    compatibility; unused.)
     """
     T = cal["T"]
     init = extract_init_state(out, ss, cal, tau)
@@ -104,81 +106,37 @@ def solve_default_branch(out, ss, cal, tau=1, verbose=False, y0=None,
     Z_D_b = _shift_path(out["Z_D"], tau, T) * (1.0 - cost * rho_c ** np.arange(T))
     Z_F_b = _shift_path(out["Z_F"], tau, T)
 
-    # Warm start: previous round's branch solution if available (closest),
-    # otherwise the shifted base path with a haircut homotopy ladder.
-    #
-    # FEASIBILITY: a full PSI-style haircut at the crisis peak can wipe out
-    # bank equity entirely — the GK economy has no equilibrium without a
-    # recapitalization (as in the actual Greek PSI + HFSF package; modelling
-    # the official-sector recap is future work tied to the TPI block).  The
-    # representative PRICED event is therefore a restructuring with the
-    # largest FEASIBLE haircut: climb the ladder, keep the last scale that
-    # converges, and report it via branch["haircut_scale"] so the pricing
-    # uses the consistent survival factor.
-    def _climb(scales, y_start, hybr_factor=100.0):
-        # Try every scale, keep the LARGEST feasible event.  Feasibility is
-        # not monotone: from a deeply risk-priced base state, SMALL events
-        # are boom-infeasible (risk-relief rally: bonds bought at crisis
-        # prices are repaid nearly in full) while LARGE events can be
-        # crunch-infeasible (equity wipeout) — the feasible set can be an
-        # interior window, so never stop at the first failure.
-        b, s_used, y = None, 0.0, y_start
-        for scale in scales:
-            def_real_D = np.zeros(T)
-            def_real_D[0] = scale      # haircut = scale·(1−recovery)
-            # No fiscal windfall: re-anchor the Bohn rule to the post-haircut
-            # stock consistent with THIS event size, otherwise φ·(b − b_ss)
-            # turns the haircut into large tax cuts and the default state
-            # becomes expansionary (wrong-signed risk premium).
-            init["b_anchor_D"] = init["b_gov0_D"] * (1.0 - scale * (1.0 - rec_D))
-            try:
-                cand = solve_transition(
-                    ss, cal, Z_D_b, Z_F_b,
-                    def_real_D=def_real_D,
-                    verbose=False, y0=y, init=init,
-                    try_krylov=False,   # fast-fail infeasible ladder probes
-                    hybr_factor=hybr_factor,
-                )
-            except (RuntimeError, ValueError) as e:
-                if verbose:
-                    print(f"    [ladder] scale {scale:.3f} infeasible ({e})")
-                continue
-            b, s_used = cand, scale
-            y = b["y_vec"]
-        return b, s_used
+    def_real_D = np.zeros(T)
+    def_real_D[0] = 1.0
+    # No fiscal windfall: re-anchor the Bohn rule to the post-haircut stock,
+    # otherwise φ·(b − b_ss) turns the haircut into large tax cuts and the
+    # default state becomes expansionary (wrong-signed risk premium).
+    init["b_anchor_D"] = init["b_gov0_D"] * rec_D
 
-    full_ladder = (0.075, 0.15, 0.3, 0.5, 0.75, 1.0)
-    branch, scale_used = None, 0.0
-    if y0 is not None and target_scale is not None:
-        # Warm re-solve: the given y0 is LAST round's branch solution at
-        # target_scale, so try that same scale first (matching guess);
-        # if the base state deteriorated, descend until feasible.
-        for scale in (target_scale, 0.75 * target_scale, 0.5 * target_scale):
-            branch, scale_used = _climb((scale,), y0)
-            if branch is not None:
-                break
+    # Warm start: previous round's branch solution if available, else the
+    # shifted base path.  Retry with a small trust region if hybr stalls on
+    # the alpha-explosion penalty wall (poisoned finite-difference Jacobian).
+    y_start = y0 if y0 is not None else _shifted_y0(out, tau, T)
+    branch = None
+    for hybr_factor in (100.0, 0.1):
+        try:
+            branch = solve_transition(
+                ss, cal, Z_D_b, Z_F_b,
+                def_real_D=def_real_D,
+                verbose=False, y0=y_start, init=init,
+                try_krylov=False,
+                hybr_factor=hybr_factor,
+            )
+            break
+        except (RuntimeError, ValueError) as e:
+            if verbose:
+                print(f"    [branch] full-haircut solve failed "
+                      f"(hybr_factor={hybr_factor}): {e}")
     if branch is None:
-        # Cold start: shifted base path + full feasibility ladder.
-        branch, scale_used = _climb(full_ladder, _shifted_y0(out, tau, T))
-    if branch is None:
-        # From flat (near-SS) warm starts hybr's default trust region can
-        # overshoot into the alpha-explosion penalty wall and stall at the
-        # starting point with a poisoned finite-difference Jacobian — the
-        # event is feasible, the probe just never moves.  Retry the ladder
-        # with a small initial trust region before declaring infeasibility.
-        if verbose:
-            print("    [ladder] all probes stalled; retrying with small "
-                  "trust region (hybr_factor=0.1)")
-        branch, scale_used = _climb(full_ladder, _shifted_y0(out, tau, T),
-                                    hybr_factor=0.1)
-    if branch is None:
-        raise RuntimeError("default branch infeasible even at the smallest "
-                           "haircut scale — bank equity wiped out")
+        raise RuntimeError("default branch infeasible at the full haircut — "
+                           "bank equity wiped out (recap not modelled)")
+    scale_used = 1.0
     branch["haircut_scale"] = scale_used
-    if verbose and scale_used < 1.0:
-        print(f"  [risk_branch] priced event = partial restructuring "
-              f"(haircut {scale_used * (1 - rec_D):.0%}; "
-              f"full haircut infeasible without bank recap)")
     # Absorbing-branch check at the ACTUAL event size
     b_post = init["b_gov0_D"] * (1.0 - scale_used * (1.0 - rec_D))
     if b_post / ss["ss_firm_D"]["Y_ss"] >= cal["b_ck_low_D"]:
@@ -200,13 +158,48 @@ def make_risk_inputs(branch, base, ss, cal):
     """Branch objects → risk_D dict for bank_backward (without 'pi').
 
     Ω^d_X[t] = Λ^d_X[t] · [(1−f_X) + f_X·α^d_X(0)], with the SDF ratio taken
-    across branches at t+1:  Λ^d = beta_inter · (x^d(0) / x^nd_{t+1})^(−σ),
-    x = C − v(N) the aggregate GHH composite (rep-agent proxy for the HA
-    household).  chi_tilt ≥ 1 (calibration, default 1) tilts the default
-    probability pessimistically (EZ-lite dial; off by default).
+    across branches at t+1.  Three sdf_mode variants (calibration.py):
+      "income"    : Λ^d = beta_inter · (Y^d(0)/Y^nd_{t+1})^(−σ) — Euler-
+                    consistent loading on aggregate OUTPUT.  Prices the
+                    default state as a bad time whenever it is a recession
+                    (Y^d < Y^nd), which holds even while the deposit-market
+                    comovement problem makes branch CONSUMPTION rise — the
+                    robust rep-agent proxy for the HA economy.  Sign-gated:
+                    if the branch is not a recession the gate falls back to
+                    the empirical mode loudly (never price default as good).
+      "empirical" : Λ^d = beta_inter · kappa_d (free loading, Bocola's
+                    asset-price-disciplined route).
+      "model"     : Λ^d from GHH consumption composites x = C − v(N).
+                    WRONG-SIGNED until the union-deposit-market fix (branch
+                    C rises); kept for post-fix use.
+    chi_tilt ≥ 1 (calibration, default 1) tilts the default probability
+    pessimistically (EZ-lite dial; off by default).
     """
     T = cal["T"]
-    if cal.get("sdf_mode", "empirical") == "empirical":
+    mode = cal.get("sdf_mode", "empirical")
+    if mode == "income":
+        # Euler-consistent GDP loading: marginal value is high in states
+        # where aggregate output is low.  Branch h=0 output vs the base
+        # no-default continuation at t+1.
+        Y_d_D = branch["Y_D"][0]
+        Y_d_F = branch["Y_F"][0]
+        Y_nd_D = _shift_path(base["Y_D"], 1, T)     # Y^nd_{t+1}
+        Y_nd_F = _shift_path(base["Y_F"], 1, T)
+        ratio_D = Y_d_D / Y_nd_D
+        if np.any(ratio_D >= 1.0):
+            print("  [risk_branch] WARNING: income-SDF sign gate tripped — "
+                  f"branch Y_D(0) = {Y_d_D:.4f} is not below the base path "
+                  "(default state not a recession).  Falling back to "
+                  "sdf_mode='empirical' for this round.")
+            kappa = cal.get("kappa_d", 1.0)
+            Lam_d_D = np.full(T, cal["beta_inter_D"] * kappa)
+            Lam_d_F = np.full(T, cal["beta_inter_F"] * kappa)
+        else:
+            Lam_d_D = cal["beta_inter_D"] * ratio_D ** (-cal["sigma_D"])
+            # F banker loads on F output in the same D-default event; the
+            # contagion recession there is small, so this leg stays near 1.
+            Lam_d_F = cal["beta_inter_F"] * (Y_d_F / Y_nd_F) ** (-cal["sigma_F"])
+    elif mode == "empirical":
         # Empirically disciplined default-state SDF loading (Bocola's own
         # route: E[Λ̂|default] proxied from asset prices, not model C).
         kappa = cal.get("kappa_d", 1.0)
@@ -297,7 +290,7 @@ def solve_transition_ck_risk(ss, cal, Z_D_path, Z_F_path,
     risk_in = None
     branch = None
     branch_y0 = None
-    scale_star = None   # event size fixed after round 1 (feasibility ladder)
+    scale_star = None   # haircut_scale ≡ 1.0 (ladder removed); kept as warm-start hint
     fixed_point_ok = True
     conv = np.inf
     for rd in range(1, max_rounds + 1):

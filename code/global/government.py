@@ -80,7 +80,11 @@ def govt_transition(cal, gs, Q_B_path, def_real_path, country, b_gov0=None,
         b_anchor = b_gov_ss
         Tax_base = Tax_ss
     else:
-        # Budget-balancing tax at the anchor (stationary at b = b_anchor)
+        # Budget-balancing tax at the anchor (stationary at b = b_anchor).
+        # Post-default branches MUST re-anchor to the post-haircut stock:
+        # keeping the SS anchor turns the haircut into a large tax-cut
+        # windfall (phi·(b − b_ss) << 0), making default expansionary and
+        # flipping the sign of the risk premium (see risk_branch._climb).
         Tax_base = cal[f"G_{country}"] + delta_b * b_anchor * (1.0 - gs["Q_B_ss"])
 
     b_gov_bop = np.empty(T)   # stock at beginning of period t

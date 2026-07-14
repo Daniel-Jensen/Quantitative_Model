@@ -57,18 +57,7 @@ def _inner_economy(N_D, N_F, Kap_D, Kap_F, rdep_D, rdep_F, p_path,
                    init=None, risk_D=None):
     
     #GIVEN GUESSES CALCULATE EVERYTHING THATS INNER ECONOMY
-    """Given the outer guesses, solve all inner blocks for both countries.
 
-    init   : optional dict of period-(-1)/period-0 initial conditions for
-             paths that start mid-crisis (default branches, policy runs):
-             D_D, D_F (household distributions), bank_D, bank_F (see
-             bank_forward), b_gov0_D/F, Kap_lag_D/F, Q_lag_D/F,
-             Q_bD_lag, Q_bF_lag, p_lag, P_lag_D/F.  Missing keys → SS.
-    risk_D : optional Bocola risk-channel inputs for bank_backward
-             (two-branch expectations over the D-default event).
-
-    Returns a comprehensive dict of all time paths and residual inputs.
-    """
     T = len(p_path)
     if init is None:
         init = {}
@@ -269,10 +258,14 @@ def solve_transition(ss, cal, Z_D_path, Z_F_path,
         rdep_D, rdep_F = y[4*T:5*T], y[5*T:6*T]
         p_path       = y[6*T:7*T]
 
-        # Domain guard if any those are below the treshhold -> punish severely
+        # Domain guard: below these thresholds fractional powers go NaN.
+        # Penalty height 10.0 must MATCH the other failure paths below —
+        # unequal walls bias hybr's finite-difference gradient toward the
+        # lower wall (it would rather step into NaN territory than out of
+        # bounds).
         if (np.any(p_path <= 0.05) or np.any(N_D <= 0.01) or np.any(N_F <= 0.01)
                 or np.any(Kap_D <= 0.1) or np.any(Kap_F <= 0.1)):
-            return np.full(7 * T, 100.0)
+            return np.full(7 * T, 10.0)
 
         try:
             # calculate a full inner economy given the outer guess for the 7T unknowns 
@@ -285,9 +278,9 @@ def solve_transition(ss, cal, Z_D_path, Z_F_path,
             )
         except (ValueError, RuntimeError, FloatingPointError) as e:
             if verbose:
-                # Again punish if anything goes wrong 
+                # penalise infeasible guesses (same wall height as the guard)
                 print(f"  call {ncalls[0]:3d}: FAILED ({e}); penalising")
-            return np.full(7 * T, 100.0)
+            return np.full(7 * T, 10.0)
 
         bk     = out["bk"]
         firm_D = out["firm_D"]
@@ -338,12 +331,35 @@ def solve_transition(ss, cal, Z_D_path, Z_F_path,
                         "factor": hybr_factor})
     resid_norm = np.max(np.abs(residual(sol.x)))
 
-    if resid_norm > accept_tol and try_krylov:
-        sol2 = root(residual, y0, method="krylov",
-                    options={"fatol": cal["tol_mkt"], "maxiter": maxiter})
+    # Polish restarts: at long horizons hybr can stall marginally above the
+    # acceptance bar (trust region shrunk on a stale Jacobian).  Restarting
+    # from the stalled point with a fresh, small trust region typically
+    # shaves the last order of magnitude.  No-op when already converged.
+    for _ in range(2):
+        if resid_norm <= accept_tol:
+            break
+        sol2 = root(residual, sol.x, method="hybr",
+                    options={"maxfev": max(maxiter * (7 * T + 1), 50000),
+                             "factor": 1.0})
         resid_norm2 = np.max(np.abs(residual(sol2.x)))
         if resid_norm2 < resid_norm:
             sol, resid_norm = sol2, resid_norm2
+        else:
+            break
+
+    if resid_norm > accept_tol and try_krylov:
+        # krylov can raise (e.g. "Jacobian inversion yielded zero vector")
+        # when its Jacobian approximation degenerates near penalty walls —
+        # treat that as "fallback unavailable", keep the hybr solution.
+        try:
+            sol2 = root(residual, y0, method="krylov",
+                        options={"fatol": cal["tol_mkt"], "maxiter": maxiter})
+            resid_norm2 = np.max(np.abs(residual(sol2.x)))
+            if resid_norm2 < resid_norm:
+                sol, resid_norm = sol2, resid_norm2
+        except (ValueError, RuntimeError) as e:
+            if verbose:
+                print(f"  krylov fallback failed ({e}); keeping hybr solution")
 
     if resid_norm > accept_tol:
         raise RuntimeError(f"Transition path did not converge: max|resid|={resid_norm:.3e}")
