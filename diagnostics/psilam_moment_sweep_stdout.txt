@@ -1,0 +1,63 @@
+[2026-07-14 08:57:36] pipeline: calibration -> SS -> ic_delta -> depreciation
+Solving initial steady state...
+Targeting portfolio shares...
+  D-bank: phi_bD_D = 0.250  phi_bF_D = 0.150
+  F-bank: phi_bD_F = 0.150  phi_bF_F = 0.250
+Re-solving SS with new portfolio allocation...
+SS re-solved. beta_D=0.99940974  p=1.000000
+IC Delta calibration:
+  D-bank:  Delta_bD_D = 0.7273  Delta_bF_D = 1.4545  (value=1.256474)
+  F-bank:  Delta_bF_F = 0.7273  Delta_bD_F = 1.4545  (value=1.256474)
+  WARNING (C-1): back-solved Delta > 1 — IC constraint is degenerate.
+  Consider hardcoding Delta_D=0.2, Delta_F=0.4 per bank-cal branch.
+Depreciation calibration:  delta_D = 0.022407  delta_F = 0.022407
+Final SS re-solve with calibrated delta...
+Verified rk_D = 0.010000  (target 0.0100)
+Verified rk_F = 0.010000  (target 0.0100)
+Final beta_D  = 0.9994621763
+Final beta_F  = 0.9994621763
+
+beta_D=0.9994621763  beta_F=0.9994621763  p=1.000000
+rb_D=0.002491  rb_F=0.002491  rdep_D=0.000000  rdep_F=0.000000
+q_b_D=0.975698  q_b_F=0.975698
+SS goods residuals:
+  goods_mkt_D = -3.897868541408167e-07
+  goods_mkt_F = -3.8978685477919495e-07
+  ca_res_D    = 0.0
+
+Block residual                                                   Value  Status
+-------------------------------------------------------------------------------------
+  IC_D: θ − θ_tgt                                         1.776357e-15  OK
+  IC_F: θ − θ_tgt                                         1.776357e-15  OK
+  P1_D: nu_K_res                                          0.000000e+00  OK
+  P1_D: nu_bh_res                                         0.000000e+00  OK
+  P1_D: nu_bx_res                                         0.000000e+00  OK
+  P1_D: eta_res                                           0.000000e+00  OK
+  P1_F: nu_K_res                                          0.000000e+00  OK
+  P1_F: nu_bh_res                                         0.000000e+00  OK
+  P1_F: nu_bx_res                                         0.000000e+00  OK
+  P1_F: eta_res                                           0.000000e+00  OK
+  ca_res_D                                                0.000000e+00  OK
+-------------------------------------------------------------------------------------
+All residuals < 1e-8  ✓
+[2026-07-14 08:59:54] build_and_solve (baseline psi_lambda_B=3)
+Computing Jacobian G (T=500, 4 exogenous inputs)...
+G computed successfully.
+
+=== Stability check: debt level at t=499 (should be near 0) ===
+  irfs_Z_D  ['b_gov_D'][499] = -0.000354
+  irfs_def_D['b_gov_D'][499] = 0.000086
+  ρ_b (partial-eq.) = 0.8451  [target < 0.95]
+  n_inter_D[0] on default shock = -4.1714%  (negative = doom loop correct sign)
+  Y_D[0]       on default shock = -0.0321%  (negative = correct sign)
+[2026-07-14 09:00:41] anchors: EL_price_D=0.102491 (FIXED), psi_spread_D(base)=0.777747 at psi_lambda_B=3.0
+[2026-07-14 09:01:28]  psi_lambda_B=0.00  spread=  13.14bp  dn=-0.089%SS  dY=-0.0018%SS  passthru=-0.674%/100bp
+[2026-07-14 09:02:15]  psi_lambda_B=0.50  spread=  30.83bp  dn=-0.247%SS  dY=-0.0048%SS  passthru=-0.801%/100bp
+[2026-07-14 09:03:00]  psi_lambda_B=1.00  spread=  50.21bp  dn=-0.421%SS  dY=-0.0082%SS  passthru=-0.838%/100bp
+[2026-07-14 09:03:44]  psi_lambda_B=1.50  spread=  71.82bp  dn=-0.613%SS  dY=-0.0122%SS  passthru=-0.854%/100bp
+[2026-07-14 09:04:28]  psi_lambda_B=2.00  spread=  96.55bp  dn=-0.831%SS  dY=-0.0172%SS  passthru=-0.861%/100bp
+[2026-07-14 09:05:16]  psi_lambda_B=2.60  spread= 132.71bp  dn=-1.141%SS  dY=-0.0271%SS  passthru=-0.860%/100bp
+[2026-07-14 09:06:04]  psi_lambda_B=3.00  spread= 163.57bp  dn=-1.390%SS  dY=-0.0389%SS  passthru=-0.850%/100bp
+[2026-07-14 09:06:48]  psi_lambda_B=4.00  spread= 310.60bp  dn=-2.139%SS  dY=-0.1335%SS  passthru=-0.689%/100bp
+[2026-07-14 09:07:36]  psi_lambda_B=5.00  spread=1705.32bp  dn=-8.523%SS  dY=-0.7901%SS  passthru=-0.500%/100bp
+[2026-07-14 09:07:36] wrote psilam_moment_sweep.md/.npz and 05_psilam_moment_sweep.png
