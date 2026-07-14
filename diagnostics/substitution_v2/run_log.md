@@ -97,3 +97,27 @@ Calibration: `writeoff_enabled=0`, `mv_rule=0`, `recovery=0`, `zeta=0`
 `VERDICT.md`, `run_log.md`, `ss_values.json`, `irfs_2p8_ELon.npz`, `irfs_2p8_ELoff.npz`,
 `solve_v2.py`, `analyze_v2.py`, figures `v2_01_Y_decomposition.png`,
 `v2_02_balance_sheet.png`, `v2_03_EL_on_off_capital.png`, `env.txt`. No code/ modified.
+
+## Experiment — output response at psi_lambda_B = 0 (EL_price ON) — 2026-07-14 12:26:05
+- 2026-07-14 12:27:36 solving psi_lambda_B=0, psi_spread=0, EL_price=0.102491
+
+### Output response (fixed analysis)
+- spread peak = 13.1bp (fundamental floor, EL_price only)
+- Y_D: impact -0.0018%SS; trough -0.0018%SS at t=0
+- vs psi_lambda_B=2.8: Y trough -0.0323%SS (amplification 2.8/0 = 18.4x)
+- SIGN: Y_D FALLS (contraction, no perverse rise)
+
+### ΔY decomposition at psi_lambda_B=0 (impact)
+- I_D    : impact -4.5462e-05  extremum -4.5462e-05 at t=0
+- P·C_D  : impact -5.1397e-05  extremum -5.9957e-05 at t=2
+- NX_D   : impact +7.9274e-05  extremum +7.9274e-05 at t=0
+- identity residual max|·| = 4.31e-18
+
+### Regime at psi_lambda_B=0 (sign of capital LEVEL)
+- K_D (capital LEVEL): impact -0.0004%SS, extremum -0.0028%SS at t=23
+- b_D_D (sov quantity): impact +0.0654%SS, extremum +0.1261%SS at t=4
+- n_inter_D (net worth): impact -0.0885%SS
+- REGIME at psi_lambda_B=0: DELEVERAGING-DOMINANT (capital level falls, never rises)
+- vs 2.8: K_D fell to -0.0657%SS (deleveraging-dominant)
+
+- wrote exp_psilam0_output.png (analysis from cached irfs_psilam0_full.npz)
