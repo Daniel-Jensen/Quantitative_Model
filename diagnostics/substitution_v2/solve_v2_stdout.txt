@@ -1,0 +1,69 @@
+
+## Step 0 — solve — 2026-07-14 09:19:06
+Solving initial steady state...
+Targeting portfolio shares...
+  D-bank: phi_bD_D = 0.250  phi_bF_D = 0.150
+  F-bank: phi_bD_F = 0.150  phi_bF_F = 0.250
+Re-solving SS with new portfolio allocation...
+SS re-solved. beta_D=0.99940974  p=1.000000
+IC Delta calibration:
+  D-bank:  Delta_bD_D = 0.7273  Delta_bF_D = 1.4545  (value=1.256474)
+  F-bank:  Delta_bF_F = 0.7273  Delta_bD_F = 1.4545  (value=1.256474)
+  WARNING (C-1): back-solved Delta > 1 — IC constraint is degenerate.
+  Consider hardcoding Delta_D=0.2, Delta_F=0.4 per bank-cal branch.
+Depreciation calibration:  delta_D = 0.022407  delta_F = 0.022407
+Final SS re-solve with calibrated delta...
+Verified rk_D = 0.010000  (target 0.0100)
+Verified rk_F = 0.010000  (target 0.0100)
+Final beta_D  = 0.9994621763
+Final beta_F  = 0.9994621763
+
+beta_D=0.9994621763  beta_F=0.9994621763  p=1.000000
+rb_D=0.002491  rb_F=0.002491  rdep_D=0.000000  rdep_F=0.000000
+q_b_D=0.975698  q_b_F=0.975698
+SS goods residuals:
+  goods_mkt_D = -3.897868541408167e-07
+  goods_mkt_F = -3.8978685477919495e-07
+  ca_res_D    = 0.0
+
+Block residual                                                   Value  Status
+-------------------------------------------------------------------------------------
+  IC_D: θ − θ_tgt                                         1.776357e-15  OK
+  IC_F: θ − θ_tgt                                         1.776357e-15  OK
+  P1_D: nu_K_res                                          0.000000e+00  OK
+  P1_D: nu_bh_res                                         0.000000e+00  OK
+  P1_D: nu_bx_res                                         0.000000e+00  OK
+  P1_D: eta_res                                           0.000000e+00  OK
+  P1_F: nu_K_res                                          0.000000e+00  OK
+  P1_F: nu_bh_res                                         0.000000e+00  OK
+  P1_F: nu_bx_res                                         0.000000e+00  OK
+  P1_F: eta_res                                           0.000000e+00  OK
+  ca_res_D                                                0.000000e+00  OK
+-------------------------------------------------------------------------------------
+All residuals < 1e-8  ✓
+Computing Jacobian G (T=500, 4 exogenous inputs)...
+G computed successfully.
+
+=== Stability check: debt level at t=499 (should be near 0) ===
+  irfs_Z_D  ['b_gov_D'][499] = -0.000354
+  irfs_def_D['b_gov_D'][499] = 0.000086
+  ρ_b (partial-eq.) = 0.8451  [target < 0.95]
+  n_inter_D[0] on default shock = -4.1714%  (negative = doom loop correct sign)
+  Y_D[0]       on default shock = -0.0321%  (negative = correct sign)
+- 2026-07-14 09:25:34 anchors: EL_price_D(anchor)=0.102491; psi_spread_D(base@3)=0.777747; psi_spread@2.8=0.725897
+- SS levels: n_inter=3.0000 K_D=10.8000 b_D_D=0.7687 q_b_D=0.9757 theta=4.000 Y_D=1.0000 I_D=0.2420 C_D=0.6763
+- SS market clearing: goods_mkt_D=-3.90e-07  goods_mkt_F=-3.90e-07  ca_res_D=0.00e+00  deposit_mkt_D=1.05e-13
+
+### Step 0/1 checks
+- 2026-07-14 09:25:34 solving [ELon] psi_lambda_B=2.8, psi_spread=0.725897, EL_price=0.102491
+    [ELon] shock reaches q_b: spread_rb impact=3.6805e-03 peak(bp,ann)=147.2; q_b_D impact=-2.8788e-02
+    [ELon] Y_D impact=-2.8267e-04 (-0.0283%SS)  peakabs=-3.2282e-04
+    [ELon] K_D impact=-1.1450e-03 (-0.0106%SS)  peakabs=-7.0943e-03 (-0.0657%SS)
+    [ELon] n_inter_D impact=-3.7815e-02 (-1.2605%SS); b_D_D impact=5.7579e-03 (+0.7491%SS); I_D impact=-1.1450e-03
+- 2026-07-14 09:26:21 solving [ELoff] psi_lambda_B=2.8, psi_spread=0.725897, EL_price=0.000000
+    [ELoff] shock reaches q_b: spread_rb impact=2.9863e-03 peak(bp,ann)=119.5; q_b_D impact=-2.3690e-02
+    [ELoff] Y_D impact=-2.2501e-04 (-0.0225%SS)  peakabs=-2.3154e-04
+    [ELoff] K_D impact=-9.7332e-04 (-0.0090%SS)  peakabs=-5.0935e-03 (-0.0472%SS)
+    [ELoff] n_inter_D impact=-3.1873e-02 (-1.0624%SS); b_D_D impact=4.7636e-03 (+0.6197%SS); I_D impact=-9.7332e-04
+
+- 2026-07-14 09:27:08 SOLVE v2 COMPLETE. saved irfs_2p8_ELon.npz, irfs_2p8_ELoff.npz, ss_values.json
