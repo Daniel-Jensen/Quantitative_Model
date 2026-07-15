@@ -81,7 +81,7 @@ def get_calibration():
         b_ck_high_D=6.00,       b_ck_high_F=99.0,
         # Haircut 55% (Greek PSI 2012, Zettelmeyer-Trebesch-Gulati; Bocola's
         # value).  The full event exceeds bank equity — the branch survives
-        # via the contingent recap and/or the feasibility ladder below.
+        # via the government recap below (recap_share_D).
         recovery_rate_D=0.45,   recovery_rate_F=0.45,
 
         # ── DEFAULT STATE (risk-channel branch) ──────────────────────────────
@@ -99,13 +99,21 @@ def get_calibration():
         # dip) — without it two-branch pricing drives μ < 0 and the risk
         # channel turns expansionary (docs/sunspot_transition_study.md M2).
         def_capital_quality_D=0.05,
-        # Contingent bank recapitalization in the default branch (HFSF/EFSF
-        # analogue): if the full event wipes out bank equity, the state
-        # injects recap_share × (banks' haircut loss) as equity, financed by
-        # issuance — post-default debt and Bohn taxes rise accordingly.
-        # Tried only when the no-recap event is infeasible (bailout rule);
-        # the feasibility ladder (partial priced event) is the fallback.
+        # Bank recapitalization in the default branch (HFSF/EFSF analogue):
+        # the state injects recap_share × (banks' haircut loss) as equity,
+        # financed by issuance — post-default debt and Bohn taxes rise
+        # accordingly.  At the PSI event this is what makes the full haircut
+        # feasible; a modelled institutional response, always on when > 0.
         recap_share_D=0.5,      recap_share_F=0.5,   # F dormant (no F branch)
+        # Default branch prices ONE sensible feared event (no per-run search):
+        #   branch_haircut_scale = fraction of the (1−recovery) haircut taken
+        #     at the default date; 1.0 = the full PSI event.
+        #   branch_use_ladder    = if that fixed event is infeasible, fall
+        #     back to the old feasibility-ladder search over scales.  OFF by
+        #     default so every run is a single deterministic branch solve;
+        #     set True only for robustness experiments.
+        branch_haircut_scale=1.0,
+        branch_use_ladder=False,
         # Pessimistic probability tilt for the risk weighting (EZ-lite dial;
         # 1.0 = off, physical probabilities — the Bocola-faithful baseline).
         chi_tilt=1.0,

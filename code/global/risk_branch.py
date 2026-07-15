@@ -98,30 +98,35 @@ def _shifted_y0(out, tau, T, xi_K=0.0, rho_rebuild=0.975):
 
 
 def solve_default_branch(out, ss, cal, tau=1, verbose=False, y0=None,
-                         target_scale=None, target_mode=None, jac_cache=None):
+                         jac_cache=None):
     """Post-default PF transition starting from the base-path state entering
     period tau.  Three ingredients define the feared event:
 
-      haircut      : scale·(1−recovery) realized on the bond stock at h=0;
+      haircut      : scale·(1−recovery) realized on the bond stock at h=0,
+                     where scale = branch_haircut_scale (default 1.0 = the
+                     full PSI event — ONE sensible level, no search);
       capital loss : GK capital-quality shock ξ_K = def_capital_quality_D —
                      a fraction of D capital is destroyed at h=0 (this is
                      what stops capital being the branch safe haven; see
                      docs/sunspot_transition_study.md M2);
-      recap        : contingent government recapitalization (HFSF/EFSF
-                     analogue) — if the full event wipes out bank equity,
-                     the state replaces recap_share_D of the banks' haircut
-                     loss with an equity injection financed by issuance
-                     (raises post-default debt and Bohn taxes).
+      recap        : government recapitalization (HFSF/EFSF analogue) — when
+                     recap_share_D > 0 the state replaces that share of the
+                     banks' haircut loss with an equity injection financed by
+                     issuance (raises post-default debt and Bohn taxes).  At
+                     the PSI calibration the full event needs it; it is part
+                     of the modelled institutional response, not a last resort.
 
-    Attempt order (2026-07-15 plan): (1) full event, no recap; (2) full
-    event + recap; (3) feasibility ladder (largest feasible partial event,
-    with recap).  branch["rescue_mode"] records which one ran and
-    branch["haircut_scale"] the realized scale — make_risk_inputs prices
-    the CONSISTENT survival factor surv_d = 1 − scale·(1−rec).
+    ONE deterministic solve per call: the fixed (scale, recap) event, warm-
+    started from y0 when the risk fixed point re-solves.  If that event is
+    infeasible the call RAISES (telling you how to fix the calibration)
+    unless branch_use_ladder=True, which re-enables the old feasibility
+    ladder (a search over scales 0.075…1.0, kept for robustness/
+    experimentation only — off by default so runs are deterministic and
+    fast).  branch["rescue_mode"] records what ran and
+    branch["haircut_scale"] the realized scale — make_risk_inputs prices the
+    CONSISTENT survival factor surv_d = 1 − scale·(1−rec).
 
-    target_scale/target_mode: last round's configuration (warm re-solves
-    inside the risk fixed point try it first with y0).  jac_cache carries
-    the branch-system Jacobian across rounds and ladder probes
+    jac_cache carries the branch-system Jacobian across rounds
     (solvers.newton_solve tolerates cross-system reuse via rebuilds).
     """
     T = cal["T"]
@@ -188,45 +193,41 @@ def solve_default_branch(out, ss, cal, tau=1, verbose=False, y0=None,
             y = b["y_vec"]
         return b, s_used
 
-    branch, scale_used, mode = None, 1.0, None
+    # ONE sensible haircut level (no search).  recap is on whenever it is
+    # calibrated; at the PSI event that is what makes the full haircut
+    # feasible.  Warm-start from y0 on risk-fixed-point re-solves.
+    scale = float(cal.get("branch_haircut_scale", 1.0))
+    recap_on = recap_share > 0.0
+    y_start = y0 if y0 is not None else _shifted_y0(out, tau, T, xi_K)
 
-    # Warm re-solve: replicate last round's configuration first (y0 matches it)
-    if y0 is not None and target_scale is not None and target_mode is not None:
-        branch = _attempt(target_scale, target_mode != "full", y0)
-        if branch is not None:
-            scale_used, mode = target_scale, target_mode
+    branch = _attempt(scale, recap_on, y_start)
+    scale_used = scale
+    mode = (("full" if scale >= 1.0 else f"scale{scale:.2f}")
+            + ("+recap" if recap_on else ""))
 
-    if branch is None:
-        y_start = y0 if y0 is not None else _shifted_y0(out, tau, T, xi_K)
-        # (1) full event, no recap
-        branch = _attempt(1.0, False, y_start)
-        if branch is not None:
-            mode = "full"
-        # (2) full event + contingent recap
-        if branch is None and recap_share > 0.0:
-            branch = _attempt(1.0, True, y_start)
-            if branch is not None:
-                mode = "full+recap"
-        # (3) feasibility ladder (largest feasible partial event, with recap)
+    # Optional fallback: the old feasibility ladder (search over scales),
+    # OFF by default.  Only touched if the fixed event is infeasible AND the
+    # caller opted in — keeps the common path deterministic and single-solve.
+    if branch is None and cal.get("branch_use_ladder", False):
+        full_ladder = (0.075, 0.15, 0.3, 0.5, 0.75, 1.0)
+        branch, scale_used = _climb(full_ladder, y_start)
         if branch is None:
-            full_ladder = (0.075, 0.15, 0.3, 0.5, 0.75, 1.0)
-            branch, scale_used = _climb(full_ladder, y_start)
-            if branch is None:
-                # From flat warm starts the trust region can overshoot into
-                # the alpha-explosion penalty wall; retry with a small one.
-                if verbose:
-                    print("    [ladder] all probes stalled; retrying with "
-                          "small trust region (hybr_factor=0.1)")
-                branch, scale_used = _climb(full_ladder,
-                                            _shifted_y0(out, tau, T, xi_K),
-                                            hybr_factor=0.1)
-            if branch is not None:
-                mode = (f"ladder({scale_used:.3f})"
-                        + ("+recap" if recap_share > 0.0 else ""))
+            if verbose:
+                print("    [ladder] all probes stalled; retrying with "
+                      "small trust region (hybr_factor=0.1)")
+            branch, scale_used = _climb(full_ladder,
+                                        _shifted_y0(out, tau, T, xi_K),
+                                        hybr_factor=0.1)
+        if branch is not None:
+            mode = (f"ladder({scale_used:.3f})"
+                    + ("+recap" if recap_on else ""))
 
     if branch is None:
-        raise RuntimeError("default branch infeasible even at the smallest "
-                           "haircut scale with recap — bank equity wiped out")
+        raise RuntimeError(
+            f"default branch infeasible at haircut scale={scale:.2f} "
+            f"(recap={'on' if recap_on else 'off'}, share={recap_share:.2f}). "
+            "Raise recap_share_D, lower branch_haircut_scale, or set "
+            "branch_use_ladder=True to search for the largest feasible event.")
 
     branch["haircut_scale"] = scale_used
     branch["rescue_mode"] = mode
@@ -397,8 +398,6 @@ def solve_transition_ck_risk(ss, cal, Z_D_path, Z_F_path,
     risk_in = None
     branch = None
     branch_y0 = None
-    scale_star = None   # last round's haircut scale (warm-start hint)
-    mode_star = None    # last round's rescue mode (full / full+recap / ladder)
     fixed_point_ok = True
     conv = np.inf
     for rd in range(1, max_rounds + 1):
@@ -407,8 +406,6 @@ def solve_transition_ck_risk(ss, cal, Z_D_path, Z_F_path,
             branch_new = solve_default_branch(out, ss, cal, tau=1,
                                               verbose=verbose,
                                               y0=branch_y0,
-                                              target_scale=scale_star,
-                                              target_mode=mode_star,
                                               jac_cache=jc_branch)
         except RuntimeError as e:
             if branch is None:
@@ -420,8 +417,6 @@ def solve_transition_ck_risk(ss, cal, Z_D_path, Z_F_path,
         branch = branch_new
         _t_branch = _time.perf_counter() - _t0
         branch_y0 = branch["y_vec"]
-        scale_star = branch["haircut_scale"]
-        mode_star = branch["rescue_mode"]
         new_in = make_risk_inputs(branch, out, ss, cal)
 
         if risk_in is None:

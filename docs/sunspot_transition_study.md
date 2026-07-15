@@ -236,12 +236,16 @@ sunspot 10%·0.9^t — a **64% cumulative priced default probability**):
 
 - **Calibration restored**: δ_b = 0.036 (~7y HM duration), recovery = 0.45
   (Greek PSI).  T back to 200; centerpiece sunspot 1%·0.95^t.
-- **Feasibility ladder restored** (largest feasible partial event) **+
-  contingent government recap** (`recap_share_D = 0.5`, HFSF/EFSF
-  analogue): equity injection financed by issuance in the branch —
-  post-default debt and Bohn taxes rise.  Attempt order: full event →
-  full + recap → ladder(+recap).  With the ladder acting as a homotopy the
-  **full PSI event is priced** (`rescue_mode = ladder(1.000)+recap`).
+- **One fixed feared event + government recap** (`recap_share_D = 0.5`,
+  HFSF/EFSF analogue): equity injection financed by issuance in the branch —
+  post-default debt and Bohn taxes rise.  The branch does ONE deterministic
+  solve of the full PSI haircut with recap (`branch_haircut_scale = 1.0`,
+  `rescue_mode = full+recap`); no per-run search.  *(Update 2026-07-15: the
+  original attempt-ladder full → full+recap → ladder was replaced by this
+  single-solve path at the user's request — the ladder search over scales
+  0.075…1.0 is now opt-in only, `branch_use_ladder`, default off; it also
+  removed a wasted no-recap probe every round.  If the fixed event is
+  infeasible the branch raises with a hint instead of searching.)*
 - **GK capital-quality loss** `def_capital_quality_D = 0.05` at branch
   h = 0 (capital stops being the branch safe haven; branch rk_d ≈ −12%/q,
   branch Y(0) ≈ −10%, n_d(0)/n_ss ≈ 0.32).  ξ_K = 0.10 tested and

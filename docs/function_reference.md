@@ -163,22 +163,32 @@ cross-sectional distributions `D_start_*` (shape `(T+1, n_a, n_e)`).
 **Logic** — one full economy per call, evaluated block by block in dependency order:
 
 1. **Firms.** [`solve_firm_path`](#solve_firm_path) maps `(N, Kap, Z)` into
-   `Y`, `w`, `mpk` (purely contemporaneous, both countries).
+   `Y`, `w` (frictionless), `mpk` (purely contemporaneous, both countries).
 2. **Capital.** [`solve_capital_path`](#solve_capital_path) inverts the Jermann
    accumulation technology on the guessed `Kap` path to obtain investment `I`,
    the capital price `Q`, the realized return `rk`, and capital-producer profit.
-   Lags `Kap_lag`, `Q_lag` come from `init` (mid-path start) or steady state.
+   Lags `Kap_lag`, `Q_lag` come from `init` (mid-path start) or steady state;
+   the optional `init["quality0_*"]` applies the branch capital-quality loss.
 3. **CES price indices.** `trade.ces_price(p)` per period, per country.
 4. **Bank backward pass.** `bank.bank_backward` computes, from expected-return
    FOCs under the priced default probabilities (and optionally the two-branch
    risk inputs `risk_D`): bond prices `Q_bD`, `Q_bF`, franchise values `alpha`,
    IC multipliers `mu`, discount factors `Omega`, and the *cross-border* bond
    holdings `b_D_F`, `b_F_D` from portfolio FOCs.
-5. **Government.** [`govt_transition`](#govt_transition) forward-integrates the
+5. **Working-capital wedge (Neumeyer-Perri).** With the IC multiplier now known,
+   form `r_wc_t = rdep_{t−1} + λμ_t/Ω̃_t` and divide the firm wage by
+   `1 + ζ_wc·r_wc_t` (`ζ_wc = zeta_wc_*`; `ζ_wc = 0` is a no-op). The lowered
+   wage feeds the labour-market residual and household income — the
+   spread→output transmission channel. The financing income `ζ_wc·r_wc_t·w_t·N_t`
+   is accumulated for step 8 (routed to households as dividends, not onto the
+   bank balance sheet — keeps the closed-form leverage/spread calibration and
+   the goods-market identity intact).
+6. **Government.** [`govt_transition`](#govt_transition) forward-integrates the
    debt stock under the Bohn tax rule at the just-computed bond prices, applying
-   any *realized* haircuts. Optional `init` keys `b_gov0_*` (initial stock) and
-   `b_anchor_*` (Bohn-rule anchor) support mid-path and post-default starts.
-6. **Bond-market clearing against the true stock.** Domestic banks are the
+   any *realized* haircuts and default-branch `recap_*_path` outlays. Optional
+   `init` keys `b_gov0_*` (initial stock), `b_anchor_*` (Bohn-rule anchor), and
+   `recap_*_path` support mid-path and post-default starts.
+7. **Bond-market clearing against the true stock.** Domestic banks are the
    marginal (residual) holders:
 
    ```
@@ -189,22 +199,24 @@ cross-sectional distributions `D_start_*` (shape `(T+1, n_a, n_e)`).
    A `RuntimeError` is raised if either residual holding turns non-positive
    (cross-border FOC holdings exceeding the outstanding stock) — caught by the
    outer solver and converted into a penalty.
-7. **Bank forward pass.** `bank.bank_forward` rolls net worth forward from
+8. **Bank forward pass.** `bank.bank_forward` rolls net worth forward from
    *realized* returns (marked-to-market bond and capital revaluations, realized
-   haircuts via `def_real_*`), producing `n`, `n_IC` (IC-implied net worth),
-   dividends `div`, and deposit supply `Dep_supply`. Initial bank states and
-   lagged prices come from `init` for mid-path starts.
-8. **Dividends to households.** With flexible prices the markup is constant:
-   `Div = (1 − mc)·Y + cap_profit + div_bank`.
-9. **Household income.** In composite-good units, per idiosyncratic state `e`:
+   haircuts via `def_real_*`, plus any `recap_*` equity injection added to
+   retained net worth), producing `n`, `n_IC` (IC-implied net worth), dividends
+   `div`, and deposit supply `Dep_supply`. Initial bank states and lagged prices
+   come from `init` for mid-path starts.
+10. **Dividends to households.** With flexible prices the markup is constant;
+    the working-capital financing income is added here:
+    `Div = (1 − mc)·Y + cap_profit + div_bank + wc_income`.
+11. **Household income.** In composite-good units, per idiosyncratic state `e`:
 
-   ```
-   y_t(e) = (w_t / P_CES_t) · N_t · e + (Div_t − Tax_t) / P_CES_t
-   ```
+    ```
+    y_t(e) = (w_t / P_CES_t) · N_t · e + (Div_t − Tax_t) / P_CES_t
+    ```
 
-   with the GHH disutility `vN_t = χ·N_t^(1+1/frisch)/(1+1/frisch)` passed
-   separately (it is subtracted inside the EGM composite, not from income).
-10. **Real deposit returns (Fisher equation, predetermined rate).**
+    with the GHH disutility `vN_t = χ·N_t^(1+1/frisch)/(1+1/frisch)` passed
+    separately (it is subtracted inside the EGM composite, not from income).
+12. **Real deposit returns (Fisher equation, predetermined rate).**
 
     ```
     r_real[t] = (1 + rdep[t−1]) · P_CES[t−1] / P_CES[t] − 1
@@ -213,16 +225,16 @@ cross-sectional distributions `D_start_*` (shape `(T+1, n_a, n_e)`).
     built as a length-`T+1` array (the terminal entry uses `P_CES[T] = 1`, i.e.
     steady state). Period −1 anchors (`rdep_prev`, `P_lag`) come from `init` when
     the path starts mid-crisis; the calibration targets otherwise.
-11. **Household EGM backward.** [`solve_backward_transition`](#solve_backward_transition)
+13. **Household EGM backward.** [`solve_backward_transition`](#solve_backward_transition)
     for each country: policies `c[t]`, `a'[t]` by backward induction from the
     steady-state terminal condition.
-12. **Distribution forward.** Starting from `init["D_*"]` or the stationary
+14. **Distribution forward.** Starting from `init["D_*"]` or the stationary
     distribution: per period, aggregate consumption on the *start-of-period*
     distribution, then push the distribution forward
     ([`forward_iterate`](#forward_iterate)) and aggregate *end-of-period* assets.
     All T+1 start-of-period distributions are stored (`D_start_*`) so a default
     branch can be launched from any base date.
-13. **Trade.** `trade.import_demand` per period and `trade.trade_balance` give
+15. **Trade.** `trade.import_demand` per period and `trade.trade_balance` give
     `IM` and `NX` for both countries.
 
 **Economic purpose.** This is the model's general-equilibrium map: given prices
@@ -250,8 +262,8 @@ solve_transition(ss, cal, Z_D_path, Z_F_path,
                  def_price_D=None, def_price_F=None,
                  def_real_D=None, def_real_F=None,
                  verbose=True, maxiter=300, y0=None,
-                 init=None, risk_D=None, try_krylov=True,
-                 hybr_factor=100.0) -> dict
+                 init=None, risk_D=None, jac_cache=None,
+                 hybr_factor=100.0, accept_tol=None) -> dict
 ```
 
 | Parameter | Default | Role |
@@ -259,32 +271,39 @@ solve_transition(ss, cal, Z_D_path, Z_F_path,
 | `y0` | flat SS paths | Initial guess for the stacked 7T unknown vector (warm start). |
 | `init` | `None` | Mid-crisis initial state (passed through to `_inner_economy`). |
 | `risk_D` | `None` | Bocola risk inputs (risk-neutral if `None`). |
-| `try_krylov` | `True` | Enable the Krylov fallback solver. |
-| `hybr_factor` | `100.0` | Initial trust-region size for `hybr` (small values ⇒ cautious steps near penalty walls). |
-| `maxiter` | `300` | Scales `maxfev` for `hybr` / `maxiter` for Krylov. |
+| `jac_cache` | `None` | Caller-owned dict carrying the LU-factorized FD Jacobian **across** solves — the source of the CK/risk warm-resolve speedup (see `solvers.newton_solve`). `None` ⇒ a fresh local cache. |
+| `hybr_factor` | `100.0` | Initial trust-region size for the `hybr` fallback (small values ⇒ cautious steps near penalty walls). |
+| `accept_tol` | `None` | Max-abs residual accepted; `None` ⇒ `cal["tol_transition"]` (1e−10). Default-branch probes pass `1e-9`. |
+| `maxiter` | `300` | Scales `maxfev` for the `hybr` fallback. |
 
 **Returns** a flat dict of all solved paths: the 7 unknowns, all firm/capital/bank/
 government/household/trade outputs (suffixed `_D`/`_F`), the default paths actually
-used, and `y_vec` — the solved unknown vector, used as a warm start by every outer
-loop.
+used, `mu_min_D`/`mu_min_F` (the IC-multiplier monitor, see below), and `y_vec` —
+the solved unknown vector, used as a warm start by every outer loop.
 
-**Logic.**
+**Logic** (solver in `solvers.py`).
 
 1. Build the default initial guess: all seven paths flat at their steady-state
    values (`N = 1`, `Kap = Kap_ss`, `rdep = r_dep_target`, `p = p_ss`).
-2. Solve `residual(y) = 0` (see below) with `scipy.optimize.root(method="hybr")`,
-   `maxfev = max(maxiter·(7T+1), 50000)`.
-3. **Polish restarts.** If the max-abs residual exceeds
-   `accept_tol = max(cal["tol_mkt"], 1e−6)`, restart `hybr` up to twice *from the
-   stalled point* with a fresh small trust region (`factor=1.0`). At long horizons
-   `hybr` can stall marginally above tolerance on a stale Jacobian; a restart
-   typically shaves the last order of magnitude. No-op when already converged.
-4. **Krylov fallback.** If still above tolerance and `try_krylov`, attempt
-   `root(method="krylov")` from the original `y0`; keep whichever solution has
-   the smaller residual. Krylov exceptions (Jacobian degeneracy near penalty
-   walls) are caught and ignored.
-5. Raise `RuntimeError` if the final residual exceeds `accept_tol`; otherwise
+2. **Damped Newton** (`newton_solve`) on an explicit finite-difference Jacobian
+   (`fd_jacobian`, built in parallel via multiprocessing), with Broyden updates
+   and stall-triggered rebuilds. The Jacobian is reused across solves via
+   `jac_cache`, so warm re-solves inside the CK/risk fixed points cost a handful
+   of residual evaluations instead of a full 7T+1-call rebuild — this is the
+   main speedup.
+3. **Fallback.** If Newton stalls above `accept_tol`, fall back to
+   `scipy.optimize.root(method="hybr")` (`maxfev = max(maxiter·(7T+1), 50000)`,
+   trust region `hybr_factor`), keep it only if it improves, then run a final
+   Newton **polish** with a fresh Jacobian. (`hybr` alone stops on step size and
+   plateaus near `max|resid| ≈ 5e-11`, so it is not enough on its own — hence
+   the polish.)
+4. Raise `RuntimeError` if the final residual exceeds `accept_tol`; otherwise
    re-evaluate `_inner_economy` at the solution and assemble the output dict.
+5. **μ-monitor.** After a successful solve, check `min(mu_D), min(mu_F)`; a
+   negative IC multiplier on a solved path means the always-binding IC is
+   violated (the imposed equality then manufactures a counterfactual
+   bank-recapitalization boom). Print a loud warning and store `mu_min_D/F`.
+   Checked here, *not* inside the residual, so Newton exploration is unaffected.
 
 #### `residual` (nested in `solve_transition`)
 
@@ -430,30 +449,43 @@ can start from a crisis state rather than the steady state.
 shares are normalized by `n_IC` (the IC-implied net worth), matching the
 convention `bank_forward` uses to reconstruct balance sheets. Two small helpers
 support branch launches: `_shift_path(x, tau, T)` (shift a path forward by `tau`,
-padding with the final value) and `_shifted_y0(out, tau, T)` (the shifted base
-solution as a Newton warm start).
+padding with the final value) and `_shifted_y0(out, tau, T, xi_K=0.0,
+rho_rebuild=0.975)` (the shifted base solution as a Newton warm start — when the
+branch destroys capital, `xi_K > 0` scales the `Kap_D` block by
+`1 − xi_K·rho_rebuild^t` so probes clear the Jermann penalty wall instead of
+implying a one-quarter capital rebuild).
 
 ### `solve_default_branch`
 
 ```python
 solve_default_branch(out, ss, cal, tau=1, verbose=False, y0=None,
-                     target_scale=None) -> dict
+                     jac_cache=None) -> dict
 ```
 
 **Returns** a full `solve_transition` output dict for the post-default economy,
-plus `haircut_scale` (≡ 1.0; the feasibility ladder was removed 2026-07-13 —
-at calibrated recovery rates the haircut costs banks only a modest share of
-their sovereign exposure and never threatens equity, so the
-largest-feasible-event search was moot; `target_scale` is retained for caller
-compatibility and unused).
+plus `haircut_scale` (the realized haircut fraction), `rescue_mode` (a string
+`"full+recap"` / `"scaleXX+recap"` / `"ladder(...)+recap"` recording what
+solved), and `recap_D_path` (the government equity-injection path used).
+
+**One deterministic solve, no per-run search.** The branch prices a single
+fixed feared event defined by three ingredients (2026-07-15 rework):
+
+- **haircut** `scale = branch_haircut_scale` (default `1.0` = the full
+  Greek-PSI event) realized at branch period 0 (`def_real_D[0] = scale`);
+- **capital-quality loss** `ξ_K = def_capital_quality_D` — a fraction of D
+  capital destroyed at h = 0 (`init["quality0_D"] = 1 − ξ_K`), which stops
+  capital being the branch *safe haven* (without it two-branch pricing drives
+  the IC multiplier μ < 0 and the risk channel turns expansionary);
+- **recap** — when `recap_share_D > 0` the government injects
+  `recap_share_D · scale · (1 − recovery_rate_D) · (bank bond exposure)` as
+  bank equity at h = 0, financed by issuance (an HFSF/EFSF analogue; it is
+  what makes the full PSI haircut feasible).
 
 **Logic.**
 
 1. Extract the base-path state entering period `tau` via
-   [`extract_init_state`](#extract_init_state).
-2. Impose the full haircut at branch period 0: `def_real_D[0] = 1`, so bonds pay
-   `recovery_rate_D` of face value once.
-3. Apply the canonical **output cost of default** (Arellano 2008 tradition):
+   [`extract_init_state`](#extract_init_state); set the capital-quality shock.
+2. Apply the canonical **output cost of default** (Arellano 2008 tradition):
 
    ```
    Z_D_branch[h] = Z_D_base[tau + h] · (1 − cost · ρ_c^h)
@@ -462,17 +494,22 @@ compatibility and unused).
    with `cost = def_output_cost_D`, `ρ_c = def_output_rho_D`. This is what makes
    the default state a recession — the source of the high marginal valuations
    `Λ^d`, `α^d` that give the risk premium its sign.
-4. **Re-anchor the Bohn rule** to the post-haircut stock:
-   `b_anchor_D = b_gov0_D · recovery_rate_D`. Keeping the steady-state anchor
-   would turn the haircut into a large tax-cut windfall (`φ·(b − b_ss) ≪ 0`),
-   making default *expansionary* and flipping the risk premium's sign.
-5. Solve the branch transition with `solve_transition` (warm start: previous
-   round's branch solution if available, else the shifted base path;
-   `try_krylov=False`). If `hybr` stalls on the alpha-explosion penalty wall
-   (poisoned finite-difference Jacobian), retry once with a small trust region
-   (`hybr_factor = 0.1`). Raise `RuntimeError` if both fail (bank equity wiped
-   out — recapitalization is not modelled).
-6. **Absorbing-branch check:** warn if post-default debt
+3. **Re-anchor the Bohn rule** to the post-haircut stock consistent with the
+   event: `b_anchor_D = b_gov0_D · (1 − scale·(1 − recovery_rate_D))`. Keeping
+   the steady-state anchor would turn the haircut into a large tax-cut windfall
+   (`φ·(b − b_ss) ≪ 0`), making default *expansionary* and flipping the risk
+   premium's sign.
+4. Size the recap ex-ante and thread it (`init["recap_D_path"]`).
+5. Solve the branch transition ONCE with `solve_transition` (warm start:
+   previous round's branch solution if available, else `_shifted_y0` with the
+   capital-quality profile; `accept_tol = 1e-9`).
+6. If that fixed event is **infeasible**, raise `RuntimeError` with a hint
+   (raise `recap_share_D`, lower `branch_haircut_scale`, or set
+   `branch_use_ladder=True`) — *unless* `branch_use_ladder` is set, in which
+   case the old feasibility ladder (a search over scales 0.075…1.0, keeping the
+   largest feasible event) runs as a fallback. The ladder is **off by default**
+   so every run is a single deterministic branch solve.
+7. **Absorbing-branch check:** warn if post-default debt
    `b_post / Y_ss ≥ b_ck_low_D` — the branch is assumed to carry no further
    default risk, which requires debt to exit the crisis zone.
 
@@ -483,8 +520,9 @@ bankers price; the wedge between them and base-path payoffs is the entire risk
 channel.
 
 **Computational aspects.** Each branch solve is a full 7T Newton problem, so it
-dominates the cost of a risk round. Warm-starting from the previous round's
-branch solution makes rounds after the first much cheaper.
+dominates the cost of a risk round (round 1 ≈ 20–30 min at the PSI calibration).
+Warm-starting from the previous round's branch solution plus `jac_cache` reuse
+makes rounds after the first cost seconds.
 
 ### `make_risk_inputs`
 
@@ -770,12 +808,18 @@ steady_state_firm(cal, Kap_ss, country="D") -> dict
 **Logic.** With `N_ss = 1` normalized:
 
 ```
-Y_ss  = Z_ss · K_ss^α                        (Cobb-Douglas, N = 1)
-w_ss  = mc·(1−α)·Y_ss                        (labour demand FOC)
-mpk_ss = mc·α·Y_ss / K_ss                    (capital demand FOC)
-I_ss  = δ·K_ss ,   C_ss = Y_ss − I_ss − G
-chi   = w_ss / N_ss^(1/frisch)               (GHH static FOC ⇒ pins N_ss = 1)
+Y_ss   = Z_ss · K_ss^α                                   (Cobb-Douglas, N = 1)
+w_ss   = mc·(1−α)·Y_ss / (1 + ζ_wc·r_wc_ss)              (labour demand FOC, net of
+                                                          working-capital wedge)
+mpk_ss = mc·α·Y_ss / K_ss                                (capital demand FOC)
+I_ss   = δ·K_ss ,   C_ss = Y_ss − I_ss − G
+chi    = w_ss / N_ss^(1/frisch)                          (GHH static FOC ⇒ pins N_ss = 1)
 ```
+
+The **working-capital wedge** (Neumeyer-Perri) has firms pre-finance a fraction
+`ζ_wc = zeta_wc_*` of the wage bill at `r_wc_ss = rdep_target + credit_spread_target`
+(the single-λ IC wedge, a calibration constant at SS), which lowers the wage the
+worker receives. `ζ_wc = 0` reproduces the wedge-free model exactly.
 
 **Economic purpose.** Steady-state firm block used by `steady_state.py`; the
 returned `chi` overwrites the calibration warm start so that labour-market
@@ -796,6 +840,14 @@ Y_t   = Z_t · K_t^α · N_t^(1−α)
 w_t   = mc·(1−α)·Y_t / N_t
 mpk_t = mc·α·Y_t / K_t
 ```
+
+The wage `w_t` returned here is the frictionless FOC wage; the
+**working-capital wedge** is applied downstream in `_inner_economy`, which
+divides `w_t` by `1 + ζ_wc·r_wc_t` with the time-varying rate
+`r_wc_t = rdep_{t−1} + λμ_t/Ω̃_t` (the same single-λ IC wedge that prices bonds,
+computed after the bank backward pass yields μ). This is the spread→output
+transmission channel; it is applied there, not here, because `r_wc` needs the
+IC multiplier.
 
 **Economic purpose.** Supplies output (goods-market resource constraint), the
 wage (labour-market residual and household income), and the marginal product of
@@ -880,7 +932,7 @@ between solves.
 
 ```python
 govt_transition(cal, gs, Q_B_path, def_real_path, country,
-                b_gov0=None, b_anchor=None) -> dict
+                b_gov0=None, b_anchor=None, recap_path=None) -> dict
 # Tax, coupon, net_issuance, b_gov (bop), b_gov_eop   — all (T,)
 ```
 
@@ -891,20 +943,28 @@ govt_transition(cal, gs, Q_B_path, def_real_path, country,
 | `def_real_path` | zeros | Realized haircut indicator per period. |
 | `b_gov0` | `b_gov_ss` | Initial stock (mid-path starts). |
 | `b_anchor` | `b_gov_ss` | Bohn-rule anchor; **must** be re-set to the post-haircut stock on default branches. |
+| `recap_path` | zeros | Bank-recapitalization outlays (default-branch bailout), extra government spending financed by issuance. |
 
 **Logic.** One forward pass over the budget identity; for each t:
 
 ```
-Tax_t      = Tax_base + φ·(b_t − b_anchor)                    (Bohn rule)
 surv_t     = 1 − def_real_t·(1 − recovery_rate)
+Tax_t      = Tax_base + φ·(b_t·surv_t − b_anchor)             (Bohn rule on the
+                                                              SURVIVING stock)
 coupon_t   = δ_b · b_t · surv_t
-new_bonds  = (G + coupon_t − Tax_t) / Q_t        (deficit financed at market price)
+new_bonds  = (G + recap_t + coupon_t − Tax_t) / Q_t   (deficit + bailout financed
+                                                       at market price)
 b_{t+1}    = (1 − δ_b)·b_t·surv_t + new_bonds
 ```
 
 with `Tax_base = Tax_ss` at the steady-state anchor, or the budget-balancing tax
 at a custom anchor (`G + δ_b·b_anchor·(1 − Q_B_ss)`). Realized haircuts scale
-both the coupon and the surviving principal by `surv_t`.
+both the coupon and the surviving principal by `surv_t`. The Bohn rule responds
+to the **post-haircut** stock `b_t·surv_t` (a no-op when `def_real = 0`);
+responding to the pre-haircut stock produced a ~31%-of-GDP one-quarter tax spike
+at the PSI haircut that alone made full-event default branches infeasible.
+`recap_t` (default-branch bank bailout) is additional spending financed by
+issuance, so it raises post-default debt and subsequent Bohn taxes.
 
 **Economic purpose.** Fiscal policy and debt dynamics. Two properties are
 load-bearing:
@@ -965,17 +1025,21 @@ used by the steady-state solver's capital-market stage.
 ### `solve_capital_path`
 
 ```python
-solve_capital_path(Kap_path, Kap_ss, Q_ss, mpk_path, cal, country="D") -> dict
+solve_capital_path(Kap_path, Kap_ss, Q_ss, mpk_path, cal, country="D",
+                   quality0=1.0) -> dict
 # iota, Q, rk, I, cap_profit   — all (T,)
 ```
 
 (The second and third arguments are the *lagged* capital stock and `Q` entering
 period 0 — steady-state values on a standard run, `init` values on a mid-path
-branch.)
+branch. `quality0 < 1` applies a **Gertler-Kiyotaki capital-quality loss**
+ONCE at t = 0 — default branches pass `1 − ξ_K`; base paths leave it at 1.0.)
 
 **Logic.**
 
-1. Invert the accumulation technology on the guessed capital path:
+1. Invert the accumulation technology on the guessed capital path (the lagged
+   stock entering period 0 is `quality0·Kap_ss`, so a fraction `1 − quality0`
+   of the incoming stock is destroyed):
 
    ```
    bracket_t = (K_t/K_{t−1} − (1−δ) − γ1) / γ0
@@ -998,6 +1062,9 @@ branch.)
    rk_t = (mpk_t + (1−δ)·Q_t) / Q_{t−1} − 1
    ```
 
+   When `quality0 < 1`, the period-0 claim return is scaled by `quality0`
+   (`rk_0 = quality0·(mpk_0 + (1−δ)·Q_0)/Q_{−1} − 1`): banks paid the lagged
+   price per original unit but only `quality0` units survive.
 4. Investment `I_t = ι_t·K_{t−1}` and the capital-producer profit rebated to
    households:
 

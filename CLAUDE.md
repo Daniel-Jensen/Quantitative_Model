@@ -45,7 +45,7 @@ exact pure-numpy fallback (`cal["use_numba"]`; equivalence is tested).
 | `transition.py` | 7T stacked system. Debt is endogenous inside every residual call; banks clear bonds against the true end-of-period stock (`b_D_D = b_gov_eop − b_D_F`). `make_residual` builds the residual from a picklable spec (shared with Jacobian workers). Supports mid-crisis initial conditions (`init=`) for default branches and policy runs. `solve_transition_ck` = risk-neutral CK wrapper. |
 | `solvers.py` | Parallel FD Jacobian + damped Newton with Broyden updates, stall-triggered rebuilds, and cross-solve Jacobian reuse (`jac_cache`). |
 | `fast_kernels.py` | numba kernels for EGM backward + distribution forward; exact numpy fallback when numba is absent (`cal["use_numba"]`). |
-| `risk_branch.py` | **Bocola risk channel**: representative post-default branch (PSI haircut + GK capital-quality loss ξ_K + contingent government recap, feasibility ladder as homotopy/fallback — `branch["rescue_mode"]` reports which ran), two-branch risk inputs for `bank_backward`, `solve_transition_ck_risk` outer loop (base ↔ branch fixed point), and `bond_decomposition` (default comp. + risk premium + liquidity premium, exact identity). |
+| `risk_branch.py` | **Bocola risk channel**: representative post-default branch — ONE deterministic solve of a fixed feared event (`branch_haircut_scale`, default 1.0 = full PSI haircut + GK capital-quality loss ξ_K + government recap; `branch["rescue_mode"]` reports it). The old feasibility-ladder search over scales is opt-in only (`branch_use_ladder`, default off). Two-branch risk inputs for `bank_backward`, `solve_transition_ck_risk` outer loop (base ↔ branch fixed point), and `bond_decomposition` (default comp. + risk premium + liquidity premium, exact identity). |
 | `household.py`, `distribution.py` | EGM with GHH utility; stationary distribution and forward iteration. |
 | `firms.py`, `capital.py`, `trade.py` | Flexible-price production with the Neumeyer-Perri working-capital wedge (w ÷ (1+ζ·r_wc), the spread→output channel; ζ=0 nests exactly), Jermann adjustment costs (+ branch capital-quality hook `quality0`), CES/Armington trade. |
 | `main.py` | End-to-end run: SS → TFP IRF → CK–Bocola pass-through experiment (sunspot 1%·0.95^t). Risk-ON ≈ 32 min at the PSI calibration (round-1 branch homotopy ≈ 27 min; later rounds seconds via `jac_cache`). |
@@ -110,13 +110,16 @@ python3 tests/test_risk_channel.py           # risk-channel nesting/identity/sig
   ≈ 1/δ_b quarters (0.036 ⇒ ~7y). Long duration is what makes priced risk
   generate large MTM losses — an interlude with δ_b=0.25/recovery=0.80 cut
   the repricing ~6x and made the risk channel expansionary (study §8).
-- **Default branch = PSI haircut + capital-quality loss + recap:** recovery
-  0.45 (Greek PSI); `def_capital_quality_D` (ξ_K=0.05) destroys branch
-  capital so it is NOT the safe haven (ξ_K=0 re-opens the M2 boom; ξ_K=0.10
-  over-compresses μ — tested, rejected); `recap_share_D` is a contingent
-  HFSF-style equity injection financed by branch issuance, tried only when
-  the no-recap event wipes out equity; the feasibility ladder prices the
-  largest feasible event otherwise. Bohn taxes respond to the SURVIVING
+- **Default branch = ONE fixed feared event (no per-run search):** the
+  branch solves a single deterministic event — `branch_haircut_scale`
+  (default 1.0 = full Greek-PSI haircut, recovery 0.45) + `def_capital_quality_D`
+  (ξ_K=0.05, destroys branch capital so it is NOT the safe haven — ξ_K=0
+  re-opens the M2 boom, ξ_K=0.10 over-compresses μ, both tested/rejected)
+  + `recap_share_D` (HFSF-style equity injection financed by branch
+  issuance, always on when >0 — it is what makes the full haircut feasible).
+  If that fixed event is infeasible the branch RAISES unless
+  `branch_use_ladder=True` re-enables the old scale-search fallback (off by
+  default → deterministic single-solve). Bohn taxes respond to the SURVIVING
   stock (taxing the pre-haircut stock at t=0 was a ~31%-of-GDP artifact).
 - **Working capital (Neumeyer-Perri):** ζ_wc=1 × wage bill pre-financed at
   r_wc = rdep(−1) + λμ/Ω̃; the wedge is the only channel from spreads into
