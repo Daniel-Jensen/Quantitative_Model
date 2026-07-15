@@ -76,28 +76,60 @@ def _shift_path(x, tau, T):
     return np.asarray(x)[idx]
 
 
-def _shifted_y0(out, tau, T):
-    """Warm start for the branch Newton: base solution shifted by tau."""
+def _shifted_y0(out, tau, T, xi_K=0.0, rho_rebuild=0.975):
+    """Warm start for the branch Newton: base solution shifted by tau.
+
+    xi_K > 0 (capital-quality loss in the branch): scale the Kap_D block
+    toward the post-destruction path.  A raw shifted BASE path implies
+    rebuilding the destroyed stock within one quarter — the Jermann price
+    explodes (Q ≈ 2), μ collapses, the cross-border FOC holdings blow
+    through the bond stock and every residual call lands on the penalty
+    wall, where the solver cannot move.  The rebuild profile is only a
+    starting guess (Newton finds the true speed); rho_rebuild ≈ 0.975
+    matches the Jermann-implied K half-life (~28q) — faster profiles imply
+    violent within-quarter investment swings that trip μ ≥ 1 at larger
+    xi_K."""
     blocks = [out["N_D"], out["N_F"], out["Kap_D"], out["Kap_F"],
               out["rdep_D"], out["rdep_F"], out["p"]]
-    return np.concatenate([_shift_path(b, tau, T) for b in blocks])
+    y = np.concatenate([_shift_path(b, tau, T) for b in blocks])
+    if xi_K > 0.0:
+        y[2*T:3*T] *= 1.0 - xi_K * rho_rebuild ** np.arange(T)
+    return y
 
 
 def solve_default_branch(out, ss, cal, tau=1, verbose=False, y0=None,
-                         target_scale=None):
-    """Post-default PF transition: the FULL haircut (1 − recovery) realized
-    at branch period 0, starting from the base-path state entering period tau.
+                         target_scale=None, target_mode=None, jac_cache=None):
+    """Post-default PF transition starting from the base-path state entering
+    period tau.  Three ingredients define the feared event:
 
-    The haircut feasibility ladder was removed (2026-07-13): with
-    recovery_rate_D = 0.90 the event costs banks ~10% of their sovereign
-    exposure and never threatens equity, so the largest-feasible-event
-    search is moot.  haircut_scale ≡ 1.0.  (`target_scale` kept for caller
-    compatibility; unused.)
+      haircut      : scale·(1−recovery) realized on the bond stock at h=0;
+      capital loss : GK capital-quality shock ξ_K = def_capital_quality_D —
+                     a fraction of D capital is destroyed at h=0 (this is
+                     what stops capital being the branch safe haven; see
+                     docs/sunspot_transition_study.md M2);
+      recap        : contingent government recapitalization (HFSF/EFSF
+                     analogue) — if the full event wipes out bank equity,
+                     the state replaces recap_share_D of the banks' haircut
+                     loss with an equity injection financed by issuance
+                     (raises post-default debt and Bohn taxes).
+
+    Attempt order (2026-07-15 plan): (1) full event, no recap; (2) full
+    event + recap; (3) feasibility ladder (largest feasible partial event,
+    with recap).  branch["rescue_mode"] records which one ran and
+    branch["haircut_scale"] the realized scale — make_risk_inputs prices
+    the CONSISTENT survival factor surv_d = 1 − scale·(1−rec).
+
+    target_scale/target_mode: last round's configuration (warm re-solves
+    inside the risk fixed point try it first with y0).  jac_cache carries
+    the branch-system Jacobian across rounds and ladder probes
+    (solvers.newton_solve tolerates cross-system reuse via rebuilds).
     """
     T = cal["T"]
     init = extract_init_state(out, ss, cal, tau)
 
     rec_D = cal["recovery_rate_D"]
+    xi_K = cal.get("def_capital_quality_D", 0.0)
+    recap_share = cal.get("recap_share_D", 0.0)
 
     # Canonical output cost of default (Arellano 2008): the default state is
     # a recession — this is what makes Λ^d, α^d high while returns are low.
@@ -106,37 +138,104 @@ def solve_default_branch(out, ss, cal, tau=1, verbose=False, y0=None,
     Z_D_b = _shift_path(out["Z_D"], tau, T) * (1.0 - cost * rho_c ** np.arange(T))
     Z_F_b = _shift_path(out["Z_F"], tau, T)
 
-    def_real_D = np.zeros(T)
-    def_real_D[0] = 1.0
-    # No fiscal windfall: re-anchor the Bohn rule to the post-haircut stock,
-    # otherwise φ·(b − b_ss) turns the haircut into large tax cuts and the
-    # default state becomes expansionary (wrong-signed risk premium).
-    init["b_anchor_D"] = init["b_gov0_D"] * rec_D
+    # GK capital-quality loss at h=0 (branch only; base paths never set this)
+    init["quality0_D"] = 1.0 - xi_K
 
-    # Warm start: previous round's branch solution if available, else the
-    # shifted base path.  Retry with a small trust region if hybr stalls on
-    # the alpha-explosion penalty wall (poisoned finite-difference Jacobian).
-    y_start = y0 if y0 is not None else _shifted_y0(out, tau, T)
-    branch = None
-    for hybr_factor in (100.0, 0.1):
+    # Banks' bond exposure entering the branch (for ex-ante recap sizing)
+    s = tau - 1
+    bond_exposure_D = out["Q_bD"][s] * out["b_D_D"][s]
+
+    def _attempt(scale, recap_on, y_start, hybr_factor=100.0):
+        """One branch solve at a given haircut scale; None if infeasible."""
+        def_real_D = np.zeros(T)
+        def_real_D[0] = scale
+        # No fiscal windfall: re-anchor the Bohn rule to the post-haircut
+        # stock consistent with THIS event size, otherwise φ·(b − b_ss)
+        # turns the haircut into large tax cuts and the default state
+        # becomes expansionary (wrong-signed risk premium).
+        init["b_anchor_D"] = init["b_gov0_D"] * (1.0 - scale * (1.0 - rec_D))
+        if recap_on and recap_share > 0.0:
+            recap = np.zeros(T)
+            recap[0] = recap_share * scale * (1.0 - rec_D) * bond_exposure_D
+            init["recap_D_path"] = recap
+        else:
+            init.pop("recap_D_path", None)
         try:
-            branch = solve_transition(
+            return solve_transition(
                 ss, cal, Z_D_b, Z_F_b,
                 def_real_D=def_real_D,
                 verbose=False, y0=y_start, init=init,
-                try_krylov=False,
-                hybr_factor=hybr_factor,
+                jac_cache=jac_cache, hybr_factor=hybr_factor,
+                accept_tol=1e-9,
             )
-            break
         except (RuntimeError, ValueError) as e:
             if verbose:
-                print(f"    [branch] full-haircut solve failed "
-                      f"(hybr_factor={hybr_factor}): {e}")
+                print(f"    [branch] scale={scale:.3f} recap={recap_on} "
+                      f"infeasible ({e})")
+            return None
+
+    def _climb(scales, y_start, hybr_factor=100.0):
+        # Try every scale (with recap), keep the LARGEST feasible event.
+        # Feasibility is not monotone: small events can be boom-infeasible
+        # (risk-relief rally) while large ones are crunch-infeasible
+        # (equity wipeout) — never stop at the first failure.
+        b, s_used, y = None, 0.0, y_start
+        for scale in scales:
+            cand = _attempt(scale, True, y, hybr_factor)
+            if cand is None:
+                continue
+            b, s_used = cand, scale
+            y = b["y_vec"]
+        return b, s_used
+
+    branch, scale_used, mode = None, 1.0, None
+
+    # Warm re-solve: replicate last round's configuration first (y0 matches it)
+    if y0 is not None and target_scale is not None and target_mode is not None:
+        branch = _attempt(target_scale, target_mode != "full", y0)
+        if branch is not None:
+            scale_used, mode = target_scale, target_mode
+
     if branch is None:
-        raise RuntimeError("default branch infeasible at the full haircut — "
-                           "bank equity wiped out (recap not modelled)")
-    scale_used = 1.0
+        y_start = y0 if y0 is not None else _shifted_y0(out, tau, T, xi_K)
+        # (1) full event, no recap
+        branch = _attempt(1.0, False, y_start)
+        if branch is not None:
+            mode = "full"
+        # (2) full event + contingent recap
+        if branch is None and recap_share > 0.0:
+            branch = _attempt(1.0, True, y_start)
+            if branch is not None:
+                mode = "full+recap"
+        # (3) feasibility ladder (largest feasible partial event, with recap)
+        if branch is None:
+            full_ladder = (0.075, 0.15, 0.3, 0.5, 0.75, 1.0)
+            branch, scale_used = _climb(full_ladder, y_start)
+            if branch is None:
+                # From flat warm starts the trust region can overshoot into
+                # the alpha-explosion penalty wall; retry with a small one.
+                if verbose:
+                    print("    [ladder] all probes stalled; retrying with "
+                          "small trust region (hybr_factor=0.1)")
+                branch, scale_used = _climb(full_ladder,
+                                            _shifted_y0(out, tau, T, xi_K),
+                                            hybr_factor=0.1)
+            if branch is not None:
+                mode = (f"ladder({scale_used:.3f})"
+                        + ("+recap" if recap_share > 0.0 else ""))
+
+    if branch is None:
+        raise RuntimeError("default branch infeasible even at the smallest "
+                           "haircut scale with recap — bank equity wiped out")
+
     branch["haircut_scale"] = scale_used
+    branch["rescue_mode"] = mode
+    branch["recap_D_path"] = init.get("recap_D_path", np.zeros(T)).copy() \
+        if init.get("recap_D_path") is not None else np.zeros(T)
+    if verbose and scale_used < 1.0:
+        print(f"  [risk_branch] priced event = partial restructuring "
+              f"(haircut {scale_used * (1 - rec_D):.0%}; full event "
+              "infeasible even with recap)")
     # Absorbing-branch check at the ACTUAL event size
     b_post = init["b_gov0_D"] * (1.0 - scale_used * (1.0 - rec_D))
     if b_post / ss["ss_firm_D"]["Y_ss"] >= cal["b_ck_low_D"]:
@@ -144,7 +243,7 @@ def solve_default_branch(out, ss, cal, tau=1, verbose=False, y0=None,
               f"{b_post / ss['ss_firm_D']['Y_ss']:.2f} ≥ b_ck_low — branch "
               "not absorbing; risk inputs understate continuation risk.")
     if verbose:
-        print(f"  [risk_branch] branch solved: n_D(0)/n_ss = "
+        print(f"  [risk_branch] branch solved [{mode}]: n_D(0)/n_ss = "
               f"{branch['n_D'][0] / ss['ss_bank_D']['n_ss']:.3f}, "
               f"Q_bD(0) = {branch['Q_bD'][0]:.4f}, rk_D(0) = {branch['rk_D'][0]:+.4f}")
     return branch
@@ -272,13 +371,21 @@ def solve_transition_ck_risk(ss, cal, Z_D_path, Z_F_path,
 
     chi_tilt = cal.get("chi_tilt", 1.0)
 
+    # Jacobian caches (solvers.newton_solve): one per system kind.  jc_base is
+    # filled by the round-0 solve and reused by every base re-solve; jc_branch
+    # by the round-1 branch solve and reused by every branch re-solve.  This is
+    # where the speedup lives — warm re-solves cost a handful of residual
+    # evaluations instead of a fresh 7T+1-call FD Jacobian each.
+    jc_base = {}
+    jc_branch = {}
+
     # Round 0: risk-off base (also settles the crisis-zone indicator).
     # Pass y0 from a pre-solved risk-off run to skip the cold Newton start
     # (large sunspots need a homotopy, which main.py already performs).
     out = solve_transition_ck(ss, cal, Z_D_path, Z_F_path,
                               sunspot_D_path=sunspot_D_path,
                               sunspot_F_path=sunspot_F_path,
-                              verbose=False, y0=y0)
+                              verbose=False, y0=y0, jac_cache=jc_base)
     def_price_D = np.asarray(out["def_price_D"])
     def_price_F = np.asarray(out["def_price_F"])
     # Indicators actually used in the most recent base solve (round 0's CK
@@ -290,7 +397,8 @@ def solve_transition_ck_risk(ss, cal, Z_D_path, Z_F_path,
     risk_in = None
     branch = None
     branch_y0 = None
-    scale_star = None   # haircut_scale ≡ 1.0 (ladder removed); kept as warm-start hint
+    scale_star = None   # last round's haircut scale (warm-start hint)
+    mode_star = None    # last round's rescue mode (full / full+recap / ladder)
     fixed_point_ok = True
     conv = np.inf
     for rd in range(1, max_rounds + 1):
@@ -299,7 +407,9 @@ def solve_transition_ck_risk(ss, cal, Z_D_path, Z_F_path,
             branch_new = solve_default_branch(out, ss, cal, tau=1,
                                               verbose=verbose,
                                               y0=branch_y0,
-                                              target_scale=scale_star)
+                                              target_scale=scale_star,
+                                              target_mode=mode_star,
+                                              jac_cache=jc_branch)
         except RuntimeError as e:
             if branch is None:
                 raise
@@ -311,6 +421,7 @@ def solve_transition_ck_risk(ss, cal, Z_D_path, Z_F_path,
         _t_branch = _time.perf_counter() - _t0
         branch_y0 = branch["y_vec"]
         scale_star = branch["haircut_scale"]
+        mode_star = branch["rescue_mode"]
         new_in = make_risk_inputs(branch, out, ss, cal)
 
         if risk_in is None:
@@ -336,6 +447,7 @@ def solve_transition_ck_risk(ss, cal, Z_D_path, Z_F_path,
             ss, cal, Z_D_path, Z_F_path,
             def_price_D=def_price_D, def_price_F=def_price_F,
             verbose=False, y0=out["y_vec"], risk_D=risk_D,
+            jac_cache=jc_base,
         )
         _t_base = _time.perf_counter() - _t0
 
@@ -378,6 +490,7 @@ def solve_transition_ck_risk(ss, cal, Z_D_path, Z_F_path,
             ss, cal, Z_D_path, Z_F_path,
             def_price_D=def_price_D, def_price_F=def_price_F,
             verbose=False, y0=out["y_vec"], risk_D=risk_D,
+            jac_cache=jc_base,
         )
         def_price_D = _zone(out["b_gov_bop_D"], Y_ss_D, sunspot_D_path, "D")
         def_price_F = _zone(out["b_gov_bop_F"], Y_ss_F, sunspot_F_path, "F")

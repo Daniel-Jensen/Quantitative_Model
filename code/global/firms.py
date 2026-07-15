@@ -18,7 +18,14 @@ def steady_state_firm(cal, Kap_ss, country="D"):
     mc_ss  = markup_ss(cal, country)
     N_ss   = 1.0
     Y_ss   = Z_ss * Kap_ss ** alpha * N_ss ** (1 - alpha)
-    w_ss   = mc_ss * (1 - alpha) * Y_ss / N_ss
+    # Working-capital wedge (Neumeyer-Perri): firms pre-finance zeta_wc of
+    # the wage bill at r_wc = rdep + IC wedge.  At SS the single-λ wedge
+    # equals the credit-spread target by construction (calibrate_bank_targets),
+    # so r_wc_ss is a calibration constant — no bank fixed point needed here.
+    zeta_wc  = cal.get(f"zeta_wc_{country}", 0.0)
+    r_wc_ss  = (cal[f"r_dep_{country}_target"]
+                + cal[f"credit_spread_target_{country}"])
+    w_ss   = mc_ss * (1 - alpha) * Y_ss / N_ss / (1.0 + zeta_wc * r_wc_ss)
     mpk_ss = mc_ss * alpha * Y_ss / Kap_ss
     I_ss   = delta * Kap_ss
     C_ss   = Y_ss - I_ss - G

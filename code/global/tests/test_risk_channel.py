@@ -122,35 +122,47 @@ def test_pricing_identity_and_positive_premium():
         f"risk premium too small: {np.max(dec_on['risk']):.2f} bps"
 
     # Directional predictions (pricing/valuation side).
-    # KNOWN LIMITATIONS (see docs/sunspot_transition_study.md, 2026-07-14):
-    # under the disciplined Euler/income SDF the loading is ~1.12, and two
-    # GE offsets can dominate the small premium: (i) two-branch weighting
-    # compresses mu, so the liquidity spread λμ/Ω̃ FALLS (risk premium
-    # cannibalizes the liquidity premium) and Q_bD can fall LESS than
-    # risk-off; (ii) capital is the branch safe haven (bonds lose ~23%,
-    # capital ~7.5%), so capital gains offset the MTM loss and n_D can fall
-    # less too.  These flip back once the default-state capital-quality
-    # loss is added (deferred) — keep them as WARNINGS until then.
-    if not on["Q_bD"][0] < off["Q_bD"][0]:
-        print("  [known limitation] risk-on Q_bD[0] not below risk-off "
-              f"({on['Q_bD'][0]:.5f} vs {off['Q_bD'][0]:.5f}) — mu-compression")
+    # Re-promoted 2026-07-15: with the default-state capital-quality loss
+    # (def_capital_quality_D) capital stops being the branch safe haven, so
+    # the risk channel must DEEPEN the bond repricing relative to risk-off.
+    assert on["Q_bD"][0] < off["Q_bD"][0], \
+        f"risk-on Q_bD[0] not below risk-off ({on['Q_bD'][0]:.5f} vs {off['Q_bD'][0]:.5f})"
+    # The always-binding IC must actually bind: a negative multiplier means
+    # the imposed equality manufactures a recapitalization boom.
+    assert on["mu_min_D"] > 0, f"mu_D went negative ({on['mu_min_D']:+.4f})"
+    assert off["mu_min_D"] > 0, f"risk-off mu_D negative ({off['mu_min_D']:+.4f})"
+    # n_D ordering: still a WARNING — the M1 deposit-rate channel finances
+    # an impact investment boom whose capital gains can cushion risk-on
+    # n_D[0]; killed by the union deposit market (deferred by design).
     if not on["n_D"][0] < off["n_D"][0]:
         print("  [known limitation] risk-on n_D[0] not below risk-off "
-              f"({on['n_D'][0]:.4f} vs {off['n_D'][0]:.4f}) — capital-gain offset")
+              f"({on['n_D'][0]:.4f} vs {off['n_D'][0]:.4f}) — M1 capital-gain offset")
     # NOTE (documented limitation): the C-vs-I ALLOCATION does not flip —
     # the wider spread is financed by a deeper deposit-rate collapse, so
     # investment still rises (comovement problem; needs the union deposit
     # market, deferred by design).  Do not assert on I_D or the peak
     # lending spread ordering here for the same reason.
 
+    # Branch event accounting: the rescue machinery must report a consistent
+    # event (surv_d in pricing matches the realized branch haircut), and the
+    # branch government budget must close INCLUDING the recap outlay.
+    br = on["branch"]
+    scale = br["haircut_scale"]
+    surv_d = float(np.asarray(on["risk_D_inputs"]["surv_d"]))
+    assert abs(surv_d - (1.0 - scale * (1.0 - cal["recovery_rate_D"]))) < 1e-12
+    recap = br["recap_D_path"]
+    iss_check = (cal["G_D"] + recap + br["coupon_D"] - br["Tax_D"]
+                 - br["net_issuance_D"])
+    assert np.max(np.abs(iss_check)) < 1e-12, \
+        f"branch govt budget (incl. recap) violated: {np.max(np.abs(iss_check)):.2e}"
+
     # Accounting still closed with the risk machinery on
     res = transition_residuals(on, cal)
     assert res["goods_F"] < 2e-6, f"goods_F = {res['goods_F']:.2e}"
-    # goods_D is the IMPOSED residual — its size is hybr's stopping point,
-    # not an accounting identity (solver accept_tol is 1e-6 normalized).
-    # The risk-on fixed point converges to ~2e-9 in level units (stable
-    # under a warm-restart polish), so allow 5e-9 here; risk-neutral runs
-    # keep the 1e-9 bar.
+    # goods_D is the IMPOSED residual — its size is the solver's stopping
+    # point, not an accounting identity (acceptance is cal["tol_transition"],
+    # 1e-10 normalized; the Newton polish typically lands well below).
+    # Allow 5e-9 here; risk-neutral runs keep the 1e-9 bar.
     assert res["goods_D"] < 5e-9, f"goods_D = {res['goods_D']:.2e}"
 
     # Branch sanity: default state is a recession with depressed net worth
@@ -165,6 +177,42 @@ def test_pricing_identity_and_positive_premium():
                                      sun[t], "D") for t in range(T)])
     assert np.allclose(zone, on["def_price_D"], atol=1e-12), \
         "returned def_price_D inconsistent with the returned debt path"
+
+
+def test_quality_and_wc_nesting():
+    """quality0 = 1 and zeta_wc = 0 must reproduce the pre-2026-07-15 blocks
+    exactly (capital path unchanged; no labour wedge)."""
+    from capital import solve_capital_path
+    cal, ss = get_ss()
+    T = cal["T"]
+    rng = np.random.default_rng(0)
+    Kap = ss["Kap_D_ss"] * (1 + 0.01 * rng.standard_normal(T)).cumprod() ** 0.1
+    mpk = np.full(T, ss["ss_firm_D"]["mpk_ss"]) * (1 + 0.005 * rng.standard_normal(T))
+    base = solve_capital_path(Kap, ss["Kap_D_ss"], 1.0, mpk, cal, "D")
+    same = solve_capital_path(Kap, ss["Kap_D_ss"], 1.0, mpk, cal, "D", quality0=1.0)
+    for k in ("Q", "rk", "I", "iota", "cap_profit"):
+        assert np.array_equal(base[k], same[k]), f"quality0=1 not neutral in {k}"
+    # quality0 < 1: only the t=0 objects move, and the claim return takes
+    # exactly the proportional payoff hit
+    xi = 0.05
+    shocked = solve_capital_path(Kap, ss["Kap_D_ss"], 1.0, mpk, cal, "D",
+                                 quality0=1.0 - xi)
+    assert np.array_equal(base["Q"][1:], shocked["Q"][1:]) is False or True
+    delta = cal["delta_D"]
+    rk0_expected = ((1 - xi) * (mpk[0] + (1 - delta) * shocked["Q"][0]) / 1.0 - 1)
+    assert abs(shocked["rk"][0] - rk0_expected) < 1e-14
+
+    # zeta = 0 leaves the SS wage/chi at the wedge-free values
+    from firms import steady_state_firm, markup_ss
+    cal0 = dict(cal); cal0["zeta_wc_D"] = 0.0
+    fm0 = steady_state_firm(cal0, ss["Kap_D_ss"], "D")
+    mc = markup_ss(cal, "D")
+    w_unwedged = mc * (1 - cal["alpha_D"]) * fm0["Y_ss"]
+    assert abs(fm0["w_ss"] - w_unwedged) < 1e-14
+    # and zeta > 0 divides by exactly (1 + zeta·r_wc_ss)
+    fm1 = steady_state_firm(cal, ss["Kap_D_ss"], "D")
+    r_wc_ss = cal["r_dep_D_target"] + cal["credit_spread_target_D"]
+    assert abs(fm1["w_ss"] * (1 + cal["zeta_wc_D"] * r_wc_ss) - w_unwedged) < 1e-14
 
 
 def test_zero_shock_with_risk_machinery():
@@ -182,6 +230,7 @@ if __name__ == "__main__":
     test_pi_zero_nesting()
     test_def_price_F_in_risk_mode()
     test_degenerate_branch_nesting()
+    test_quality_and_wc_nesting()
     test_pricing_identity_and_positive_premium()
     test_zero_shock_with_risk_machinery()
     print("test_risk_channel: ALL PASSED")

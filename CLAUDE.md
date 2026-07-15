@@ -23,9 +23,18 @@ longer exists.
 
 ## Model code (`code/global/`)
 
-The model is solved with global nonlinear methods: scipy `root` (hybr) over
-7T stacked unknowns `[N_D, N_F, Kap_D, Kap_F, rdep_D, rdep_F, p]` under
-perfect foresight (MIT shocks), T=100.
+The model is solved with global nonlinear methods over 7T stacked unknowns
+`[N_D, N_F, Kap_D, Kap_F, rdep_D, rdep_F, p]` under perfect foresight
+(MIT shocks), T=200.  Solver (`solvers.py`, 2026-07): damped Newton on an
+explicit finite-difference Jacobian — built in parallel (multiprocessing)
+and REUSED across warm re-solves via caller-owned `jac_cache` dicts, which
+is what makes the CK/risk fixed points fast — with scipy hybr as the
+cold-start/fallback path and a Newton polish to `tol_transition` (1e-10).
+Do not tighten `tol_transition` toward 1e-12 casually: hybr alone plateaus
+near 5e-11 (it stops on xtol, not the residual), and 1e-12 previously made
+every solve grind through futile restarts and then raise.  Hot kernels
+(household EGM backward, distribution forward) are numba-JITed with an
+exact pure-numpy fallback (`cal["use_numba"]`; equivalence is tested).
 
 | File | Contents |
 |------|----------|
@@ -33,31 +42,41 @@ perfect foresight (MIT shocks), T=100.
 | `steady_state.py` | Two-stage SS solve: {rk_D, rk_F, p} on capital markets + current account, then {β_D, β_F} on deposit markets. Symmetric SS required (see docstring). |
 | `bank.py` | GK/Bocola bank block. `bank_backward` (α, μ, bond prices, cross-border FOC holdings), `bank_forward` (net worth, dividends, deposit supply). PRICED (`def_price`) vs REALIZED (`def_real`) default split. |
 | `government.py` | HM perpetuity bonds, Bohn rule, CK crisis zones. `govt_transition` forward-integrates the debt stock in one pass. |
-| `transition.py` | 7T Newton solver. Debt is endogenous inside every residual call; banks clear bonds against the true end-of-period stock (`b_D_D = b_gov_eop − b_D_F`). Supports mid-crisis initial conditions (`init=`) for default branches and policy runs. `solve_transition_ck` = risk-neutral CK wrapper. |
-| `risk_branch.py` | **Bocola risk channel**: representative post-default branch, two-branch risk inputs for `bank_backward`, `solve_transition_ck_risk` outer loop (base ↔ branch fixed point), and `bond_decomposition` (default comp. + risk premium + liquidity premium, exact identity). |
+| `transition.py` | 7T stacked system. Debt is endogenous inside every residual call; banks clear bonds against the true end-of-period stock (`b_D_D = b_gov_eop − b_D_F`). `make_residual` builds the residual from a picklable spec (shared with Jacobian workers). Supports mid-crisis initial conditions (`init=`) for default branches and policy runs. `solve_transition_ck` = risk-neutral CK wrapper. |
+| `solvers.py` | Parallel FD Jacobian + damped Newton with Broyden updates, stall-triggered rebuilds, and cross-solve Jacobian reuse (`jac_cache`). |
+| `fast_kernels.py` | numba kernels for EGM backward + distribution forward; exact numpy fallback when numba is absent (`cal["use_numba"]`). |
+| `risk_branch.py` | **Bocola risk channel**: representative post-default branch (PSI haircut + GK capital-quality loss ξ_K + contingent government recap, feasibility ladder as homotopy/fallback — `branch["rescue_mode"]` reports which ran), two-branch risk inputs for `bank_backward`, `solve_transition_ck_risk` outer loop (base ↔ branch fixed point), and `bond_decomposition` (default comp. + risk premium + liquidity premium, exact identity). |
 | `household.py`, `distribution.py` | EGM with GHH utility; stationary distribution and forward iteration. |
-| `firms.py`, `capital.py`, `trade.py` | Flexible-price production, Jermann adjustment costs, CES/Armington trade. |
-| `main.py` | End-to-end run: SS → TFP IRF → CK–Bocola pass-through experiment (with sunspot homotopy). ~1 min total. |
+| `firms.py`, `capital.py`, `trade.py` | Flexible-price production with the Neumeyer-Perri working-capital wedge (w ÷ (1+ζ·r_wc), the spread→output channel; ζ=0 nests exactly), Jermann adjustment costs (+ branch capital-quality hook `quality0`), CES/Armington trade. |
+| `main.py` | End-to-end run: SS → TFP IRF → CK–Bocola pass-through experiment (sunspot 1%·0.95^t). Risk-ON ≈ 32 min at the PSI calibration (round-1 branch homotopy ≈ 27 min; later rounds seconds via `jac_cache`). |
 | `tests/` | Regression suite (see below). |
 
 ## Running and testing
 
 ```bash
 cd code/global
-python3 main.py                              # full pipeline + figures (~1 min)
+python3 main.py                              # full pipeline + figures (~1.5 min)
 python3 tests/test_ss_identities.py          # SS theory identities (fast)
 python3 tests/test_bank_block.py             # bank FOC/no-arbitrage identities (fast)
-python3 tests/test_transition_walras.py      # fixed point + Walras with moving debt (~1 min)
-python3 tests/test_signs_bocola.py           # sign acceptance criteria (~1 min)
-python3 tests/test_risk_channel.py           # risk-channel nesting/identity/signs (~3 min)
+python3 tests/test_fast_kernels.py           # numba/numpy kernel equivalence (fast)
+python3 tests/test_transition_walras.py      # fixed point + Walras with moving debt (~30s)
+python3 tests/test_signs_bocola.py           # sign acceptance criteria (~20s)
+python3 tests/test_risk_channel.py           # risk-channel nesting/identity/signs (~2 min)
 ```
 
 **Acceptance thresholds** (all enforced in tests):
 - goods_D (imposed) ≤ 1e−9; goods_F (Walras-redundant diagnostic) ≤ 2e−6 —
-  including when the debt stock moves.
+  including when the debt stock moves.  (The Newton solver typically lands
+  goods_D near 1e−13; acceptance is `tol_transition` = 1e−10 normalized.)
 - Zero-shock transition stays at SS to ≤ 1e−5.
 - Risk-only sunspot: Q_bD↓, n_D↓, n_F↓, Y_D[0]↓, C_D[0]↓, lending spread↑,
   b_gov↑, Tax↑ (a positive Y or n response to sovereign risk = bug).
+- μ > 0 on every solved path (`out["mu_min_D/F"]`; transition.py warns if
+  violated — a negative IC multiplier means the always-binding equality is
+  manufacturing a recapitalization boom).  Known open item: risk-on n_D[0]
+  can sit above risk-off (M1 deposit-rate channel; test warning, not
+  assert) and post-impact Y_D runs mildly positive — both die with the
+  union deposit market (docs/sunspot_transition_study.md §8).
 
 ## Key modelling choices — do not "fix" without checking docs/SPEC.md
 
@@ -89,20 +108,38 @@ python3 tests/test_risk_channel.py           # risk-channel nesting/identity/sig
   throughout (bank funding legs, household EGM returns, μ timing).
 - **Hatchondo-Martinez perpetuity:** stock decays at rate 1−δ_b; duration
   ≈ 1/δ_b quarters (0.036 ⇒ ~7y). Long duration is what makes priced risk
-  generate large MTM losses.
+  generate large MTM losses — an interlude with δ_b=0.25/recovery=0.80 cut
+  the repricing ~6x and made the risk channel expansionary (study §8).
+- **Default branch = PSI haircut + capital-quality loss + recap:** recovery
+  0.45 (Greek PSI); `def_capital_quality_D` (ξ_K=0.05) destroys branch
+  capital so it is NOT the safe haven (ξ_K=0 re-opens the M2 boom; ξ_K=0.10
+  over-compresses μ — tested, rejected); `recap_share_D` is a contingent
+  HFSF-style equity injection financed by branch issuance, tried only when
+  the no-recap event wipes out equity; the feasibility ladder prices the
+  largest feasible event otherwise. Bohn taxes respond to the SURVIVING
+  stock (taxing the pre-haircut stock at t=0 was a ~31%-of-GDP artifact).
+- **Working capital (Neumeyer-Perri):** ζ_wc=1 × wage bill pre-financed at
+  r_wc = rdep(−1) + λμ/Ω̃; the wedge is the only channel from spreads into
+  impact output (without it Y_D moved −0.2% even at Q_bD −30%, n_D −20%).
+  Financing income passes through to household dividends (intra-period,
+  never on the bank balance sheet); routing it through bank equity would
+  break the closed-form leverage/spread calibration.
 - **Walras redundancy:** goods_F and the current account are *dropped* from
   the residual system and monitored as diagnostics.
 - **No macroprudential policy** (by design, current phase). The only policy
-  rule is the Bohn tax.
+  rules are the Bohn tax and the contingent default-branch recap.
 
 ## Known limitations (documented, next thesis phases)
 
-- Flexible prices, no union-wide nominal rate: the deposit rate falls
-  sharply in crises, so consumption bears much of the contraction
-  (Bocola's own "comovement problem", his §VI; kept deliberately for
-  benchmark fidelity). Future dials: integrated union deposit market
-  (rdep_D = rdep_F), Neumeyer-Perri working-capital loans, NK/union block
-  (needed for the TPI application).
+- Flexible prices, no union-wide nominal rate: the deposit-rate collapse
+  (M1) still finances an impact investment boom that cushions risk-on bank
+  net worth and turns post-impact Y_D mildly positive (Bocola's
+  "comovement problem", his §VI). Remaining dials: integrated union
+  deposit market (rdep_D = rdep_F; kills M1, enables sdf_mode="model"),
+  NK/union block (needed for the TPI application).  Branch-side μ < 0
+  (either bank inside the deep feared state; the base path stays μ>0) is
+  logged and unfixed; large sunspots (10%) can push even the base μ_D < 0 —
+  the monitor flags all of these.
 - Risk channel approximations: single representative default branch,
   Λ^nd ≡ beta_inter, rep-agent SDF proxy, household-side π-blindness (the
   deposit Euler never weights the default branch — no precautionary savings

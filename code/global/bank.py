@@ -456,14 +456,24 @@ def bank_forward(Kap_D, Kap_F, Q_D, Q_F, rk_D, rk_F, rdep_D, rdep_F, p_path,
                  b_D_D_path, b_F_F_path, bwd, cal, ss_bk_D, ss_bk_F,
                  def_real_D=None, def_real_F=None,
                  init_D=None, init_F=None,
-                 Q_bD_lag0=None, Q_bF_lag0=None, p_lag0=None):
+                 Q_bD_lag0=None, Q_bF_lag0=None, p_lag0=None,
+                 recap_D=None, recap_F=None):
     # GIVEN THE PRICES AND CROSS BORDER HOLDINGS FROM THE BACKWARD PASS, LET US CALCULATE THE FORWARD PATHS OF NET WORTH AND DIVIDENDS
+    #
+    # recap_D/F : optional (T,) government equity injections (default-branch
+    #   recapitalization).  Added to retained net worth, NOT to gross income —
+    #   the injection goes to continuing banks, not to exiting bankers'
+    #   dividends.  Financed on the government side (govt_transition).
     T = len(Kap_D)
 
     if def_real_D is None:
         def_real_D = np.zeros(T)
     if def_real_F is None:
         def_real_F = np.zeros(T)
+    if recap_D is None:
+        recap_D = np.zeros(T)
+    if recap_F is None:
+        recap_F = np.zeros(T)
 
     # unpack calibration
     f_D   = cal["f_D"];           f_F   = cal["f_F"]
@@ -554,7 +564,8 @@ def bank_forward(Kap_D, Kap_F, Q_D, Q_F, rk_D, rk_F, rdep_D, rdep_F, p_path,
         else:
             entrant_D = cal["omega_ent_D"] * total_assets_D
         #assets that remain in the bank after dividend payout and new entrants
-        n_ACCUM_D_t = (1 - f_D) * gross_D + entrant_D
+        #(+ any government recapitalization injection)
+        n_ACCUM_D_t = (1 - f_D) * gross_D + entrant_D + recap_D[t]
         #net dividends paid to shareholders (after new entrants)
         div_D_t     = f_D * gross_D - entrant_D
         n_ACCUM_D[t] = n_ACCUM_D_t
@@ -590,7 +601,7 @@ def bank_forward(Kap_D, Kap_F, Q_D, Q_F, rk_D, rk_F, rdep_D, rdep_F, p_path,
                          * (alpha_F_path[t] / alpha_ss_F) ** phi_entry)
         else:
             entrant_F = cal["omega_ent_F"] * total_assets_F
-        n_ACCUM_F_t = (1 - f_F) * gross_F + entrant_F
+        n_ACCUM_F_t = (1 - f_F) * gross_F + entrant_F + recap_F[t]
         div_F_t     = f_F * gross_F - entrant_F
         n_ACCUM_F[t] = n_ACCUM_F_t
         rn_F[t]  = rn_F_t

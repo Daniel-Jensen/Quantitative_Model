@@ -21,17 +21,25 @@ def capital_demand(rk_ss, mc_ss, cal, country="D"):
     return (mc_ss * alpha * Z_ss / (rk_ss + delta)) ** (1 / (1 - alpha))
 
 
-def solve_capital_path(Kap_path, Kap_ss, Q_ss, mpk_path, cal, country="D"):
-    # CAPITAL ALONG THE TRANSTION 
+def solve_capital_path(Kap_path, Kap_ss, Q_ss, mpk_path, cal, country="D",
+                       quality0=1.0):
+    # CAPITAL ALONG THE TRANSTION
+    #
+    # quality0 : Gertler-Kiyotaki capital-quality factor applied ONCE at t=0
+    #   (default 1.0 = no shock; the default branch passes 1 − ξ_K).  A
+    #   fraction 1−quality0 of the stock entering period 0 is destroyed:
+    #   the law of motion and investment run off the surviving stock, and
+    #   the period-0 return on capital claims is scaled by quality0 (banks
+    #   paid Q_lag per ORIGINAL unit but only quality0 units survive).
 
     delta  = cal[f"delta_{country}"]
     ksi    = cal[f"ksi_{country}"]
     # get the jerman adjustment cost parameters
     gamma0, gamma1 = gamma_params(cal, country)
-    
+
     T = len(Kap_path)
 
-    Kap_lag = np.concatenate(([Kap_ss], Kap_path[:-1]))
+    Kap_lag = np.concatenate(([quality0 * Kap_ss], Kap_path[:-1]))
     bracket = (Kap_path / Kap_lag - (1 - delta) - gamma1) / gamma0
 
     # bracket < 0 → fractional power returns NaN silently (no exception);
@@ -49,6 +57,9 @@ def solve_capital_path(Kap_path, Kap_ss, Q_ss, mpk_path, cal, country="D"):
 
     Q_lag = np.concatenate(([Q_ss], Q[:-1]))
     rk    = (mpk_path + (1 - delta) * Q) / Q_lag - 1
+    if quality0 != 1.0:
+        # Quality loss hits the period-0 claim payoff (not later periods)
+        rk[0] = quality0 * (mpk_path[0] + (1 - delta) * Q[0]) / Q_lag[0] - 1
 
     I          = iota * Kap_lag
     cap_profit = (Q * (Kap_path - (1 - delta) * Kap_lag) - I

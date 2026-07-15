@@ -60,8 +60,12 @@ def ck_default_prob(b_gov, Y_ss, cal, sunspot, country):
 # ── Transition-path government block ─────────────────────────────────────────
 
 def govt_transition(cal, gs, Q_B_path, def_real_path, country, b_gov0=None,
-                    b_anchor=None):
+                    b_anchor=None, recap_path=None):
   # CALCULATES TAX ADJUSTMENT TAKING PRICES AS GIVEN (NO FEEDBACK FROM TAXES TO PRICES), AND THE ENTIRE SPENDING PATH
+  #
+  # recap_path : optional (T,) bank-recapitalization outlays (default-branch
+  #   HFSF/EFSF analogue) — government spending financed by issuance, so the
+  #   recap raises post-default debt and Bohn taxes (see risk_branch).
 
     # unpack parameters
     delta_b       = cal[f"delta_b_{country}"]
@@ -75,6 +79,8 @@ def govt_transition(cal, gs, Q_B_path, def_real_path, country, b_gov0=None,
     # initialize arrays
     if def_real_path is None:
         def_real_path = np.zeros(T)
+    if recap_path is None:
+        recap_path = np.zeros(T)
 
     if b_anchor is None:
         b_anchor = b_gov_ss
@@ -97,15 +103,22 @@ def govt_transition(cal, gs, Q_B_path, def_real_path, country, b_gov0=None,
     b = float(b_gov_ss if b_gov0 is None else b_gov0)
     for t in range(T):
         b_gov_bop[t] = b
-        #tax rule
-        Tax[t]    = Tax_base + phi_lamb * (b - b_anchor)
+
+        # Realized haircut applies to the whole stock at the START of t
+        surv_t    = 1.0 - def_real_path[t] * (1.0 - recovery_rate)
+
+        # Bohn rule on the SURVIVING stock: taxes cannot respond to debt
+        # that was just written off (with def_real = 0 this is the plain
+        # rule).  Taxing the pre-haircut stock produced a one-quarter tax
+        # spike of ~55%·φ·b ≈ 31% of GDP at the PSI haircut — an artifact
+        # that made full-event default branches infeasible.
+        Tax[t]    = Tax_base + phi_lamb * (b * surv_t - b_anchor)
 
         # Coupon payments calculation
-        surv_t    = 1.0 - def_real_path[t] * (1.0 - recovery_rate)
         coupon[t] = delta_b * b * surv_t
 
-        #new bonds
-        new_bonds = (G + coupon[t] - Tax[t]) / Q_B_path[t]
+        #new bonds (recap outlays are extra spending in default branches)
+        new_bonds = (G + recap_path[t] + coupon[t] - Tax[t]) / Q_B_path[t]
         net_iss[t] = Q_B_path[t] * new_bonds
         b = (1.0 - delta_b) * b * surv_t + new_bonds
         b_gov_eop[t] = b

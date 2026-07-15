@@ -160,6 +160,20 @@ the household-grid floor (~6e-7) on all shocks including moving debt.
 
 ### Centerpiece experiment (main.py): CK sunspot, risk only
 
+> **2026-07-15 update.** The centerpiece is now ξ₀ = 1%, ρ = 0.95 (small
+> persistent shock; the numbers just below are the older ξ₀ = 7% run, kept
+> for reference).  Since then the default branch gained a GK
+> capital-quality loss (`def_capital_quality_D = 0.05`) and a contingent
+> government recap, a Neumeyer-Perri **working-capital** wedge
+> (`zeta_wc = 1`) was added as the spread→output channel, and the δ_b/rec
+> interlude values (0.25/0.80) were reverted to the documented 0.036/0.45.
+> At the 1% sunspot: Q_bD[0] −5.7%, n_D[0] −3.4%, n_F[0] −2.4%, lending
+> spread +344bp ann, risk premium +74bp; 12/13 sign criteria pass (risk-on
+> n_D[0] above risk-off and a mild post-impact Y boom survive via the M1
+> deposit-rate channel — killed by the deferred union deposit market).
+> A μ-monitor now warns if the always-binding IC is violated on a solved
+> path.  Full detail: `docs/sunspot_transition_study.md` §8.
+
 ξ₀ = 7% quarterly default probability, ρ = 0.95, priced in the crisis zone,
 never realized. Solved with a 3-step homotopy (~30s). Results:
 
@@ -178,9 +192,13 @@ never realized. Solved with a 3-step homotopy (~30s). Results:
    consumption while investment rises (real-model crowding-in). The
    monetary-union nominal block is the next major layer and is required for
    the TPI application.
-2. **No risk channel**: perfect foresight cannot price covariance risk;
-   only Bocola's liquidity/balance-sheet channel operates.
+2. ~~**No risk channel**~~ — added 2026-07-07 (`risk_branch.py`); see the
+   section at the top of this file.
 3. **IC always binding** (Bocola's binds occasionally, μ≈0 in calm times).
+   As of 2026-07-15 a monitor warns when μ goes negative on a solved path;
+   the 1% centerpiece keeps μ_D > 0, but stress shocks (10%) still trip it
+   and the branch-side μ_F can be negative — occasionally-binding IC is the
+   structural fix.
 4. CK zones use Y_ss (no output feedback into the crisis zone).
 5. Debt/annual GDP = 93% (face) is below Greek crisis peaks; the binding
    anchor is bank exposure/net worth ≈ 0.9 (banks hold 80% of supply).

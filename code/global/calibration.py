@@ -64,8 +64,12 @@ def get_calibration():
         excess_return_D_F_ss=0.0,               # overwritten after SS solve
 
         # ── GOVERNMENT BONDS ─────────────────
-        # delta_b = quarterly amortization rate
-        delta_b_D=0.25,        delta_b_F=0.25,
+        # delta_b = quarterly amortization rate.  0.036 ⇒ Hatchondo-Martinez
+        # duration ~7y (GR/DE pre-crisis average maturity; docs/STATE.md).
+        # Long duration is what makes PRICED risk generate large MTM losses —
+        # the 2026-07 interlude value 0.25 (~1y) cut the repricing by ~6x
+        # (docs/sunspot_transition_study.md addendum).
+        delta_b_D=0.036,        delta_b_F=0.036,
         B_gov_D_ss=3.722,       B_gov_F_ss=3.722,   # 93% of annual GDP (= 0.93×4×Y_ss=1)
 
         # ── DEFAULT RISK (Cole-Kehoe zones × Bocola pricing) ─────────────────
@@ -75,9 +79,10 @@ def get_calibration():
         # fundamental default in the risk-only experiment).
         b_ck_low_D=3.00,        b_ck_low_F=99.0,
         b_ck_high_D=6.00,       b_ck_high_F=99.0,
-        # Bonds retain 80% of value in default (mild event; feasibility ladder
-        # removed — full-scale event solved directly in risk_branch).
-        recovery_rate_D=0.80,   recovery_rate_F=0.80,
+        # Haircut 55% (Greek PSI 2012, Zettelmeyer-Trebesch-Gulati; Bocola's
+        # value).  The full event exceeds bank equity — the branch survives
+        # via the contingent recap and/or the feasibility ladder below.
+        recovery_rate_D=0.45,   recovery_rate_F=0.45,
 
         # ── DEFAULT STATE (risk-channel branch) ──────────────────────────────
         # Canonical output cost of default (Arellano 2008 tradition): TFP in
@@ -87,12 +92,37 @@ def get_calibration():
         # would have the wrong sign.  5% on impact, half-life ~7 quarters,
         # is conservative next to the Greek 2012 output collapse.
         def_output_cost_D=0.05, def_output_rho_D=0.90,
+        # GK capital-quality loss at the default date (branch h=0): a
+        # fraction ξ_K of D capital is destroyed and bank capital claims
+        # take the proportional hit.  This is what stops capital being the
+        # branch SAFE HAVEN (bonds lose ~30%+, capital only the Jermann-Q
+        # dip) — without it two-branch pricing drives μ < 0 and the risk
+        # channel turns expansionary (docs/sunspot_transition_study.md M2).
+        def_capital_quality_D=0.05,
+        # Contingent bank recapitalization in the default branch (HFSF/EFSF
+        # analogue): if the full event wipes out bank equity, the state
+        # injects recap_share × (banks' haircut loss) as equity, financed by
+        # issuance — post-default debt and Bohn taxes rise accordingly.
+        # Tried only when the no-recap event is infeasible (bailout rule);
+        # the feasibility ladder (partial priced event) is the fallback.
+        recap_share_D=0.5,      recap_share_F=0.5,   # F dormant (no F branch)
         # Pessimistic probability tilt for the risk weighting (EZ-lite dial;
         # 1.0 = off, physical probabilities — the Bocola-faithful baseline).
         chi_tilt=1.0,
 
         sdf_mode="income",
         kappa_d=2.00,
+
+        # ── WORKING CAPITAL (Neumeyer-Perri) ─────────────────────────────────
+        # Firms pre-finance zeta_wc × (wage bill) intra-period at
+        # r_wc = rdep(−1) + λμ/Ω̃ (the single-λ IC wedge; no duration term).
+        # This is the spread→OUTPUT transmission channel: without it impact Y
+        # is pinned by the GHH labour block and financial crises barely move
+        # production (verified 2026-07-15: bond crash −30%, n −20%, spreads
+        # +1842bp moved Y_D only −0.198%).  zeta = 1 (one quarter's wage
+        # bill) is the Neumeyer-Perri/Bocola-consistent value; 0 = off
+        # (exact nesting of the no-working-capital model).
+        zeta_wc_D=1.0,          zeta_wc_F=1.0,
 
         # Outer Cole-Kehoe zone-indicator iteration (converges in 1 pass when
         # debt stays inside the crisis zone; damping 1.0 = undamped)
@@ -108,10 +138,22 @@ def get_calibration():
         omega_home=0.85,       epsilon_trade=0.5,
 
         # ── SOLVER SETTINGS ───────────────────────────────────────────────────
-        T=500,
+        # T=200 is the sunspot default (study 2026-07-14): T=100 truncates
+        # visibly, and T=500 gives impact responses identical to 3 decimals at
+        # 5x the cost (verified 2026-07-15).
+        T=200,
         tol_hh=1e-12,
         tol_dist=1e-12,
-        tol_mkt=1e-12,
+        tol_mkt=1e-12,        # SS solver (stage-1 hybr xtol)
+        # Transition-path acceptance: max|normalized residual| the 7T solver
+        # must reach.  Kept 10x tighter than the tightest test threshold
+        # (goods_D ≤ 1e-9) but reachable by the Newton polish; hybr alone
+        # plateaus near 5e-11 (xtol stop), so do NOT tighten this to 1e-12
+        # unless the polish path is verified to reach it.
+        tol_transition=1e-10,
+        n_jobs=0,             # FD-Jacobian workers; 0 → os.cpu_count()
+        use_numba=True,       # JIT the EGM/distribution kernels if numba is
+                              # importable; pure-numpy fallback otherwise
 
         # ── INITIAL GUESSES FOR STEADY-STATE SOLVER ───────────────────────────
         rk_D_guess=0.0045,      rk_F_guess=0.0045,

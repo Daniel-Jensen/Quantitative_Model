@@ -69,13 +69,25 @@ def solve_steady_state_household(a_grid, Pi, r_ss, y_e, beta, sigma, a_min, tol,
 
 
 def solve_backward_transition(a_grid, Pi, r_path, y_path, c_ss, beta, sigma, a_min,
-                               vN_path=None):
+                               vN_path=None, use_fast=True):
     # BACKWARD INDUCTION OVER A FINITE HORIZON, TERMINAL CONDITION C_SS.
+    # Dispatches to the JIT kernel (fast_kernels.hh_backward) when numba is
+    # importable and `use_fast` (cal["use_numba"]); the loop below is the
+    # pure-numpy reference implementation.
     T = y_path.shape[0]
     n_a, n_e = a_grid.shape[0], y_path.shape[1]
 
     if vN_path is None:
         vN_path = np.zeros(T)
+
+    import fast_kernels
+    if use_fast and fast_kernels.HAVE_NUMBA:
+        return fast_kernels.hh_backward(
+            np.ascontiguousarray(a_grid), np.ascontiguousarray(Pi.T),
+            np.ascontiguousarray(r_path, dtype=float),
+            np.ascontiguousarray(y_path),
+            np.ascontiguousarray(c_ss), float(beta), float(sigma),
+            float(a_min), np.ascontiguousarray(vN_path, dtype=float))
 
     c_path    = np.empty((T, n_a, n_e))
     a_pol_path = np.empty((T, n_a, n_e))

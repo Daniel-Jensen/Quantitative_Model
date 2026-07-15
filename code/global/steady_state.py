@@ -210,11 +210,17 @@ def solve_steady_state(cal, verbose=True):
               f"F={(rk_F_ss-rdep_F_tgt)*4*1e4:.1f}  (target 200)")
 
     # ── Stage 2: deposit markets — solve {beta_D, beta_F} ────────────────────
-    # Government taxes and dividends
+    # Government taxes and dividends.  The working-capital financing income
+    # zeta·r_wc·w·N is passed through to households within the period (same
+    # routing as transition._inner_economy; r_wc_ss = rdep + spread target).
     Tax_D_ss = gs_D["Tax_ss"]
     Tax_F_ss = gs_F["Tax_ss"]
-    Div_D_ss = (1 - mc_D) * fm_D_ss["Y_ss"] + bk_D_ss["div_ss"]
-    Div_F_ss = (1 - mc_F) * fm_F_ss["Y_ss"] + bk_F_ss["div_ss"]
+    wc_D_ss = (cal.get("zeta_wc_D", 0.0)
+               * (rdep_D_tgt + cal["credit_spread_target_D"]) * fm_D_ss["w_ss"])
+    wc_F_ss = (cal.get("zeta_wc_F", 0.0)
+               * (rdep_F_tgt + cal["credit_spread_target_F"]) * fm_F_ss["w_ss"])
+    Div_D_ss = (1 - mc_D) * fm_D_ss["Y_ss"] + bk_D_ss["div_ss"] + wc_D_ss
+    Div_F_ss = (1 - mc_F) * fm_F_ss["Y_ss"] + bk_F_ss["div_ss"] + wc_F_ss
 
     P_CES_D_ss = ces_price(p_ss, cal, "D")
     P_CES_F_ss = ces_price(p_ss, cal, "F")

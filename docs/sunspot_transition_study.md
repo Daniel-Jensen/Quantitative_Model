@@ -1,5 +1,12 @@
 # Sunspot Transition: Numerical Forensics and the Income-SDF Fix
 
+> **2026-07-15 addendum — fix program (see §8 at the end):** the mild
+> calibration diagnosed below was reverted to the documented values
+> (δ_b = 0.036, recovery = 0.45), the impact boom was fixed structurally
+> (capital-quality loss + working capital + recap/ladder), and the M1/M2
+> mechanisms of §3 are now partially closed.  §§1–7 document the OLD
+> configuration; numbers there no longer describe the model.
+
 *2026-07-14. All numbers verified on `code/global/` at the current calibration
 (sunspot ξ = 1%·0.95^t, recovery 0.80, single-λ, anchored entrants, ψ = 0.05,
 T = 200 in `calibration.py`; study runs sweep T in memory). Scripts and raw
@@ -200,3 +207,89 @@ added; re-promote them to assertions with that fix.
   T = 100 — solved by the current T = 200 — plus (b) a genuine
   cross-country wealth quasi-unit-root that no horizon extension will
   remove.
+
+## 8. 2026-07-15: forensics at the 10% sunspot and the fix program
+
+### 8a. Why the experiment was weak (all numbers verified, T = 200 ≡ T = 500 to 3 decimals)
+
+At the pre-fix configuration (δ_b = 0.25 ≈ 1y duration, recovery = 0.80,
+sunspot 10%·0.9^t — a **64% cumulative priced default probability**):
+
+1. **Mild priced event.** Pure expected-loss repricing of Q_bD at SS
+   discounting: −5.3% (vs −30.1% at the documented δ_b = 0.036 /
+   rec = 0.45).  Commit a82431a had reverted the documented values because
+   the risk-ON branch wiped out bank equity (no recap; ladder removed).
+2. **GK block absorbed the shock.** Branch capital lost only ~8.7pp/q vs
+   ~21% on bonds → capital was the branch safe haven → two-branch μ_D went
+   **negative** (−0.022 vs SS +0.0196; always-binding IC violated in
+   equilibrium), the wedge λμ/Ω̃ collapsed (−420bp ann, cancelling over
+   half of the +770bp default compensation), and the imposed IC equality
+   with α↓3% *forced* a recapitalization boom: Q_D(cap) +1.6%, I_D +3.4%,
+   n_D +3.8% at t = 1.  Equilibrium Q_bD[0] only −3.5%.
+3. **No output transmission.** Impact Y is pinned by the GHH identity
+   ŷ = α·k̂ + (1−α)·(α·k̂ − P̂_CES)/(1/ν + α), P_CES loads on p with weight
+   0.15, and no spread enters production.  Counterfactual proof: at the
+   documented calibration risk-OFF produced Q_bD −29.8%, n_D −20%, lending
+   spread +1842bp — and Y_D fell only −0.198% with I_D still +0.76%.
+
+### 8b. The fix program (user-approved plan, phases 1+2)
+
+- **Calibration restored**: δ_b = 0.036 (~7y HM duration), recovery = 0.45
+  (Greek PSI).  T back to 200; centerpiece sunspot 1%·0.95^t.
+- **Feasibility ladder restored** (largest feasible partial event) **+
+  contingent government recap** (`recap_share_D = 0.5`, HFSF/EFSF
+  analogue): equity injection financed by issuance in the branch —
+  post-default debt and Bohn taxes rise.  Attempt order: full event →
+  full + recap → ladder(+recap).  With the ladder acting as a homotopy the
+  **full PSI event is priced** (`rescue_mode = ladder(1.000)+recap`).
+- **GK capital-quality loss** `def_capital_quality_D = 0.05` at branch
+  h = 0 (capital stops being the branch safe haven; branch rk_d ≈ −12%/q,
+  branch Y(0) ≈ −10%, n_d(0)/n_ss ≈ 0.32).  ξ_K = 0.10 tested and
+  REJECTED: μ_min → 0.005, deeper post-impact boom, C_D[0] flips positive,
+  branch n → 0.14 (2 sign failures vs 1).
+- **Bohn rule on the surviving stock** (government.py): taxing the
+  pre-haircut stock produced a one-quarter ~31%-of-GDP tax spike at the
+  PSI haircut, which alone made full-event branches infeasible.
+- **Working capital (Neumeyer-Perri)**: firms pre-finance `zeta_wc = 1` ×
+  wage bill at r_wc = rdep(−1) + λμ/Ω̃; the wedge enters labour demand
+  (w divided by 1 + ζ·r_wc), financing income is passed to households as
+  dividends (intra-period, never on the bank balance sheet — Bocola-lite;
+  routing through bank equity would break the closed-form leverage/spread
+  calibration).  ζ = 0 nests exactly; SS Walras 2e−10 at ζ = 1.
+- **μ monitor** (transition.py): warns loudly if the IC multiplier goes
+  negative on a solved path; `mu_min_D/F` returned.
+- **Branch warm start**: `_shifted_y0` scales the Kap_D block by
+  (1 − ξ_K·0.975^t) — a raw shifted base path implies a one-quarter
+  rebuild whose Jermann-Q spike lands every probe on the penalty wall.
+- Branch solves accept max|resid| ≤ 1e−9 (the test bar; quality-shocked
+  systems polish-stall a few x above the 1e−10 default).
+
+### 8c. Centerpiece results (sunspot 1%·0.95^t, T = 200, ξ_K = 0.05)
+
+Sign checks: **12 of 13 pass** — Q_bD[0] −5.68%, n_D[0] −3.45%, n_F[0]
+−2.38%, Y_D[0] −0.07%, C_D[0] −0.03%, lending spread peak +344bp ann,
+b_gov↑, Tax↑, μ_D > 0 everywhere (min +0.010), risk premium +74bp ann,
+risk-on Q_bD[0] < risk-off.  Remaining failure (kept as test WARNING):
+risk-on n_D[0] (−3.45%) above risk-off (−4.10%) — the M1 deposit-rate
+collapse finances an impact I boom whose Jermann-Q gains cushion bank
+capital; killed by the union deposit market (deferred).  Post-impact Y_D
+turns mildly positive (+0.2–0.3% for ~10y) through the same M1 channel +
+residual μ compression (risk-on μ ≈ 0.010–0.015 < μ_ss → the wc wedge
+runs mildly *below* SS after impact).  Spread decomposition t = 0:
+total +99, defcomp +219, risk +74, liquidity +278 then negative from
+t = 1 (−52…−98) — μ compression persists but no longer dominates.
+Branch-side μ < 0 (either bank *inside* the deep feared state — the
+main.py run shows branch μ_D ≈ −0.07; validation runs showed branch
+μ_F < 0) — logged by the monitor, harmless to the BASE path (base
+μ_D = +0.010 > 0), but it means the branch's own IC is questionable where
+the risk inputs are extracted (always-binding-IC limitation, now visible
+because the feared state is a genuine deep crisis).  Runtime: risk-ON at
+this calibration ≈ 32 min (round-1 branch homotopy ≈ 27 min; later rounds
+seconds via jac_cache).
+
+### 8d. Open items
+
+Union deposit market (kills M1, enables sdf_mode="model", should flip the
+n-ordering warning and the post-impact Y boom); branch μ_F; stress shocks
+(10%) can still drive μ_D < 0 — the monitor flags them; occasionally
+binding IC remains the structural answer.

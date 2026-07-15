@@ -26,16 +26,52 @@ def stationary_distribution(a_pol, a_grid, Pi, pi_e_stationary, tol, maxiter=100
 
 
 def forward_iterate(D, a_pol, a_grid, Pi):
-    # GETS THE OUTPUT FROM THE get_lottery_weights FUNCTION AND THEN USES np.add.at TO UPDATE THE DISTRIBUTION D.
+    # LOTTERY-WEIGHT SCATTER OF THE DISTRIBUTION, THEN THE MARKOV STEP.
+    # Both legs go through ONE np.bincount over flattened (a, e) indices —
+    # same sums as the historical per-e np.add.at, ~4x faster.
     n_a, n_e = D.shape
     idx_lo, idx_hi, w_lo, w_hi = get_lottery_weights(a_pol, a_grid)
 
-    pre = np.zeros((n_a, n_e))
-    for e in range(n_e):
-        np.add.at(pre[:, e], idx_lo[:, e], D[:, e] * w_lo[:, e])
-        np.add.at(pre[:, e], idx_hi[:, e], D[:, e] * w_hi[:, e])
+    cols = np.arange(n_e)
+    flat = np.concatenate([(idx_lo * n_e + cols).ravel(),
+                           (idx_hi * n_e + cols).ravel()])
+    wts  = np.concatenate([(D * w_lo).ravel(), (D * w_hi).ravel()])
+    pre = np.bincount(flat, weights=wts, minlength=n_a * n_e).reshape(n_a, n_e)
 
     return pre @ Pi
+
+
+def forward_paths(D0, a_pol_path, c_path, a_grid, Pi, use_fast=True):
+    """Forward-simulate the distribution over the whole transition.
+
+    Returns (A_path, C_path, D_start) with the exact timing convention of the
+    transition solver: C_t aggregates over the START-of-period distribution,
+    A_t over the END-of-period one; D_start[t] is the distribution entering
+    period t (D_start[0] = D0, D_start[T] = terminal).
+
+    Dispatches to the numba kernel (fast_kernels.py) when importable and
+    `use_fast` (cal["use_numba"]); the pure-numpy loop below is the reference
+    implementation.
+    """
+    import fast_kernels
+    T = a_pol_path.shape[0]
+    if use_fast and fast_kernels.HAVE_NUMBA:
+        return fast_kernels.dist_forward(
+            np.ascontiguousarray(D0), np.ascontiguousarray(a_pol_path),
+            np.ascontiguousarray(c_path), np.ascontiguousarray(a_grid),
+            np.ascontiguousarray(Pi))
+
+    A_path = np.empty(T)
+    C_path = np.empty(T)
+    D_start = np.empty((T + 1,) + D0.shape)
+    D = D0
+    for t in range(T):
+        D_start[t] = D
+        C_path[t] = aggregate_consumption(D, c_path[t])
+        D = forward_iterate(D, a_pol_path[t], a_grid, Pi)
+        A_path[t] = aggregate_assets(D, a_grid)
+    D_start[T] = D
+    return A_path, C_path, D_start
 
 
 def get_lottery_weights(a_pol, a_grid):

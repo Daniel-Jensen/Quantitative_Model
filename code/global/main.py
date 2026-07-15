@@ -1,17 +1,18 @@
-"""Entry point: solve the two-country HANK-GK monetary union steady state,
-a TFP-shock transition, and the centerpiece Cole-Kehoe / Bocola (2016)
-sovereign-risk pass-through experiment; print diagnostics and save figures.
+"""Entry point: IRFs of the two-country HANK-GK monetary union.
 
-Sections are independent and toggleable:
-  - flags below (RUN_TFP / RUN_SUNSPOT), or
-  - command line:  python3 main.py tfp        (TFP shock only)
-                   python3 main.py sunspot    (CK/Bocola experiment only)
-                   python3 main.py            (everything)
-The steady state always runs — both experiments need it.
+Pipeline (steady state always runs; both experiments start from it):
+  1. TFP shock in country D            → output/tfp_irf.png
+  2. Cole-Kehoe sunspot in country D   → output/default_irf.png
+     (Bocola pass-through: sovereign-default risk is PRICED but never
+      REALIZED — bond prices fall, bank net worth drops, spreads rise)
+     optional: output/bond_decomposition.png (spread = default
+     compensation + risk premium + liquidity premium)
+
+Toggle the sections with the flags below.  Total runtime is dominated by
+the transition solves (7T-unknown Newton each, see transition.py).
 """
 
 import os
-import sys
 import time
 import numpy as np
 
@@ -19,41 +20,28 @@ from calibration import get_calibration
 from steady_state import solve_steady_state
 from transition import solve_transition
 from risk_branch import solve_transition_ck_risk, bond_decomposition
-from plots import (OUTDIR, plot_steady_state, plot_household_policies,
-                   plot_irf, plot_default_irf)
+from plots import OUTDIR, plot_irf, plot_default_irf, plot_bond_decomposition
 
-# ── Run flags: flip to False to skip a section ───────────────────────────────
-RUN_TFP     = True    # TFP shock in country D
-RUN_SUNSPOT = False   # Cole-Kehoe sunspot + Bocola risk channel (centerpiece)
+# ── Run flags ────────────────────────────────────────────────────────────────
+RUN_TFP                 = True   # experiment 1: TFP shock in D
+RUN_SUNSPOT             = True   # experiment 2: CK sunspot + Bocola risk channel
+PLOT_BOND_DECOMPOSITION = True   # extra figure for experiment 2
 
-# ── Output flags ─────────────────────────────────────────────────────────────
-PRINT_SS         = True   # steady-state tables
-PRINT_TRANSITION = True   # transition residual diagnostics
-PRINT_CK         = True   # Cole-Kehoe / Bocola diagnostics
+# ── Shock parameters ─────────────────────────────────────────────────────────
+TFP_SHOCK, TFP_RHO = 0.01, 0.9    # 1% impact, AR(1) decay
+# Centerpiece: Bocola-style small persistent risk shock (user-selected
+# 2026-07-15).  A 10%/0.9 configuration remains available as a stress demo —
+# it prices a 64% cumulative default probability; run it only with the μ
+# monitor in mind (transition.py warns if the IC multiplier goes negative).
+SUN_SHOCK, SUN_RHO = 0.01, 0.95  # peak priced default prob (quarterly), decay
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-#  SECTION 0 — STEADY STATE (always runs; both experiments start from it)
+#  Diagnostics: steady-state table, transition residuals, CK table
 # ═════════════════════════════════════════════════════════════════════════════
 
-def run_steady_state(cal):
-    print("=" * 65)
-    print("  Two-country HANK-GK monetary union: steady-state solve")
-    print("=" * 65)
-    t0 = time.perf_counter()
-    ss = solve_steady_state(cal)
-    print(f"  [steady state]  {time.perf_counter() - t0:.1f}s")
-
-    if PRINT_SS:
-        _print_ss_table(ss, cal)
-
-    plot_steady_state(ss, cal)
-    plot_household_policies(ss, cal)
-    print(f"\nFigures saved to {OUTDIR}")
-    return ss
-
-
-def _print_ss_table(ss, cal):
+def print_ss_table(ss, cal):
+    # Steady-state moments, calibrated parameters, and residual checks.
     bk_D = ss["ss_bank_D"];  bk_F = ss["ss_bank_F"]
     fm_D = ss["ss_firm_D"];  fm_F = ss["ss_firm_F"]
 
@@ -74,8 +62,6 @@ def _print_ss_table(ss, cal):
     print(row("A_ss (HH deposits)", f"{ss['A_D_ss']:.4f}", f"{ss['A_F_ss']:.4f}"))
     print(row("w_ss",      f"{fm_D['w_ss']:.4f}",   f"{fm_F['w_ss']:.4f}"))
     print(row("rk_ss (ann %)",  f"{ss['rk_D_ss']*400:.3f}", f"{ss['rk_F_ss']*400:.3f}", "target ≈ 1.8% ann"))
-    print(row("beta_ss",   f"{ss['beta_D_ss']:.6f}", f"{ss['beta_F_ss']:.6f}"))
-    print(row("chi (GHH)",  f"{cal['chi_D']:.4f}",  f"{cal['chi_F']:.4f}",  "pinned to N_ss = 1"))
 
     # Financial intermediary
     print(f"{'':─<65}")
@@ -101,6 +87,18 @@ def _print_ss_table(ss, cal):
     print(row("F-bank share of D-debt", f"{ss['b_D_F_ss']/cal['B_gov_D_ss']:.1%}", "—", "contagion leg, target 20%"))
     print(row("B_gov / 4Y (debt/GDP)", f"{cal['B_gov_D_ss']/(4*fm_D['Y_ss']):.1%}", f"{cal['B_gov_F_ss']/(4*fm_F['Y_ss']):.1%}", "target ≈ 93%"))
 
+    # Parameters calibrated inside the SS solve (these overwrite the warm
+    # starts in calibration.py; see steady_state.py)
+    print(f"{'':─<65}")
+    print(f"  {'Calibrated in SS solve':<{W}} {'D':>10}  {'F':>10}  Pins / target")
+    print(f"{'':─<65}")
+    print(row("lambda (single, IC)", f"{cal['lambda_K_D']:.5f}", f"{cal['lambda_K_F']:.5f}", "leverage + credit-spread targets"))
+    print(row("omega_ent (entrants)", f"{cal['omega_ent_D']:.6f}", f"{cal['omega_ent_F']:.6f}", "solved jointly with lambda"))
+    print(row("Z_ss (rescaled)",  f"{cal['Z_ss_D']:.6f}", f"{cal['Z_ss_F']:.6f}", "pins Y_ss = 1"))
+    print(row("chi (GHH)",        f"{cal['chi_D']:.4f}",  f"{cal['chi_F']:.4f}",  "pins N_ss = 1"))
+    print(row("beta_ss",          f"{ss['beta_D_ss']:.6f}", f"{ss['beta_F_ss']:.6f}", "deposit-market clearing"))
+    print(row("xr_for (bps ann)", f"{cal['excess_return_F_D_ss']*4e4:.2f}", f"{cal['excess_return_D_F_ss']*4e4:.2f}", "foreign-bond FOC anchor"))
+
     # Residuals
     ic_resid_D  = (bk_D["n_ss_IC"] - bk_D["n_ss_ACCUM"]) / bk_D["n_ss_ACCUM"]
     ic_resid_F  = (bk_F["n_ss_IC"] - bk_F["n_ss_ACCUM"]) / bk_F["n_ss_ACCUM"]
@@ -117,124 +115,9 @@ def _print_ss_table(ss, cal):
     print(f"{'':─<65}")
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-#  SECTION 1 — TFP SHOCK (baseline real shock, no default risk)
-# ═════════════════════════════════════════════════════════════════════════════
-
-def run_tfp(ss, cal):
-    print("\n" + "=" * 65)
-    print("  TFP shock in country D: rho=0.8, shock=0.01")
-    print("=" * 65)
-
-    # 1% log-deviation shock, AR(1) decay
-    rho_z, shock0 = 0.8, 0.01
-    Z_D_path = cal["Z_ss_D"] * np.exp(shock0 * rho_z ** np.arange(cal["T"]))
-    Z_F_path = np.full(cal["T"], cal["Z_ss_F"])
-
-    t0 = time.perf_counter()
-    out = solve_transition(ss, cal, Z_D_path, Z_F_path, verbose=False)
-    print(f"  [TFP transition]  {time.perf_counter() - t0:.1f}s")
-    if PRINT_TRANSITION:
-        _print_transition_residuals(out, cal)
-
-    plot_irf(out, ss, cal)
-    print(f"\nFigures saved to {OUTDIR}")
-    return out
-
-
-# ═════════════════════════════════════════════════════════════════════════════
-#  SECTION 2 — COLE-KEHOE SUNSPOT + BOCOLA RISK CHANNEL (centerpiece)
-#  Risk is PRICED but never REALIZED (def_real ≡ 0): pure pass-through.
-# ═════════════════════════════════════════════════════════════════════════════
-
-def run_sunspot(ss, cal):
-    bk_D = ss["ss_bank_D"];  bk_F = ss["ss_bank_F"]
-    fm_D = ss["ss_firm_D"]
-
-    print("\n" + "=" * 65)
-    print("  Cole-Kehoe sunspot (risk-only, Bocola pass-through):")
-    rho_sun, sun0 = 0.95, 0.01
-    print(f"  peak default prob xi_0 = {sun0:.0%} q, rho = {rho_sun}")
-    print("=" * 65)
-    T = cal["T"]
-
-    sunspot_D_path = sun0 * rho_sun ** np.arange(T)
-    Z_flat_D = np.full(T, cal["Z_ss_D"])
-    Z_flat_F = np.full(T, cal["Z_ss_F"])
-
-    # Single RISK-ON run (Bocola risk channel via the representative default
-    # branch).  The 1% sunspot is small enough for a cold Newton start; the
-    # 3-step homotopy and the risk-off comparison run were removed 2026-07-13
-    # (one model, one figure).  solve_transition_ck_risk's round 0 still
-    # solves the risk-off base internally as the fixed-point starting path.
-    t0 = time.perf_counter()
-    out_ck = solve_transition_ck_risk(
-        ss, cal, Z_flat_D, Z_flat_F,
-        sunspot_D_path=sunspot_D_path,
-        verbose=True,
-    )
-    print(f"  [risk-on, branch fixed point]  {time.perf_counter() - t0:.1f}s")
-    if PRINT_TRANSITION:
-        _print_transition_residuals(out_ck, cal)
-
-    # ── Pass-through diagnostics (Bocola 2016 style) ──────────────────────────
-    dec = bond_decomposition(out_ck, ss, cal)
-    sov_spread_ann = dec["total_yield"]
-
-    rdep_lag = np.concatenate([[cal["r_dep_D_target"]], out_ck["rdep_D"][:-1]])
-    lend_on  = 4e4 * ((out_ck["rk_D"] - rdep_lag) - ss["rk_D_ss"])
-    i_peak = int(np.argmax(sov_spread_ann))
-    ip_l   = int(np.argmax(lend_on))
-
-    if PRINT_CK:
-        br = out_ck["branch"]
-        W2 = 30
-        def ck_row(label, val, note=""):
-            note_str = f"  {note}" if note else ""
-            return f"  {label:<{W2}} {val:>10}{note_str}"
-
-        print(f"\n{'':─<72}")
-        print(f"  Cole-Kehoe / Bocola pass-through  (xi_0={sun0:.0%}, rho={rho_sun})")
-        print(f"  {'Statistic':<{W2}} {'Risk-on':>10}  Note")
-        print(f"{'':─<72}")
-        print(ck_row("Q_bD[0]  (% dev from SS)",
-                     f"{(out_ck['Q_bD'][0]/ss['Q_bD_ss']-1)*100:+.2f}%",
-                     "MTM repricing"))
-        print(ck_row("n_D[0]  (% dev)",
-                     f"{(out_ck['n_D'][0]/bk_D['n_ss']-1)*100:+.2f}%",
-                     "no default on base path"))
-        print(ck_row("n_F[0]  (% dev)",
-                     f"{(out_ck['n_F'][0]/bk_F['n_ss']-1)*100:+.2f}%",
-                     "contagion leg"))
-        print(ck_row("Y_D trough (% dev)",
-                     f"{np.min(out_ck['Y_D']/fm_D['Y_ss']-1)*100:+.3f}%"))
-        print(ck_row("I_D[0]  (% dev)",
-                     f"{(out_ck['I_D'][0]/fm_D['I_ss']-1)*100:+.3f}%"))
-        print(ck_row("Sov spread peak (bps ann)",
-                     f"{sov_spread_ann[i_peak]:+.0f}",
-                     f"t={i_peak}: def {dec['defcomp'][i_peak]:+.0f} + risk {dec['risk'][i_peak]:+.0f} + liq {dec['liquidity'][i_peak]:+.0f}"))
-        print(ck_row("Lending spread peak (bps)",
-                     f"{lend_on[ip_l]:+.0f}"))
-        print(ck_row("b_gov_D peak",
-                     f"{np.max(out_ck['b_gov_D']):.3f}",
-                     f"SS={cal['B_gov_D_ss']:.3f}; Tax peak dev {np.max(out_ck['Tax_D'])-ss['Tax_D_ss']:+.4f}"))
-        print(ck_row("def_real ≡ 0 on base path",
-                     str(np.all(out_ck['def_real_D'] == 0))))
-        print(ck_row("[branch] n_D(0)/n_ss",
-                     f"{br['n_D'][0]/bk_D['n_ss']:.3f}",
-                     f"Y_D(0) dev {(br['Y_D'][0]/fm_D['Y_ss']-1)*100:+.2f}%  (feared default state)"))
-        print(f"{'':─<72}")
-
-    plot_default_irf(out_ck, ss, cal)
-    print(f"\nFigures saved to {OUTDIR}")
-    return out_ck
-
-
-# ═════════════════════════════════════════════════════════════════════════════
-#  Shared diagnostics
-# ═════════════════════════════════════════════════════════════════════════════
-
-def _print_transition_residuals(out, cal):
+def print_transition_residuals(out, cal):
+    # goods_F is Walras-redundant (never imposed) — the honest accuracy check
+    # (acceptance: goods_D ≤ 1e-9, goods_F ≤ 2e-6, see CLAUDE.md).
     cap_resid_D = np.max(np.abs(out["n_IC_D"] - out["n_D"]))
     cap_resid_F = np.max(np.abs(out["n_IC_F"] - out["n_F"]))
     dep_resid_D = np.max(np.abs(out["P_CES_D"] * out["A_D"] - out["Dep_supply_D"]))
@@ -251,27 +134,127 @@ def _print_transition_residuals(out, cal):
     print(f"  max|goods mkt F| [diagnostic]    = {goods_F:.2e}")
 
 
+def print_ck_table(out, ss, cal):
+    # Cole-Kehoe / Bocola pass-through diagnostics for the sunspot run.
+    bk_D = ss["ss_bank_D"];  bk_F = ss["ss_bank_F"]
+    fm_D = ss["ss_firm_D"]
+
+    dec = bond_decomposition(out, ss, cal)
+    sov_spread_ann = dec["total_yield"]
+    rdep_lag = np.concatenate([[cal["r_dep_D_target"]], out["rdep_D"][:-1]])
+    lend_on  = 4e4 * ((out["rk_D"] - rdep_lag) - ss["rk_D_ss"])
+    i_peak = int(np.argmax(sov_spread_ann))
+    ip_l   = int(np.argmax(lend_on))
+    br     = out["branch"]
+
+    W2 = 30
+    def ck_row(label, val, note=""):
+        note_str = f"  {note}" if note else ""
+        return f"  {label:<{W2}} {val:>10}{note_str}"
+
+    print(f"\n{'':─<72}")
+    print(f"  Cole-Kehoe / Bocola pass-through  (xi_0={SUN_SHOCK:.0%}, rho={SUN_RHO})")
+    print(f"  {'Statistic':<{W2}} {'Risk-on':>10}  Note")
+    print(f"{'':─<72}")
+    print(ck_row("Q_bD[0]  (% dev from SS)",
+                 f"{(out['Q_bD'][0]/ss['Q_bD_ss']-1)*100:+.2f}%",
+                 "MTM repricing"))
+    print(ck_row("n_D[0]  (% dev)",
+                 f"{(out['n_D'][0]/bk_D['n_ss']-1)*100:+.2f}%",
+                 "no default on base path"))
+    print(ck_row("n_F[0]  (% dev)",
+                 f"{(out['n_F'][0]/bk_F['n_ss']-1)*100:+.2f}%",
+                 "contagion leg"))
+    print(ck_row("Y_D trough (% dev)",
+                 f"{np.min(out['Y_D']/fm_D['Y_ss']-1)*100:+.3f}%"))
+    print(ck_row("I_D[0]  (% dev)",
+                 f"{(out['I_D'][0]/fm_D['I_ss']-1)*100:+.3f}%"))
+    print(ck_row("Sov spread peak (bps ann)",
+                 f"{sov_spread_ann[i_peak]:+.0f}",
+                 f"t={i_peak}: def {dec['defcomp'][i_peak]:+.0f} + risk {dec['risk'][i_peak]:+.0f} + liq {dec['liquidity'][i_peak]:+.0f}"))
+    print(ck_row("Lending spread peak (bps)",
+                 f"{lend_on[ip_l]:+.0f}"))
+    print(ck_row("b_gov_D peak",
+                 f"{np.max(out['b_gov_D']):.3f}",
+                 f"SS={cal['B_gov_D_ss']:.3f}; Tax peak dev {np.max(out['Tax_D'])-ss['Tax_D_ss']:+.4f}"))
+    print(ck_row("def_real ≡ 0 on base path",
+                 str(np.all(out['def_real_D'] == 0))))
+    print(ck_row("min mu (IC mult) D / F",
+                 f"{out['mu_min_D']:+.4f}",
+                 f"F {out['mu_min_F']:+.4f}; negative = always-binding IC violated"))
+    print(ck_row("[branch] n_D(0)/n_ss",
+                 f"{br['n_D'][0]/bk_D['n_ss']:.3f}",
+                 f"Y_D(0) dev {(br['Y_D'][0]/fm_D['Y_ss']-1)*100:+.2f}%  (feared default state)"))
+    print(ck_row("[branch] rescue mode",
+                 br.get("rescue_mode", "full"),
+                 f"haircut_scale={br.get('haircut_scale', 1.0):.3f}"))
+    print(f"{'':─<72}")
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+#  Experiments
+# ═════════════════════════════════════════════════════════════════════════════
+
+def run_tfp(ss, cal):
+    print("\n" + "=" * 65)
+    print(f"  TFP shock in D: {TFP_SHOCK:.0%} on impact, rho = {TFP_RHO}")
+    print("=" * 65)
+    T = cal["T"]
+    Z_D = cal["Z_ss_D"] * np.exp(TFP_SHOCK * TFP_RHO ** np.arange(T))
+    Z_F = np.full(T, cal["Z_ss_F"])
+
+    t0 = time.perf_counter()
+    out = solve_transition(ss, cal, Z_D, Z_F, verbose=False)
+    print(f"  solved in {time.perf_counter() - t0:.0f}s")
+    print_transition_residuals(out, cal)
+
+    plot_irf(out, ss, cal)
+    return out
+
+
+def run_sunspot(ss, cal):
+    print("\n" + "=" * 65)
+    print(f"  Cole-Kehoe sunspot in D: peak default prob {SUN_SHOCK:.0%} "
+          f"per quarter, rho = {SUN_RHO}")
+    print("=" * 65)
+    T = cal["T"]
+    sunspot = SUN_SHOCK * SUN_RHO ** np.arange(T)
+    Z_D = np.full(T, cal["Z_ss_D"])
+    Z_F = np.full(T, cal["Z_ss_F"])
+
+    t0 = time.perf_counter()
+    out = solve_transition_ck_risk(ss, cal, Z_D, Z_F,
+                                   sunspot_D_path=sunspot, verbose=True)
+    print(f"  solved in {time.perf_counter() - t0:.0f}s")
+    print_transition_residuals(out, cal)
+    print_ck_table(out, ss, cal)
+
+    plot_default_irf(out, ss, cal)
+    if PLOT_BOND_DECOMPOSITION:
+        plot_bond_decomposition(out, ss, cal)
+    return out
+
+
 def main():
-    t0_total = time.perf_counter()
+    t0 = time.perf_counter()
     os.makedirs(OUTDIR, exist_ok=True)
     cal = get_calibration()
 
-    ss = run_steady_state(cal)
+    print("=" * 65)
+    print("  Two-country HANK-GK monetary union: steady state")
+    print("=" * 65)
+    ss = solve_steady_state(cal)
+    print(f"  solved in {time.perf_counter() - t0:.0f}s")
+    print_ss_table(ss, cal)
 
     if RUN_TFP:
         run_tfp(ss, cal)
-    # if RUN_SUNSPOT:
-    #     run_sunspot(ss, cal)
+    if RUN_SUNSPOT:
+        run_sunspot(ss, cal)
 
-    print("\n" + "=" * 65)
-    print(f"  TOTAL  {time.perf_counter() - t0_total:.1f}s")
-    print("=" * 65)
+    print(f"\nFigures saved to {OUTDIR}")
+    print(f"TOTAL  {time.perf_counter() - t0:.0f}s")
 
 
 if __name__ == "__main__":
-    # CLI selection overrides the flags: `python3 main.py tfp`, `... sunspot`
-    # args = {a.lower() for a in sys.argv[1:]}
-    # if args:
-    #     RUN_TFP     = bool(args & {"tfp", "all"})
-    #     RUN_SUNSPOT = bool(args & {"sunspot", "ck", "all"})
     main()
