@@ -2,7 +2,7 @@
 
 **Audit start:** 2026-06-10
 **Auditor stance:** Hostile referee. Objective is falsification, not validation.
-**Sources of truth:** `equations_D.py`, `equations_F.py`, `equations_global.py`, `model_v12.ipynb`. Documentation treated as evidence only; code prevails on conflict.
+**Sources of truth (at audit time):** `equations_D.py`, `equations_F.py`, `equations_global.py`, `model_v12.ipynb` — the notebook has since been reorganised into the modular pipeline `code/main.py` and removed. Documentation treated as evidence only; code prevails on conflict.
 **Companion files:** `equation_reconstruction.md` (model as implemented), `walras_forensics.md` (leak derivation + fix proof), `calibration_review.md`, `mechanism_validation.md`. Numerical artifacts in `audit_artifacts/` (`run_audit.py`, `fix_test.py`, `tpi_test.py` + JSON/npz results).
 
 ---

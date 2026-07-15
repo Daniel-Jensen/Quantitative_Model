@@ -1,6 +1,6 @@
 # HHBANK v12 — Mathematical Reconstruction (from code, not docs)
 
-**Status:** Phase 1 complete (reconstructed from `equations_D.py`, `equations_F.py`, `equations_global.py`, `model_v12.ipynb` cells 2–21). Discrepancies flagged inline with ⚠.
+**Status:** Phase 1 complete (reconstructed from `equations_D.py`, `equations_F.py`, `equations_global.py`, and `model_v12.ipynb` cells 2–21 — the notebook has since been removed; that logic now lives in `code/calibration.py` and `code/main.py`). Discrepancies flagged inline with ⚠.
 
 Notation: country D is numeraire (P_D-good ≡ 1). `p` = price of F-good in D-goods (terms of trade). All F-country real quantities are in F-goods unless noted. Time-`t` variables unsubscripted; `(-1)`/`(+1)` denote lags/leads as in SSJ.
 

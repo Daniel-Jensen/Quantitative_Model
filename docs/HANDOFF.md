@@ -2,7 +2,7 @@
 
 ## Where to start
 
-- Working branch: `main` (all audit fixes merged). Modular entry points in `code/` (`main.py`, `full_model.py`, `steady_state.py`, `tpi.py`); legacy notebook `code/model_v12.ipynb` retained.
+- Working branch: `main` (all audit fixes merged). Production entry point: `code/main.py` (orchestrates `full_model.py`, `steady_state.py`, `tpi.py`, …). The legacy notebook `code/model_v12.ipynb` has been removed.
 - Core equations: `code/equations_D.py`, `code/equations_F.py`, `code/equations_global.py`.
 - Read `docs/STATE.md` for current model status and open issues.
 - Read `docs/bank_cal_review.md` for the calibration porting roadmap (next major task).
@@ -12,7 +12,7 @@
 ```bash
 conda activate ssj   # or use /opt/anaconda3/envs/ssj/bin/python explicitly
 cd /path/to/QUANTITATIVE_MODEL
-jupyter notebook code/model_v12.ipynb
+/opt/anaconda3/envs/ssj/bin/python code/main.py
 ```
 
 Install deps if needed:
@@ -66,7 +66,7 @@ In order from `docs/bank_cal_review.md` §Recommendation:
 
 | File | Purpose |
 |------|---------|
-| `code/model_v12.ipynb` | Active notebook |
+| `code/main.py` | Production pipeline (calibration → SS → Jacobian → IRFs → TPI) |
 | `code/equations_D.py` | Country D blocks |
 | `code/equations_F.py` | Country F blocks |
 | `code/equations_global.py` | Global clearing + portfolio costs |

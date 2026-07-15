@@ -26,7 +26,7 @@ Build a tractable two-country general equilibrium model with heterogeneous house
 - `code/equations_D.py` — country D household (EGM het block), bank, production, capital, government equations
 - `code/equations_F.py` — country F analogues
 - `code/equations_global.py` — global goods market, external account, bond clearing, portfolio adjustment costs
-- `code/model_v12.ipynb` — active development notebook; calibration, SS solve, Jacobian, IRFs, TPI experiments
+- `code/main.py` — production pipeline: calibration → SS solve → Jacobian → IRFs → TPI experiment (orchestrates `calibration.py`, `steady_state.py`, `full_model.py`, `tpi.py`)
 - `routines/` — auxiliary: grid construction, income Markov chain, Gini calculation
 - `audit_artifacts/` — forensic audit reproduction scripts and result logs (see `docs/audit.md`)
 - `plots/` — output figures (TPI welfare and spread panels)

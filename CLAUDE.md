@@ -12,7 +12,7 @@ Always use `/opt/anaconda3/envs/ssj/bin/python`. The base Anaconda environment h
 
 ```bash
 conda activate ssj
-jupyter notebook code/model_v12.ipynb
+/opt/anaconda3/envs/ssj/bin/python code/main.py
 ```
 
 Install dependencies if needed:
@@ -46,17 +46,21 @@ Each Jacobian solve at current calibration (T=500) takes ~3 min.
 
 ## Architecture
 
-The model is implemented in the `sequence_jacobian` (SSJ) library. Blocks are defined as `@simple` or `@het` decorated Python functions in three equation files, then assembled and solved in the notebook.
+The model is implemented in the `sequence_jacobian` (SSJ) library. Blocks are defined as `@simple` or `@het` decorated Python functions in three equation files, then assembled and solved by the modular pipeline (`code/main.py`).
 
-### Equation files (edit these; notebook imports them)
+### Equation files (edit these; the pipeline imports them)
 
 - `code/equations_D.py` — Country D (Greece): household EGM het block (`hh_D`), deposit return, bank steady-state and intermediation, production, capital, government fiscal, bond pricing/default
 - `code/equations_F.py` — Country F (Germany): symmetric analogues of all D blocks
 - `code/equations_global.py` — global goods market, external account, bond clearing, portfolio adjustment costs, trade balance, bond yield formula
 
-### Active notebook
+### Production pipeline (run this)
 
-- `code/model_v12.ipynb` — calibration cell, steady-state solve, Jacobian computation, IRFs (TFP + default shocks), TPI policy experiment, welfare calculation
+- `code/main.py` — orchestrator: calibration → steady state → IC-δ / depreciation calibration → Jacobian + baseline IRFs → TPI experiment → figures. Runs the whole model end-to-end.
+- `code/calibration.py`, `code/steady_state.py`, `code/ic_delta_calibration.py`, `code/depreciation_calibration.py`, `code/full_model.py` — the calibration/solve stages `main.py` calls.
+- `code/tpi.py`, `code/tpi_plots.py`, `code/irf_plots.py` — TPI experiment and figure generation.
+
+The legacy `code/model_v12.ipynb` has been removed; the modular pipeline above (added in PR #28) is the source of truth. `docs/equation_reconstruction.md` cites notebook cells 2–21 for historical provenance only.
 
 ### Routines
 
@@ -99,12 +103,12 @@ See `docs/STATE.md` for the full calibration table. Key tensions:
 ## Typical iteration
 
 1. Edit equation files (`equations_D.py`, `equations_F.py`, `equations_global.py`).
-2. Restart notebook kernel and re-run calibration → steady-state → Jacobian cells.
+2. Re-run the pipeline: `/opt/anaconda3/envs/ssj/bin/python code/main.py` (calibration → steady state → Jacobian → IRFs → TPI).
 3. Inspect residuals: `goods_mkt_D`, `goods_mkt_F`, `ca_res_D`, `deposit_mkt_D/F` — all ≤ 1e−7.
 4. Verify default shock: `n_inter_D[0]` and `Y_D[0]` must both fall (positive = timing bug).
 5. Run `audit_artifacts/run_audit.py` to confirm no regression.
 6. Update `docs/STATE.md` after any calibration or structural change.
-7. Commit cleaned notebook (nbstripout strips outputs automatically).
+7. Commit the changed `.py` files.
 
 ## Docs reference
 

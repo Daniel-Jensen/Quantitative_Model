@@ -6,7 +6,7 @@
 
 Six structural/accounting bugs were found and fixed in the 2026-06-11 forensic audit (W-1, W-2, W-3, T-2, A-2, TPI-1). See `docs/audit.md` for the full ranked finding list and `docs/verification_report.md` for verified fix status. All six are **merged into `main`** via PR #27 (`AB-audit`, merged 2026-06-11). PR #26 (`audit` branch) was closed as superseded. `main` was subsequently reorganised into modular Python files via PR #28 (merged 2026-06-22).
 
-Core equations: `code/equations_D.py`, `code/equations_F.py`, `code/equations_global.py`. The model now also runs from modular Python entry points added by PR #28 (`code/main.py`, `code/full_model.py`, `code/steady_state.py`, `code/tpi.py`); the legacy notebook `code/model_v12.ipynb` is retained. TPI/IRF figures are produced by `code/tpi_plots.py` and `code/irf_plots.py` (no committed `plots/` dir).
+Core equations: `code/equations_D.py`, `code/equations_F.py`, `code/equations_global.py`. `code/main.py` is the production entry point (added by PR #28; orchestrates `code/full_model.py`, `code/steady_state.py`, `code/tpi.py`, …). The legacy notebook `code/model_v12.ipynb` has been removed. TPI/IRF figures are produced by `code/tpi_plots.py` and `code/irf_plots.py` (no committed `plots/` dir).
 
 `main` now contains all six fixes (PR #27) plus the modular-file reorganisation (PR #28). Use `main` — or a feature branch off it — for all new work. The `audit` / `AB-audit` branches are historical and should not be reused.
 

@@ -2,8 +2,8 @@
 
 ## Workflow
 
-1. Use `code/model_v12.ipynb` as the active development notebook.
-2. Core model equations live in `code/equations_D.py`, `code/equations_F.py`, `code/equations_global.py`. Edit these first; the notebook imports them.
+1. Run the model via `code/main.py` (the production pipeline).
+2. Core model equations live in `code/equations_D.py`, `code/equations_F.py`, `code/equations_global.py`. Edit these first; the pipeline imports them.
 3. Figures output to `plots/`. Audit reproduction scripts in `audit_artifacts/`.
 4. Update `docs/STATE.md` after any calibration or structural change.
 
@@ -30,11 +30,11 @@ Committed notebooks will have outputs and execution counts stripped automaticall
 
 ## Typical iteration
 
-1. Edit calibration parameters in the calibration cell (`f042652d` or equivalent).
-2. Re-run the steady-state solve section.
+1. Edit calibration parameters in `code/calibration.py` (or the relevant equation file).
+2. Re-run the pipeline: `/opt/anaconda3/envs/ssj/bin/python code/main.py`.
 3. Inspect diagnostic residuals: `goods_mkt_D`, `goods_mkt_F`, `ca_res_D`, `deposit_mkt_D/F` — all should be ≤1e-7 at any shock magnitude, or you have a structural problem.
 4. Run IRFs; check that `n_inter_D[0]` and `Y_D[0]` fall on a default shock (positive = timing bug).
-5. Commit cleaned notebook. Update `docs/STATE.md`.
+5. Commit the changed `.py` files. Update `docs/STATE.md`.
 
 ## Structural regression test
 
@@ -84,5 +84,5 @@ assert abs(b_F_F + b_F_D - B_supply_F) < 1e-6
 ## Version history
 
 - `model_v11.ipynb` (in `OLD models/`): predecessor with free bond trade between intermediaries
-- `model_v12`: current version; adds NK labour, portfolio adjustment costs, TPI extension
+- `model_v12`: the notebook the current modular pipeline (`code/main.py`) was reorganised from (PR #28, then removed); added NK labour, portfolio adjustment costs, TPI extension
 - Structural fixes applied on `audit` branch (2026-06-11): W-1, W-2, W-3, T-2, A-2, TPI-1 — see `docs/audit.md`
