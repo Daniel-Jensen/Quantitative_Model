@@ -234,9 +234,19 @@ def make_residual(spec, verbose=False):
         lab_F_demand = firm_F["w"] / out["P_CES_F"]
         lab_F_resid  = (lab_F_supply - lab_F_demand) / (lab_F_demand + 1e-12)
 
-        # deposits: bank supply is nominal, household A is real → scale by P_CES
-        dep_D_resid = (out["P_CES_D"] * out["A_D"] - bk["Dep_supply_D"]) / Kap_D_ss
-        dep_F_resid = (out["P_CES_F"] * out["A_F"] - bk["Dep_supply_F"]) / Kap_F_ss
+        # deposits: bank supply is nominal, household A is real → scale by P_CES.
+        # pin_rdep (diagnostic, default off): hold the deposit rate fixed at
+        # (r_D, r_F) and DROP the two deposit-market clearing conditions,
+        # replacing them with rate pins. Nothing then forces household supply =
+        # bank demand, so the un-cleared imbalance leaks into the monitored
+        # goods_F / current-account identities (Walras-violating by design).
+        pin = cal.get("pin_rdep", None)
+        if pin is None:
+            dep_D_resid = (out["P_CES_D"] * out["A_D"] - bk["Dep_supply_D"]) / Kap_D_ss
+            dep_F_resid = (out["P_CES_F"] * out["A_F"] - bk["Dep_supply_F"]) / Kap_F_ss
+        else:
+            dep_D_resid = rdep_D - pin[0]
+            dep_F_resid = rdep_F - pin[1]
 
         # goods market D (pins p)
         goods_D_resid = (firm_D["Y"] - out["P_CES_D"] * out["C_D"] - out["cap_D"]["I"]
