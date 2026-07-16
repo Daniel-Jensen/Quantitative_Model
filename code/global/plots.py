@@ -1,8 +1,4 @@
-"""Plotting routines: IRF panels for the TFP shock and the Cole-Kehoe
-sunspot experiment, plus the standalone sovereign-spread decomposition.
-
-All figures are saved to the `output/` subdirectory next to this file.
-"""
+# **IRF panels for the TFP and sunspot experiments + the spread decomposition (saved to output/).**
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -14,7 +10,7 @@ OUTDIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
 
 def _panel(ax, t, data_D, data_F, title, ylabel,
            label_D="D (domestic)", label_F="F (foreign)"):
-    """Two-line panel: country D solid blue, country F dashed red."""
+    # **Two-line panel: country D solid blue, F dashed red.**
     c_D, c_F = "#1f77b4", "#d62728"
     ax.plot(t, data_D, color=c_D, lw=1.5, label=label_D)
     if data_F is not None:
@@ -27,6 +23,7 @@ def _panel(ax, t, data_D, data_F, title, ylabel,
 
 
 def _save(fig, filename):
+    # **tight-layout and write the figure to output/.**
     fig.tight_layout()
     os.makedirs(OUTDIR, exist_ok=True)
     fig.savefig(os.path.join(OUTDIR, filename), dpi=150, bbox_inches="tight")
@@ -34,14 +31,7 @@ def _save(fig, filename):
 
 
 def plot_irf(out, ss, cal, T_plot=20, filename="tfp_irf.png"):
-    """5×4 panel IRF to a TFP shock, country D (solid blue) vs F (dashed red).
-
-    Rows: (0) real economy — Y, C, I, wage; (1) financial rates — rk, rdep,
-    capital price Q, excess return rk−rdep; (2) banking — net worth n,
-    leverage θ, sovereign bond price Q_b, bank dividends; (3) external &
-    fiscal — real exchange rate p, net exports, public debt, household
-    deposits; (4) sovereign-bond positions by holder (cross-border legs).
-    """
+    # **5×4 IRF panel for the TFP shock (real economy, rates, banking, external, bond positions).**
     t = np.arange(T_plot)
 
     Y_D_ss  = ss["ss_firm_D"]["Y_ss"]
@@ -56,8 +46,8 @@ def plot_irf(out, ss, cal, T_plot=20, filename="tfp_irf.png"):
     rk_F_ss = ss["rk_F_ss"]
     rdep_D_ss = cal["r_dep_D_target"]
     rdep_F_ss = cal["r_dep_F_target"]
-    Q_D_ss  = ss["ss_cap_D"]["Q_ss"] if "ss_cap_D" in ss else 1.0
-    Q_F_ss  = ss["ss_cap_F"]["Q_ss"] if "ss_cap_F" in ss else 1.0
+    Q_D_ss  = 1.0   # SS capital price
+    Q_F_ss  = 1.0
     n_D_ss  = ss["ss_bank_D"]["n_ss"]
     n_F_ss  = ss["ss_bank_F"]["n_ss"]
     thetaD_ss = ss["ss_bank_D"]["theta_ss"]
@@ -87,7 +77,6 @@ def plot_irf(out, ss, cal, T_plot=20, filename="tfp_irf.png"):
     fig.suptitle("IRF: TFP shock — country D (solid blue) vs F (dashed red)",
                  fontsize=11, y=1.005)
 
-    # ── Row 0: real economy ───────────────────────────────────────────────────
     _panel(axes[0, 0], t, pct(out["Y_D"], Y_D_ss), pct(out["Y_F"], Y_F_ss),
            "Output", "% dev. from SS")
     _panel(axes[0, 1], t, pct(out["C_D"], C_D_ss), pct(out["C_F"], C_F_ss),
@@ -97,7 +86,6 @@ def plot_irf(out, ss, cal, T_plot=20, filename="tfp_irf.png"):
     _panel(axes[0, 3], t, pct(out["w_D"], w_D_ss), pct(out["w_F"], w_F_ss),
            "Real wage", "% dev.")
 
-    # ── Row 1: financial rates ────────────────────────────────────────────────
     _panel(axes[1, 0], t, bps(out["rk_D"], rk_D_ss), bps(out["rk_F"], rk_F_ss),
            "Capital return rk", "bps")
     _panel(axes[1, 1], t, bps(out["rdep_D"], rdep_D_ss), bps(out["rdep_F"], rdep_F_ss),
@@ -109,7 +97,6 @@ def plot_irf(out, ss, cal, T_plot=20, filename="tfp_irf.png"):
            bps(np.asarray(out["rk_F"]) - np.asarray(out["rdep_F"])),
            "Excess return rk − rdep", "bps")
 
-    # ── Row 2: banking block ──────────────────────────────────────────────────
     _panel(axes[2, 0], t, pct(out["n_D"], n_D_ss), pct(out["n_F"], n_F_ss),
            "Bank net worth n", "% dev.")
     _panel(axes[2, 1], t, pct(out["theta_D"], thetaD_ss), pct(out["theta_F"], thetaF_ss),
@@ -124,7 +111,6 @@ def plot_irf(out, ss, cal, T_plot=20, filename="tfp_irf.png"):
                bps(out["div_F"] - ss.get("div_F_ss", out["div_F"][0])),
                "Bank dividends", "dev. (level)")
 
-    # ── Row 3: external & fiscal ──────────────────────────────────────────────
     ax = axes[3, 0]
     ax.plot(t, pct(out["p"], p_ss), color="#7f2be8", lw=1.5)
     ax.axhline(0, color="k", lw=0.7, ls=":")
@@ -141,7 +127,6 @@ def plot_irf(out, ss, cal, T_plot=20, filename="tfp_irf.png"):
     _panel(axes[3, 3], t, pct(out["A_D"], A_D_ss), pct(out["A_F"], A_F_ss),
            "Household deposits A", "% dev.")
 
-    # ── Row 4: sovereign-bond positions (cross-border) ────────────────────────
     _panel(axes[4, 0], t, pct(out["b_D_D"], b_D_D_ss), pct(out["b_D_F"], b_D_F_ss),
            "D sovereign bonds by holder", "% dev.",
            label_D="held by D banks (home)", label_F="held by F banks (cross-border)")
@@ -161,16 +146,7 @@ def plot_irf(out, ss, cal, T_plot=20, filename="tfp_irf.png"):
 
 
 def plot_default_irf(out, ss, cal, T_plot=100, filename="default_irf.png"):
-    """3×4 panel IRF: Cole-Kehoe risk-only sunspot shock in country D
-    (Bocola 2016 pass-through experiment).
-
-    Each panel overlays country D (solid blue) and F (dashed red) so that
-    cross-border spillovers through the GK financial channel are visible.
-    Panels: real economy (Y, C, I, p), financial rates (rdep, rk, Q_b,
-    excess return), balance sheets (θ, n), lending spread, and priced
-    risk + debt.  The sovereign-spread decomposition is a separate figure
-    (plot_bond_decomposition).
-    """
+    # **3×4 IRF panel for the Cole-Kehoe risk-only sunspot (Bocola pass-through).**
     t = np.arange(T_plot)
 
     Y_D_ss     = ss["ss_firm_D"]["Y_ss"]
@@ -201,7 +177,6 @@ def plot_default_irf(out, ss, cal, T_plot=100, filename="default_irf.png"):
     fig.suptitle("IRF: Cole-Kehoe sunspot (risk-only) in country D — "
                  "Bocola pass-through", fontsize=11, y=1.01)
 
-    # ── Row 0: real economy ───────────────────────────────────────────────────
     _panel(axes[0, 0], t, pct(out["Y_D"], Y_D_ss), pct(out["Y_F"], Y_F_ss),
            "Output", "% dev. from SS")
     _panel(axes[0, 1], t, pct(out["C_D"], C_D_ss), pct(out["C_F"], C_F_ss),
@@ -216,7 +191,6 @@ def plot_default_irf(out, ss, cal, T_plot=100, filename="default_irf.png"):
     ax.set_ylabel("% dev.", fontsize=8)
     ax.set_xlabel("quarter", fontsize=8)
 
-    # ── Row 1: financial rates ────────────────────────────────────────────────
     _panel(axes[1, 0], t, bps(out["rdep_D"], rdep_D_ss), bps(out["rdep_F"], rdep_F_ss),
            "Deposit rate rdep", "bps")
     _panel(axes[1, 1], t, bps(out["rk_D"], rk_D_ss), bps(out["rk_F"], rk_F_ss),
@@ -229,7 +203,6 @@ def plot_default_irf(out, ss, cal, T_plot=100, filename="default_irf.png"):
            bps(np.asarray(out["rk_F"]) - np.asarray(out["rdep_F"])),
            "Excess return rk − rdep", "bps")
 
-    # ── Row 2: balance sheets and spreads ─────────────────────────────────────
     _panel(axes[2, 0], t, pct(out["theta_D"], theta_D_ss), pct(out["theta_F"], theta_F_ss),
            "Bank leverage θ", "% dev.")
     _panel(axes[2, 1], t, pct(out["n_D"], n_D_ss), pct(out["n_F"], n_F_ss),
@@ -261,15 +234,7 @@ def plot_default_irf(out, ss, cal, T_plot=100, filename="default_irf.png"):
 
 def plot_bond_decomposition(out, ss, cal, T_plot=100,
                             filename="bond_decomposition.png"):
-    """Sovereign-spread decomposition for D bonds (Bocola 2016 style).
-
-    Single panel, annualized bps deviations from SS.  Exact identity
-    (see risk_branch.bond_decomposition):
-      promised yield spread = default compensation + risk premium
-                              + liquidity premium (IC component λμ/Ω̃).
-    In risk-neutral mode the risk premium is zero; with the Bocola channel
-    it is positive because Ω^d > Ω^nd depresses the bond price.
-    """
+    # **Single-panel D-bond spread decomposition: default comp + risk premium + liquidity.**
     dec = bond_decomposition(out, ss, cal)
     t = np.arange(T_plot)
 

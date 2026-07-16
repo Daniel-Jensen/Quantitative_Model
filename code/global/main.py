@@ -1,17 +1,4 @@
-"""Entry point: IRFs of the two-country HANK-GK monetary union.
-
-Pipeline (steady state always runs; both experiments start from it):
-  1. TFP shock in country D            → output/tfp_irf.png
-  2. Cole-Kehoe sunspot in country D   → output/default_irf.png
-     (Bocola pass-through: sovereign-default risk is PRICED but never
-      REALIZED — bond prices fall, bank net worth drops, spreads rise)
-     optional: output/bond_decomposition.png (spread = default
-     compensation + risk premium + liquidity premium)
-
-Toggle the sections with the flags below.  Total runtime is dominated by
-the transition solves (7T-unknown Newton each, see transition.py).
-"""
-
+# **Entry point: SS → TFP IRF → Cole-Kehoe/Bocola sunspot pass-through, with figures.**
 import os
 import time
 import numpy as np
@@ -36,16 +23,12 @@ TFP_SHOCK, TFP_RHO = 0.01, 0.9    # 1% impact, AR(1) decay
 SUN_SHOCK, SUN_RHO = 0.01, 0.95  # peak priced default prob (quarterly), decay
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-#  Diagnostics: steady-state table, transition residuals, CK table
-# ═════════════════════════════════════════════════════════════════════════════
-
 def print_ss_table(ss, cal):
-    # Steady-state moments, calibrated parameters, and residual checks.
+    # **Print steady-state moments, calibrated parameters, and residual checks.**
     bk_D = ss["ss_bank_D"];  bk_F = ss["ss_bank_F"]
     fm_D = ss["ss_firm_D"];  fm_F = ss["ss_firm_F"]
 
-    W = 26  # label column width
+    W = 26   # label column width
     def row(label, vD, vF, note=""):
         note_str = f"  {note}" if note else ""
         return f"  {label:<{W}} {vD:>10}  {vF:>10}{note_str}"
@@ -87,8 +70,7 @@ def print_ss_table(ss, cal):
     print(row("F-bank share of D-debt", f"{ss['b_D_F_ss']/cal['B_gov_D_ss']:.1%}", "—", "contagion leg, target 20%"))
     print(row("B_gov / 4Y (debt/GDP)", f"{cal['B_gov_D_ss']/(4*fm_D['Y_ss']):.1%}", f"{cal['B_gov_F_ss']/(4*fm_F['Y_ss']):.1%}", "target ≈ 93%"))
 
-    # Parameters calibrated inside the SS solve (these overwrite the warm
-    # starts in calibration.py; see steady_state.py)
+    # params calibrated inside the SS solve (overwrite the calibration.py warm starts)
     print(f"{'':─<65}")
     print(f"  {'Calibrated in SS solve':<{W}} {'D':>10}  {'F':>10}  Pins / target")
     print(f"{'':─<65}")
@@ -116,8 +98,7 @@ def print_ss_table(ss, cal):
 
 
 def print_transition_residuals(out, cal):
-    # goods_F is Walras-redundant (never imposed) — the honest accuracy check
-    # (acceptance: goods_D ≤ 1e-9, goods_F ≤ 2e-6, see CLAUDE.md).
+    # **Print market-clearing residuals (goods_F is the Walras-redundant accuracy check).**
     cap_resid_D = np.max(np.abs(out["n_IC_D"] - out["n_D"]))
     cap_resid_F = np.max(np.abs(out["n_IC_F"] - out["n_F"]))
     dep_resid_D = np.max(np.abs(out["P_CES_D"] * out["A_D"] - out["Dep_supply_D"]))
@@ -135,7 +116,7 @@ def print_transition_residuals(out, cal):
 
 
 def print_ck_table(out, ss, cal):
-    # Cole-Kehoe / Bocola pass-through diagnostics for the sunspot run.
+    # **Print Cole-Kehoe / Bocola pass-through diagnostics for the sunspot run.**
     bk_D = ss["ss_bank_D"];  bk_F = ss["ss_bank_F"]
     fm_D = ss["ss_firm_D"]
 
@@ -191,11 +172,8 @@ def print_ck_table(out, ss, cal):
     print(f"{'':─<72}")
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-#  Experiments
-# ═════════════════════════════════════════════════════════════════════════════
-
 def run_tfp(ss, cal):
+    # **Experiment 1: TFP shock in D → solve, print residuals, plot.**
     print("\n" + "=" * 65)
     print(f"  TFP shock in D: {TFP_SHOCK:.0%} on impact, rho = {TFP_RHO}")
     print("=" * 65)
@@ -213,6 +191,7 @@ def run_tfp(ss, cal):
 
 
 def run_sunspot(ss, cal):
+    # **Experiment 2: Cole-Kehoe sunspot + Bocola risk channel → solve, print, plot.**
     print("\n" + "=" * 65)
     print(f"  Cole-Kehoe sunspot in D: peak default prob {SUN_SHOCK:.0%} "
           f"per quarter, rho = {SUN_RHO}")
@@ -236,6 +215,7 @@ def run_sunspot(ss, cal):
 
 
 def main():
+    # **Run the full pipeline: steady state → TFP IRF → sunspot experiment.**
     t0 = time.perf_counter()
     os.makedirs(OUTDIR, exist_ok=True)
     cal = get_calibration()

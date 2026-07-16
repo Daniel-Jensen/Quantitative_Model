@@ -1,7 +1,9 @@
-
+# **Rouwenhorst (1995) discretization of an AR(1) income process.**
 import numpy as np
+
+
 def _rouwenhorst_Pi(rho, n):
-    "Recursive construction of the Rouwenhorst transition matrix."
+    # **Recursive construction of the n-state Rouwenhorst transition matrix.**
     p = (1 + rho) / 2
     if n == 2:
         return np.array([[p, 1 - p], [1 - p, p]])
@@ -12,11 +14,12 @@ def _rouwenhorst_Pi(rho, n):
     Pi[:-1, 1:] += (1 - p) * Pi_prev
     Pi[1:, :-1] += (1 - p) * Pi_prev
     Pi[1:, 1:] += p * Pi_prev
-    Pi[1:-1, :] /= 2
+    Pi[1:-1, :] /= 2   # interior rows double-counted above
     return Pi
 
+
 def stationary_distribution(Pi):
-    "Stationary distribution of a Markov chain via power iteration."
+    # **Stationary distribution of a Markov chain via power iteration.**
     n = Pi.shape[0]
     dist = np.ones(n) / n
     for _ in range(10_000):
@@ -29,7 +32,7 @@ def stationary_distribution(Pi):
 
 
 def rouwenhorst(rho, sigma, n=2):
-    "Rouwenhorst discretization of an AR(1) process."
+    # **Discretize an AR(1): returns (e_grid normalized to mean 1, Pi, stationary dist).**
     Pi = _rouwenhorst_Pi(rho, n)
     psi = sigma * np.sqrt(n - 1) / np.sqrt(1 - rho ** 2)
     x_grid = np.linspace(-psi, psi, n)

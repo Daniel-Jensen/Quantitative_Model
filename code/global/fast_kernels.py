@@ -1,20 +1,7 @@
-"""JIT-compiled hot kernels for the transition residual (numba, optional).
-
-Two kernels dominate a residual evaluation (~88% of 45.5 ms measured):
-  hh_backward  — the household EGM backward induction over the whole path
-                 (household.solve_backward_transition's loop);
-  dist_forward — the distribution forward simulation with Young-lottery
-                 scatter plus the C/A aggregations (distribution.forward_paths'
-                 loop).
-
-Both replicate the pure-numpy reference implementations operation-for-
-operation (no fastmath, np.interp semantics, side='right' searchsorted,
-denom>0 lottery guard), and tests/test_fast_kernels.py asserts agreement to
-float precision on random inputs.  When numba is not importable the callers
-fall back to the numpy paths automatically; cal["use_numba"]=False forces the
-fallback.  cache=True persists compiled artifacts to __pycache__, so spawned
-Jacobian workers (solvers.fd_jacobian) load them instead of recompiling.
-"""
+# **numba JIT kernels for the two hot loops (EGM backward + distribution forward).**
+# Replicate the numpy reference ops-for-op (tested to float precision in
+# test_fast_kernels.py); callers fall back to numpy when numba is absent or
+# cal["use_numba"]=False. cache=True lets spawned Jacobian workers load artifacts.
 import numpy as np
 
 try:
@@ -32,12 +19,8 @@ except ImportError:                                   # pragma: no cover
 @njit(cache=True)
 def hh_backward(a_grid, Pi_T, r_path, y_path, c_terminal, beta, sigma, a_min,
                 vN_path):
-    """EGM backward induction, terminal condition c_terminal (= SS policy).
-
-    Pi_T is Pi.T (C-contiguous).  r_path has length T+1 (today's return plus
-    the return entering each period, Fisher-adjusted upstream).  Mirrors
-    household.egm_step + solve_backward_transition exactly.
-    """
+    # **EGM backward induction over the path (mirrors household.egm_step exactly).**
+    # Pi_T = Pi.T; r_path has length T+1 (Fisher-adjusted upstream).
     T, n_e = y_path.shape
     n_a = a_grid.shape[0]
     c_path = np.empty((T, n_a, n_e))
@@ -88,12 +71,9 @@ def hh_backward(a_grid, Pi_T, r_path, y_path, c_terminal, beta, sigma, a_min,
 
 @njit(cache=True)
 def dist_forward(D0, a_pol_path, c_path, a_grid, Pi):
-    """Distribution forward simulation with Young (2010) lottery weights.
-
-    Timing convention (matches the transition solver): C_t over the
-    start-of-period distribution, A_t over the end-of-period one; D_start[t]
-    is the distribution entering period t.
-    """
+    # **Distribution forward simulation with Young (2010) lottery weights.**
+    # C_t over the start-of-period dist, A_t over the end-of-period; D_start[t]
+    # is the dist entering period t.
     T = a_pol_path.shape[0]
     n_a, n_e = D0.shape
     A_path = np.empty(T)

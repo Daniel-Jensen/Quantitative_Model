@@ -1,48 +1,18 @@
-"""Bocola (2016) risk channel via a representative default branch.
-
-The risk channel: bankers discount with the household SDF
-Λ(S',S) = β·u_c'/u_c and carry state-contingent continuation values α(S').
-News that default is more likely pairs HIGH marginal valuations (Λ^d, α^d —
-the default state is a recession with depressed bank net worth) with LOW
-asset returns → a covariance premium on BOTH sovereign bonds and capital
-claims, i.e. precautionary deleveraging even when funding is cheap (Bocola's
-LTRO result; the channel explains up to 45% of the crisis impact on firms'
-borrowing costs in his estimation).
-
-Perfect-foresight implementation (R2-lite): at each base date t the banker's
-expectations average two branches —
-  no-default (prob 1−π_{t+1}) : continue on the base path;
-  default    (prob π_{t+1})   : haircut 1−recovery realized at t+1, economy
-                                jumps to a post-default transition.
-One REPRESENTATIVE branch is solved (default at τ*=1, from the impact
-state); its h=0 objects (α^d, rk^d, Q^d, p^d, consumption composites) are
-reused at every base date.  The branch is absorbing: post-default debt
-(1−D)·b/Y falls below b_ck_low, so the branch carries no further default
-risk.  Approximations (documented): Λ^nd ≡ beta_inter on the base path (the
-channel lives in π·(Ω^d − Ω^nd)); branch state dependence across base dates
-is second order; household expectations stay PERFECT-FORESIGHT on the base
-path — the deposit Euler does not weight the default branch by π (deposits
-are safe in rate terms even in the branch, so this omits only the
-precautionary-savings response to default-state income risk; risk pricing
-lives entirely in the bank block).  Extension: per-date branches.
-
-Outer fixed point: base path ↔ branch (the branch starts from the base
-impact state; the base backward pass uses branch objects), damped iteration
-with warm starts.
-"""
+# **Bocola (2016) risk channel via a representative post-default branch.**
+# Bankers weight two branches: no-default (prob 1-π, base path) and default
+# (prob π, a haircut + recession). Pairing HIGH marginal valuations Ω^d with
+# LOW default-state payoffs puts a covariance premium on bonds and capital
+# (precautionary deleveraging). One representative branch (default at τ*=1) is
+# reused at every date; π≡0 nests the risk-neutral model exactly. Approximations:
+# Λ^nd≡beta_inter on the base path; household deposit Euler is π-blind.
 import numpy as np
 
 from government import ck_default_prob
 from transition import solve_transition, solve_transition_ck
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# State extraction and branch solve
-# ─────────────────────────────────────────────────────────────────────────────
-
 def extract_init_state(out, ss, cal, tau):
-    """Initial-conditions dict for a transition starting at base period tau
-    (uses only period tau−1 objects of the solved base path `out`)."""
+    # **Initial-conditions dict for a transition starting at base period tau (uses tau-1 objects).**
     s = tau - 1
     n_IC_D = out["n_IC_D"][s];  n_IC_F = out["n_IC_F"][s]
     p_s = out["p"][s]
@@ -71,24 +41,16 @@ def extract_init_state(out, ss, cal, tau):
 
 
 def _shift_path(x, tau, T):
-    """x shifted forward by tau, padded with its final value."""
+    # **Shift a path forward by tau, padded with its final value.**
     idx = np.minimum(np.arange(T) + tau, T - 1)
     return np.asarray(x)[idx]
 
 
 def _shifted_y0(out, tau, T, xi_K=0.0, rho_rebuild=0.975):
-    """Warm start for the branch Newton: base solution shifted by tau.
-
-    xi_K > 0 (capital-quality loss in the branch): scale the Kap_D block
-    toward the post-destruction path.  A raw shifted BASE path implies
-    rebuilding the destroyed stock within one quarter — the Jermann price
-    explodes (Q ≈ 2), μ collapses, the cross-border FOC holdings blow
-    through the bond stock and every residual call lands on the penalty
-    wall, where the solver cannot move.  The rebuild profile is only a
-    starting guess (Newton finds the true speed); rho_rebuild ≈ 0.975
-    matches the Jermann-implied K half-life (~28q) — faster profiles imply
-    violent within-quarter investment swings that trip μ ≥ 1 at larger
-    xi_K."""
+    # **Branch Newton warm start: base solution shifted by tau (Kap scaled by the quality profile).**
+    # xi_K>0: scaling the Kap_D block toward the post-destruction path avoids an
+    # implied one-quarter rebuild that would spike the Jermann price and stall
+    # every probe on the penalty wall. rho_rebuild≈0.975 ≈ Jermann K half-life.
     blocks = [out["N_D"], out["N_F"], out["Kap_D"], out["Kap_F"],
               out["rdep_D"], out["rdep_F"], out["p"]]
     y = np.concatenate([_shift_path(b, tau, T) for b in blocks])
@@ -99,36 +61,11 @@ def _shifted_y0(out, tau, T, xi_K=0.0, rho_rebuild=0.975):
 
 def solve_default_branch(out, ss, cal, tau=1, verbose=False, y0=None,
                          jac_cache=None):
-    """Post-default PF transition starting from the base-path state entering
-    period tau.  Three ingredients define the feared event:
-
-      haircut      : scale·(1−recovery) realized on the bond stock at h=0,
-                     where scale = branch_haircut_scale (default 1.0 = the
-                     full PSI event — ONE sensible level, no search);
-      capital loss : GK capital-quality shock ξ_K = def_capital_quality_D —
-                     a fraction of D capital is destroyed at h=0 (this is
-                     what stops capital being the branch safe haven; see
-                     docs/sunspot_transition_study.md M2);
-      recap        : government recapitalization (HFSF/EFSF analogue) — when
-                     recap_share_D > 0 the state replaces that share of the
-                     banks' haircut loss with an equity injection financed by
-                     issuance (raises post-default debt and Bohn taxes).  At
-                     the PSI calibration the full event needs it; it is part
-                     of the modelled institutional response, not a last resort.
-
-    ONE deterministic solve per call: the fixed (scale, recap) event, warm-
-    started from y0 when the risk fixed point re-solves.  If that event is
-    infeasible the call RAISES (telling you how to fix the calibration)
-    unless branch_use_ladder=True, which re-enables the old feasibility
-    ladder (a search over scales 0.075…1.0, kept for robustness/
-    experimentation only — off by default so runs are deterministic and
-    fast).  branch["rescue_mode"] records what ran and
-    branch["haircut_scale"] the realized scale — make_risk_inputs prices the
-    CONSISTENT survival factor surv_d = 1 − scale·(1−rec).
-
-    jac_cache carries the branch-system Jacobian across rounds
-    (solvers.newton_solve tolerates cross-system reuse via rebuilds).
-    """
+    # **Solve ONE fixed feared event: haircut + capital-quality loss + government recap.**
+    # scale = branch_haircut_scale (1.0 = full PSI). ξ_K destroys branch capital
+    # (stops it being the safe haven). recap (on when recap_share_D>0) makes the
+    # full event feasible. Infeasible → RAISE unless branch_use_ladder re-enables
+    # the scale search. branch["rescue_mode"]/["haircut_scale"] record what ran.
     T = cal["T"]
     init = extract_init_state(out, ss, cal, tau)
 
@@ -136,28 +73,21 @@ def solve_default_branch(out, ss, cal, tau=1, verbose=False, y0=None,
     xi_K = cal.get("def_capital_quality_D", 0.0)
     recap_share = cal.get("recap_share_D", 0.0)
 
-    # Canonical output cost of default (Arellano 2008): the default state is
-    # a recession — this is what makes Λ^d, α^d high while returns are low.
+    # output cost of default (Arellano 2008) makes the branch a recession
     cost = cal.get("def_output_cost_D", 0.0)
     rho_c = cal.get("def_output_rho_D", 0.9)
     Z_D_b = _shift_path(out["Z_D"], tau, T) * (1.0 - cost * rho_c ** np.arange(T))
     Z_F_b = _shift_path(out["Z_F"], tau, T)
 
-    # GK capital-quality loss at h=0 (branch only; base paths never set this)
-    init["quality0_D"] = 1.0 - xi_K
-
-    # Banks' bond exposure entering the branch (for ex-ante recap sizing)
+    init["quality0_D"] = 1.0 - xi_K   # GK capital-quality loss at h=0 (branch only)
     s = tau - 1
-    bond_exposure_D = out["Q_bD"][s] * out["b_D_D"][s]
+    bond_exposure_D = out["Q_bD"][s] * out["b_D_D"][s]   # for ex-ante recap sizing
 
     def _attempt(scale, recap_on, y_start, hybr_factor=100.0):
-        """One branch solve at a given haircut scale; None if infeasible."""
+        # **One branch solve at a given haircut scale; None if infeasible.**
         def_real_D = np.zeros(T)
         def_real_D[0] = scale
-        # No fiscal windfall: re-anchor the Bohn rule to the post-haircut
-        # stock consistent with THIS event size, otherwise φ·(b − b_ss)
-        # turns the haircut into large tax cuts and the default state
-        # becomes expansionary (wrong-signed risk premium).
+        # re-anchor the Bohn rule to the post-haircut stock (else default is expansionary)
         init["b_anchor_D"] = init["b_gov0_D"] * (1.0 - scale * (1.0 - rec_D))
         if recap_on and recap_share > 0.0:
             recap = np.zeros(T)
@@ -180,10 +110,9 @@ def solve_default_branch(out, ss, cal, tau=1, verbose=False, y0=None,
             return None
 
     def _climb(scales, y_start, hybr_factor=100.0):
-        # Try every scale (with recap), keep the LARGEST feasible event.
-        # Feasibility is not monotone: small events can be boom-infeasible
-        # (risk-relief rally) while large ones are crunch-infeasible
-        # (equity wipeout) — never stop at the first failure.
+        # **Opt-in ladder: try every scale, keep the LARGEST feasible event.**
+        # Feasibility is non-monotone (small events boom-infeasible, large ones
+        # crunch-infeasible), so never stop at the first failure.
         b, s_used, y = None, 0.0, y_start
         for scale in scales:
             cand = _attempt(scale, True, y, hybr_factor)
@@ -193,9 +122,7 @@ def solve_default_branch(out, ss, cal, tau=1, verbose=False, y0=None,
             y = b["y_vec"]
         return b, s_used
 
-    # ONE sensible haircut level (no search).  recap is on whenever it is
-    # calibrated; at the PSI event that is what makes the full haircut
-    # feasible.  Warm-start from y0 on risk-fixed-point re-solves.
+    # one deterministic solve of the fixed event (recap on when calibrated)
     scale = float(cal.get("branch_haircut_scale", 1.0))
     recap_on = recap_share > 0.0
     y_start = y0 if y0 is not None else _shifted_y0(out, tau, T, xi_K)
@@ -205,9 +132,7 @@ def solve_default_branch(out, ss, cal, tau=1, verbose=False, y0=None,
     mode = (("full" if scale >= 1.0 else f"scale{scale:.2f}")
             + ("+recap" if recap_on else ""))
 
-    # Optional fallback: the old feasibility ladder (search over scales),
-    # OFF by default.  Only touched if the fixed event is infeasible AND the
-    # caller opted in — keeps the common path deterministic and single-solve.
+    # opt-in fallback: the feasibility ladder (off by default → single deterministic solve)
     if branch is None and cal.get("branch_use_ladder", False):
         full_ladder = (0.075, 0.15, 0.3, 0.5, 0.75, 1.0)
         branch, scale_used = _climb(full_ladder, y_start)
@@ -237,7 +162,6 @@ def solve_default_branch(out, ss, cal, tau=1, verbose=False, y0=None,
         print(f"  [risk_branch] priced event = partial restructuring "
               f"(haircut {scale_used * (1 - rec_D):.0%}; full event "
               "infeasible even with recap)")
-    # Absorbing-branch check at the ACTUAL event size
     b_post = init["b_gov0_D"] * (1.0 - scale_used * (1.0 - rec_D))
     if b_post / ss["ss_firm_D"]["Y_ss"] >= cal["b_ck_low_D"]:
         print(f"  [risk_branch] WARNING: post-default debt b/Y = "
@@ -250,40 +174,18 @@ def solve_default_branch(out, ss, cal, tau=1, verbose=False, y0=None,
     return branch
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Risk inputs for bank_backward
-# ─────────────────────────────────────────────────────────────────────────────
-
 def make_risk_inputs(branch, base, ss, cal):
-    """Branch objects → risk_D dict for bank_backward (without 'pi').
-
-    Ω^d_X[t] = Λ^d_X[t] · [(1−f_X) + f_X·α^d_X(0)], with the SDF ratio taken
-    across branches at t+1.  Three sdf_mode variants (calibration.py):
-      "income"    : Λ^d = beta_inter · (Y^d(0)/Y^nd_{t+1})^(−σ) — Euler-
-                    consistent loading on aggregate OUTPUT.  Prices the
-                    default state as a bad time whenever it is a recession
-                    (Y^d < Y^nd), which holds even while the deposit-market
-                    comovement problem makes branch CONSUMPTION rise — the
-                    robust rep-agent proxy for the HA economy.  Sign-gated:
-                    if the branch is not a recession the gate falls back to
-                    the empirical mode loudly (never price default as good).
-      "empirical" : Λ^d = beta_inter · kappa_d (free loading, Bocola's
-                    asset-price-disciplined route).
-      "model"     : Λ^d from GHH consumption composites x = C − v(N).
-                    WRONG-SIGNED until the union-deposit-market fix (branch
-                    C rises); kept for post-fix use.
-    chi_tilt ≥ 1 (calibration, default 1) tilts the default probability
-    pessimistically (EZ-lite dial; off by default).
-    """
+    # **Branch objects → risk_D dict for bank_backward (Ω^d, branch prices/returns, surv_d).**
+    # Ω^d = Λ^d·[(1-f)+f·α^d(0)]. sdf_mode: "income" (Euler loading on branch
+    # output vs base t+1, sign-gated) | "empirical" (β·kappa_d) | "model" (GHH
+    # composites, wrong-signed until the union-deposit fix).
     T = cal["T"]
     mode = cal.get("sdf_mode", "empirical")
     if mode == "income":
-        # Euler-consistent GDP loading: marginal value is high in states
-        # where aggregate output is low.  Branch h=0 output vs the base
-        # no-default continuation at t+1.
+        # marginal value high where branch output is low, vs base continuation at t+1
         Y_d_D = branch["Y_D"][0]
         Y_d_F = branch["Y_F"][0]
-        Y_nd_D = _shift_path(base["Y_D"], 1, T)     # Y^nd_{t+1}
+        Y_nd_D = _shift_path(base["Y_D"], 1, T)
         Y_nd_F = _shift_path(base["Y_F"], 1, T)
         ratio_D = Y_d_D / Y_nd_D
         if np.any(ratio_D >= 1.0):
@@ -296,22 +198,16 @@ def make_risk_inputs(branch, base, ss, cal):
             Lam_d_F = np.full(T, cal["beta_inter_F"] * kappa)
         else:
             Lam_d_D = cal["beta_inter_D"] * ratio_D ** (-cal["sigma_D"])
-            # F banker loads on F output in the same D-default event; the
-            # contagion recession there is small, so this leg stays near 1.
             Lam_d_F = cal["beta_inter_F"] * (Y_d_F / Y_nd_F) ** (-cal["sigma_F"])
     elif mode == "empirical":
-        # Empirically disciplined default-state SDF loading (Bocola's own
-        # route: E[Λ̂|default] proxied from asset prices, not model C).
         kappa = cal.get("kappa_d", 1.0)
         Lam_d_D = np.full(T, cal["beta_inter_D"] * kappa)
         Lam_d_F = np.full(T, cal["beta_inter_F"] * kappa)
     else:
-        # Model-consistent SDF: branch h=0 composites vs the base no-default
-        # continuation at t+1.  WARNING: wrong-signed while the comovement
-        # problem makes branch consumption rise (see calibration.py note).
+        # model-consistent SDF from GHH composites x = C - v(N) (branch vs base t+1)
         x_d_D = branch["C_D"][0] - branch["vN_D"][0]
         x_d_F = branch["C_F"][0] - branch["vN_F"][0]
-        x_nd_D = _shift_path(base["C_D"] - base["vN_D"], 1, T)   # x^nd_{t+1}
+        x_nd_D = _shift_path(base["C_D"] - base["vN_D"], 1, T)
         x_nd_F = _shift_path(base["C_F"] - base["vN_F"], 1, T)
         Lam_d_D = cal["beta_inter_D"] * (x_d_D / x_nd_D) ** (-cal["sigma_D"])
         Lam_d_F = cal["beta_inter_F"] * (x_d_F / x_nd_F) ** (-cal["sigma_F"])
@@ -326,37 +222,18 @@ def make_risk_inputs(branch, base, ss, cal):
         rk_d_D=branch["rk_D"][0], rk_d_F=branch["rk_F"][0],
         Q_bD_d=branch["Q_bD"][0], Q_bF_d=branch["Q_bF"][0],
         p_d=branch["p"][0],
-        # Survival factor of the PRICED event (haircut may be partial if the
-        # full haircut is infeasible without bank recapitalization)
         surv_d=1.0 - branch["haircut_scale"] * (1.0 - cal["recovery_rate_D"]),
     )
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Outer loop: base path ↔ representative branch
-# ─────────────────────────────────────────────────────────────────────────────
 
 def solve_transition_ck_risk(ss, cal, Z_D_path, Z_F_path,
                              sunspot_D_path=None, sunspot_F_path=None,
                              verbose=True, max_rounds=6, damp=0.5, tol=1e-3,
                              y0=None):
-    """Cole-Kehoe risk-only experiment WITH the Bocola risk channel.
-
-    Rounds:
-      0. risk-off base path (existing solve_transition_ck);
-      k. representative default branch from the base impact state →
-         risk inputs (damped) → re-solve the base path with two-branch
-         pricing (warm-started) → update the crisis-zone def_price
-         (both countries).
-    Converges on the branch objects (Q^d, rk^d, mean Ω^d).  A final
-    consistency step re-solves the base path if the refreshed zone
-    indicator differs from the one used in the last solve (debt crossing
-    a zone threshold in the last round) — a no-op when debt stays
-    interior to the crisis zone.
-
-    Returns the base-path dict plus 'branch' (the default branch),
-    'risk_D_inputs', 'sunspot_D' and 'sunspot_F'.
-    """
+    # **Outer fixed point base path ↔ representative branch (Cole-Kehoe risk-only).**
+    # Round 0: risk-off base. Round k: solve branch → damped risk inputs →
+    # re-solve base with two-branch pricing → refresh zone indicator. Converges
+    # on the branch objects; a final zone-consistency loop is a no-op in-zone.
     T = cal["T"]
     Y_ss_D = ss["ss_firm_D"]["Y_ss"]
     Y_ss_F = ss["ss_firm_F"]["Y_ss"]
@@ -366,33 +243,36 @@ def solve_transition_ck_risk(ss, cal, Z_D_path, Z_F_path,
         sunspot_F_path = np.zeros(T)
 
     def _zone(b_bop, Y_ss, sun, ctry):
-        """Crisis-zone indicator re-evaluated on a solved debt path."""
+        # **Crisis-zone indicator re-evaluated on a solved debt path.**
         return np.array([ck_default_prob(b_bop[t], Y_ss, cal, sun[t], ctry)
                          for t in range(T)])
 
     chi_tilt = cal.get("chi_tilt", 1.0)
 
-    # Jacobian caches (solvers.newton_solve): one per system kind.  jc_base is
-    # filled by the round-0 solve and reused by every base re-solve; jc_branch
-    # by the round-1 branch solve and reused by every branch re-solve.  This is
-    # where the speedup lives — warm re-solves cost a handful of residual
-    # evaluations instead of a fresh 7T+1-call FD Jacobian each.
+    # one Jacobian cache per system kind (base / branch); reused across re-solves
     jc_base = {}
     jc_branch = {}
 
-    # Round 0: risk-off base (also settles the crisis-zone indicator).
-    # Pass y0 from a pre-solved risk-off run to skip the cold Newton start
-    # (large sunspots need a homotopy, which main.py already performs).
     out = solve_transition_ck(ss, cal, Z_D_path, Z_F_path,
                               sunspot_D_path=sunspot_D_path,
                               sunspot_F_path=sunspot_F_path,
                               verbose=False, y0=y0, jac_cache=jc_base)
     def_price_D = np.asarray(out["def_price_D"])
     def_price_F = np.asarray(out["def_price_F"])
-    # Indicators actually used in the most recent base solve (round 0's CK
-    # loop converges on its own indicator, so out is consistent here).
     def_price_D_used = def_price_D
     def_price_F_used = def_price_F
+
+    # No priced risk anywhere → the branch is irrelevant (pi ≡ 0 nests the
+    # risk-neutral model exactly), so return the risk-off path and skip the
+    # branch solve, which from the healthy SS state needs the (off-by-default)
+    # ladder as a homotopy.
+    if not np.any(def_price_D) and not np.any(def_price_F):
+        out["branch"] = None
+        out["risk_D_inputs"] = None
+        out["sunspot_D"] = sunspot_D_path
+        out["sunspot_F"] = sunspot_F_path
+        out["risk_converged"] = True
+        return out
 
     import time as _time
     risk_in = None
@@ -446,7 +326,6 @@ def solve_transition_ck_risk(ss, cal, Z_D_path, Z_F_path,
         )
         _t_base = _time.perf_counter() - _t0
 
-        # Refresh crisis-zone indicators on the new debt paths
         def_price_D = _zone(out["b_gov_bop_D"], Y_ss_D, sunspot_D_path, "D")
         def_price_F = _zone(out["b_gov_bop_F"], Y_ss_F, sunspot_F_path, "F")
 
@@ -463,10 +342,7 @@ def solve_transition_ck_risk(ss, cal, Z_D_path, Z_F_path,
         if verbose:
             print(f"  risk channel: max_rounds={max_rounds} reached (conv={conv:.2e}).")
 
-    # Final zone consistency: the last base solve used the previous round's
-    # indicator; if the refreshed indicator differs (debt crossed a zone
-    # threshold in the last round), re-solve until path and indicator agree.
-    # Interior to the crisis zone (the typical configuration) this never runs.
+    # final zone-consistency: re-solve if the refreshed indicator moved (no-op in-zone)
     zone_tol = cal.get("ck_tol", 1e-8)
     for _ in range(5):
         zone_err = max(np.max(np.abs(def_price_D - def_price_D_used)),
@@ -504,25 +380,10 @@ def solve_transition_ck_risk(ss, cal, Z_D_path, Z_F_path,
     return out
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Diagnostics: exact per-period D-bond spread decomposition
-# ─────────────────────────────────────────────────────────────────────────────
-
 def bond_decomposition(out, ss, cal):
-    """Decompose the D-bond promised excess return (annualized bps, deviation
-    from SS) into default compensation + risk premium + liquidity premium.
-
-    Exact identity per period:
-      payoff^nd/Q − 1 − rdep  =  (payoff^nd − E[payoff])/Q      [default comp.]
-                               + (E[payoff]/Q − 1 − rdep − λμ/Ω̃) [risk premium]
-                               + λμ/Ω̃                            [liquidity]
-    where E is the physical expectation over the default event.  In
-    risk-neutral mode the risk premium is 0 by the pricing equation; with the
-    Bocola channel it is positive because Ω^d > Ω^nd depresses Q.
-
-    Returns dict of (T,) arrays in annualized bps (deviations from SS where
-    applicable): total_yield, defcomp, risk, liquidity, plus raw arrays.
-    """
+    # **Split the D-bond excess return into default compensation + risk premium + liquidity.**
+    # Exact per-period identity: payoff^nd/Q-1-rdep = defcomp + risk + λμ/Ω̃.
+    # Risk premium is 0 in risk-neutral mode, positive when Ω^d>Ω^nd depresses Q.
     T   = cal["T"]
     db  = cal["delta_b_D"]
     rec = cal["recovery_rate_D"]
