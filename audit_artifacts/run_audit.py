@@ -15,6 +15,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+# PR #28 moved the equation files into code/ — keep the audit runner importable.
+sys.path.insert(0, str(ROOT / 'code'))
 import os
 os.chdir(ROOT)
 

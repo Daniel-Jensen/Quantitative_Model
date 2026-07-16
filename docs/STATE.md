@@ -21,7 +21,8 @@ Core equations: `code/equations_D.py`, `code/equations_F.py`, `code/equations_gl
 - Smart steady-state blocks: `m = n·(1−(1−f)·(1+rn))` without spurious `+Phi+T` — A-2 fix (required for any `chi1≠0` calibration, e.g. bank-cal's chi1=0.5).
 - Global goods market, external account, bond clearing, and portfolio adjustment cost blocks.
 - Domestic and foreign bond pricing, yields, spreads, and Hatchondo-Martinez geometric-decay perpetuity default mechanics.
-- TPI extension (cells TPI-1/TPI-2 in notebook): CB budget closed via `budget_residual_D_tpi` with `rem_cb_D` remittance — TPI-1 fix. Before the fix, unbacked CB flows inflated welfare gains by ~40% at γ=10.
+- TPI extension: CB budget closed via `budget_residual_D_tpi` remittance — TPI-1 fix. Before the fix, unbacked CB flows inflated welfare gains by ~40% at γ=10.
+- **ECB balance sheet as a capital-key conduit** (ecb-balance-sheet branch): the TPI-1 wiring remitted the *entire* CB cash flow to the Greek treasury (self-financing; no German side). Now `cb_flow_D = (1+rb_actual_D)·q_b(-1)·cb_buy(-1) − q_b·cb_buy` splits `kappa_cb_F=0.929` to the F treasury (`budget_residual_F_tpi`, converted `/p`) and the rest to D; the F share of the CB book enters the external account like `b_D_F` (`external_account_D_tpi`), so the CB hole cancels identically and `ca_res_D`/`goods_mkt_F` stay at baseline leak levels at every γ. Carry/credit legs and off-path expected loss are post-processed in `cb_pnl` (`code/tpi.py`), discounted at `beta_F`; `audit_artifacts/tpi_test.py` imports the production blocks and asserts `CB_CONDUIT_TEST: PASS` at ≤1e−7.
 - EBA bilateral sovereign exposures in calibration cell: b_D_D/asset=24.47%, b_F_F/asset=25.79%, b_F_D/asset=0.18%, b_D_F/asset=0.65%.
 
 ## Walras accounting (post-fix, verified)
@@ -42,8 +43,12 @@ Pre-fix peaks for reference: goods_mkt_F 2.0e−2 (~2% of F GDP); ca_res_D 1.5e�
 - `n_inter_F[0] ≈ −0.33%` — contagion small, sign correct.
 - Spread widens on impact; doom loop is live with correct sign.
 
-**TPI (γ=10, post-fix):**
-- ΔW_D = +1.88% SS consumption equivalent; ΔW_F = −1.90%. TPI is approximately a zero-sum burden transfer from D to F; spread is not compressed (rises slightly with γ because default is debt-driven). All pre-fix TPI welfare figures are stale until regenerated from `main`.
+**TPI (ECB capital-key conduit, ecb-balance-sheet branch, 2026-07-16):**
+- ΔW_D = +1.38/+2.75/+4.13, ΔW_F = −1.36/−2.70/−4.03 (% quarterly SS consumption, 100q) at γ=2/5/10. Near-transfer, slightly positive-sum (+0.10 at γ=10). Spread now compresses with γ: peak 0.409pp (γ=0) → 0.161pp (γ=10).
+- ECB P&L (PV at β_F over 100q, % of quarterly SS Y_D, γ=10): peak exposure 1.57%, purchases PV 4.20%, expected-loss leg 0.0070%, default-premium leg 0.0227%, MTM leg +0.0253%; SS-carry 0 (SS yields equalised).
+- **Loading (premium PV / EL PV) declines monotonically in γ: 4.86 → 4.06 → 3.22** — the self-extinguishing premium (FRAMING_HANDOFF §5.5) confirmed in-model; `loading_arr` over `gammas_fine` in `tpi_results` is the key-figure schedule.
+- Germany (κ=0.929): bears EL PV 0.0065% Y_D, receives premium PV 0.0210% at γ=10 (memo at full EA key 26.1%: EL 0.0018%).
+- Conduit residuals at every γ: `ca_res_D` ≤ 7.4e−8, `goods_mkt_F` ≤ 6.2e−10. The pre-conduit "zero-sum transfer, no spread compression" numbers (ΔW_D +1.88/ΔW_F −1.90) were from the notebook-era model and are superseded.
 
 ## Calibration summary (current, main)
 
@@ -55,6 +60,7 @@ Pre-fix peaks for reference: goods_mkt_F 2.0e−2 (~2% of F GDP); ca_res_D 1.5e�
 | `theta_D/F` | 4.0 | GK leverage; conservative vs 2011 historical 10–25×. |
 | `psi_lambda_B_D/F` | 3.0 | State-dependent divertability; primary amplification dial; no direct empirical counterpart. |
 | `f_D/F` | 0.12 | Bank exit rate; bank-cal has 0.03 (standard GK range). |
+| `kappa_cb_F` | 0.929 | F share of CB conduit cash flows: two-country renormalised euro-area capital key (BuBa 26.1 / BoG 2.0). TPI layer only; SS-neutral. Memo reporting also at full EA key 26.1%. |
 | `Delta_cross` | 1.4545 | Back-solved (`_ic_delta`, ratio=2.0); degenerate >1. See C-1. |
 | `recovery_rate_D` | 0.00 | No realized losses; inert while writeoff_enabled=0. |
 | `writeoff_enabled_D/F` | 0.0 | Default produces no balance-sheet losses. See S-1. |

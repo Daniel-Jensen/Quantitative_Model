@@ -1,10 +1,17 @@
-"""TPI audit: does cb_buy_D inject unbacked resources (missing CB budget constraint)?
+"""TPI audit: CB conduit accounting — no unbacked resource injection.
 
-Prediction (walras_forensics.md §2 extended): with b_D_D = b_gov_D - b_D_F - cb_buy_D
-and no CB budget anywhere, the D aggregate identity becomes
+History: with b_D_D = b_gov_D - b_D_F - cb_buy_D and no CB budget anywhere, the
+D aggregate identity became
   goods_mkt_D + ca_res_D = factor_gap_D + [q_D*cb_t - (1+rb_D,t)*q_D(-1)*cb_{t-1}]
-so ca_res_D under TPI = baseline-def-shock leak + CB hole. Test at gamma=10.
-Also: compare discounted welfare gain dW_D vs discounted CB injection.
+(the "CB hole"). TPI-1 closed it by remitting the full CB cash flow to the D
+treasury. The ECB-balance-sheet build replaces that with a capital-key conduit:
+kappa_cb_F of the flow goes to the F treasury (converted /p), the rest to D, and
+the F share of the CB book enters the external account like b_D_F. The hole
+cancels identically: hole + rem_cb_D + CA-recorded F leg = 0.
+
+Test: at every gamma, max|ca_res_D| and max|goods_mkt_F| stay at the baseline
+(gamma=0) def-shock leak level, <= 1e-7. Blocks are imported from code/tpi.py
+(production), so this test cannot drift from the pipeline.
 """
 import json, sys, copy
 import numpy as np
@@ -12,6 +19,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / 'code'))   # equation files live in code/ since PR #28
 import os
 os.chdir(ROOT)
 import sequence_jacobian as sj
@@ -30,6 +38,27 @@ ss_final = ns['ss_final']
 cali = ss_final
 calibration_start = ns['calibration_start']
 
+# The audit-frozen calibration predates the macro-pru-fix: EL_price/psi_spread
+# (and friends) are post-SS anchors in the production pipeline. Apply them here,
+# filling calibration keys the frozen dict lacks from production values.
+if 'EL_price_F' not in ss_final.toplevel:
+    from steady_state import _apply_ss_anchors
+    from calibration import get_calibration
+    _prod_cal = get_calibration()
+    for _k in ('psi_lambda_B_D', 'psi_lambda_B_F', 'T0_D', 'T0_F',
+               'recovery_rate_D', 'recovery_rate_F',
+               'zeta_writeoff_D', 'zeta_writeoff_F', 'delta_b_D', 'delta_b_F',
+               'mv_rule_D', 'mv_rule_F'):
+        calibration_start.setdefault(_k, _prod_cal[_k])
+        if _k not in ss_final.toplevel:
+            ss_final.toplevel[_k] = _prod_cal[_k]
+    _apply_ss_anchors(ss_final, calibration_start)
+
+# F-1 market-value-rule reference (set from solved SS, as in build_and_solve;
+# harmless when mv_rule=0)
+ss_final.toplevel['mv_gov_ss_D'] = float(ss_final['q_b_D']) * float(ss_final['b_gov_ss_D'])
+ss_final.toplevel['mv_gov_ss_F'] = float(ss_final['q_b_F']) * float(ss_final['b_gov_ss_F'])
+
 from equations_D import (hh_extended_D, capital_adj_D, labor_D, labor_market_D, labor_demand_D,
     intermediation_IC_D, bank_return_D, intermediation_P1_D, k_balance_sheet_D,
     cap_adj_cost_inter_D, macro_pru_tax_D, intermediation_P2_D, banker_div_res_D,
@@ -45,29 +74,11 @@ from equations_F import (hh_extended_F, capital_adj_F, labor_F, labor_market_F, 
     bond_return_F, sdf_F, sdf_banker_F, ghh_composite_F, welfare_agg_F,
     government_default_F, market_clearing_F)
 from equations_global import (trade_balance, portfolio_level_anchors, divert_portfolio_adj,
-    bond_yield, global_goods_mkt, external_account_D)
+    bond_yield, global_goods_mkt)
 
-@simple
-def domestic_bond_clearing_tpi(b_gov_D, b_gov_F, b_D_F, b_F_D, cb_buy_D):
-    b_D_D = b_gov_D - b_D_F - cb_buy_D
-    b_F_F = b_gov_F - b_F_D
-    return b_D_D, b_F_F
-
-# Mirrors the TPI-1 audit fix now in model_v12.ipynb cell TPI-1.
-@simple
-def budget_residual_D_tpi(b_gov_D, G_D, TAX_D, q_b_D, def_rate_D, recovery_rate_D,
-                          zeta_writeoff_D, P_CES_D, delta_b_D, writeoff_enabled_D,
-                          cb_buy_D):
-    haircut_D      = 1.0 - recovery_rate_D
-    haircut_mult_D = writeoff_enabled_D
-    surv_cont_D    = 1.0 - zeta_writeoff_D * def_rate_D * haircut_D * haircut_mult_D
-    coupon_D       = delta_b_D * (1.0 - def_rate_D * haircut_D * haircut_mult_D) * b_gov_D(-1)
-    net_issuance_D = q_b_D * (b_gov_D - surv_cont_D * (1.0 - delta_b_D) * b_gov_D(-1))
-    rem_cb_D       = (delta_b_D * (1.0 - def_rate_D * haircut_D * haircut_mult_D) * cb_buy_D(-1)
-                      + q_b_D * surv_cont_D * (1.0 - delta_b_D) * cb_buy_D(-1)
-                      - q_b_D * cb_buy_D)
-    b_gov_res_D    = coupon_D + G_D - P_CES_D * TAX_D - net_issuance_D - rem_cb_D
-    return b_gov_res_D, rem_cb_D
+# Production CB-conduit blocks — single source of truth is code/tpi.py.
+from tpi import (domestic_bond_clearing_tpi, budget_residual_D_tpi,
+                 budget_residual_F_tpi, external_account_D_tpi)
 
 sys.setrecursionlimit(5000)
 financial_solved_D = combine([intermediation_P1_D, intermediation_IC_D]).solved(
@@ -92,16 +103,23 @@ ha_full_tpi = sj.create_model([
     deposit_return_F, tax_rule_F, hh_extended_F, ghh_composite_F, sdf_F, sdf_banker_F,
     government_default_F, financial_solved_F, bond_return_F, bank_return_F,
     cap_adj_cost_inter_F, macro_pru_tax_F, intermediation_P2_F, intermediation_P3_F,
-    k_balance_sheet_F, capital_adj_F, capital_producer_profit_F, budget_residual_F,
+    k_balance_sheet_F, capital_adj_F, capital_producer_profit_F, budget_residual_F_tpi,
     labor_F, labor_market_F, labor_demand_F, banker_div_res_F, market_clearing_F, welfare_agg_F,
     ces_price_D, import_demand_D, ces_price_F, import_demand_F,
-    trade_balance, external_account_D, domestic_bond_clearing_tpi, bond_yield,
+    trade_balance, external_account_D_tpi, domestic_bond_clearing_tpi, bond_yield,
     portfolio_level_anchors, divert_portfolio_adj, divert_bond_foc_D, divert_bond_foc_F,
     global_goods_mkt,
 ], name="TPI")
 
 ss_tpi = copy.deepcopy(ss_final)
 ss_tpi.toplevel['cb_buy_D'] = 0.0
+ss_tpi.toplevel['cb_flow_D'] = 0.0   # inter-block CB flow, zero at SS
+_kap = ss_tpi.toplevel.get('kappa_cb_F')
+if _kap is None:
+    from calibration import get_calibration
+    _kap = get_calibration()['kappa_cb_F']
+ss_tpi.toplevel['kappa_cb_F'] = float(_kap)
+jlog('kappa_cb_F', float(_kap))
 
 unknowns_tp = ['K_D','n_inter_D','div_D','I_D','Q_D','b_gov_D','N_D','b_F_D','w_D','rdep_D',
                'K_F','n_inter_F','div_F','I_F','Q_F','b_gov_F','N_F','b_D_F','w_F','rdep_F',
@@ -156,17 +174,25 @@ for gam in [0, 2, 5, 10]:
         'spread_peak': float(np.max(irf['spread_rb'][:100])),
         'U_D0': float(irf['U_D'][0]),
     }
-    # subtract baseline (gamma=0) ca leak to isolate CB hole
+    # conduit fix: ca_res_D should now stay at the baseline def-shock leak level
+    # (the hole cancels: hole + rem_cb_D + CA-recorded F leg = 0)
     if gam == 0:
         ca0 = ca.copy()
     else:
+        summary[gam]['max_ca_minus_basegap'] = float(np.max(np.abs(ca - ca0)))
         summary[gam]['max_ca_minus_hole_minus_basegap'] = float(np.max(np.abs(ca - ca0 - hole)))
+        summary[gam]['max_rem_cb_F'] = float(np.max(np.abs(irf['rem_cb_F'])))
     jlog(f'gamma_{gam}', summary[gam])
 
 for gam in [2, 5, 10]:
     jlog(f'dW_D_gamma_{gam}', summary[gam]['W_D'] - summary[0]['W_D'])
     jlog(f'dW_F_gamma_{gam}', summary[gam]['W_F'] - summary[0]['W_F'])
     jlog(f'injection_gamma_{gam}', summary[gam]['disc_injection_pctC'])
+
+THRESH = 1e-7
+ok = all(summary[g]['max_ca_res'] <= THRESH and summary[g]['max_goods_mkt_F'] <= THRESH
+         for g in [0, 2, 5, 10])
+jlog('CB_CONDUIT_TEST', 'PASS' if ok else 'FAIL')
 
 with open(ROOT/'audit_artifacts'/'tpi_results.json','w') as fh:
     json.dump(RES, fh, indent=2, default=str)

@@ -72,6 +72,14 @@ def get_calibration():
         'zeta_writeoff_D':  0.0,    'zeta_writeoff_F':  0.0,
         'writeoff_enabled_D': 0.0,  'writeoff_enabled_F': 0.0,
 
+        # ── ECB balance sheet (TPI conduit) ───────────────────────────────────
+        # Capital-key split of the CB's D-bond programme cash flows between the
+        # two treasuries. kappa_cb_F = F share of the two-country renormalised
+        # euro-area capital key: Bundesbank 26.1% / Bank of Greece 2.0% of the
+        # euro-area key -> 26.1/28.1 ≈ 0.929. Read only by the TPI layer;
+        # SS-neutral (cb_buy_ss = 0).
+        'kappa_cb_F':       0.929,
+
         # ── Intermediary Capital Adjustment Cost ──────────────────────────────
         'chi0_D':           0.00,   'chi0_F':           0.00,
         'chi1_D':           0.00,   'chi1_F':           0.00,

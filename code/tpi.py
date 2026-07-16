@@ -25,13 +25,13 @@ from equations_F import (
     sdf_F, sdf_banker_F, government_default_F,
     bond_return_F, bank_return_F, cap_adj_cost_inter_F, macro_pru_tax_F,
     intermediation_P2_F, intermediation_P3_F, k_balance_sheet_F,
-    capital_adj_F, capital_producer_profit_F, budget_residual_F,
+    capital_adj_F, capital_producer_profit_F,
     labor_F, labor_market_F, labor_demand_F, banker_div_res_F,
     market_clearing_F, welfare_agg_F, ces_price_F, import_demand_F,
     divert_bond_foc_F,
 )
 from equations_global import (
-    trade_balance, external_account_D, bond_yield,
+    trade_balance, bond_yield,
     portfolio_level_anchors, divert_portfolio_adj, global_goods_mkt,
 )
 
@@ -49,20 +49,56 @@ def domestic_bond_clearing_tpi(b_gov_D, b_gov_F, b_D_F, b_F_D, cb_buy_D):
     return b_D_D, b_F_F
 
 
+# ── ECB balance sheet: capital-key conduit ────────────────────────────────────
+# The CB holds cb_buy_D and passes its entire net cash flow through to the two
+# treasuries by capital key: kappa_cb_F to F, (1-kappa_cb_F) to D. Each treasury
+# finances its capital calls through its own fiscal rule at its own sovereign
+# terms, so the funding (carry) leg of the position is endogenous. cb_flow_D is
+# denominated in D-goods; the F remittance converts with /p like all bond-market
+# cash flows in budget_residual_F.
 @simple
 def budget_residual_D_tpi(b_gov_D, G_D, TAX_D, q_b_D, def_rate_D, recovery_rate_D,
                            zeta_writeoff_D, P_CES_D, delta_b_D, writeoff_enabled_D,
-                           cb_buy_D):
+                           cb_buy_D, kappa_cb_F):
     haircut_D      = 1.0 - recovery_rate_D
     haircut_mult_D = writeoff_enabled_D
     surv_cont_D    = 1.0 - zeta_writeoff_D * def_rate_D * haircut_D * haircut_mult_D
     coupon_D       = delta_b_D * (1.0 - def_rate_D * haircut_D * haircut_mult_D) * b_gov_D(-1)
     net_issuance_D = q_b_D * (b_gov_D - surv_cont_D * (1.0 - delta_b_D) * b_gov_D(-1))
-    rem_cb_D       = (delta_b_D * (1.0 - def_rate_D * haircut_D * haircut_mult_D) * cb_buy_D(-1)
+    # CB net cash flow = (1+rb_actual_D)*q_b_D(-1)*cb_buy_D(-1) - q_b_D*cb_buy_D,
+    # written out in coupon/survival form to match the budget's own accounting.
+    cb_flow_D      = (delta_b_D * (1.0 - def_rate_D * haircut_D * haircut_mult_D) * cb_buy_D(-1)
                       + q_b_D * surv_cont_D * (1.0 - delta_b_D) * cb_buy_D(-1)
                       - q_b_D * cb_buy_D)
+    rem_cb_D       = (1.0 - kappa_cb_F) * cb_flow_D
     b_gov_res_D    = coupon_D + G_D - P_CES_D * TAX_D - net_issuance_D - rem_cb_D
-    return b_gov_res_D, rem_cb_D
+    return b_gov_res_D, rem_cb_D, cb_flow_D
+
+
+@simple
+def budget_residual_F_tpi(b_gov_F, G_F, TAX_F, q_b_F, def_rate_F, recovery_rate_F,
+                           zeta_writeoff_F, p, P_CES_F, delta_b_F, writeoff_enabled_F,
+                           cb_flow_D, kappa_cb_F):
+    haircut_F      = 1.0 - recovery_rate_F
+    haircut_mult_F = writeoff_enabled_F
+    surv_cont_F    = 1.0 - zeta_writeoff_F * def_rate_F * haircut_F * haircut_mult_F
+    coupon_F       = delta_b_F * (1.0 - def_rate_F * haircut_F * haircut_mult_F) * b_gov_F(-1)
+    net_issuance_F = q_b_F * (b_gov_F - surv_cont_F * (1.0 - delta_b_F) * b_gov_F(-1))
+    rem_cb_F       = kappa_cb_F * cb_flow_D / p
+    b_gov_res_F    = (coupon_F - net_issuance_F) / p + G_F - P_CES_F * TAX_F - rem_cb_F
+    return b_gov_res_F, rem_cb_F
+
+
+@simple
+def external_account_D_tpi(NX_D, q_b_D, q_b_F, b_F_D, b_D_F, rb_actual_F, rb_actual_D,
+                           cb_buy_D, kappa_cb_F):
+    # The F share of the CB book is an F claim on D: it enters D's external
+    # account exactly like b_D_F. The D share stays domestic (like b_D_D).
+    receipts_from_F_bonds = (1 + rb_actual_F) * q_b_F(-1) * b_F_D(-1)
+    payments_on_D_bonds   = (1 + rb_actual_D) * q_b_D(-1) * (b_D_F(-1) + kappa_cb_F * cb_buy_D(-1))
+    nfa_D = q_b_F * b_F_D - q_b_D * (b_D_F + kappa_cb_F * cb_buy_D)
+    ca_res_D = (NX_D + receipts_from_F_bonds - payments_on_D_bonds - nfa_D)
+    return nfa_D, ca_res_D
 
 
 def compute_tpi_irfs(G_tpi, shock_def, gamma_tpi, T):
@@ -118,17 +154,26 @@ def run_tpi(model_results):
         sdf_F, sdf_banker_F, government_default_F, financial_solved_F,
         bond_return_F, bank_return_F, cap_adj_cost_inter_F, macro_pru_tax_F,
         intermediation_P2_F, intermediation_P3_F, k_balance_sheet_F,
-        capital_adj_F, capital_producer_profit_F, budget_residual_F,
+        capital_adj_F, capital_producer_profit_F, budget_residual_F_tpi,
         labor_F, labor_market_F, labor_demand_F, banker_div_res_F,
         market_clearing_F, welfare_agg_F,
         ces_price_D, import_demand_D, ces_price_F, import_demand_F,
-        trade_balance, external_account_D, domestic_bond_clearing_tpi,
+        trade_balance, external_account_D_tpi, domestic_bond_clearing_tpi,
         bond_yield, portfolio_level_anchors, divert_portfolio_adj,
         divert_bond_foc_D, divert_bond_foc_F, global_goods_mkt,
     ], name="Full 2-Country MU HANK — TPI Extension")
 
     ss_tpi = copy.deepcopy(ss_final)
     ss_tpi.toplevel['cb_buy_D'] = 0.0
+    # inter-block CB flow: zero at SS (cb_buy_ss = 0); SSJ needs the symbol to
+    # evaluate budget_residual_F_tpi's partial Jacobian
+    ss_tpi.toplevel['cb_flow_D'] = 0.0
+    _kap = ss_final.toplevel.get('kappa_cb_F')
+    if _kap is None:
+        from calibration import get_calibration
+        _kap = get_calibration()['kappa_cb_F']
+    kappa_cb_F = float(_kap)
+    ss_tpi.toplevel['kappa_cb_F'] = kappa_cb_F
 
     # ── Jacobian ──────────────────────────────────────────────────────────────
     exogenous_tpi = ['Z_D', 'shock_def_D', 'Z_F', 'shock_def_F', 'cb_buy_D']
@@ -167,10 +212,17 @@ def run_tpi(model_results):
             irfs_tpi[g] = compute_tpi_irfs(G_tpi, dShock_def_D, g, T)
         _spread = irfs_tpi[g]['spread_rb'] if 'spread_rb' in irfs_tpi[g] \
                   else irfs_tpi[g]['rb_actual_D'] - irfs_tpi[g]['rb_actual_F']
-        print(f"peak spread = {_spread[:100].max()*100:+.3f} pp")
+        _ca  = np.max(np.abs(irfs_tpi[g]['ca_res_D']))
+        _gmF = np.max(np.abs(irfs_tpi[g]['goods_mkt_F']))
+        print(f"peak spread = {_spread[:100].max()*100:+.3f} pp   "
+              f"max|ca_res_D| = {_ca:.2e}   max|goods_mkt_F| = {_gmF:.2e}")
+        if _ca > 1e-6 or _gmF > 1e-6:
+            print(f"  WARNING: gamma={g}: external/goods residual > 1e-6 — CB conduit accounting leak")
 
     _err0 = np.max(np.abs(irfs_tpi[0]['spread_rb'][:50] - irfs_def_D['spread_rb'][:50]))
     print(f"Sanity check gamma=0 vs irfs_def_D: max |err| = {_err0:.2e}  (expect < 1e-8)")
+    print(f"Sign check (gamma=0): n_inter_D[0] = {irfs_tpi[0]['n_inter_D'][0]:+.3e}, "
+          f"Y_D[0] = {irfs_tpi[0]['Y_D'][0]:+.3e}  (both must be negative)")
 
     # ── Welfare gains ─────────────────────────────────────────────────────────
     T_disc = 100
@@ -188,6 +240,71 @@ def run_tpi(model_results):
     print("─" * 60)
     print("(Units: % of quarterly SS consumption, discounted over 100 quarters)")
 
+    # ── ECB balance-sheet P&L: two-leg (carry + credit) decomposition ─────────
+    # Off-path accounting per FRAMING_HANDOFF §2: products of first-order paths
+    # (def_rate·cb_buy, spread·cb_buy) are second-order objects — hand-computed
+    # here, never read off the linear DAG, which would drop them and
+    # mechanically show the CB profiting with no offsetting expected loss.
+    # Discounting at beta_F (creditor-side rate, handoff §7 A5).
+    q_b_D_ss     = float(ss_final['q_b_D'])
+    q_b_F_ss     = float(ss_final['q_b_F'])
+    delta_b_D_v  = float(ss_final['delta_b_D'])
+    delta_b_F_v  = float(ss_final['delta_b_F'])
+    EL_price_D_v = float(ss_final['EL_price_D'])
+    Y_D_ss       = float(ss_final['Y_D'])
+    rb_D_ss      = delta_b_D_v * (1.0 / q_b_D_ss - 1.0)
+    rb_F_ss      = delta_b_F_v * (1.0 / q_b_F_ss - 1.0)
+    spread_ss    = rb_D_ss - rb_F_ss
+
+    def cb_pnl(irf, T_pnl=100):
+        """PV decomposition of the CB's D-bond position (D-goods units).
+
+        el_pv       — credit leg: priced expected loss borne on holdings
+        prem_pv     — default-risk premium income (spread deviation × position)
+        carry_ss_pv — steady carry: SS yield differential × position (Lehment
+                      funding leg: each treasury funds at its own bond rate)
+        mtm_pv      — on-path revaluation of carried holdings
+        """
+        disc  = beta_F ** np.arange(T_pnl)
+        cb    = irf['cb_buy_D'][:T_pnl]
+        cb_l  = np.concatenate([[0.0], cb[:-1]])
+        dq    = irf['q_b_D'][:T_pnl]
+        dq_l  = np.concatenate([[0.0], dq[:-1]])
+        defr  = irf['def_rate_D'][:T_pnl]
+        dspr  = irf['spread_rb'][:T_pnl]
+        purchases = cb - (1.0 - delta_b_D_v) * cb_l
+        return {
+            'peak_exposure': float(np.max(q_b_D_ss * cb)),
+            'purchases_pv':  float((disc * q_b_D_ss * purchases).sum()),
+            'el_pv':         float((disc * EL_price_D_v * defr * q_b_D_ss * cb).sum()),
+            'prem_pv':       float((disc * dspr * q_b_D_ss * cb_l).sum()),
+            'carry_ss_pv':   float((disc * spread_ss * q_b_D_ss * cb_l).sum()),
+            'mtm_pv':        float((disc * (1.0 - delta_b_D_v) * cb_l * (dq - dq_l)).sum()),
+        }
+
+    pnl_by_gamma = {g: cb_pnl(irfs_tpi[g]) for g in gamma_values}
+    pct = lambda v: 100.0 * v / Y_D_ss
+    print(f"\nECB balance-sheet P&L (PV at beta_F over 100q; % of quarterly SS Y_D)")
+    print(f"Capital-key conduit: F share {kappa_cb_F:.3f}, D share {1-kappa_cb_F:.3f} "
+          f"(two-country renormalised euro-area key)")
+    print(f"{'γ':>4} {'peak expos.':>12} {'purch. PV':>10} {'EL PV':>10} {'prem PV':>10} "
+          f"{'SS-carry PV':>12} {'MTM PV':>10} {'loading':>8}")
+    print("─" * 82)
+    for g in gamma_values:
+        d = pnl_by_gamma[g]
+        loading = d['prem_pv'] / d['el_pv'] if d['el_pv'] > 1e-16 else float('nan')
+        print(f"{g:>4} {pct(d['peak_exposure']):>11.3f}% {pct(d['purchases_pv']):>9.3f}% "
+              f"{pct(d['el_pv']):>9.4f}% {pct(d['prem_pv']):>9.4f}% "
+              f"{pct(d['carry_ss_pv']):>11.4f}% {pct(d['mtm_pv']):>9.4f}% {loading:>8.2f}")
+    print("─" * 82)
+    print("loading = prem PV / EL PV  (theory: ≈ 1 + psi_spread/EL_price at small γ, "
+          "declining in γ — the self-extinguishing premium)")
+    for g in gamma_values[1:]:
+        d = pnl_by_gamma[g]
+        print(f"  γ={g:<2}: F bears EL PV = {pct(kappa_cb_F*d['el_pv']):.4f}% Y_D, "
+              f"receives prem PV = {pct(kappa_cb_F*d['prem_pv']):.4f}% "
+              f"(memo at full euro-area key 26.1%: EL {pct(0.261*d['el_pv']):.4f}%)")
+
     # ── Effectiveness curve over fine gamma grid ──────────────────────────────
     def _peak_spread(irf):
         sp = irf['spread_rb'] if 'spread_rb' in irf \
@@ -196,13 +313,24 @@ def run_tpi(model_results):
 
     peak_no_tpi  = _peak_spread(irfs_tpi[0])
     gammas_fine  = np.concatenate([np.linspace(0, 5, 25), np.linspace(5, 30, 26)[1:]])
-    q_b_D_ss     = float(ss_final['q_b_D'])
     peak_arr     = np.empty(len(gammas_fine))
     cost_arr     = np.empty(len(gammas_fine))
+    el_pv_arr    = np.empty(len(gammas_fine))
+    prem_pv_arr  = np.empty(len(gammas_fine))
+    mtm_pv_arr   = np.empty(len(gammas_fine))
+    expos_arr    = np.empty(len(gammas_fine))
+    loading_arr  = np.full(len(gammas_fine), np.nan)
     for i, g in enumerate(gammas_fine):
         irf_g = irfs_tpi[0] if g == 0 else compute_tpi_irfs(G_tpi, dShock_def_D, g, T)
         peak_arr[i] = _peak_spread(irf_g)
         cost_arr[i] = (irf_g['cb_buy_D'][:100] * q_b_D_ss).sum()
+        d = cb_pnl(irf_g)
+        el_pv_arr[i]   = d['el_pv']
+        prem_pv_arr[i] = d['prem_pv']
+        mtm_pv_arr[i]  = d['mtm_pv']
+        expos_arr[i]   = d['peak_exposure']
+        if d['el_pv'] > 1e-16:
+            loading_arr[i] = d['prem_pv'] / d['el_pv']
     frac_closed = np.clip(100.0 * (1.0 - peak_arr / peak_no_tpi), 0, 100)
 
     return {
@@ -226,4 +354,14 @@ def run_tpi(model_results):
         'cost_arr':    cost_arr,
         'frac_closed': frac_closed,
         'q_b_D_ss':    q_b_D_ss,
+        # ECB balance-sheet block (capital-key conduit)
+        'kappa_cb_F':   kappa_cb_F,
+        'pnl_by_gamma': pnl_by_gamma,
+        'el_pv_arr':    el_pv_arr,
+        'prem_pv_arr':  prem_pv_arr,
+        'mtm_pv_arr':   mtm_pv_arr,
+        'expos_arr':    expos_arr,
+        'loading_arr':  loading_arr,
+        'Y_D_ss':       Y_D_ss,
+        'spread_ss':    spread_ss,
     }
