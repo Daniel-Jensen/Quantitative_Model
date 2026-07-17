@@ -4,9 +4,8 @@ import numpy as np
 
 from common import get_ss, ss_input_paths, transition_residuals
 from bank import bank_backward
-from government import ck_default_prob
-from transition import solve_transition, solve_transition_ck
-from risk_branch import solve_transition_ck_risk, bond_decomposition
+from transition import solve_transition
+from risk_branch import solve_transition_risk, bond_decomposition
 
 
 def _bwd(cal, ss, **kw):
@@ -18,9 +17,8 @@ def _bwd(cal, ss, **kw):
 
 def test_pi_zero_nesting():
     """risk_D with pi ≡ 0 must reproduce the risk-neutral backward pass
-    exactly, whatever the branch objects say — including with a nonzero
-    def_price_F (F default is priced risk-neutrally in BOTH modes).
-    def_price_D stays None: in risk mode D risk enters via pi only."""
+    exactly, whatever the branch objects say. def_price_D stays None: in
+    risk mode D risk enters via pi only."""
     cal, ss = get_ss()
     T = cal["T"]
     risk_D = dict(
@@ -28,36 +26,13 @@ def test_pi_zero_nesting():
         Omega_d_D=np.full(T, 99.0), Omega_d_F=np.full(T, 99.0),  # must be inert
         rk_d_D=-0.5, rk_d_F=-0.5, Q_bD_d=0.1, Q_bF_d=0.1, p_d=2.0,
     )
-    defp_F = 0.02 * 0.9 ** np.arange(T)
-    for kw in ({}, dict(def_price_F=defp_F)):
-        base  = _bwd(cal, ss, **kw)
-        risky = _bwd(cal, ss, risk_D=risk_D, **kw)
-        for k in ("Q_bD", "Q_bF", "alpha_D", "mu_D", "b_D_F", "b_F_D"):
-            # FOC holdings divide the return wedge by psi = 0.01, amplifying
-            # one ulp of Ω·x/Ω rounding to ~2e-14 — hence the looser atol.
-            tol = 1e-13 if k in ("b_D_F", "b_F_D") else 1e-14
-            assert np.allclose(base[k], risky[k], rtol=0, atol=tol), (k, kw)
-
-
-def test_def_price_F_in_risk_mode():
-    """With the D-event risk channel live, def_price_F must still price into
-    Q_bF (as a risk-neutral survival factor on both branch payoffs) and must
-    not leak into D-bond pricing."""
-    cal, ss = get_ss()
-    T = cal["T"]
-    risk_D = dict(
-        pi=np.full(T, 0.02),
-        Omega_d_D=np.full(T, 1.5 * cal["beta_inter_D"]),
-        Omega_d_F=np.full(T, 1.5 * cal["beta_inter_F"]),
-        rk_d_D=-0.01, rk_d_F=0.0, Q_bD_d=0.4, Q_bF_d=0.8, p_d=1.02,
-    )
-    defp_F = 0.02 * 0.9 ** np.arange(T)
-    a = _bwd(cal, ss, risk_D=risk_D)                      # no F risk
-    b = _bwd(cal, ss, def_price_F=defp_F, risk_D=risk_D)  # F risk on
-    assert np.all(b["Q_bF"][:40] < a["Q_bF"][:40]), \
-        "F survival factor must depress Q_bF in risk mode"
-    assert np.allclose(a["Q_bD"], b["Q_bD"], rtol=0, atol=1e-14), \
-        "F default risk must not leak into D-bond pricing"
+    base  = _bwd(cal, ss)
+    risky = _bwd(cal, ss, risk_D=risk_D)
+    for k in ("Q_bD", "Q_bF", "alpha_D", "mu_D", "b_D_F", "b_F_D"):
+        # FOC holdings divide the return wedge by psi = 0.01, amplifying
+        # one ulp of Ω·x/Ω rounding to ~2e-14 — hence the looser atol.
+        tol = 1e-13 if k in ("b_D_F", "b_F_D") else 1e-14
+        assert np.allclose(base[k], risky[k], rtol=0, atol=tol), k
 
 
 def test_degenerate_branch_nesting():
@@ -68,8 +43,8 @@ def test_degenerate_branch_nesting():
     defp = 0.03 * 0.9 ** np.arange(T)
     base = _bwd(cal, ss, def_price_D=defp)
     bk = ss["ss_bank_D"]; bkF = ss["ss_bank_F"]
-    Om_nd_D = cal["beta_inter_D"] * ((1 - cal["f_D"]) + cal["f_D"] * bk["alpha_ss"])
-    Om_nd_F = cal["beta_inter_F"] * ((1 - cal["f_F"]) + cal["f_F"] * bkF["alpha_ss"])
+    Om_nd_D = cal["beta_inter_D"] * (cal["f_D"] + (1 - cal["f_D"]) * bk["alpha_ss"])
+    Om_nd_F = cal["beta_inter_F"] * (cal["f_F"] + (1 - cal["f_F"]) * bkF["alpha_ss"])
     risk_D = dict(
         pi=defp,
         Omega_d_D=np.full(T, Om_nd_D), Omega_d_F=np.full(T, Om_nd_F),
@@ -100,14 +75,12 @@ def test_pricing_identity_and_positive_premium():
     the risk-off run."""
     cal, ss = get_ss()
     T = cal["T"]
-    # Flat TFP at the CALIBRATED SS level (Z was rescaled to 0.448 for
-    # Y_ss = 1; the old hardcoded 1.0 was a +123% permanent TFP shock).
     Z_D = np.full(T, cal["Z_ss_D"])
     Z_F = np.full(T, cal["Z_ss_F"])
-    sun = 0.02 * 0.85 ** np.arange(T)
-    off = solve_transition_ck(ss, cal, Z_D, Z_F, sunspot_D_path=sun, verbose=False)
-    on = solve_transition_ck_risk(ss, cal, Z_D, Z_F, sunspot_D_path=sun,
-                                  verbose=False, y0=off["y_vec"])
+    pi = 0.02 * 0.85 ** np.arange(T)
+    off = solve_transition(ss, cal, Z_D, Z_F, def_price_D=pi, verbose=False)
+    on = solve_transition_risk(ss, cal, Z_D, Z_F, pi_D_path=pi,
+                               verbose=False, y0=off["y_vec"])
 
     dec_on  = bond_decomposition(on, ss, cal)
     dec_off = bond_decomposition(off, ss, cal)
@@ -121,35 +94,21 @@ def test_pricing_identity_and_positive_premium():
     assert np.max(dec_on["risk"]) > 5.0, \
         f"risk premium too small: {np.max(dec_on['risk']):.2f} bps"
 
-    # Directional predictions (pricing/valuation side).
-    # Re-promoted 2026-07-15: with the default-state capital-quality loss
-    # (def_capital_quality_D) capital stops being the branch safe haven, so
-    # the risk channel must DEEPEN the bond repricing relative to risk-off.
+    # Directional prediction (pricing/valuation side): the risk channel must
+    # DEEPEN the bond repricing relative to risk-off.
     assert on["Q_bD"][0] < off["Q_bD"][0], \
         f"risk-on Q_bD[0] not below risk-off ({on['Q_bD'][0]:.5f} vs {off['Q_bD'][0]:.5f})"
-    # The always-binding IC must actually bind: a negative multiplier means
-    # the imposed equality manufactures a recapitalization boom.
-    assert on["mu_min_D"] > 0, f"mu_D went negative ({on['mu_min_D']:+.4f})"
-    assert off["mu_min_D"] > 0, f"risk-off mu_D negative ({off['mu_min_D']:+.4f})"
-    # n_D ordering: still a WARNING — the M1 deposit-rate channel finances
-    # an impact investment boom whose capital gains can cushion risk-on
-    # n_D[0]; killed by the union deposit market (deferred by design).
-    if not on["n_D"][0] < off["n_D"][0]:
-        print("  [known limitation] risk-on n_D[0] not below risk-off "
-              f"({on['n_D'][0]:.4f} vs {off['n_D'][0]:.4f}) — M1 capital-gain offset")
-    # NOTE (documented limitation): the C-vs-I ALLOCATION does not flip —
-    # the wider spread is financed by a deeper deposit-rate collapse, so
-    # investment still rises (comovement problem; needs the union deposit
-    # market, deferred by design).  Do not assert on I_D or the peak
-    # lending spread ordering here for the same reason.
+    # Occasionally-binding IC: complementarity holds on both solved paths
+    for o in (on, off):
+        assert o["mu_min_D"] > -1e-9, f"mu_D negative ({o['mu_min_D']:+.2e})"
+        assert o["slack_min_D"] > -1e-7, f"slack_D negative ({o['slack_min_D']:+.2e})"
 
-    # Branch event accounting: the rescue machinery must report a consistent
-    # event (surv_d in pricing matches the realized branch haircut), and the
-    # branch government budget must close INCLUDING the recap outlay.
+    # Branch event accounting: surv_d in pricing equals the recovery rate
+    # (pure haircut on the whole claim), and the branch government budget
+    # closes including any recap outlay (zero at the Bocola-pure baseline).
     br = on["branch"]
-    scale = br["haircut_scale"]
     surv_d = float(np.asarray(on["risk_D_inputs"]["surv_d"]))
-    assert abs(surv_d - (1.0 - scale * (1.0 - cal["recovery_rate_D"]))) < 1e-12
+    assert abs(surv_d - cal["recovery_rate_D"]) < 1e-12
     recap = br["recap_D_path"]
     iss_check = (cal["G_D"] + recap + br["coupon_D"] - br["Tax_D"]
                  - br["net_issuance_D"])
@@ -165,23 +124,14 @@ def test_pricing_identity_and_positive_premium():
     # Allow 5e-9 here; risk-neutral runs keep the 1e-9 bar.
     assert res["goods_D"] < 5e-9, f"goods_D = {res['goods_D']:.2e}"
 
-    # Branch sanity: default state is a recession with depressed net worth
-    br = on["branch"]
+    # Branch sanity: default state has depressed net worth (the MTM hit)
     assert br["n_D"][0] < ss["ss_bank_D"]["n_ss"]
     assert np.all(on["def_real_D"] == 0), "no default realized on the base path"
 
-    # Zone-indicator consistency (fix-B invariant): the returned def_price_D
-    # must equal the CK zone re-evaluated on the returned debt path.
-    Y_ss_D = ss["ss_firm_D"]["Y_ss"]
-    zone = np.array([ck_default_prob(on["b_gov_bop_D"][t], Y_ss_D, cal,
-                                     sun[t], "D") for t in range(T)])
-    assert np.allclose(zone, on["def_price_D"], atol=1e-12), \
-        "returned def_price_D inconsistent with the returned debt path"
-
 
 def test_quality_and_wc_nesting():
-    """quality0 = 1 and zeta_wc = 0 must reproduce the pre-2026-07-15 blocks
-    exactly (capital path unchanged; no labour wedge)."""
+    """quality0 = 1 and zeta_wc = 0 must reproduce the plain blocks exactly
+    (capital path unchanged; no labour wedge)."""
     from capital import solve_capital_path
     cal, ss = get_ss()
     T = cal["T"]
@@ -197,7 +147,6 @@ def test_quality_and_wc_nesting():
     xi = 0.05
     shocked = solve_capital_path(Kap, ss["Kap_D_ss"], 1.0, mpk, cal, "D",
                                  quality0=1.0 - xi)
-    assert np.array_equal(base["Q"][1:], shocked["Q"][1:]) is False or True
     delta = cal["delta_D"]
     rk0_expected = ((1 - xi) * (mpk[0] + (1 - delta) * shocked["Q"][0]) / 1.0 - 1)
     assert abs(shocked["rk"][0] - rk0_expected) < 1e-14
@@ -216,19 +165,19 @@ def test_quality_and_wc_nesting():
 
 
 def test_zero_shock_with_risk_machinery():
-    """No sunspot: the risk loop must return the SS fixed point (pi ≡ 0)."""
+    """pi ≡ 0: the risk loop must return the SS fixed point (exact nesting)."""
     cal, ss = get_ss()
     T = cal["T"]
     Z_D = np.full(T, cal["Z_ss_D"])
     Z_F = np.full(T, cal["Z_ss_F"])
-    out = solve_transition_ck_risk(ss, cal, Z_D, Z_F, verbose=False, max_rounds=2)
+    out = solve_transition_risk(ss, cal, Z_D, Z_F, verbose=False, max_rounds=2)
+    assert out["branch"] is None
     assert np.max(np.abs(out["Y_D"] / ss["ss_firm_D"]["Y_ss"] - 1)) < 1e-5
     assert np.max(np.abs(out["Q_bD"] / ss["Q_bD_ss"] - 1)) < 1e-5
 
 
 if __name__ == "__main__":
     test_pi_zero_nesting()
-    test_def_price_F_in_risk_mode()
     test_degenerate_branch_nesting()
     test_quality_and_wc_nesting()
     test_pricing_identity_and_positive_premium()

@@ -1,10 +1,12 @@
 # **Two-country nonlinear transition-path solver (7T stacked market clearing).**
-# Unknowns [N_D, N_F, Kap_D, Kap_F, rdep_D, rdep_F, p]; residuals: 2 capital
-# markets, 2 labour, 2 deposit, goods-market D (pins p). Goods-market F and the
-# current account are Walras-redundant (monitored, not imposed). Government debt
-# is endogenous inside every residual: bonds priced from marginal conditions,
-# debt forward-integrated with the Bohn tax, banks clear against the true
-# end-of-period stock. def_price = PRICED default (into Q); def_real = REALIZED.
+# Unknowns [N_D, N_F, Kap_D, Kap_F, rdep_D, rdep_F, p]; residuals: 2 bank-IC
+# complementarities (occasionally-binding μ, Fischer-Burmeister), 2 labour,
+# 2 deposit, goods-market D (pins p). Goods-market F and the current account
+# are Walras-redundant (monitored, not imposed). Government debt is endogenous
+# inside every residual: bonds priced from marginal conditions, debt forward-
+# integrated with the Bohn tax, banks clear against the true end-of-period
+# stock. Only D is default-risky (Bocola): def_price_D = exogenous PRICED
+# default probability path π_t (into Q); def_real_D = REALIZED default.
 import numpy as np
 from scipy.optimize import root
 
@@ -15,13 +17,13 @@ from bank import bank_backward, bank_forward
 from household import solve_backward_transition
 from distribution import forward_paths
 from trade import ces_price, import_demand, trade_balance
-from government import govt_transition, ck_default_prob
+from government import govt_transition
 
 
 def _inner_economy(N_D, N_F, Kap_D, Kap_F, rdep_D, rdep_F, p_path,
                    Z_D_path, Z_F_path, ss, cal,
-                   def_price_D=None, def_price_F=None,
-                   def_real_D=None, def_real_F=None,
+                   def_price_D=None,
+                   def_real_D=None,
                    init=None, risk_D=None):
     # **Full inner economy given the 7T guesses: firms → capital → banks → govt → households → trade.**
     T = len(p_path)
@@ -46,7 +48,7 @@ def _inner_economy(N_D, N_F, Kap_D, Kap_F, rdep_D, rdep_F, p_path,
     bwd = bank_backward(
         cap_D["rk"], cap_F["rk"], rdep_D, rdep_F, p_path,
         cal, ss["ss_bank_D"], ss["ss_bank_F"],
-        def_price_D=def_price_D, def_price_F=def_price_F, risk_D=risk_D,
+        def_price_D=def_price_D, risk_D=risk_D,
     )
 
     # Working-capital wedge: firms pre-finance ζ×wage-bill at r_wc = rdep(-1)+λμ/Ω̃.
@@ -74,10 +76,8 @@ def _inner_economy(N_D, N_F, Kap_D, Kap_F, rdep_D, rdep_F, p_path,
                             b_gov0=init.get("b_gov0_D"),
                             b_anchor=init.get("b_anchor_D"),
                             recap_path=init.get("recap_D_path"))
-    gov_F = govt_transition(cal, ss["gs_F"], bwd["Q_bF"], def_real_F, "F",
-                            b_gov0=init.get("b_gov0_F"),
-                            b_anchor=init.get("b_anchor_F"),
-                            recap_path=init.get("recap_F_path"))
+    gov_F = govt_transition(cal, ss["gs_F"], bwd["Q_bF"], None, "F",
+                            b_gov0=init.get("b_gov0_F"))
 
     # bond clearing against the true end-of-period stock (domestic bank = residual holder)
     b_D_D_path = gov_D["b_gov_eop"] - bwd["b_D_F"]
@@ -91,11 +91,11 @@ def _inner_economy(N_D, N_F, Kap_D, Kap_F, rdep_D, rdep_F, p_path,
         Kap_D, Kap_F, cap_D["Q"], cap_F["Q"],
         cap_D["rk"], cap_F["rk"], rdep_D, rdep_F, p_path,
         b_D_D_path, b_F_F_path, bwd, cal, ss["ss_bank_D"], ss["ss_bank_F"],
-        def_real_D=def_real_D, def_real_F=def_real_F,
+        def_real_D=def_real_D,
         init_D=init.get("bank_D"), init_F=init.get("bank_F"),
         Q_bD_lag0=init.get("Q_bD_lag"), Q_bF_lag0=init.get("Q_bF_lag"),
         p_lag0=init.get("p_lag"),
-        recap_D=init.get("recap_D_path"), recap_F=init.get("recap_F_path"),
+        recap_D=init.get("recap_D_path"),
     )
     bk = {**bwd, **fwd}
 
@@ -177,8 +177,8 @@ def make_residual(spec, verbose=False):
     # **Build the 7T market-clearing residual F(y) from a picklable spec (Jacobian workers reuse it).**
     ss  = spec["ss"];   cal = spec["cal"]
     Z_D_path = spec["Z_D_path"];  Z_F_path = spec["Z_F_path"]
-    def_price_D = spec.get("def_price_D");  def_price_F = spec.get("def_price_F")
-    def_real_D  = spec.get("def_real_D");   def_real_F  = spec.get("def_real_F")
+    def_price_D = spec.get("def_price_D")
+    def_real_D  = spec.get("def_real_D")
     init = spec.get("init");  risk_D = spec.get("risk_D")
 
     T = cal["T"]
@@ -187,6 +187,8 @@ def make_residual(spec, verbose=False):
     chi_F   = cal["chi_F"];   frisch_F = cal["frisch_F"]
     n_ss_D  = ss["ss_bank_D"]["n_ss"]
     n_ss_F  = ss["ss_bank_F"]["n_ss"]
+    mu_ss_D = ss["ss_bank_D"]["mu_ss"]
+    mu_ss_F = ss["ss_bank_F"]["mu_ss"]
     Kap_D_ss = ss["Kap_D_ss"]
     Kap_F_ss = ss["Kap_F_ss"]
     Y_ss_D  = ss["ss_firm_D"]["Y_ss"]
@@ -210,8 +212,8 @@ def make_residual(spec, verbose=False):
             out = _inner_economy(
                 N_D, N_F, Kap_D, Kap_F, rdep_D, rdep_F, p_path,
                 Z_D_path, Z_F_path, ss, cal,
-                def_price_D=def_price_D, def_price_F=def_price_F,
-                def_real_D=def_real_D, def_real_F=def_real_F,
+                def_price_D=def_price_D,
+                def_real_D=def_real_D,
                 init=init, risk_D=risk_D,
             )
         except (ValueError, RuntimeError, FloatingPointError) as e:
@@ -223,8 +225,16 @@ def make_residual(spec, verbose=False):
         firm_D = out["firm_D"]
         firm_F = out["firm_F"]
 
-        cap_D_resid = (bk["n_IC_D"] - bk["n_D"]) / n_ss_D
-        cap_F_resid = (bk["n_IC_F"] - bk["n_F"]) / n_ss_F
+        # occasionally-binding IC (Bocola): 0 ≤ μ ⊥ slack ≥ 0, imposed via the
+        # Fischer-Burmeister function φ(a,b)=a+b−√(a²+b²). slack = α(n−n_IC)
+        # = αn − λ·assets. Arguments are scaled independently (FB's zero set is
+        # scaling-invariant); at the SS (μ=μ_ss>0, slack=0) φ≡0 and is smooth.
+        mu_D_sc = bk["mu_D"] / mu_ss_D
+        mu_F_sc = bk["mu_F"] / mu_ss_F
+        slack_D = bk["alpha_D"] * (bk["n_D"] - bk["n_IC_D"]) / n_ss_D
+        slack_F = bk["alpha_F"] * (bk["n_F"] - bk["n_IC_F"]) / n_ss_F
+        cap_D_resid = mu_D_sc + slack_D - np.sqrt(mu_D_sc ** 2 + slack_D ** 2)
+        cap_F_resid = mu_F_sc + slack_F - np.sqrt(mu_F_sc ** 2 + slack_F ** 2)
 
         # labour: GHH static FOC chi·N^(1/frisch) = w/P_CES
         lab_D_supply = chi_D * N_D ** (1 / frisch_D)
@@ -273,8 +283,8 @@ def make_residual(spec, verbose=False):
 
 
 def solve_transition(ss, cal, Z_D_path, Z_F_path,
-                     def_price_D=None, def_price_F=None,
-                     def_real_D=None, def_real_F=None,
+                     def_price_D=None,
+                     def_real_D=None,
                      verbose=True, maxiter=300, y0=None,
                      init=None, risk_D=None, jac_cache=None,
                      hybr_factor=100.0, accept_tol=None):
@@ -294,8 +304,8 @@ def solve_transition(ss, cal, Z_D_path, Z_F_path,
         ])
 
     spec = dict(ss=ss, cal=cal, Z_D_path=Z_D_path, Z_F_path=Z_F_path,
-                def_price_D=def_price_D, def_price_F=def_price_F,
-                def_real_D=def_real_D, def_real_F=def_real_F,
+                def_price_D=def_price_D,
+                def_real_D=def_real_D,
                 init=init, risk_D=risk_D)
     residual = make_residual(spec, verbose=verbose)
     # branch probes pass accept_tol=1e-9; else cal default 1e-10
@@ -345,22 +355,27 @@ def solve_transition(ss, cal, Z_D_path, Z_F_path,
 
     out = _inner_economy(N_D, N_F, Kap_D, Kap_F, rdep_D, rdep_F, p_path,
                          Z_D_path, Z_F_path, ss, cal,
-                         def_price_D=def_price_D, def_price_F=def_price_F,
-                         def_real_D=def_real_D, def_real_F=def_real_F,
+                         def_price_D=def_price_D,
+                         def_real_D=def_real_D,
                          init=init, risk_D=risk_D)
 
-    # μ monitor: μ<0 on a solved path means the always-binding IC is violated
-    # (imposed n_IC=n_ACCUM then manufactures a bank-recap boom). Checked here,
-    # not in the residual, so Newton exploration is unaffected.
+    # complementarity monitor: at an exact FB solution μ ≥ 0 and slack ≥ 0
+    # everywhere. Violations mean the Newton accepted a spurious corner.
     mu_min_D = float(np.min(out["bk"]["mu_D"]))
     mu_min_F = float(np.min(out["bk"]["mu_F"]))
-    if mu_min_D < 0 or mu_min_F < 0:
-        print(f"  [transition] WARNING: IC multiplier negative on the solved "
-              f"path (min mu_D={mu_min_D:+.4f}, min mu_F={mu_min_F:+.4f}) — "
-              "always-binding IC violated; results in this region are suspect.")
+    slack_min_D = float(np.min(out["bk"]["alpha_D"]
+                               * (out["bk"]["n_D"] - out["bk"]["n_IC_D"])))
+    slack_min_F = float(np.min(out["bk"]["alpha_F"]
+                               * (out["bk"]["n_F"] - out["bk"]["n_IC_F"])))
+    comp_tol = 1e-7
+    if min(mu_min_D, mu_min_F) < -comp_tol or min(slack_min_D, slack_min_F) < -comp_tol:
+        print(f"  [transition] WARNING: complementarity violated on the solved "
+              f"path (min mu D/F={mu_min_D:+.2e}/{mu_min_F:+.2e}, "
+              f"min slack D/F={slack_min_D:+.2e}/{slack_min_F:+.2e}).")
 
     zeros = np.zeros(T)
     return dict(
+        slack_min_D=slack_min_D, slack_min_F=slack_min_F,
         N_D=N_D, N_F=N_F, Kap_D=Kap_D, Kap_F=Kap_F,
         rdep_D=rdep_D, rdep_F=rdep_F, p=p_path,
         Z_D=Z_D_path, Z_F=Z_F_path,
@@ -382,76 +397,10 @@ def solve_transition(ss, cal, Z_D_path, Z_F_path,
         coupon_D=out["gov_D"]["coupon"], coupon_F=out["gov_F"]["coupon"],
         net_issuance_D=out["gov_D"]["net_issuance"], net_issuance_F=out["gov_F"]["net_issuance"],
         def_price_D=(def_price_D if def_price_D is not None else zeros),
-        def_price_F=(def_price_F if def_price_F is not None else zeros),
         def_real_D=(def_real_D if def_real_D is not None else zeros),
-        def_real_F=(def_real_F if def_real_F is not None else zeros),
         mu_min_D=mu_min_D, mu_min_F=mu_min_F,
         **out["bk"],   # all bank paths (alpha, mu, Omega, n, Q_b, rb, holdings, spreads)
         y_vec=y_sol,   # solved unknowns (warm start for homotopy)
     )
 
 
-def solve_transition_ck(ss, cal, Z_D_path, Z_F_path,
-                        sunspot_D_path=None, sunspot_F_path=None,
-                        def_real_D=None, def_real_F=None,
-                        verbose=True, y0=None, jac_cache=None):
-    # **Cole-Kehoe sunspot solver: iterate on the crisis-zone indicator (priced, not realized).**
-    # The debt stock is endogenous inside every solve, so the only outer fixed
-    # point is def_price = ck_default_prob(b/Y_ss); converges in one pass in-zone.
-    T      = cal["T"]
-    b_ss_D = cal["B_gov_D_ss"]
-    b_ss_F = cal["B_gov_F_ss"]
-    Y_ss_D = ss["ss_firm_D"]["Y_ss"]
-    Y_ss_F = ss["ss_firm_F"]["Y_ss"]
-
-    if sunspot_D_path is None:
-        sunspot_D_path = np.zeros(T)
-    if sunspot_F_path is None:
-        sunspot_F_path = np.zeros(T)
-
-    def_price_D = np.array([ck_default_prob(b_ss_D, Y_ss_D, cal, s, "D")
-                            for s in sunspot_D_path])
-    def_price_F = np.array([ck_default_prob(b_ss_F, Y_ss_F, cal, s, "F")
-                            for s in sunspot_F_path])
-
-    max_iter = cal.get("ck_max_iter", 25)
-    tol      = cal.get("ck_tol", 1e-8)
-    damp     = cal.get("ck_damping", 1.0)
-
-    out = None
-    for ck_it in range(max_iter):
-        out = solve_transition(
-            ss, cal, Z_D_path, Z_F_path,
-            def_price_D=def_price_D, def_price_F=def_price_F,
-            def_real_D=def_real_D, def_real_F=def_real_F,
-            verbose=False, y0=y0, jac_cache=jac_cache,
-        )
-        y0 = out["y_vec"]   # warm start for the next zone iteration
-
-        def_price_D_new = np.array([
-            ck_default_prob(out["b_gov_bop_D"][t], Y_ss_D, cal, sunspot_D_path[t], "D")
-            for t in range(T)])
-        def_price_F_new = np.array([
-            ck_default_prob(out["b_gov_bop_F"][t], Y_ss_F, cal, sunspot_F_path[t], "F")
-            for t in range(T)])
-
-        err = max(np.max(np.abs(def_price_D_new - def_price_D)),
-                  np.max(np.abs(def_price_F_new - def_price_F)))
-        if verbose:
-            print(f"  CK iter {ck_it + 1:2d}: zone err={err:.2e}"
-                  f"  b_gov_D peak={np.max(out['b_gov_D']):.4f}"
-                  f"  Q_bD[0]={out['Q_bD'][0]:.4f}")
-        if err < tol:
-            if verbose:
-                print(f"  CK converged in {ck_it + 1} iteration(s).")
-            break
-        def_price_D = (1 - damp) * def_price_D + damp * def_price_D_new
-        def_price_F = (1 - damp) * def_price_F + damp * def_price_F_new
-    else:
-        if verbose:
-            print(f"  CK warning: zone indicator did not settle after {max_iter} iters "
-                  f"(err={err:.2e}).")
-
-    out["sunspot_D"] = sunspot_D_path
-    out["sunspot_F"] = sunspot_F_path
-    return out

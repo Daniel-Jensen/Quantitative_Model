@@ -28,10 +28,13 @@ def get_calibration():
         delta_D=0.025, delta_F=0.025,
         ksi_D=0.50,    ksi_F=0.50,      # adjustment-cost curvature
 
-        # Financial intermediary
+        # Financial intermediary. f = exit/payout share; kernel weights (1-f) on
+        # the franchise value α′ (Bocola's ψ = 1-f = survival). beta_inter proxies
+        # the banker's SDF Λ^nd (Bocola: household MRS, Λ_ss = β_hh ≈ 0.99);
+        # values ≪ 1/(1+rdep) push α_ss below 1 and mute the franchise channel.
         f_D=0.05,              f_F=0.05,
         r_dep_D_target=0.000,   r_dep_F_target=0.000,
-        beta_inter_D=0.96,      beta_inter_F=0.96,
+        beta_inter_D=0.99,      beta_inter_F=0.99,
         # λ and ω_ent are SOLVED (calibrate_bank_targets) to hit these SS moments
         leverage_target_D=4.0,          leverage_target_F=4.0,
         credit_spread_target_D=0.005,   credit_spread_target_F=0.005,  # 200 bps/yr
@@ -40,8 +43,6 @@ def get_calibration():
         lambda_bD_D=0.22,       lambda_bD_F=0.22,
         lambda_bF_D=0.22,       lambda_bF_F=0.22,
         omega_ent_D=0.002,      omega_ent_F=0.002,
-        entrant_mode="proportional",   # "proportional" (unit root) | "anchored"
-        phi_entry=0.0,                 # anchored mode only: entrant scale on α^phi
 
         # Cross-border bond portfolio adjustment costs
         psi_bF_D=0.05,          psi_bD_F=0.05,
@@ -53,37 +54,21 @@ def get_calibration():
         delta_b_D=0.036,        delta_b_F=0.036,
         B_gov_D_ss=3.722,       B_gov_F_ss=3.722,   # 93% of annual GDP
 
-        # Default risk (Cole-Kehoe zones × Bocola pricing); thresholds are b/Y_ss.
-        # SS sits in the D crisis zone; F always safe; b_ck_high out of reach.
-        b_ck_low_D=3.00,        b_ck_low_F=99.0,
-        b_ck_high_D=6.00,       b_ck_high_F=99.0,
-        recovery_rate_D=0.45,   recovery_rate_F=0.45,   # 55% haircut (Greek PSI 2012)
+        # Default risk (Bocola 2016): the PRICED default probability π_t is an
+        # exogenous input path to the solver (his s-shock, eqs. 11-12). Only D
+        # is risky; F bonds are safe. The feared event is a pure haircut.
+        recovery_rate_D=0.45,   # 55% haircut (Greek PSI 2012; Bocola D=0.55)
 
-        # Default-state branch. Output cost (Arellano 2008) makes the state a
-        # recession → correct risk-premium sign; without it default is expansionary.
-        def_output_cost_D=0.05, def_output_rho_D=0.90,
-        # GK capital-quality loss ξ_K at h=0: stops capital being the branch safe
-        # haven (else two-branch pricing drives μ<0 and the channel turns expansionary).
-        def_capital_quality_D=0.05,
-        # Government recap (HFSF/EFSF): equity injection financed by issuance;
-        # makes the full PSI haircut feasible. Always on when > 0.
-        recap_share_D=0.5,
-        # Branch prices ONE fixed event: branch_haircut_scale of the (1-recovery)
-        # haircut (1.0 = full PSI). Ladder = opt-in scale search if infeasible.
-        branch_haircut_scale=1.0,
-        branch_use_ladder=False,
-        chi_tilt=1.0,           # pessimistic probability tilt (1.0 = off, Bocola baseline)
-        sdf_mode="income",      # default-state SDF: "income" | "empirical" | "model"
-        kappa_d=2.00,           # free SDF loading for sdf_mode="empirical"
+        # Default-branch DIAGNOSTIC flags — all OFF (=0) at the Bocola-pure
+        # baseline; the default-state recession must arise endogenously.
+        def_output_cost_D=0.0,  def_output_rho_D=0.90,   # Arellano output cost
+        def_capital_quality_D=0.0,   # GK ξ_K capital-quality loss at h=0
+        recap_share_D=0.0,           # HFSF-style recap financed by issuance
 
         # Working capital (Neumeyer-Perri): firms pre-finance ζ×wage-bill at
-        # r_wc=rdep(-1)+λμ/Ω̃. The spread→output channel; ζ=0 nests the model off.
+        # r_wc=rdep(-1)+λμ/Ω̃ (Bocola §V.C open-economy variant, his R_W).
+        # The spread→output channel; ζ=0 nests the model off.
         zeta_wc_D=1.0,          zeta_wc_F=1.0,
-
-        # Cole-Kehoe outer zone-indicator iteration
-        ck_max_iter=25,
-        ck_tol=1e-12,
-        ck_damping=1.0,         # 1.0 = undamped
 
         # Fiscal
         phi_lamb_D=0.15,        phi_lamb_F=0.15,   # Bohn rule strength
@@ -93,7 +78,7 @@ def get_calibration():
         omega_home=0.85,       epsilon_trade=0.5,
 
         # Solver settings
-        T=200,                 # sunspot horizon (T=100 truncates, T=500 identical at 5× cost)
+        T=200,                 # risk-shock horizon (T=100 truncates, T=500 identical at 5× cost)
         tol_hh=1e-12,
         tol_dist=1e-12,
         tol_mkt=1e-12,        # SS stage-1 hybr xtol

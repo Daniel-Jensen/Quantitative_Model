@@ -14,8 +14,11 @@ def test_bank_bellman_and_pricing():
 
         # Bellman: alpha = Omega (1+r) / (1 - mu)
         assert abs(Om * (1 + r) / (1 - mu) - alpha) < 1e-12
-        # Omega = beta_inter [(1-f) + f alpha]
-        assert abs(cal[f"beta_inter_{c}"] * ((1 - cal[f"f_{c}"]) + cal[f"f_{c}"] * alpha) - Om) < 1e-12
+        # Omega = beta_inter [f + (1-f) alpha] (Bocola kernel: f = exit share,
+        # weight 1-f = survival on the franchise value)
+        assert abs(cal[f"beta_inter_{c}"] * (cal[f"f_{c}"] + (1 - cal[f"f_{c}"]) * alpha) - Om) < 1e-12
+        # Franchise value exceeds outside option (needed for the risk channel)
+        assert alpha > 1.0, f"[{c}] alpha_ss = {alpha:.4f} ≤ 1"
         # Single lambda (Bocola eq. 3): all divertabilities equal
         assert bk["lambda_K"] == bk["lambda_bD"] == bk["lambda_bF"]
         # Bond price = delta_b / (r + delta_b + lambda mu / Omega)
@@ -64,8 +67,6 @@ def test_calibration_targets():
         spread = ss[f"rk_{c}_ss"] - cal[f"r_dep_{c}_target"]
         assert abs(spread - cal[f"credit_spread_target_{c}"]) < 1e-6, \
             f"[{c}] credit spread {spread:.5f} ≠ target {cal[f'credit_spread_target_{c}']}"
-    b_y = cal["B_gov_D_ss"] / ss["ss_firm_D"]["Y_ss"]
-    assert cal["b_ck_low_D"] < b_y < cal["b_ck_high_D"], "SS must sit in the CK crisis zone"
 
 
 if __name__ == "__main__":

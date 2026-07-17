@@ -1,4 +1,7 @@
-# **Government block: HM perpetuity bonds, Bohn (1998) fiscal rule, Cole-Kehoe crisis zones.**
+# **Government block: HM perpetuity bonds, Bohn (1998) fiscal rule.**
+# Default risk is EXOGENOUS (Bocola 2016 eqs. 11-12): the priced default
+# probability π_t is an input path to the transition solver, not a function
+# of the debt stock. Debt still evolves endogenously under the Bohn tax.
 import numpy as np
 
 
@@ -26,22 +29,12 @@ def govt_steady_state(cal, rdep_ss, country):
                 Tax_ss=Tax_ss, b_gov_ss=B_gov_ss, coupon_ss=coupon_ss)
 
 
-def ck_default_prob(b_gov, Y_ss, cal, sunspot, country):
-    # **Cole-Kehoe zone map: 0 (safe) / sunspot (crisis zone) / 1 (certain default).**
-    # sunspot = lenders' priced no-rollover probability in the crisis zone; never realized.
-    b_low  = cal[f"b_ck_low_{country}"]
-    b_high = cal[f"b_ck_high_{country}"]
-    b_y    = b_gov / Y_ss
-    return float(np.where(b_y < b_low, 0.0,
-                          np.where(b_y >= b_high, 1.0, sunspot)))
-
-
 def govt_transition(cal, gs, Q_B_path, def_real_path, country, b_gov0=None,
                     b_anchor=None, recap_path=None):
     # **Forward-integrate the debt stock under the Bohn tax at given bond prices.**
     # recap_path: default-branch bailout outlays (extra spending financed by issuance).
     delta_b       = cal[f"delta_b_{country}"]
-    recovery_rate = cal[f"recovery_rate_{country}"]
+    recovery_rate = cal.get(f"recovery_rate_{country}", 1.0)   # F: never defaults
     phi_lamb      = cal[f"phi_lamb_{country}"]
     G             = cal[f"G_{country}"]
     Tax_ss        = gs["Tax_ss"]

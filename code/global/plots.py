@@ -1,4 +1,4 @@
-# **IRF panels for the TFP and sunspot experiments + the spread decomposition (saved to output/).**
+# **IRF panels for the TFP and sovereign-risk experiments + the spread decomposition (saved to output/).**
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -146,7 +146,7 @@ def plot_irf(out, ss, cal, T_plot=20, filename="tfp_irf.png"):
 
 
 def plot_default_irf(out, ss, cal, T_plot=100, filename="default_irf.png"):
-    # **3×4 IRF panel for the Cole-Kehoe risk-only sunspot (Bocola pass-through).**
+    # **3×4 IRF panel for the risk-only sovereign-risk shock (Bocola pass-through).**
     t = np.arange(T_plot)
 
     Y_D_ss     = ss["ss_firm_D"]["Y_ss"]
@@ -174,8 +174,8 @@ def plot_default_irf(out, ss, cal, T_plot=100, filename="default_irf.png"):
         return 10000.0 * (np.asarray(series)[:T_plot] - ref)
 
     fig, axes = plt.subplots(3, 4, figsize=(16, 10))
-    fig.suptitle("IRF: Cole-Kehoe sunspot (risk-only) in country D — "
-                 "Bocola pass-through", fontsize=11, y=1.01)
+    fig.suptitle("IRF: sovereign-risk shock (risk-only, priced never realized) "
+                 "in country D — Bocola pass-through", fontsize=11, y=1.01)
 
     _panel(axes[0, 0], t, pct(out["Y_D"], Y_D_ss), pct(out["Y_F"], Y_F_ss),
            "Output", "% dev. from SS")
@@ -220,7 +220,7 @@ def plot_default_irf(out, ss, cal, T_plot=100, filename="default_irf.png"):
     c_D = "#1f77b4"
     ax = axes[2, 3]
     ax.plot(t, 100.0 * np.asarray(out["def_price_D"])[:T_plot],
-            color=c_D, lw=1.5, label="priced def. prob (sunspot)")
+            color=c_D, lw=1.5, label="priced def. prob π")
     ax.plot(t, 100.0 * (np.asarray(out["b_gov_D"])[:T_plot] / cal["B_gov_D_ss"] - 1.0),
             color="#ff7f0e", lw=1.5, ls="--", label="b_gov_D (% dev)")
     ax.axhline(0, color="k", lw=0.7, ls=":")

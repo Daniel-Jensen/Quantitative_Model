@@ -34,14 +34,20 @@ def ss_input_paths(cal, ss):
 
 
 def transition_residuals(out, cal):
-    """Max absolute residuals of the imposed and Walras-redundant markets."""
+    """Max absolute residuals of the imposed and Walras-redundant markets.
+    The IC is occasionally binding: cap_* is the complementarity product
+    μ·slack (0 at an exact solution), not the old always-binding gap."""
     goods_D = np.max(np.abs(out["Y_D"] - out["P_CES_D"] * out["C_D"] - out["I_D"]
                             - out["NX_D"] - cal["G_D"]))
     goods_F = np.max(np.abs(out["Y_F"] - out["P_CES_F"] * out["C_F"] - out["I_F"]
                             - out["NX_F"] - cal["G_F"]))
     dep_D = np.max(np.abs(out["P_CES_D"] * out["A_D"] - out["Dep_supply_D"]))
     dep_F = np.max(np.abs(out["P_CES_F"] * out["A_F"] - out["Dep_supply_F"]))
-    cap_D = np.max(np.abs(out["n_IC_D"] - out["n_D"]))
-    cap_F = np.max(np.abs(out["n_IC_F"] - out["n_F"]))
+    slack_D = np.asarray(out["alpha_D"]) * (np.asarray(out["n_D"]) - np.asarray(out["n_IC_D"]))
+    slack_F = np.asarray(out["alpha_F"]) * (np.asarray(out["n_F"]) - np.asarray(out["n_IC_F"]))
+    cap_D = np.max(np.abs(np.asarray(out["mu_D"]) * slack_D))
+    cap_F = np.max(np.abs(np.asarray(out["mu_F"]) * slack_F))
     return dict(goods_D=goods_D, goods_F=goods_F, dep_D=dep_D, dep_F=dep_F,
-                cap_D=cap_D, cap_F=cap_F)
+                cap_D=cap_D, cap_F=cap_F,
+                slack_min_D=float(np.min(slack_D)), slack_min_F=float(np.min(slack_F)),
+                mu_min_D=float(np.min(out["mu_D"])), mu_min_F=float(np.min(out["mu_F"])))

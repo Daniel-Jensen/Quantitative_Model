@@ -2,6 +2,11 @@
 # Each bank holds capital + domestic + foreign bonds. Denomination: D-bonds are
 # D-good claims (rdep_D), F-bonds F-good claims (rdep_F); cross-border legs
 # convert via p (D-goods per F-good). p up ⇒ F-goods more expensive.
+# Kernel convention (Bocola Prop. 1): f = exit/payout share per period, so
+# Ω = β·[f·1 + (1−f)·α′] — weight (1−f) ≈ 0.95 on the franchise value α′.
+# The IC multiplier is occasionally binding: μ = Ω·E[rk′−rdep]/λ from the
+# capital FOC can be 0 with slack leverage; complementarity is imposed in
+# transition.py (Fischer-Burmeister), always-binding equality at the SS.
 import numpy as np
 from scipy.optimize import brentq
 
@@ -10,7 +15,7 @@ def _alpha_ss_fixed_point(beta_inter, f, lambda_K, rk_ss, rdep_ss,
                            v_lo=1e-6, v_hi=1e6, n_scan=300):
     # **Scalar fixed point for the franchise value α (and μ, Ω) at SS.**
     def resid(a):
-        Omega = beta_inter * ((1 - f) + f * a)
+        Omega = beta_inter * (f + (1 - f) * a)
         mu    = Omega * (rk_ss - rdep_ss) / lambda_K
         if mu >= 1.0:
             return np.inf
@@ -28,7 +33,7 @@ def _alpha_ss_fixed_point(beta_inter, f, lambda_K, rk_ss, rdep_ss,
     gf  = grid[fin]
     i   = sc[0]
     alpha_ss = brentq(resid, gf[i], gf[i + 1], xtol=1e-13, rtol=1e-13)
-    Omega_ss = beta_inter * ((1 - f) + f * alpha_ss)
+    Omega_ss = beta_inter * (f + (1 - f) * alpha_ss)
     mu_ss    = Omega_ss * (rk_ss - rdep_ss) / lambda_K
     return alpha_ss, mu_ss, Omega_ss
 
@@ -41,7 +46,7 @@ def calibrate_bank_targets(beta_inter, f, rdep, theta_target, spread_target,
     s = spread_target
 
     def resid(a):
-        Omega = beta_inter * ((1 - f) + f * a)
+        Omega = beta_inter * (f + (1 - f) * a)
         mu    = Omega * s * theta_target / a
         if mu >= 1.0:
             return np.inf
@@ -60,7 +65,7 @@ def calibrate_bank_targets(beta_inter, f, rdep, theta_target, spread_target,
     i  = sc[0]
     alpha = brentq(resid, gf[i], gf[i + 1], xtol=1e-13, rtol=1e-13)
 
-    Omega = beta_inter * ((1 - f) + f * alpha)
+    Omega = beta_inter * (f + (1 - f) * alpha)
     mu    = Omega * s * theta_target / alpha
     lambda_single = alpha / theta_target
 
@@ -177,18 +182,17 @@ def steady_state_bank(cal, rk_ss, Kap_ss, Q_bD_ss, Q_bF_ss,
 
 def bank_backward(rk_D, rk_F, rdep_D, rdep_F, p_path,
                   cal, ss_bk_D, ss_bk_F,
-                  def_price_D=None, def_price_F=None, risk_D=None):
+                  def_price_D=None, risk_D=None):
     # **Backward pass: value slopes, bond prices, cross-border FOC holdings.**
     # Prices come from marginal conditions only (no stocks) — that is what lets
-    # debt be forward-integrated afterwards. risk_D=None → risk-neutral pricing;
-    # a risk_D dict → Bocola two-branch expectations over the D-default event
-    # (pi replaces def_price_D in D pricing; pi≡0 nests risk-neutral exactly).
+    # debt be forward-integrated afterwards. Only D is default-risky (F bonds
+    # are safe). risk_D=None → risk-neutral pricing of def_price_D; a risk_D
+    # dict → Bocola two-branch expectations over the D-default event (pi
+    # replaces def_price_D in pricing; pi≡0 nests risk-neutral exactly).
     T = len(rk_D)
 
     if def_price_D is None:
         def_price_D = np.zeros(T)
-    if def_price_F is None:
-        def_price_F = np.zeros(T)
 
     f_D        = cal["f_D"];          f_F        = cal["f_F"]
     bi_D       = cal["beta_inter_D"]; bi_F       = cal["beta_inter_F"]
@@ -202,7 +206,7 @@ def bank_backward(rk_D, rk_F, rdep_D, rdep_F, p_path,
     b_D_F_ss   = cal["b_D_F_ss"]
     exc_FD_ss  = cal["excess_return_F_D_ss"]
     exc_DF_ss  = cal["excess_return_D_F_ss"]
-    rec_D      = cal["recovery_rate_D"]; rec_F = cal["recovery_rate_F"]
+    rec_D      = cal["recovery_rate_D"]
 
     alpha_D_path = np.empty(T);  mu_D_path = np.empty(T)
     alpha_F_path = np.empty(T);  mu_F_path = np.empty(T)
@@ -237,32 +241,30 @@ def bank_backward(rk_D, rk_F, rdep_D, rdep_F, p_path,
         rk_F_next = rk_F[t + 1] if t + 1 < T else rk_F[T - 1]
 
         defp_D_next = def_price_D[t + 1] if t + 1 < T else 0.0
-        defp_F_next = def_price_F[t + 1] if t + 1 < T else 0.0
         p_next = p_path[t + 1] if t + 1 < T else p_path[t]
 
         if not risk_mode:
             # risk-neutral step
-            Omega_D = bi_D * ((1 - f_D) + f_D * alpha_D_next)
+            Omega_D = bi_D * (f_D + (1 - f_D) * alpha_D_next)
             mu_D    = Omega_D * (rk_D_next - rdep_D[t]) / lK_D
             if mu_D >= 1.0:
                 raise RuntimeError(f"D-bank mu_D={mu_D:.4f} ≥ 1 at t={t}; IC infeasible.")
             alpha_D = Omega_D * (1 + rdep_D[t]) / (1 - mu_D)
 
             ic_spread_bD_D = lbD_D * mu_D / Omega_D
-            surv_D_price   = 1.0 - defp_D_next * (1.0 - rec_D)   # sunspot enters pricing here
+            surv_D_price   = 1.0 - defp_D_next * (1.0 - rec_D)   # priced default prob π enters here
             Q_bD = surv_D_price * (db_D + (1 - db_D) * Q_bD_next) / (1 + rdep_D[t] + ic_spread_bD_D)
 
-            Omega_F = bi_F * ((1 - f_F) + f_F * alpha_F_next)
+            Omega_F = bi_F * (f_F + (1 - f_F) * alpha_F_next)
             mu_F    = Omega_F * (rk_F_next - rdep_F[t]) / lK_F
             if mu_F >= 1.0:
                 raise RuntimeError(f"F-bank mu_F={mu_F:.4f} ≥ 1 at t={t}; IC infeasible.")
             alpha_F = Omega_F * (1 + rdep_F[t]) / (1 - mu_F)
 
             ic_spread_bF_F = lbF_F * mu_F / Omega_F
-            surv_F_price   = 1.0 - defp_F_next * (1.0 - rec_F)
-            Q_bF = surv_F_price * (db_F + (1 - db_F) * Q_bF_next) / (1 + rdep_F[t] + ic_spread_bF_F)
+            Q_bF = (db_F + (1 - db_F) * Q_bF_next) / (1 + rdep_F[t] + ic_spread_bF_F)
 
-            rb_F_in_D = ((surv_F_price * (db_F + (1 - db_F) * Q_bF_next) / Q_bF)
+            rb_F_in_D = (((db_F + (1 - db_F) * Q_bF_next) / Q_bF)
                          * p_next / p_path[t] - 1)
             ic_required_bF_D = lbF_D * mu_D / Omega_D
             rb_D_in_F = ((surv_D_price * (db_D + (1 - db_D) * Q_bD_next) / Q_bD)
@@ -273,7 +275,7 @@ def bank_backward(rk_D, rk_F, rdep_D, rdep_F, p_path,
             # prices/returns jump to the branch values, discount is Ω^d
             pi1 = pi_path[t + 1] if t + 1 < T else 0.0
 
-            Omega_nd_D  = bi_D * ((1 - f_D) + f_D * alpha_D_next)
+            Omega_nd_D  = bi_D * (f_D + (1 - f_D) * alpha_D_next)
             Omega_til_D = (1 - pi1) * Omega_nd_D + pi1 * Om_d_D[t]
             mu_D = ((1 - pi1) * Omega_nd_D * (rk_D_next - rdep_D[t])
                     + pi1 * Om_d_D[t] * (rk_d_D - rdep_D[t])) / lK_D
@@ -287,7 +289,7 @@ def bank_backward(rk_D, rk_F, rdep_D, rdep_F, p_path,
             Q_bD = (((1 - pi1) * Omega_nd_D * payoff_D_nd + pi1 * Om_d_D[t] * payoff_D_d)
                     / (Omega_til_D * (1 + rdep_D[t]) + lbD_D * mu_D))
 
-            Omega_nd_F  = bi_F * ((1 - f_F) + f_F * alpha_F_next)
+            Omega_nd_F  = bi_F * (f_F + (1 - f_F) * alpha_F_next)
             Omega_til_F = (1 - pi1) * Omega_nd_F + pi1 * Om_d_F[t]
             mu_F = ((1 - pi1) * Omega_nd_F * (rk_F_next - rdep_F[t])
                     + pi1 * Om_d_F[t] * (rk_d_F - rdep_F[t])) / lK_F
@@ -295,11 +297,10 @@ def bank_backward(rk_D, rk_F, rdep_D, rdep_F, p_path,
                 raise RuntimeError(f"F-bank mu_F={mu_F:.4f} ≥ 1 at t={t}; IC infeasible.")
             alpha_F = Omega_til_F * (1 + rdep_F[t]) / (1 - mu_F)
 
-            # F-bonds: no haircut from the D-event, but price jumps to Q_bF_d (safe haven);
-            # F's own risk enters risk-neutrally as surv_F_price on both branches
-            surv_F_price = 1.0 - defp_F_next * (1.0 - rec_F)
-            payoff_F_nd = surv_F_price * (db_F + (1 - db_F) * Q_bF_next)
-            payoff_F_d  = surv_F_price * (db_F + (1 - db_F) * Q_bF_d)
+            # F-bonds: safe (no haircut from the D-event) but the price jumps
+            # to Q_bF_d in the default branch (safe-haven repricing)
+            payoff_F_nd = db_F + (1 - db_F) * Q_bF_next
+            payoff_F_d  = db_F + (1 - db_F) * Q_bF_d
             ic_spread_bF_F = lbF_F * mu_F / Omega_til_F
             Q_bF = (((1 - pi1) * Omega_nd_F * payoff_F_nd + pi1 * Om_d_F[t] * payoff_F_d)
                     / (Omega_til_F * (1 + rdep_F[t]) + lbF_F * mu_F))
@@ -350,36 +351,26 @@ def bank_backward(rk_D, rk_F, rdep_D, rdep_F, p_path,
 
 def bank_forward(Kap_D, Kap_F, Q_D, Q_F, rk_D, rk_F, rdep_D, rdep_F, p_path,
                  b_D_D_path, b_F_F_path, bwd, cal, ss_bk_D, ss_bk_F,
-                 def_real_D=None, def_real_F=None,
+                 def_real_D=None,
                  init_D=None, init_F=None,
                  Q_bD_lag0=None, Q_bF_lag0=None, p_lag0=None,
-                 recap_D=None, recap_F=None):
+                 recap_D=None):
     # **Forward pass: net worth, dividends, deposit supply from REALIZED returns.**
-    # recap_D/F: government equity injections (default branch) — added to retained
-    # net worth, not to gross income; financed on the government side.
+    # recap_D: government equity injection (default branch, flag-gated) — added
+    # to retained net worth, not gross income; financed on the government side.
     T = len(Kap_D)
 
     if def_real_D is None:
         def_real_D = np.zeros(T)
-    if def_real_F is None:
-        def_real_F = np.zeros(T)
     if recap_D is None:
         recap_D = np.zeros(T)
-    if recap_F is None:
-        recap_F = np.zeros(T)
 
     f_D   = cal["f_D"];           f_F   = cal["f_F"]
     lK_D  = cal["lambda_K_D"];    lK_F  = cal["lambda_K_F"]
     lbD_D = cal["lambda_bD_D"];   lbD_F = cal["lambda_bD_F"]
     lbF_D = cal["lambda_bF_D"];   lbF_F = cal["lambda_bF_F"]
-    rec_D = cal["recovery_rate_D"]; rec_F = cal["recovery_rate_F"]
+    rec_D = cal["recovery_rate_D"]
     db_D  = cal["delta_b_D"];     db_F  = cal["delta_b_F"]
-
-    # entrant equity: "proportional" (unit root in n) or "anchored" (fixed at SS level)
-    entrant_mode = cal.get("entrant_mode", "proportional")
-    phi_entry    = cal.get("phi_entry", 0.0)
-    assets_ss_D  = ss_bk_D["total_assets_ss"];  alpha_ss_D = ss_bk_D["alpha_ss"]
-    assets_ss_F  = ss_bk_F["total_assets_ss"];  alpha_ss_F = ss_bk_F["alpha_ss"]
 
     Q_bD_path = bwd["Q_bD"];  Q_bF_path = bwd["Q_bF"]
     b_F_D_path = bwd["b_F_D"];  b_D_F_path = bwd["b_D_F"]
@@ -392,9 +383,8 @@ def bank_forward(Kap_D, Kap_F, Q_D, Q_F, rk_D, rk_F, rdep_D, rdep_F, p_path,
     Q_bF_lag = np.concatenate(([Q_bF_l0], Q_bF_path[:-1]))
 
     surv_D_real = 1.0 - np.asarray(def_real_D) * (1.0 - rec_D)
-    surv_F_real = 1.0 - np.asarray(def_real_F) * (1.0 - rec_F)
     rb_D_path = (db_D * surv_D_real + (1 - db_D) * Q_bD_path * surv_D_real) / Q_bD_lag - 1
-    rb_F_path = (db_F * surv_F_real + (1 - db_F) * Q_bF_path * surv_F_real) / Q_bF_lag - 1
+    rb_F_path = (db_F + (1 - db_F) * Q_bF_path) / Q_bF_lag - 1
 
     n_IC_D = np.empty(T);  n_ACCUM_D = np.empty(T)
     rn_D   = np.empty(T);  div_D     = np.empty(T)
@@ -440,25 +430,23 @@ def bank_forward(Kap_D, Kap_F, Q_D, Q_F, rk_D, rk_F, rdep_D, rdep_F, p_path,
         gross_D = (1 + rn_D_t) * n_D_prev
         total_assets_D = (Q_D[t] * Kap_D[t] + Q_bD_path[t] * b_D_D_path[t]
                           + p_t * Q_bF_path[t] * b_F_D_path[t])
-        if entrant_mode == "anchored":
-            entrant_D = (cal["omega_ent_D"] * assets_ss_D
-                         * (alpha_D_path[t] / alpha_ss_D) ** phi_entry)
-        else:
-            entrant_D = cal["omega_ent_D"] * total_assets_D
+        entrant_D = cal["omega_ent_D"] * total_assets_D
         n_ACCUM_D_t = (1 - f_D) * gross_D + entrant_D + recap_D[t]   # + recap injection
         div_D_t     = f_D * gross_D - entrant_D
         n_ACCUM_D[t] = n_ACCUM_D_t
         rn_D[t]  = rn_D_t
         div_D[t] = div_D_t
 
-        # D-bank IC in D-goods (F-bonds enter as p×Q_bF)
+        # D-bank IC level in D-goods (F-bonds enter as p×Q_bF): n_IC is the net
+        # worth at which the IC binds exactly; slack = α(n − n_IC) ≥ 0.
         n_IC_D_t = (lK_D * Q_D[t] * Kap_D[t]
                     + lbD_D * Q_bD_path[t] * b_D_D_path[t]
                     + lbF_D * p_t * Q_bF_path[t] * b_F_D_path[t]) / alpha_D_path[t]
         n_IC_D[t] = n_IC_D_t
-        kappa_D_prev    = Q_D[t] * Kap_D[t] / n_IC_D_t
-        phi_bdom_D_prev = Q_bD_path[t] * b_D_D_path[t] / n_IC_D_t
-        phi_bfor_D_prev = p_t * Q_bF_path[t] * b_F_D_path[t] / n_IC_D_t
+        # portfolio shares on ACTUAL net worth (≡ n_IC only when the IC binds)
+        kappa_D_prev    = Q_D[t] * Kap_D[t] / n_ACCUM_D_t
+        phi_bdom_D_prev = Q_bD_path[t] * b_D_D_path[t] / n_ACCUM_D_t
+        phi_bfor_D_prev = p_t * Q_bF_path[t] * b_F_D_path[t] / n_ACCUM_D_t
         n_D_prev        = n_ACCUM_D_t
         rdep_D_prev     = rdep_D[t]
 
@@ -474,25 +462,21 @@ def bank_forward(Kap_D, Kap_F, Q_D, Q_F, rk_D, rk_F, rdep_D, rdep_F, p_path,
         total_assets_F = (Q_F[t] * Kap_F[t]
                           + Q_bF_path[t] * b_F_F_path[t]
                           + Q_bD_path[t] * b_D_F_path[t] / p_t)
-        if entrant_mode == "anchored":
-            entrant_F = (cal["omega_ent_F"] * assets_ss_F
-                         * (alpha_F_path[t] / alpha_ss_F) ** phi_entry)
-        else:
-            entrant_F = cal["omega_ent_F"] * total_assets_F
-        n_ACCUM_F_t = (1 - f_F) * gross_F + entrant_F + recap_F[t]
+        entrant_F = cal["omega_ent_F"] * total_assets_F
+        n_ACCUM_F_t = (1 - f_F) * gross_F + entrant_F
         div_F_t     = f_F * gross_F - entrant_F
         n_ACCUM_F[t] = n_ACCUM_F_t
         rn_F[t]  = rn_F_t
         div_F[t] = div_F_t
 
-        # F-bank IC in F-goods (D-bonds ÷p)
+        # F-bank IC level in F-goods (D-bonds ÷p)
         n_IC_F_t = (lK_F * Q_F[t] * Kap_F[t]
                     + lbF_F * Q_bF_path[t] * b_F_F_path[t]
                     + lbD_F * Q_bD_path[t] * b_D_F_path[t] / p_t) / alpha_F_path[t]
         n_IC_F[t] = n_IC_F_t
-        kappa_F_prev    = Q_F[t] * Kap_F[t] / n_IC_F_t
-        phi_bdom_F_prev = Q_bF_path[t] * b_F_F_path[t] / n_IC_F_t
-        phi_bfor_F_prev = Q_bD_path[t] * b_D_F_path[t] / (p_t * n_IC_F_t)
+        kappa_F_prev    = Q_F[t] * Kap_F[t] / n_ACCUM_F_t
+        phi_bdom_F_prev = Q_bF_path[t] * b_F_F_path[t] / n_ACCUM_F_t
+        phi_bfor_F_prev = Q_bD_path[t] * b_D_F_path[t] / (p_t * n_ACCUM_F_t)
         n_F_prev        = n_ACCUM_F_t
         rdep_F_prev     = rdep_F[t]
 

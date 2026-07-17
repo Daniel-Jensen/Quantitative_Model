@@ -1,4 +1,4 @@
-# **Entry point: SS → TFP IRF → Cole-Kehoe/Bocola sunspot pass-through, with figures.**
+# **Entry point: SS → TFP IRF → Bocola sovereign-risk pass-through, with figures.**
 import os
 import time
 import numpy as np
@@ -6,21 +6,19 @@ import numpy as np
 from calibration import get_calibration
 from steady_state import solve_steady_state
 from transition import solve_transition
-from risk_branch import solve_transition_ck_risk, bond_decomposition
+from risk_branch import solve_transition_risk, bond_decomposition
 from plots import OUTDIR, plot_irf, plot_default_irf, plot_bond_decomposition
 
 # ── Run flags ────────────────────────────────────────────────────────────────
 RUN_TFP                 = True   # experiment 1: TFP shock in D
-RUN_SUNSPOT             = True   # experiment 2: CK sunspot + Bocola risk channel
+RUN_RISK                = True   # experiment 2: exogenous sovereign-risk shock (Bocola)
 PLOT_BOND_DECOMPOSITION = True   # extra figure for experiment 2
 
 # ── Shock parameters ─────────────────────────────────────────────────────────
 TFP_SHOCK, TFP_RHO = 0.01, 0.9    # 1% impact, AR(1) decay
-# Centerpiece: Bocola-style small persistent risk shock (user-selected
-# 2026-07-15).  A 10%/0.9 configuration remains available as a stress demo —
-# it prices a 64% cumulative default probability; run it only with the μ
-# monitor in mind (transition.py warns if the IC multiplier goes negative).
-SUN_SHOCK, SUN_RHO = 0.01, 0.95  # peak priced default prob (quarterly), decay
+# Exogenous priced-default-probability path π_t (Bocola's s-shock analog,
+# eqs. 11-12): impact level × AR(1) decay. Risk is priced, never realized.
+PI_SHOCK, PI_RHO = 0.01, 0.95    # peak priced default prob (quarterly), decay
 
 
 def print_ss_table(ss, cal):
@@ -99,24 +97,30 @@ def print_ss_table(ss, cal):
 
 def print_transition_residuals(out, cal):
     # **Print market-clearing residuals (goods_F is the Walras-redundant accuracy check).**
-    cap_resid_D = np.max(np.abs(out["n_IC_D"] - out["n_D"]))
-    cap_resid_F = np.max(np.abs(out["n_IC_F"] - out["n_F"]))
+    # IC is occasionally binding: report the complementarity product μ·slack
+    # (0 at an exact solution) plus the sign of each leg.
+    slack_D = np.asarray(out["alpha_D"]) * (np.asarray(out["n_D"]) - np.asarray(out["n_IC_D"]))
+    slack_F = np.asarray(out["alpha_F"]) * (np.asarray(out["n_F"]) - np.asarray(out["n_IC_F"]))
+    comp_D = np.max(np.abs(np.asarray(out["mu_D"]) * slack_D))
+    comp_F = np.max(np.abs(np.asarray(out["mu_F"]) * slack_F))
     dep_resid_D = np.max(np.abs(out["P_CES_D"] * out["A_D"] - out["Dep_supply_D"]))
     dep_resid_F = np.max(np.abs(out["P_CES_F"] * out["A_F"] - out["Dep_supply_F"]))
     goods_D = np.max(np.abs(out["Y_D"] - out["P_CES_D"] * out["C_D"] - out["I_D"]
                             - out["NX_D"] - cal["G_D"]))
     goods_F = np.max(np.abs(out["Y_F"] - out["P_CES_F"] * out["C_F"] - out["I_F"]
                             - out["NX_F"] - cal["G_F"]))
-    print(f"  max|capital resid D| (n_IC − n)  = {cap_resid_D:.2e}")
-    print(f"  max|capital resid F| (n_IC − n)  = {cap_resid_F:.2e}")
+    print(f"  max|mu·slack D| (complementarity) = {comp_D:.2e}"
+          f"  (min mu {out['mu_min_D']:+.2e}, min slack {out['slack_min_D']:+.2e})")
+    print(f"  max|mu·slack F| (complementarity) = {comp_F:.2e}"
+          f"  (min mu {out['mu_min_F']:+.2e}, min slack {out['slack_min_F']:+.2e})")
     print(f"  max|deposit resid D|             = {dep_resid_D:.2e}")
     print(f"  max|deposit resid F|             = {dep_resid_F:.2e}")
     print(f"  max|goods mkt D|                 = {goods_D:.2e}")
     print(f"  max|goods mkt F| [diagnostic]    = {goods_F:.2e}")
 
 
-def print_ck_table(out, ss, cal):
-    # **Print Cole-Kehoe / Bocola pass-through diagnostics for the sunspot run.**
+def print_risk_table(out, ss, cal):
+    # **Print Bocola pass-through diagnostics for the sovereign-risk run.**
     bk_D = ss["ss_bank_D"];  bk_F = ss["ss_bank_F"]
     fm_D = ss["ss_firm_D"]
 
@@ -134,7 +138,7 @@ def print_ck_table(out, ss, cal):
         return f"  {label:<{W2}} {val:>10}{note_str}"
 
     print(f"\n{'':─<72}")
-    print(f"  Cole-Kehoe / Bocola pass-through  (xi_0={SUN_SHOCK:.0%}, rho={SUN_RHO})")
+    print(f"  Bocola pass-through  (pi_0={PI_SHOCK:.0%}, rho={PI_RHO})")
     print(f"  {'Statistic':<{W2}} {'Risk-on':>10}  Note")
     print(f"{'':─<72}")
     print(ck_row("Q_bD[0]  (% dev from SS)",
@@ -162,13 +166,13 @@ def print_ck_table(out, ss, cal):
                  str(np.all(out['def_real_D'] == 0))))
     print(ck_row("min mu (IC mult) D / F",
                  f"{out['mu_min_D']:+.4f}",
-                 f"F {out['mu_min_F']:+.4f}; negative = always-binding IC violated"))
+                 f"F {out['mu_min_F']:+.4f}; 0 = IC slack somewhere (occ. binding)"))
+    print(ck_row("min IC slack D / F",
+                 f"{out['slack_min_D']:+.2e}",
+                 f"F {out['slack_min_F']:+.2e}; negative = complementarity violated"))
     print(ck_row("[branch] n_D(0)/n_ss",
                  f"{br['n_D'][0]/bk_D['n_ss']:.3f}",
                  f"Y_D(0) dev {(br['Y_D'][0]/fm_D['Y_ss']-1)*100:+.2f}%  (feared default state)"))
-    print(ck_row("[branch] rescue mode",
-                 br.get("rescue_mode", "full"),
-                 f"haircut_scale={br.get('haircut_scale', 1.0):.3f}"))
     print(f"{'':─<72}")
 
 
@@ -190,23 +194,22 @@ def run_tfp(ss, cal):
     return out
 
 
-def run_sunspot(ss, cal):
-    # **Experiment 2: Cole-Kehoe sunspot + Bocola risk channel → solve, print, plot.**
+def run_risk(ss, cal):
+    # **Experiment 2: exogenous sovereign-risk shock + Bocola risk channel → solve, print, plot.**
     print("\n" + "=" * 65)
-    print(f"  Cole-Kehoe sunspot in D: peak default prob {SUN_SHOCK:.0%} "
-          f"per quarter, rho = {SUN_RHO}")
+    print(f"  Sovereign-risk shock in D: peak priced default prob "
+          f"{PI_SHOCK:.0%} per quarter, rho = {PI_RHO}")
     print("=" * 65)
     T = cal["T"]
-    sunspot = SUN_SHOCK * SUN_RHO ** np.arange(T)
+    pi_D = PI_SHOCK * PI_RHO ** np.arange(T)
     Z_D = np.full(T, cal["Z_ss_D"])
     Z_F = np.full(T, cal["Z_ss_F"])
 
     t0 = time.perf_counter()
-    out = solve_transition_ck_risk(ss, cal, Z_D, Z_F,
-                                   sunspot_D_path=sunspot, verbose=True)
+    out = solve_transition_risk(ss, cal, Z_D, Z_F, pi_D_path=pi_D, verbose=True)
     print(f"  solved in {time.perf_counter() - t0:.0f}s")
     print_transition_residuals(out, cal)
-    print_ck_table(out, ss, cal)
+    print_risk_table(out, ss, cal)
 
     plot_default_irf(out, ss, cal)
     if PLOT_BOND_DECOMPOSITION:
@@ -215,7 +218,7 @@ def run_sunspot(ss, cal):
 
 
 def main():
-    # **Run the full pipeline: steady state → TFP IRF → sunspot experiment.**
+    # **Run the full pipeline: steady state → TFP IRF → sovereign-risk experiment.**
     t0 = time.perf_counter()
     os.makedirs(OUTDIR, exist_ok=True)
     cal = get_calibration()
@@ -229,8 +232,8 @@ def main():
 
     if RUN_TFP:
         run_tfp(ss, cal)
-    if RUN_SUNSPOT:
-        run_sunspot(ss, cal)
+    if RUN_RISK:
+        run_risk(ss, cal)
 
     print(f"\nFigures saved to {OUTDIR}")
     print(f"TOTAL  {time.perf_counter() - t0:.0f}s")

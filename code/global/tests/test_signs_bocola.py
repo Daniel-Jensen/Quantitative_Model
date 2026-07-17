@@ -1,6 +1,5 @@
-"""Acceptance criteria for the centerpiece Cole-Kehoe risk-only experiment
-(Bocola 2016 pass-through).  A sunspot that only raises the PRICED default
-probability must:
+"""Acceptance criteria for the centerpiece risk-only experiment (Bocola 2016
+pass-through).  An exogenous rise in the PRICED default probability π_t must:
   - reprice sovereign bonds down (MTM),
   - shrink both banks' net worth on impact (D directly, F via cross-holdings),
   - widen the lending spread rk − rdep,
@@ -11,16 +10,16 @@ the pre-rework model (sovereign risk was expansionary)."""
 import numpy as np
 
 from common import get_ss, transition_residuals
-from transition import solve_transition_ck
+from transition import solve_transition
 
 
 def test_risk_only_shock_signs():
     cal, ss = get_ss()
     T = cal["T"]
-    sun = 0.03 * 0.90 ** np.arange(T)
-    out = solve_transition_ck(ss, cal, np.full(T, cal["Z_ss_D"]),
-                              np.full(T, cal["Z_ss_F"]),
-                              sunspot_D_path=sun, verbose=False)
+    pi = 0.03 * 0.90 ** np.arange(T)
+    out = solve_transition(ss, cal, np.full(T, cal["Z_ss_D"]),
+                           np.full(T, cal["Z_ss_F"]),
+                           def_price_D=pi, verbose=False)
 
     Y_ss = ss["ss_firm_D"]["Y_ss"]
     n_ss_D = ss["ss_bank_D"]["n_ss"]
