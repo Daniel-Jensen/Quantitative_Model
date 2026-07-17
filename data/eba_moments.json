@@ -1,0 +1,55 @@
+{
+  "meta": {
+    "source_exercise": "EBA 2011 EU-wide stress test",
+    "base_date": "2010-12-31 (actual; scenario blank)",
+    "sovereign_asof": "2010-12-31 gross direct long (34010, maturity total)",
+    "gdp_source": "Eurostat nama_10_gdp B1GQ CP_MEUR 2010",
+    "country_map": {
+      "D": "Greece (GR030-035, issuer GR)",
+      "F": "Germany (DE0xx, issuer DE)"
+    },
+    "de_banks": [
+      "DE017",
+      "DE018",
+      "DE019",
+      "DE020",
+      "DE021",
+      "DE022",
+      "DE023",
+      "DE024",
+      "DE025",
+      "DE027",
+      "DE028",
+      "DE029"
+    ],
+    "units": "EUR million unless noted"
+  },
+  "raw_EURm": {
+    "CT1_D": 22777.97686033339,
+    "CT1_F": 114316.878,
+    "RWA_D": 222465.76422582,
+    "RWA_F": 1222401.929527654,
+    "TA_D": 377199.792,
+    "TA_F": 4872189.22665417,
+    "b_D_D": 54447.09438256117,
+    "b_D_F": 7933.604408891188,
+    "b_F_D": 410.74071232999995,
+    "b_F_F": 315313.14183808136,
+    "GDP_ann_D": 223590.5,
+    "GDP_ann_F": 2615260.0
+  },
+  "model_targets": {
+    "n_inter_D": 0.40749453774348,
+    "n_inter_F": 0.17484590901095876,
+    "phi_bD_D_ss": 2.3903393491183067,
+    "phi_bF_F_ss": 2.758237867885802,
+    "phi_bD_F_ss": 0.06940011438110817,
+    "phi_bF_D_ss": 0.018032361471280733,
+    "leverage_D": 16.559846131763923,
+    "leverage_F": 42.62003399580393,
+    "bankheld_gov_D_pct_annGDP": 0.2789953007460172,
+    "bankheld_gov_F_pct_annGDP": 0.12072370722238375,
+    "B_supply_D_qgdp": 1.1159812029840688,
+    "B_supply_F_qgdp": 0.482894828889535
+  }
+}

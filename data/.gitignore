@@ -1,0 +1,9 @@
+# Raw source data (large; download per README.md). Derived artifacts stay tracked.
+*.csv
+*.CSV
+*.pdf
+eurostat_gdp_raw.json
+
+# Keep derived + docs
+!eba_moments.json
+!README.md
