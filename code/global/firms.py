@@ -30,13 +30,16 @@ def steady_state_firm(cal, Kap_ss, country="D"):
                 N_ss=N_ss, Y_ss=Y_ss, C_ss=C_ss, I_ss=I_ss)
 
 
-def solve_firm_path(N_path, Kap_path, Z_path, cal, country="D"):
-    # **Contemporaneous firm quantities along the path: Y, w (frictionless), mpk.**
+def solve_firm_path(N_path, Kap_prod_path, Z_path, cal, country="D"):
+    # **Firm quantities along the path: Y, w (frictionless), mpk.**
+    # Kap_prod_path[t] is the stock PRODUCING at t — under the predetermined-
+    # capital timing (Bocola eq. 6) the caller passes the lagged stock, so
+    # mpk_t is the marginal product of the vintage banks bought at t-1.
     alpha = cal[f"alpha_{country}"]
     mc    = markup_ss(cal, country)
 
-    Y   = Z_path * Kap_path ** alpha * N_path ** (1 - alpha)
+    Y   = Z_path * Kap_prod_path ** alpha * N_path ** (1 - alpha)
     w   = mc * (1 - alpha) * Y / N_path
-    mpk = mc * alpha * Y / Kap_path
+    mpk = mc * alpha * Y / Kap_prod_path
 
     return dict(Y=Y, w=w, mpk=mpk, mc=mc)

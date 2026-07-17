@@ -20,16 +20,21 @@ def capital_demand(rk_ss, mc_ss, cal, country="D"):
 
 
 def solve_capital_path(Kap_path, Kap_ss, Q_ss, mpk_path, cal, country="D",
-                       quality0=1.0):
+                       quality0=1.0, Kap_lag_path=None):
     # **Investment, capital price Q, and realized return rk along the path.**
-    # quality0 < 1: GK capital-quality loss at t=0 (branch only) — destroys a
-    # fraction 1-quality0 of the incoming stock and scales the t=0 claim return.
+    # Timing (Bocola eq. 6): Kap_path[t] is bought/priced at t and produces at
+    # t+1; Kap_lag_path[t] is the stock carried INTO t — it is both the Jermann
+    # rebuilding base and the production stock (mpk_path must be computed on
+    # it). quality0 < 1: GK capital-quality loss at t=0 (branch only) —
+    # destroys a fraction 1-quality0 of the incoming stock and scales the t=0
+    # claim return.
     delta  = cal[f"delta_{country}"]
     ksi    = cal[f"ksi_{country}"]
     gamma0, gamma1 = gamma_params(cal, country)
 
-    Kap_lag = np.concatenate(([quality0 * Kap_ss], Kap_path[:-1]))
-    bracket = (Kap_path / Kap_lag - (1 - delta) - gamma1) / gamma0
+    if Kap_lag_path is None:
+        Kap_lag_path = np.concatenate(([quality0 * Kap_ss], Kap_path[:-1]))
+    bracket = (Kap_path / Kap_lag_path - (1 - delta) - gamma1) / gamma0
 
     # negative bracket → NaN powers; raise so the outer solver penalizes the guess
     if np.any(bracket < 0):
@@ -46,8 +51,9 @@ def solve_capital_path(Kap_path, Kap_ss, Q_ss, mpk_path, cal, country="D",
     if quality0 != 1.0:
         rk[0] = quality0 * (mpk_path[0] + (1 - delta) * Q[0]) / Q_lag[0] - 1
 
-    I          = iota * Kap_lag
-    cap_profit = (Q * (Kap_path - (1 - delta) * Kap_lag) - I
-                  + mpk_path * (Kap_path - Kap_lag))
+    I          = iota * Kap_lag_path
+    # capital producers' rents (Jermann): value of installed new capital − cost.
+    # No mpk reconciliation term: firms rent exactly the bank-held vintage.
+    cap_profit = Q * (Kap_path - (1 - delta) * Kap_lag_path) - I
 
     return dict(iota=iota, Q=Q, rk=rk, I=I, cap_profit=cap_profit)

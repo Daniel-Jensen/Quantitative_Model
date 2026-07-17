@@ -30,16 +30,26 @@ def _inner_economy(N_D, N_F, Kap_D, Kap_F, rdep_D, rdep_F, p_path,
     if init is None:
         init = {}
 
-    firm_D = solve_firm_path(N_D, Kap_D, Z_D_path, cal, country="D")
-    firm_F = solve_firm_path(N_F, Kap_F, Z_F_path, cal, country="F")
+    # Predetermined capital (Bocola eq. 6): the stock producing at t is the one
+    # carried INTO t — Kap_prod[t] = Kap[t-1], anchored at the (quality-scaled)
+    # initial stock. Impact output can move only through hours; quality0 < 1
+    # (default branches, GK capital-quality loss) hits Y_0 directly.
+    quality0_D = init.get("quality0_D", 1.0)
+    quality0_F = init.get("quality0_F", 1.0)
+    K_init_D = init.get("Kap_lag_D", ss["Kap_D_ss"])
+    K_init_F = init.get("Kap_lag_F", ss["Kap_F_ss"])
+    Kap_prod_D = np.concatenate(([quality0_D * K_init_D], Kap_D[:-1]))
+    Kap_prod_F = np.concatenate(([quality0_F * K_init_F], Kap_F[:-1]))
 
-    # quality0 < 1 only in default branches (GK capital-quality loss)
-    cap_D = solve_capital_path(Kap_D, init.get("Kap_lag_D", ss["Kap_D_ss"]),
+    firm_D = solve_firm_path(N_D, Kap_prod_D, Z_D_path, cal, country="D")
+    firm_F = solve_firm_path(N_F, Kap_prod_F, Z_F_path, cal, country="F")
+
+    cap_D = solve_capital_path(Kap_D, K_init_D,
                                init.get("Q_lag_D", 1.0), firm_D["mpk"], cal, country="D",
-                               quality0=init.get("quality0_D", 1.0))
-    cap_F = solve_capital_path(Kap_F, init.get("Kap_lag_F", ss["Kap_F_ss"]),
+                               quality0=quality0_D, Kap_lag_path=Kap_prod_D)
+    cap_F = solve_capital_path(Kap_F, K_init_F,
                                init.get("Q_lag_F", 1.0), firm_F["mpk"], cal, country="F",
-                               quality0=init.get("quality0_F", 1.0))
+                               quality0=quality0_F, Kap_lag_path=Kap_prod_F)
 
     P_CES_D = ces_price(p_path, cal, "D")
     P_CES_F = ces_price(p_path, cal, "F")
