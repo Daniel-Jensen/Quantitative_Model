@@ -4,6 +4,38 @@
 **Branch:** `eba-calibration` (from `ecb-balance-sheet`)
 **Status:** Approved (design), building
 
+## Amendments (during build)
+
+- **Exercise identified:** EBA **2011 EU-wide stress test** (published 15 Jul 2011). Base
+  year **31 Dec 2010 actual** (scenario blank); 2011/2012 are baseline(100)/adverse(105)
+  *projections*. Sovereign exposures are as-of **31 Dec 2010** per methodology (the
+  worksheet-5 `INFO_DATE_CODE=20111231` is a reference-year label, not the exposure date).
+  → **Calibrate to the 2010 actual base with 2010 GDP.**
+- **Code map validated:** `DE017 = Deutsche Bank` (2010 RWA €346.6 bn, CT1 €30.4 bn,
+  8.76% — matches published). Confirms `30010=RWA`, `30014=Core Tier 1`,
+  `34010=gross direct long sovereign`, `30029=total assets`.
+- **Bank identification fork (resolved: option A).** EBA over-identifies the bank block:
+  sovereign-book/capital = 2.39× (GR) needs thin net worth, but the model ties net worth to
+  intermediating the *entire* capital stock `K`. Resolution: **add a bank
+  capital-intermediation share `omega_K_D/F`** — banks hold `omega_K·K`, the rest is held by
+  a passive unlevered capital fund whose return is rebated to households (no two-asset HANK
+  portfolio choice). Lets us match `n_inter=CT1/GDP`, the 2.39× ratio, K/Y, and stability
+  simultaneously. Touches `equations_D/F.py`, `steady_state.py`, household income accounting.
+
+## Locked 2010-base moments (EUR m; GDP: GR 223,590.5 / DE 2,615,260 annual)
+
+| | Greek banks (D) | German banks (F) |
+|---|---|---|
+| CT1 (30014) | 22,778 | 114,317 |
+| RWA (30010) | 222,466 | 1,222,402 |
+| Total assets (30029) | 377,200 | 4,872,189 |
+| own-sovereign book (34010) | 54,447 (GR) | 315,313 (DE) |
+| cross-sovereign book (34010) | 411 (DE) | 7,934 (GR) |
+
+Derived model targets (symmetric Y=1): `n_inter_D=0.408`, `n_inter_F=0.175`,
+`phi_bD_F_ss=0.069`, `phi_bF_D_ss=0.018`, `phi_bD_D=2.39`, `phi_bF_F=2.76`,
+leverage TA/CT1 = 16.6×/42.6×, bank-held GR debt = 27.9% ann. GDP → `B_supply_D≈1.12`.
+
 ## Objective
 
 Use `data/DATA_DISCLOSURE.CSV` (EBA 2011 EU-wide stress-test disclosure) to
