@@ -10,6 +10,7 @@ Takes the dict returned by tpi.run_tpi() and produces:
   fig_tpi_bond_price.png
   fig_tpi_utility.png
 """
+import textwrap
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
@@ -20,6 +21,53 @@ BLUE       = '#002147'
 RED        = '#8C1515'
 BLUE_MUTED = '#4a6f8a'
 RED_MUTED  = '#c0624a'
+
+# One-sentence narrative caption per figure, baked into the PNG footer so the
+# image carries its own story when reused outside the pipeline.
+CAPTIONS = {
+    'fig_tpi_spread_mitigation':
+        "Closed-loop responses to the 1pp default-rate shock: stronger TPI (higher γ) "
+        "supports q_b_D and dampens the spread and bank-net-worth declines, with purchases "
+        "peaking alongside the spread they respond to.",
+    'fig_tpi_effectiveness':
+        "Stronger feedback closes more of the peak spread with diminishing returns per unit "
+        "of balance sheet; no finite γ achieves full closure because the default-rate path "
+        "itself is exogenous.",
+    'fig_tpi_welfare_macro':
+        "TPI raises D consumption, output and welfare while F welfare falls as its crisis "
+        "flight-to-safety gain is competed away; both treasuries absorb the conduit's "
+        "capital calls through their fiscal rules.",
+    'fig_tpi_welfare_bar':
+        "Discounted welfare: TPI transfers roughly one-for-one from F to D at each γ and is "
+        "mildly positive-sum at γ=10 (illustrative calibration).",
+    'fig_tpi_welfare_spread':
+        "Why the spread persists: the fundamental default-rate driver is policy-invariant, "
+        "so TPI works through bank recapitalisation (q_b_D revaluation) rather than by "
+        "removing the spread's driver.",
+    'fig_tpi_bond_price':
+        "CB purchases support q_b_D directly while q_b_F softens as flight-to-Bunds "
+        "reverses — the F-yield spillback of stabilising the periphery.",
+    'fig_tpi_utility':
+        "Household utility with and without intervention: D's crisis trough is shallower "
+        "under TPI; F forgoes part of its crisis gain.",
+    'fig_tpi_loading_schedule':
+        "The backstop's compensation self-extinguishes as it deploys: premium income per "
+        "unit of expected tail loss declines monotonically toward the fair-insurance limit "
+        "ℓ=1 (illustrative calibration; the declining shape, not the level, is the "
+        "model's prediction).",
+}
+
+
+def _save(fig, name, output_dir, caption=None, dpi=150):
+    """Save with the figure's caption rendered as a wrapped footer inside the PNG."""
+    cap = caption if caption is not None else CAPTIONS.get(name)
+    if cap:
+        chars = int(fig.get_size_inches()[0] * 14)
+        fig.text(0.5, -0.02, textwrap.fill(cap, width=chars),
+                 ha='center', va='top', fontsize=8, style='italic', color='0.35')
+    fig.savefig(Path(output_dir) / f'{name}.png', dpi=dpi, bbox_inches='tight')
+    plt.close(fig)
+    print(f"  Saved {name}.png")
 
 
 def _get_var(irf, var, T_plot):
@@ -70,9 +118,7 @@ def generate_tpi_plots(tpi_results, output_dir):
     axes1.flatten()[0].legend(fontsize=8, frameon=False, loc='upper right')
     fig1.suptitle('Figure 1: TPI — Spread Mitigation under Default Shock (Country D)', fontsize=12, y=1.01)
     fig1.tight_layout()
-    fig1.savefig(output_dir / 'fig_tpi_spread_mitigation.png', dpi=150, bbox_inches='tight')
-    plt.close(fig1)
-    print("  Saved fig_tpi_spread_mitigation.png")
+    _save(fig1, 'fig_tpi_spread_mitigation', output_dir)
 
     # ── Figure 2: Effectiveness ───────────────────────────────────────────────
     fig2, axes2 = plt.subplots(1, 3, figsize=(17, 5))
@@ -108,9 +154,7 @@ def generate_tpi_plots(tpi_results, output_dir):
             ax.axvline(g, color=TPI_COLORS[j], alpha=0.25, linewidth=0.8, linestyle=':')
     fig2.suptitle('Figure 2: TPI — Does It Close the Spread? Effectiveness vs Cost', fontsize=12, y=1.01)
     fig2.tight_layout()
-    fig2.savefig(output_dir / 'fig_tpi_effectiveness.png', dpi=150, bbox_inches='tight')
-    plt.close(fig2)
-    print("  Saved fig_tpi_effectiveness.png")
+    _save(fig2, 'fig_tpi_effectiveness', output_dir)
 
     # ── Figure 3: Welfare & Macro ─────────────────────────────────────────────
     T_plot3 = 60
@@ -130,9 +174,7 @@ def generate_tpi_plots(tpi_results, output_dir):
     axes3.flatten()[0].legend(fontsize=8, frameon=False, loc='lower right')
     fig3.suptitle('Figure 3: TPI — Welfare & Macro Effects under Default Shock (Country D)', fontsize=12, y=1.01)
     fig3.tight_layout()
-    fig3.savefig(output_dir / 'fig_tpi_welfare_macro.png', dpi=150, bbox_inches='tight')
-    plt.close(fig3)
-    print("  Saved fig_tpi_welfare_macro.png")
+    _save(fig3, 'fig_tpi_welfare_macro', output_dir)
 
     # ── Figure 4: Welfare Bar Chart ───────────────────────────────────────────
     x = np.arange(len(gamma_values)); width = 0.35
@@ -167,9 +209,7 @@ def generate_tpi_plots(tpi_results, output_dir):
 
     fig4.suptitle('Figure 4: TPI — Discounted Welfare Comparison', fontsize=12, y=1.01)
     fig4.tight_layout()
-    fig4.savefig(output_dir / 'fig_tpi_welfare_bar.png', dpi=150, bbox_inches='tight')
-    plt.close(fig4)
-    print("  Saved fig_tpi_welfare_bar.png")
+    _save(fig4, 'fig_tpi_welfare_bar', output_dir)
 
     # ── Figure 5: Why the Spread Persists ────────────────────────────────────
     T_plot5  = 50
@@ -231,9 +271,7 @@ def generate_tpi_plots(tpi_results, output_dir):
                   'Default shock in Country D  |  TPI rule: cb_buy_D = γ × spread_rb  (closed-loop)',
                   fontsize=11, y=1.02)
     fig5.tight_layout()
-    fig5.savefig(output_dir / 'fig_tpi_welfare_spread.png', dpi=150, bbox_inches='tight')
-    plt.close(fig5)
-    print("  Saved fig_tpi_welfare_spread.png")
+    _save(fig5, 'fig_tpi_welfare_spread', output_dir)
 
     # ── Figure 6: Bond Prices ─────────────────────────────────────────────────
     T_plot6 = 60
@@ -253,9 +291,7 @@ def generate_tpi_plots(tpi_results, output_dir):
     fig6.suptitle('Figure 6: TPI — Bond Prices under Default Shock\n'
                   'CB purchases compress D-bond yields by raising q_b_D', fontsize=11, y=1.02)
     fig6.tight_layout()
-    fig6.savefig(output_dir / 'fig_tpi_bond_price.png', dpi=150, bbox_inches='tight')
-    plt.close(fig6)
-    print("  Saved fig_tpi_bond_price.png")
+    _save(fig6, 'fig_tpi_bond_price', output_dir)
 
     # ── Figure 7: Household Utility ───────────────────────────────────────────
     T_plot7 = 60
@@ -277,7 +313,103 @@ def generate_tpi_plots(tpi_results, output_dir):
     fig7.suptitle('Figure 7: TPI — Household Utility With vs Without Intervention\n'
                   'Dashed line = no-TPI benchmark (γ = 0)', fontsize=11, y=1.02)
     fig7.tight_layout()
-    fig7.savefig(output_dir / 'fig_tpi_utility.png', dpi=150, bbox_inches='tight')
-    plt.close(fig7)
-    print("  Saved fig_tpi_utility.png")
+    _save(fig7, 'fig_tpi_utility', output_dir)
+
+    # ── Figure 8: The loading schedule (the paper's key figure) ──────────────
+    plot_loading_schedule(tpi_results, output_dir)
+
+    # coverage: every emitted TPI figure must carry a caption
+    emitted = {p.stem for p in output_dir.glob('fig_tpi_*.png')}
+    uncaptioned = emitted - set(CAPTIONS)
+    if uncaptioned:
+        print(f"  WARNING: figures without captions: {sorted(uncaptioned)}")
     print("TPI plots done.")
+
+
+def plot_loading_schedule(tpi_results, output_dir):
+    """Figure 8: insurance loading ℓ(deployment) = premium PV / expected-loss PV.
+
+    Standalone so the figure can be regenerated from the persisted .npz without
+    re-solving the model. Off-path accounting per FRAMING_HANDOFF §2; x-axis is
+    deployment (peak CB holdings, % of annual GDP), not the raw feedback gain.
+    """
+    output_dir  = Path(output_dir)
+    gammas_fine = np.asarray(tpi_results['gammas_fine'])
+    loading_arr = np.asarray(tpi_results['loading_arr'])
+    prem_pv_arr = np.asarray(tpi_results['prem_pv_arr'])
+    el_pv_arr   = np.asarray(tpi_results['el_pv_arr'])
+    expos_arr   = np.asarray(tpi_results['expos_arr'])
+    Y_D_ss      = float(tpi_results['Y_D_ss'])
+    kappa_cb_F  = float(tpi_results['kappa_cb_F'])
+    gamma_values = list(tpi_results['gamma_values'])
+
+    # persist the schedule so the key figure is regenerable without a full solve
+    np.savez(output_dir / 'tpi_loading_schedule.npz',
+             gammas_fine=gammas_fine, loading_arr=loading_arr,
+             prem_pv_arr=prem_pv_arr, el_pv_arr=el_pv_arr, expos_arr=expos_arr,
+             Y_D_ss=Y_D_ss, kappa_cb_F=kappa_cb_F,
+             gamma_values=np.array(gamma_values, dtype=float))
+
+    dep  = 100.0 * expos_arr / (4.0 * Y_D_ss)          # peak holdings, % of annual GDP
+    pctq = lambda a: 100.0 * np.asarray(a) / Y_D_ss    # PV legs, % of quarterly SS GDP
+    m    = np.isfinite(loading_arr) & (dep > 0)
+
+    fig, (axA, axB) = plt.subplots(1, 2, figsize=(13, 5))
+
+    # Panel A — the schedule itself (single series: no legend, title names it)
+    axA.plot(dep[m], loading_arr[m], color=BLUE, linewidth=2)
+    axA.axhline(1.0, color='#888888', linewidth=1.0, linestyle='--')
+    axA.text(dep[m].min(), 1.07, 'actuarially fair  (ℓ = 1)',
+             ha='left', va='bottom', fontsize=8, color='#666666')
+    for j, g in enumerate(gamma_values):
+        if g == 0:
+            continue
+        i = int(np.argmin(np.abs(gammas_fine - g)))
+        axA.scatter(dep[i], loading_arr[i], s=60, zorder=5,
+                    color=BLUE, edgecolors='white', linewidths=1.5)
+        axA.annotate(f'γ={g:g}:  {loading_arr[i]:.2f}×', (dep[i], loading_arr[i]),
+                     textcoords='offset points', xytext=(8, 8), fontsize=8)
+    axA.text(0.98, 0.90, 'timid intervention → high loading\n(SMP-type regime)',
+             transform=axA.transAxes, fontsize=7.5, color='#666666',
+             ha='right', va='top')
+    axA.text(0.98, 0.21, 'at scale → fair insurance\n(PSPP-type regime)',
+             transform=axA.transAxes, fontsize=7.5, color='#666666',
+             ha='right', va='bottom')
+    axA.set_xlabel('Deployment: peak CB holdings of D bonds  (% of annual GDP)', fontsize=9)
+    axA.set_ylabel('Loading  ℓ = premium PV ÷ expected-loss PV', fontsize=9)
+    axA.set_title('The Loading Schedule — Compensation Self-Extinguishes', fontsize=10, pad=6)
+    axA.set_ylim(bottom=0)
+    axA.spines[['top', 'right']].set_visible(False); axA.tick_params(labelsize=8)
+
+    # Panel B — the two legs (identity: colour + linestyle + direct end labels)
+    axB.plot(dep[m], pctq(prem_pv_arr)[m], color=BLUE, linewidth=2,
+             label='Premium income (PV)')
+    axB.plot(dep[m], pctq(el_pv_arr)[m], color=RED, linewidth=2, linestyle='--',
+             label='Expected loss borne (PV)')
+    for arr, col in ((prem_pv_arr, BLUE), (el_pv_arr, RED)):
+        y_end = pctq(arr)[m][-1]
+        axB.annotate(f'{y_end:.3f}%', (dep[m][-1], y_end),
+                     textcoords='offset points', xytext=(4, 0), fontsize=8, color=col)
+    axB.axhline(0, color='#888888', linewidth=0.8, linestyle=':')
+    axB.set_xlabel('Deployment: peak CB holdings of D bonds  (% of annual GDP)', fontsize=9)
+    axB.set_ylabel('PV over 100q, β_F-discounted  (% of quarterly SS GDP)', fontsize=9)
+    _i_pk = int(np.argmax(prem_pv_arr))
+    axB.set_title(f'The Two Legs — Premium Peaks (γ≈{gammas_fine[_i_pk]:.0f}), '
+                  'Tail Keeps Growing', fontsize=10, pad=6)
+    axB.legend(fontsize=8, frameon=False, loc='center right')
+    axB.spines[['top', 'right']].set_visible(False); axB.tick_params(labelsize=8)
+
+    _l0 = loading_arr[m][0]; _l1 = loading_arr[m][-1]
+    fig.suptitle('Figure 8: TPI — Insurance Loading as a Function of Deployment\n'
+                 f'Capital-key conduit (F bears {kappa_cb_F:.1%} of both legs) · '
+                 'off-path accounting, never read off the linear DAG',
+                 fontsize=11, y=1.04)
+    fig.tight_layout()
+    caption = (f"The backstop's compensation self-extinguishes as it deploys: premium "
+               f"income per unit of expected tail loss falls monotonically from "
+               f"{_l0:.1f}× at minimal deployment to {_l1:.1f}× at the top of the grid, "
+               f"toward the fair-insurance limit ℓ=1 — because purchases relieve the "
+               f"constrained marginal holder whose rent generates the premium. "
+               f"Illustrative calibration (1pp default-rate shock, ρ=0.8); the declining "
+               f"shape, not the level, is the model's prediction.")
+    _save(fig, 'fig_tpi_loading_schedule', output_dir, caption=caption)
