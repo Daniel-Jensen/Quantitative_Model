@@ -29,7 +29,9 @@ def test_zero_shock_fixed_point():
 def test_walras_with_moving_debt():
     """An exogenous priced-risk path moves b_gov by construction; the goods-F
     residual must stay at the grid floor because banks absorb the true
-    issuance, and the IC complementarity must hold on the solved path."""
+    issuance, the IC complementarity must hold on the solved path, and the
+    union deposit market must clear with real-rate parity — with the
+    cross-border deposit position (the union absorption margin) ALIVE."""
     cal, ss = get_ss()
     T = cal["T"]
     pi = 0.03 * 0.9 ** np.arange(T)
@@ -39,9 +41,15 @@ def test_walras_with_moving_debt():
     moved = np.max(np.abs(out["b_gov_D"] / cal["B_gov_D_ss"] - 1))
     assert moved > 1e-3, f"debt did not move ({moved:.2e}) — shock inactive?"
     res = transition_residuals(out, cal)
+    # goods_F is THE leak detector for the union integration: an unassigned
+    # RER valuation profit on the interbank position would show up here.
     assert res["goods_F"] < WALRAS_TOL, f"goods_F = {res['goods_F']:.2e}"
     assert res["goods_D"] < 1e-9
-    assert res["dep_D"] < 1e-6 and res["dep_F"] < 1e-6
+    assert res["dep_union"] < 1e-6, f"union clearing = {res['dep_union']:.2e}"
+    assert res["uip"] < 1e-9, f"deposit UIP = {res['uip']:.2e}"
+    # the cross-border deposit position must move (margin alive)
+    assert np.max(np.abs(out["nfa_dep_D"])) > 1e-3, \
+        "cross-border deposit position did not move — union market inactive?"
     # Occasionally-binding IC: both complementarity legs non-negative,
     # product at the numerical floor
     assert res["mu_min_D"] > -1e-9 and res["mu_min_F"] > -1e-9

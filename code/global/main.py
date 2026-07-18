@@ -103,8 +103,13 @@ def print_transition_residuals(out, cal):
     slack_F = np.asarray(out["alpha_F"]) * (np.asarray(out["n_F"]) - np.asarray(out["n_IC_F"]))
     comp_D = np.max(np.abs(np.asarray(out["mu_D"]) * slack_D))
     comp_F = np.max(np.abs(np.asarray(out["mu_F"]) * slack_F))
-    dep_resid_D = np.max(np.abs(out["P_CES_D"] * out["A_D"] - out["Dep_supply_D"]))
-    dep_resid_F = np.max(np.abs(out["P_CES_F"] * out["A_F"] - out["Dep_supply_F"]))
+    # union deposit market: one clearing (D-good units) + real-rate parity
+    dep_union = np.max(np.abs((out["P_CES_D"] * out["A_D"] - out["Dep_supply_D"])
+                              + out["p"] * (out["P_CES_F"] * out["A_F"]
+                                            - out["Dep_supply_F"])))
+    p_next = np.append(out["p"][1:], out["p"][-1])
+    uip = np.max(np.abs((1.0 + out["rdep_D"])
+                        - (1.0 + out["rdep_F"]) * p_next / out["p"]))
     goods_D = np.max(np.abs(out["Y_D"] - out["P_CES_D"] * out["C_D"] - out["I_D"]
                             - out["NX_D"] - cal["G_D"]))
     goods_F = np.max(np.abs(out["Y_F"] - out["P_CES_F"] * out["C_F"] - out["I_F"]
@@ -113,10 +118,12 @@ def print_transition_residuals(out, cal):
           f"  (min mu {out['mu_min_D']:+.2e}, min slack {out['slack_min_D']:+.2e})")
     print(f"  max|mu·slack F| (complementarity) = {comp_F:.2e}"
           f"  (min mu {out['mu_min_F']:+.2e}, min slack {out['slack_min_F']:+.2e})")
-    print(f"  max|deposit resid D|             = {dep_resid_D:.2e}")
-    print(f"  max|deposit resid F|             = {dep_resid_F:.2e}")
+    print(f"  max|union deposit clearing|      = {dep_union:.2e}")
+    print(f"  max|deposit UIP|                 = {uip:.2e}")
     print(f"  max|goods mkt D|                 = {goods_D:.2e}")
     print(f"  max|goods mkt F| [diagnostic]    = {goods_F:.2e}")
+    print(f"  max|NFA deposit position|        = {np.max(np.abs(out['nfa_dep_D'])):.4f}"
+          "  (cross-border margin, 0 pre-union)")
 
 
 def print_risk_table(out, ss, cal):
@@ -170,6 +177,12 @@ def print_risk_table(out, ss, cal):
     print(ck_row("min IC slack D / F",
                  f"{out['slack_min_D']:+.2e}",
                  f"F {out['slack_min_F']:+.2e}; negative = complementarity violated"))
+    print(ck_row("rdep_D − rdep_F [0] (bps ann)",
+                 f"{(out['rdep_D'][0] - out['rdep_F'][0]) * 4e4:+.1f}",
+                 "= p-growth (real-rate parity in the union)"))
+    print(ck_row("NFA deposit position peak",
+                 f"{out['nfa_dep_D'][int(np.argmax(np.abs(out['nfa_dep_D'])))]:+.4f}",
+                 "D claim on union interbank (D-goods)"))
     print(ck_row("[branch] n_D(0)/n_ss",
                  f"{br['n_D'][0]/bk_D['n_ss']:.3f}",
                  f"Y_D(0) dev {(br['Y_D'][0]/fm_D['Y_ss']-1)*100:+.2f}%  (feared default state)"))

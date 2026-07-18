@@ -1,9 +1,12 @@
 # **Two-country nonlinear transition-path solver (7T stacked market clearing).**
 # Unknowns [N_D, N_F, Kap_D, Kap_F, rdep_D, rdep_F, p]; residuals: 2 bank-IC
 # complementarities (occasionally-binding μ, Fischer-Burmeister), 2 labour,
-# 2 deposit, goods-market D (pins p). Goods-market F and the current account
-# are Walras-redundant (monitored, not imposed). Government debt is endogenous
-# inside every residual: bonds priced from marginal conditions, debt forward-
+# UNION deposit clearing + deposit-UIP (real-rate parity — the union market),
+# goods-market D (pins p). Goods-market F and the current account are
+# Walras-redundant (monitored, not imposed). Capital is predetermined
+# (Bocola eq. 6): the stock producing at t was bought at t-1, so impact
+# output moves through hours alone. Government debt is endogenous inside
+# every residual: bonds priced from marginal conditions, debt forward-
 # integrated with the Bohn tax, banks clear against the true end-of-period
 # stock. Only D is default-risky (Bocola): def_price_D = exogenous PRICED
 # default probability path π_t (into Q); def_real_D = REALIZED default.
@@ -254,19 +257,28 @@ def make_residual(spec, verbose=False):
         lab_F_demand = firm_F["w"] / out["P_CES_F"]
         lab_F_resid  = (lab_F_supply - lab_F_demand) / (lab_F_demand + 1e-12)
 
-        # deposits: bank supply is nominal, household A is real → scale by P_CES.
-        # pin_rdep (diagnostic, default off): hold the deposit rate fixed at
-        # (r_D, r_F) and DROP the two deposit-market clearing conditions,
-        # replacing them with rate pins. Nothing then forces household supply =
-        # bank demand, so the un-cleared imbalance leaks into the monitored
+        # UNION deposit market (deposit-UIP integration). Deposits stay
+        # own-good claims at national rates; a frictionless union interbank
+        # equalizes returns, so the two national clearings are replaced by
+        # (i) union-wide clearing in D-good units (the cross-border deposit
+        # position is the new absorption margin) and (ii) real-rate parity
+        # (1+rdep_D,t) = (1+rdep_F,t)·p_{t+1}/p_t — the flexible-price image
+        # of one nominal union rate + national inflation differentials. UIP
+        # makes the interbank pass-through zero-profit → no Walras leak.
+        # pin_rdep (diagnostic, default off): replace BOTH rows with rate
+        # pins; the un-cleared imbalance then leaks into the monitored
         # goods_F / current-account identities (Walras-violating by design).
         pin = cal.get("pin_rdep", None)
         if pin is None:
-            dep_D_resid = (out["P_CES_D"] * out["A_D"] - bk["Dep_supply_D"]) / Kap_D_ss
-            dep_F_resid = (out["P_CES_F"] * out["A_F"] - bk["Dep_supply_F"]) / Kap_F_ss
+            dep_union_resid = ((out["P_CES_D"] * out["A_D"] - bk["Dep_supply_D"])
+                               + p_path * (out["P_CES_F"] * out["A_F"]
+                                           - bk["Dep_supply_F"])
+                               ) / (Kap_D_ss + Kap_F_ss)
+            p_next = np.append(p_path[1:], p_path[-1])   # terminal: p flat
+            uip_resid = (1.0 + rdep_D) - (1.0 + rdep_F) * p_next / p_path
         else:
-            dep_D_resid = rdep_D - pin[0]
-            dep_F_resid = rdep_F - pin[1]
+            dep_union_resid = rdep_D - pin[0]
+            uip_resid = rdep_F - pin[1]
 
         # goods market D (pins p)
         goods_D_resid = (firm_D["Y"] - out["P_CES_D"] * out["C_D"] - out["cap_D"]["I"]
@@ -275,7 +287,7 @@ def make_residual(spec, verbose=False):
         resid = np.concatenate([
             cap_D_resid, cap_F_resid,
             lab_D_resid, lab_F_resid,
-            dep_D_resid, dep_F_resid,
+            dep_union_resid, uip_resid,
             goods_D_resid,
         ])
         if not np.all(np.isfinite(resid)):
@@ -383,9 +395,14 @@ def solve_transition(ss, cal, Z_D_path, Z_F_path,
               f"path (min mu D/F={mu_min_D:+.2e}/{mu_min_F:+.2e}, "
               f"min slack D/F={slack_min_D:+.2e}/{slack_min_F:+.2e}).")
 
+    # cross-border deposit position (union market absorption margin): D
+    # households' net claim on the union interbank, in D-goods; ≡ 0 pre-union
+    nfa_dep_D = (out["P_CES_D"] * out["A_D"] - out["bk"]["Dep_supply_D"])
+
     zeros = np.zeros(T)
     return dict(
         slack_min_D=slack_min_D, slack_min_F=slack_min_F,
+        nfa_dep_D=nfa_dep_D,
         N_D=N_D, N_F=N_F, Kap_D=Kap_D, Kap_F=Kap_F,
         rdep_D=rdep_D, rdep_F=rdep_F, p=p_path,
         Z_D=Z_D_path, Z_F=Z_F_path,

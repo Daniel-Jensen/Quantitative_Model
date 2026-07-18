@@ -230,10 +230,17 @@ def solve_steady_state(cal, verbose=True):
         return val, (c_ss_F, a_pol_F, D_ss_F, A_ss_F, y_e_F)
 
     beta_upper_D = 1 / (1 + rdep_D_tgt) - 1e-4   # keep rdep positive
-    beta_upper_F = 1 / (1 + rdep_F_tgt) - 1e-4
 
     beta_D_ss = brentq(lambda b: deposit_resid_D(b)[0], 0.5, beta_upper_D, xtol=1e-11)
-    beta_F_ss = brentq(lambda b: deposit_resid_F(b)[0], 0.5, beta_upper_F, xtol=1e-11)
+    # UNION deposit market: the symmetric-SS doctrine pins beta_F = beta_D
+    # (at a symmetric SS the union clearing coincides with each national
+    # market and the cross-border deposit position is zero). An asymmetric
+    # SS would need the union clearing + a portfolio-split condition instead.
+    beta_F_ss = beta_D_ss
+    resid_F_chk, _ = deposit_resid_F(beta_F_ss)
+    assert abs(resid_F_chk) < 5e-6, (
+        f"F deposit market off by {resid_F_chk:.2e} at beta_D — asymmetric "
+        "SS? (union stage-2 requires a symmetric SS)")
 
     # re-solve at tight tolerance for accurate policies
     _, (c_D_ss, a_pol_D_ss, D_D_ss, A_D_ss, y_e_D) = deposit_resid_D(beta_D_ss, tol=cal["tol_hh"])

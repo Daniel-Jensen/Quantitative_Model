@@ -41,13 +41,18 @@ def transition_residuals(out, cal):
                             - out["NX_D"] - cal["G_D"]))
     goods_F = np.max(np.abs(out["Y_F"] - out["P_CES_F"] * out["C_F"] - out["I_F"]
                             - out["NX_F"] - cal["G_F"]))
-    dep_D = np.max(np.abs(out["P_CES_D"] * out["A_D"] - out["Dep_supply_D"]))
-    dep_F = np.max(np.abs(out["P_CES_F"] * out["A_F"] - out["Dep_supply_F"]))
+    # union deposit market: one clearing (D-good units) + real-rate parity
+    dep_union = np.max(np.abs((out["P_CES_D"] * out["A_D"] - out["Dep_supply_D"])
+                              + out["p"] * (out["P_CES_F"] * out["A_F"]
+                                            - out["Dep_supply_F"])))
+    p_next = np.append(np.asarray(out["p"])[1:], np.asarray(out["p"])[-1])
+    uip = np.max(np.abs((1.0 + np.asarray(out["rdep_D"]))
+                        - (1.0 + np.asarray(out["rdep_F"])) * p_next / out["p"]))
     slack_D = np.asarray(out["alpha_D"]) * (np.asarray(out["n_D"]) - np.asarray(out["n_IC_D"]))
     slack_F = np.asarray(out["alpha_F"]) * (np.asarray(out["n_F"]) - np.asarray(out["n_IC_F"]))
     cap_D = np.max(np.abs(np.asarray(out["mu_D"]) * slack_D))
     cap_F = np.max(np.abs(np.asarray(out["mu_F"]) * slack_F))
-    return dict(goods_D=goods_D, goods_F=goods_F, dep_D=dep_D, dep_F=dep_F,
+    return dict(goods_D=goods_D, goods_F=goods_F, dep_union=dep_union, uip=uip,
                 cap_D=cap_D, cap_F=cap_F,
                 slack_min_D=float(np.min(slack_D)), slack_min_F=float(np.min(slack_F)),
                 mu_min_D=float(np.min(out["mu_D"])), mu_min_F=float(np.min(out["mu_F"])))

@@ -47,7 +47,7 @@ exact pure-numpy fallback (`cal["use_numba"]`; equivalence is tested).
 | `steady_state.py` | Two-stage SS solve: {rk_D, rk_F, p} on capital markets + current account, then {β_D, β_F} on deposit markets. Symmetric SS required (see docstring). |
 | `bank.py` | GK/Bocola bank block. `bank_backward` (α, μ, bond prices, cross-border FOC holdings), `bank_forward` (net worth, dividends, deposit supply; portfolio shares on ACTUAL net worth). PRICED (`def_price_D`) vs REALIZED (`def_real_D`) default split; only D is risky, F bonds are safe. |
 | `government.py` | HM perpetuity bonds, Bohn rule. `govt_transition` forward-integrates the debt stock in one pass. Default risk is exogenous (no crisis zones). |
-| `transition.py` | 7T stacked system. IC is OCCASIONALLY BINDING: the capital-market block imposes the Fischer-Burmeister complementarity 0 ≤ μ ⊥ slack ≥ 0 (slack = αn − λ·assets); μ from the capital FOC is valid in both regimes. Debt is endogenous inside every residual call; banks clear bonds against the true end-of-period stock (`b_D_D = b_gov_eop − b_D_F`). `make_residual` builds the residual from a picklable spec (shared with Jacobian workers). Supports mid-crisis initial conditions (`init=`) for default branches and policy runs. |
+| `transition.py` | 7T stacked system: 2 FB complementarities, 2 labour, UNION deposit clearing + deposit-UIP, goods-D. IC is OCCASIONALLY BINDING: the capital-market block imposes the Fischer-Burmeister complementarity 0 ≤ μ ⊥ slack ≥ 0 (slack = αn − λ·assets); μ from the capital FOC is valid in both regimes. Capital is PREDETERMINED (Bocola eq. 6): the production stock at t is Kap[t−1] (impact output moves through hours alone). Debt is endogenous inside every residual call; banks clear bonds against the true end-of-period stock (`b_D_D = b_gov_eop − b_D_F`). `make_residual` builds the residual from a picklable spec (shared with Jacobian workers). Supports mid-crisis initial conditions (`init=`) for default branches and policy runs. |
 | `solvers.py` | Parallel FD Jacobian + damped Newton with Broyden updates, stall-triggered rebuilds, and cross-solve Jacobian reuse (`jac_cache`). |
 | `fast_kernels.py` | numba kernels for EGM backward + distribution forward; exact numpy fallback when numba is absent (`cal["use_numba"]`). |
 | `risk_branch.py` | **Bocola risk channel**: representative post-default branch — ONE deterministic solve of the PURE-HAIRCUT feared event (def_real_D[0]=1, recovery 0.45 = Greek PSI). Diagnostic flags off at baseline: `def_output_cost_D`, `def_capital_quality_D`, `recap_share_D`. Two-branch risk inputs for `bank_backward`, `solve_transition_risk` outer loop (base ↔ branch fixed point at exogenous π), and `bond_decomposition` (default comp. + risk premium + liquidity premium, exact identity). |
@@ -124,6 +124,22 @@ python3 tests/test_risk_channel.py           # risk-channel nesting/identity/sig
   regression-tested.
 - **Predetermined deposit rate:** the rate paid at t was locked at t−1
   throughout (bank funding legs, household EGM returns, μ timing).
+- **Predetermined capital (Bocola eq. 6):** the stock producing at t was
+  bought at t−1 (`Kap_prod[t] = Kap[t−1]`); mpk is the marginal product of
+  the bank-held vintage, so impact output moves through hours alone. The
+  old contemporaneous timing let the sovereign-risk investment boom raise
+  Y_0 directly — reverting it re-opens the comovement problem.
+- **Union deposit market (deposit-UIP):** deposits are own-good claims at
+  national rates; a frictionless union interbank replaces the two national
+  clearings with ONE union-wide clearing (D-good units) plus real-rate
+  parity (1+rdep_D) = (1+rdep_F)·p′/p — the flexible-price image of one
+  nominal union rate + national inflation differentials (BKK/Baxter-Crucini
+  single-traded-bond margin). UIP makes the interbank pass-through
+  zero-profit → no Walras leak; the cross-border deposit position
+  (`out["nfa_dep_D"]`) is the absorption margin that broke the national
+  S=I trap (the M1 comovement mechanism). A literal rdep_D=rdep_F with
+  own-good legs is WRONG (unassigned RER valuation profit → Walras leak).
+  Stage-2 SS imposes β_F = β_D (symmetric-SS doctrine).
 - **Hatchondo-Martinez perpetuity:** stock decays at rate 1−δ_b; duration
   ≈ 1/δ_b quarters (0.036 ⇒ ~7y). Long duration is what makes priced risk
   generate large MTM losses — an interlude with δ_b=0.25/recovery=0.80 cut
@@ -151,12 +167,12 @@ python3 tests/test_risk_channel.py           # risk-channel nesting/identity/sig
 
 ## Known limitations (documented, next thesis phases)
 
-- Flexible prices, no union-wide nominal rate: the deposit-rate collapse
-  (M1) still finances an impact investment boom that can cushion risk-on
-  bank net worth and turn post-impact Y_D mildly positive (Bocola's
-  "comovement problem", his §V.C). Remaining dials: integrated union
-  deposit market (rdep_D = rdep_F; kills M1, enables a model-consistent
-  branch SDF), NK/union block (needed for the TPI application).
+- Comovement problem RESOLVED (2026-07-18): predetermined capital + the
+  union deposit market restored the impact contraction at the headline
+  shock (Y_D[0] and I_D[0] both negative at π = 1%·0.95^t). Remaining
+  next-phase dial: NK/union nominal block (needed for the TPI
+  application); real interest parity currently plays the role of the
+  single policy rate.
 - Risk channel approximations: single representative default branch,
   Λ^nd ≡ beta_inter, rep-agent income-SDF proxy for Λ^d, household-side
   π-blindness (the deposit Euler never weights the default branch —
