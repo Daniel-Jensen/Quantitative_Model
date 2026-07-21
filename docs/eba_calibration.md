@@ -55,26 +55,39 @@ With `psi_lambda_B` rescaled **3.0 → 0.31** (doom-loop amplification ~ `psi·p
   `phi_lamb` reduces the amplitude (`K_D[499]` 9.5→3.4 as `phi_lamb` 0.3→0.6) but not
   the root.
 
-### Open issue: fixed-`omega_K` over-couples K to bank net worth
+### Open issue: the EBA sovereign doom loop is intrinsically explosive here
 
-With `omega_K` a **fixed parameter**, `k_balance_sheet` pins total capital
-`K = (θ·N − bonds)/(omega_K·Q)`, so `K` is levered `1/omega_K ≈ 16–67×` on the bank's
-thin net worth — any `N`/bond fluctuation is amplified into `K` and mildly explodes.
-Economically, the passive fund holds a *fixed share* with no downward-sloping capital
-demand; an unconstrained fund earning `rk−rdep` would arbitrage without a friction
-(the Gertler-Karadi rationale for why only constrained banks hold capital).
+Full stationarity is **not** achieved. `phi_lamb` (fiscal feedback) damps the amplitude
+(`K_D[499]` 9.5→3.4 as `phi_lamb` 0.3→0.6) but leaves a residual ~1.2%/period explosive
+root. Two capital-structure variants were tested; **neither** removes the root:
 
-**Candidate fixes (decision pending):**
-1. **Microfound the fund** — households/fund hold `(1-omega_K)K` subject to a management
-   cost (Gertler-Karadi-Prestipino), giving a downward-sloping capital demand so `K` is
-   pinned by the real block, not by `1/omega_K`. Cleanest; real equation work.
-2. **Endogenous `omega_K`** — make `omega_K` an unknown pinned by `k_balance_sheet`, with
-   `K` pinned by capital accumulation + Q Euler. Decouples `K` from the amplification but
-   needs the SSJ unknown/target rebalance to be well-posed.
-3. **Reduced-form + accept** — keep fixed `omega_K`, treat the slow root as a truncation
-   artifact and report bounded-horizon IRFs only. Weakest.
-4. **Relax the 2.39× target** — a smaller sovereign/capital ratio needs less-thin capital
-   and less-extreme `omega_K` (revisits the user's cross-holding-faithfulness choice).
+- **Fixed `omega_K`** (bank holds `omega_K·K`): `K = (θN−bonds)/(omega_K·Q)` levers `K`
+  `1/omega_K≈16–67×` on thin net worth. *Least unstable of the two* (default-shock
+  `b_gov[499]=0.17` at `phi_lamb=0.6`). **This is the current committed state.**
+- **Endogenous `omega_K` = fixed fund quantity** (bank holds `Kbank=K−Kfund_ss`): tested
+  (commit history) and made it **worse** (`b_gov[499]=79.5`). `Kbank=0.65` is a small
+  difference of large numbers (`10.8−10.15`), so it becomes hyper-sensitive to `K` and
+  `kappa=Kbank·Q/N` inherits it. Reverted.
+
+**Conclusion:** the instability is not the capital plumbing — it is the **strong EBA
+sovereign doom loop itself** (`phi_bD_D=2.39`: Greek banks held 2.39× their capital in
+Greek debt). Both variants are correctly signed (spread↑, `q_b`↓, net worth↓ on default)
+and Walras-clean; both mildly explode.
+
+**This is arguably economically meaningful, not just a nuisance:** a self-reinforcing,
+(locally) explosive doom loop is *precisely the condition a backstop is meant to
+neutralise*. The natural next step — feeding the measured **SMP purchase path through the
+TPI conduit (phase 2)** — is the candidate stabiliser, and the instability strengthens
+that narrative rather than undercutting it.
+
+**Options for the author:**
+1. **Proceed to phase 2 (SMP conduit)** and test whether the backstop restores
+   stationarity — the intended paper mechanism. *Recommended.*
+2. **Microfound the fund** (Gertler-Karadi-Prestipino management cost) for a downward-
+   sloping capital demand — the rigorous fix, real equation work.
+3. **Relax the 2.39× target** toward a value where the baseline is stationary — revisits
+   the "faithful to EBA" cross-holding choice.
+4. **Report bounded-horizon IRFs** where signs are correct and Walras holds (weakest).
 
 ## Reproduce
 
