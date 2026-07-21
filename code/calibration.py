@@ -36,17 +36,31 @@ def get_calibration():
         'lambda_BD_D':  0.06,    'lambda_BF_F':  0.06,
         'lambda_BF_D':  0.06,    'lambda_BD_F':  0.06,
         'psi_lambda_B_D': 3.0,   'psi_lambda_B_F': 3.0,
-        'n_inter_D':    0.75*4,  'n_inter_F':    0.75*4,
+        # EBA 2011 (31 Dec 2010): CT1 / quarterly own-GDP. GR 22,778/55,898=0.408;
+        # DE 114,317/653,815=0.175. (was 0.75*4=3.0 each — overstated bank equity ~7x.)
+        'n_inter_D':    0.408,   'n_inter_F':    0.175,
         'theta_D':      4,       'theta_F':      4,
+        # Bank capital-intermediation share: banks hold omega_K of the physical
+        # capital stock; the residual (1-omega_K)K is held by a passive, deposit-
+        # funded capital fund whose spread (rk-rdep) is rebated to households
+        # (div_fund). omega_K=1 recovers the original all-capital-in-banks model.
+        # Set to preserve K≈10.8 (K/annualY≈2.7) against EBA-thin net worth:
+        # omega_K = n·(theta - phi_own - phi_cross)/(Q·K_target). Recomputed exactly
+        # in steady_state.py. SS-neutral at omega_K=1 (div_fund=0). See docs/eba_calibration.md.
+        'omega_K_D':    0.0602,  'omega_K_F':    0.0190,
 
         # ── Bellman nu risk-discount ───────────────────────────────────────────
         'psi_nu_bD_D':  0.0,     'psi_nu_bD_F':  0.0,
         'psi_nu_bF_D':  0.0,     'psi_nu_bF_F':  0.0,
 
         # ── Fiscal & Government Debt ──────────────────────────────────────────
-        'B_supply_D':   0.6*4,   'B_supply_F':   0.6*4,
-        'b_gov_D':      0.6*4,   'b_gov_F':      0.6*4,
-        'b_gov_ss_D':   0.6*4,   'b_gov_ss_F':   0.6*4,
+        # Bank-held government debt (decision b1): GR+DE banks held 62.4bn GR / 323bn DE
+        # of sovereign (27.9% / 12.1% of annual own GDP). This is the bank-channel debt,
+        # NOT headline debt/GDP (~170% GR) — the non-bank/ECB residual enters via SMP
+        # (phase 2). B_supply_D = b_D_D + b_D_F ≈ 1.19; B_supply_F ≈ 0.591 (quarterly).
+        'B_supply_D':   1.19,    'B_supply_F':   0.591,
+        'b_gov_D':      1.19,    'b_gov_F':      0.591,
+        'b_gov_ss_D':   1.19,    'b_gov_ss_F':   0.591,
 
         # ── Fiscal Rule ───────────────────────────────────────────────────────
         'tau_D':        0.181,   'tau_F':        0.181,
@@ -95,7 +109,10 @@ def get_calibration():
         'p':                0.50,
 
         # ── Cross-Border Bond Portfolio ───────────────────────────────────────
-        'phi_bF_D_ss':  0.25,    'phi_bD_F_ss':  0.25,
+        # EBA 2011 cross-holdings / capital: GR banks' Bund 411/22,778=0.018;
+        # DE banks' GR 7,934/114,317=0.069 (was 0.25 each — overstated the direct
+        # cross-border channel ~10-30x). Own-holdings set in steady_state.py.
+        'phi_bF_D_ss':  0.018,   'phi_bD_F_ss':  0.069,
         'psi_bF_D':     0.5,     'psi_bD_F':     0.5,
 
         # ── Wage Markups ──────────────────────────────────────────────────────

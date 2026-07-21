@@ -6,7 +6,7 @@ from sequence_jacobian import simple, combine
 
 from equations_D import (
     capital_adj_D, labor_D, labor_market_D, labor_demand_D,
-    intermediation_IC_D, bank_return_D, intermediation_P1_D,
+    intermediation_IC_D, bank_return_D, capital_fund_D, intermediation_P1_D,
     k_balance_sheet_D, cap_adj_cost_inter_D, macro_pru_tax_D,
     intermediation_P2_D, banker_div_res_D, intermediation_P3_D,
     government_default_D, divert_bond_foc_D,
@@ -17,7 +17,7 @@ from equations_D import (
 )
 from equations_F import (
     capital_adj_F, labor_F, labor_market_F, labor_demand_F,
-    intermediation_IC_F, bank_return_F, intermediation_P1_F,
+    intermediation_IC_F, bank_return_F, capital_fund_F, intermediation_P1_F,
     k_balance_sheet_F, cap_adj_cost_inter_F, macro_pru_tax_F,
     intermediation_P2_F, banker_div_res_F, intermediation_P3_F,
     government_default_F, divert_bond_foc_F,
@@ -70,7 +70,7 @@ def build_and_solve(ss_results):
         # Country D
         deposit_return_D, tax_rule_D, hh_extended_D, ghh_composite_D,
         sdf_D, sdf_banker_D, government_default_D, financial_solved_D,
-        bond_return_D, bank_return_D, cap_adj_cost_inter_D, macro_pru_tax_D,
+        bond_return_D, bank_return_D, capital_fund_D, cap_adj_cost_inter_D, macro_pru_tax_D,
         intermediation_P2_D, intermediation_P3_D, k_balance_sheet_D,
         capital_adj_D, capital_producer_profit_D, budget_residual_D,
         labor_D, labor_market_D, labor_demand_D, banker_div_res_D,
@@ -78,7 +78,7 @@ def build_and_solve(ss_results):
         # Country F
         deposit_return_F, tax_rule_F, hh_extended_F, ghh_composite_F,
         sdf_F, sdf_banker_F, government_default_F, financial_solved_F,
-        bond_return_F, bank_return_F, cap_adj_cost_inter_F, macro_pru_tax_F,
+        bond_return_F, bank_return_F, capital_fund_F, cap_adj_cost_inter_F, macro_pru_tax_F,
         intermediation_P2_F, intermediation_P3_F, k_balance_sheet_F,
         capital_adj_F, capital_producer_profit_F, budget_residual_F,
         labor_F, labor_market_F, labor_demand_F, banker_div_res_F,

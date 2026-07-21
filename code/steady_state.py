@@ -151,12 +151,15 @@ def solve_steady_state(calibration_start):
     }.items():
         ss.toplevel[k] = v
 
-    # ── Portfolio share targeting ─────────────────────────────────────────────
-    print("Targeting portfolio shares...")
-    target_phi_bD_D = 0.25
-    target_phi_bF_D = 0.15
-    target_phi_bD_F = 0.15
-    target_phi_bF_F = 0.25
+    # ── Portfolio share targeting (EBA 2011, 31 Dec 2010) ─────────────────────
+    # phi = q·(sovereign book) / (bank net worth). Own-holdings are the doom-loop
+    # vulnerability (GR banks held 2.39x, DE banks 2.76x their capital in own debt);
+    # cross-holdings are the thin direct contagion channel (0.018 / 0.069).
+    print("Targeting portfolio shares (EBA 2011)...")
+    target_phi_bD_D = 2.390    # GR banks' Greek book / capital
+    target_phi_bF_D = 0.018    # GR banks' Bund  / capital (cross)
+    target_phi_bD_F = 0.069    # DE banks' Greek book / capital (cross, contagion)
+    target_phi_bF_F = 2.760    # DE banks' Bund  / capital
 
     n_D  = float(ss['n_inter_D'])
     n_F  = float(ss['n_inter_F']) * float(ss['p'])
@@ -170,14 +173,26 @@ def solve_steady_state(calibration_start):
     B_D_new   = b_D_D_new + b_D_F_new
     B_F_new   = b_F_D_new + b_F_F_new
 
-    print(f"  D-bank: phi_bD_D = {target_phi_bD_D:.3f}  phi_bF_D = {target_phi_bF_D:.3f}")
-    print(f"  F-bank: phi_bD_F = {target_phi_bD_F:.3f}  phi_bF_F = {target_phi_bF_F:.3f}")
+    # omega_K to preserve a sensible capital stock K_target against thin net worth:
+    #   omega_K·Q·K = theta·N - bonds  ⇒  omega_K = N·(theta - phi_own - phi_cross)/(Q·K_target)
+    K_target_D = 10.8; K_target_F = 10.8
+    theta_D = float(calibration_start['theta_D']); theta_F = float(calibration_start['theta_F'])
+    Q_D = float(ss['Q_D']); Q_F = float(ss['Q_F'])
+    n_inter_F_raw = float(ss['n_inter_F'])
+    omega_K_D_new = n_D * (theta_D - target_phi_bD_D - target_phi_bF_D) / (Q_D * K_target_D)
+    omega_K_F_new = n_inter_F_raw * (theta_F - target_phi_bF_F - target_phi_bD_F) / (Q_F * K_target_F)
+
+    print(f"  D-bank: phi_bD_D = {target_phi_bD_D:.3f}  phi_bF_D = {target_phi_bF_D:.3f}"
+          f"  omega_K_D = {omega_K_D_new:.4f}")
+    print(f"  F-bank: phi_bD_F = {target_phi_bD_F:.3f}  phi_bF_F = {target_phi_bF_F:.3f}"
+          f"  omega_K_F = {omega_K_F_new:.4f}")
 
     calibration_start.update({
         'b_D_D': b_D_D_new, 'b_F_D': b_F_D_new,
         'b_D_F': b_D_F_new, 'b_F_F': b_F_F_new,
         'b_F_D_anchor': b_F_D_new, 'b_D_F_anchor': b_D_F_new,
         'phi_bF_D_ss': target_phi_bF_D,
+        'omega_K_D': omega_K_D_new, 'omega_K_F': omega_K_F_new,
         'B_supply_D': B_D_new, 'b_gov_D': B_D_new, 'b_gov_ss_D': B_D_new,
         'B_supply_F': B_F_new, 'b_gov_F': B_F_new, 'b_gov_ss_F': B_F_new,
     })

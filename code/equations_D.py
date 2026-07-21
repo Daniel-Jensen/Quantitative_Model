@@ -61,8 +61,9 @@ def make_grids_D(Depmax_D, nDep_D, nZ_D, rho_z_D, sigma_z_D):
     return dep_D_grid, e_grid_D, Pi_D
 
 
-def income_D(e_grid_D, w_D, N_D, div_D, tau_D, lamb_D, P_CES_D, T_ls_D):
-    y_pre_D  = (w_D * N_D * e_grid_D + div_D) / P_CES_D
+def income_D(e_grid_D, w_D, N_D, div_D, div_fund_D, tau_D, lamb_D, P_CES_D, T_ls_D):
+    # div_fund_D: rebate from the passive capital fund (zero when omega_K_D=1).
+    y_pre_D  = (w_D * N_D * e_grid_D + div_D + div_fund_D) / P_CES_D
     z_D      = lamb_D * (y_pre_D ** (1 - tau_D)) - T_ls_D
     t_paid_D = y_pre_D - z_D
     return z_D, t_paid_D
@@ -88,11 +89,14 @@ def deposit_return_D(rdep_D, P_CES_D):
 @simple
 def smart_steady_D(theta_D, Y_D, n_inter_D, rdep_D, alpha_D, delta_D, f_D, N_D,
                    rb_actual_D, rb_actual_F, b_D_D, b_F_D, Q_D, q_b_D, q_b_F,
-                   chi0_D, chi1_D, chi2_D, T0_D, T1_D, def_rate_D):
-    K_D          = (theta_D * n_inter_D - q_b_D * b_D_D - q_b_F * b_F_D) / Q_D
+                   chi0_D, chi1_D, chi2_D, T0_D, T1_D, def_rate_D, omega_K_D):
+    # Bank holds omega_K_D of the capital stock: omega_K·Q·K + bonds = theta·N,
+    # so total capital K = (theta·N - bonds)/(omega_K·Q). At omega_K=1 this is the
+    # original all-capital-in-banks balance sheet.
+    K_D          = (theta_D * n_inter_D - q_b_D * b_D_D - q_b_F * b_F_D) / (omega_K_D * Q_D)
     phi_bD_D     = q_b_D * b_D_D / n_inter_D
     phi_bF_D     = q_b_F * b_F_D / n_inter_D
-    kappa_D      = theta_D - phi_bD_D - phi_bF_D
+    kappa_D      = theta_D - phi_bD_D - phi_bF_D   # = omega_K·Q·K/N (bank capital share)
     rk_D         = alpha_D * Y_D / K_D - delta_D
     arg_D        = -rk_D * K_D / (K_D + chi0_D)
     Phi_D        = (chi1_D / chi2_D) * (arg_D ** 2) ** (chi2_D / 2) * (K_D + chi0_D)
@@ -110,10 +114,14 @@ def smart_steady_D(theta_D, Y_D, n_inter_D, rdep_D, alpha_D, delta_D, f_D, N_D,
     m_D          = n_inter_D * (1 - (1 - f_D) * (1 + rn_D))
     k_inter_D    = K_D
     I_D          = K_D * delta_D
-    D_supply_D   = (theta_D - 1) * n_inter_D
+    # Total deposits (bank + passive capital fund) = Q·K + bonds - N. At omega_K=1
+    # this collapses to (theta-1)·N. The fund funds (1-omega_K)·Q·K with deposits.
+    D_supply_D   = Q_D * K_D + q_b_D * b_D_D + q_b_F * b_F_D - n_inter_D
+    # Capital fund's rebate to households: spread (rk - rdep) on its (1-omega_K)·Q·K.
+    div_fund_D   = (rk_D - rdep_D) * Q_D * (1.0 - omega_K_D) * K_D
     Z_D          = Y_D / ((K_D ** alpha_D) * (N_D ** (1 - alpha_D)))
     cap_profit_D = Q_D * (K_D - (1 - delta_D) * K_D(-1)) - I_D
-    return K_D, rk_D, rn_D, m_D, k_inter_D, I_D, D_supply_D, Z_D, cap_profit_D, Phi_D, T_D
+    return K_D, rk_D, rn_D, m_D, k_inter_D, I_D, D_supply_D, Z_D, cap_profit_D, Phi_D, T_D, div_fund_D
 
 @simple
 def market_clearing_D(Y_D, C_D, I_D, G_D, NX_D, DEP_D, D_supply_D, P_CES_D, Phi_D, T_D):
@@ -270,8 +278,8 @@ def labor_demand_D(w_D, Y_D, N_D, alpha_D):
 def intermediation_IC_D(nu_K_D, nu_bD_D, nu_bF_D, eta_D,
                         Q_D, K_D, q_b_D, q_b_F, b_D_D, b_F_D, n_inter_D,
                         lambda_gk_D, Delta_bD_D, Delta_bF_D, theta_D,
-                        def_rate_D,def_rate_F, psi_lambda_B_D):
-    kappa_D      = Q_D   * K_D   / n_inter_D
+                        def_rate_D,def_rate_F, psi_lambda_B_D, omega_K_D):
+    kappa_D      = omega_K_D * Q_D * K_D / n_inter_D   # bank holds omega_K of K
     phi_bD_D     = q_b_D * b_D_D / n_inter_D
     phi_bF_D     = q_b_F * b_F_D / n_inter_D
     # GK multi-asset IC: franchise value = lambda_gk·(divertable assets), where each
@@ -304,6 +312,15 @@ def bank_return_D(theta_D, rk_D, rdep_D, b_D_D, b_F_D, n_inter_D,
 
 
 @simple
+def capital_fund_D(rk_D, rdep_D, Q_D, K_D, omega_K_D):
+    # Passive capital fund holds (1-omega_K)·K funded by deposits; rebates its spread
+    # (rk - rdep) on the lagged capital value to households. Same predetermined-rate
+    # timing as bank_return_D (T-2). Zero when omega_K_D=1.
+    div_fund_D = (rk_D - rdep_D(-1)) * Q_D(-1) * (1.0 - omega_K_D) * K_D(-1)
+    return div_fund_D
+
+
+@simple
 def intermediation_P1_D(rk_D, rb_actual_D, rb_actual_F, rdep_D,
                         nu_K_D, nu_bD_D, nu_bF_D, eta_D,
                         lambda_gk_D, theta_D, SDF_banker_D, f_D):
@@ -317,8 +334,9 @@ def intermediation_P1_D(rk_D, rb_actual_D, rb_actual_F, rdep_D,
 
 
 @simple
-def k_balance_sheet_D(Q_D, theta_D, n_inter_D, K_D, b_D_D, b_F_D, q_b_D, q_b_F):
-    K_res_D = Q_D * K_D + q_b_D * b_D_D + q_b_F * b_F_D - theta_D * n_inter_D
+def k_balance_sheet_D(Q_D, theta_D, n_inter_D, K_D, b_D_D, b_F_D, q_b_D, q_b_F, omega_K_D):
+    # Bank holds omega_K_D of the capital stock: omega_K·Q·K + bonds = theta·N.
+    K_res_D = omega_K_D * Q_D * K_D + q_b_D * b_D_D + q_b_F * b_F_D - theta_D * n_inter_D
     return K_res_D
 
 
