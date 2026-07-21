@@ -35,7 +35,11 @@ def get_calibration():
         'Delta_bF_D':   0.4,     'Delta_bD_F':   0.4,
         'lambda_BD_D':  0.06,    'lambda_BF_F':  0.06,
         'lambda_BF_D':  0.06,    'lambda_BD_F':  0.06,
-        'psi_lambda_B_D': 3.0,   'psi_lambda_B_F': 3.0,
+        # Collateral-friction doom-loop sensitivity. Amplification ~ psi_lambda_B * phi_own.
+        # With EBA phi_bD_D=2.39 (~10x the old 0.25), psi must fall ~10x (0.75/2.39≈0.31)
+        # to keep comparable amplification AND keep Delta_eff = Delta + psi*def_rate below 1
+        # (Delta_own back-solves to ~0.99; psi=3.0 makes def shocks cross 1 -> sign inversion).
+        'psi_lambda_B_D': 0.31,  'psi_lambda_B_F': 0.31,
         # EBA 2011 (31 Dec 2010): CT1 / quarterly own-GDP. GR 22,778/55,898=0.408;
         # DE 114,317/653,815=0.175. (was 0.75*4=3.0 each — overstated bank equity ~7x.)
         'n_inter_D':    0.408,   'n_inter_F':    0.175,
@@ -68,11 +72,16 @@ def get_calibration():
         'lamb_ss_D':    0.85,    'lamb_ss_F':    0.85,
         # phi_lamb raised from 0.02 after T-2 fix: deposit re-dating makes the
         # debt→spread spiral live; phi_lamb < ~0.12 is explosive at current amplification.
-        'phi_lamb_D':   0.15,    'phi_lamb_F':   0.15,
+        # EBA sovereign exposure (phi_bD_D=2.39) massively amplifies the doom loop,
+        # so the fiscal feedback must be stronger than the old 0.15 (F-1). Raised to
+        # 0.30; market-value rule (mv_rule=1) on to restore stationarity.
+        'phi_lamb_D':   0.60,    'phi_lamb_F':   0.60,
         # Fiscal-rule debt measure: 0 = par/face value (default), 1 = market value
         # (q_b·b_gov(-1)). mv_gov_ss is recomputed exactly from the solved SS in
         # build_and_solve; these are placeholders (unused when mv_rule=0).
-        'mv_rule_D':    0.0,     'mv_rule_F':    0.0,
+        # mv_rule=1 (F-1 fix): market-value rule restores stationarity under the
+        # high EBA sovereign exposure. writeoff stays OFF (risk-premium framing).
+        'mv_rule_D':    1.0,     'mv_rule_F':    1.0,
         'mv_gov_ss_D':  0.6*4,   'mv_gov_ss_F':  0.6*4,
 
         # ── Sovereign Default ─────────────────────────────────────────────────
