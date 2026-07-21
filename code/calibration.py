@@ -43,6 +43,11 @@ def get_calibration():
         # EBA 2011 (31 Dec 2010): CT1 / quarterly own-GDP. GR 22,778/55,898=0.408;
         # DE 114,317/653,815=0.175. (was 0.75*4=3.0 each — overstated bank equity ~7x.)
         'n_inter_D':    0.408,   'n_inter_F':    0.175,
+        # NOTE: EBA total-asset leverage (GR 16.56, DE 42.62) is NOT usable as theta.
+        # theta multiplies only the GK book (capital + sovereign), whereas EBA total
+        # assets include low-yield loans/reserves. theta=16.56 on the model's fixed
+        # rk-rdep=0.74% spread implies ~52% annual banker ROE and the SS does not
+        # converge (verified). theta stays at the GK-book value.
         'theta_D':      4,       'theta_F':      4,
         # Bank capital-intermediation share: banks hold omega_K of the physical
         # capital stock; the residual (1-omega_K)K is held by a passive, deposit-

@@ -55,6 +55,43 @@ With `psi_lambda_B` rescaled **3.0 → 0.31** (doom-loop amplification ~ `psi·p
   `phi_lamb` reduces the amplitude (`K_D[499]` 9.5→3.4 as `phi_lamb` 0.3→0.6) but not
   the root.
 
+### Why C-1 forces `Delta→1` (analytical; explains the collateral flip)
+
+C-1 is **not** a calibration input — it is an artifact of an inconsistency between the SS
+and dynamic blocks. `steady_auxilliary` builds `lambda_gk` from the *single-asset* GK
+formula (`lambda_gk = f/(θ·(1/(β_inter(1+rn)) − (1−f)))`), which forces the identity
+`value/lambda_gk = θ`. The *dynamic* IC is multi-asset with divertability weights `Delta`.
+Substituting the identity into `ic_delta_calibration._ic_delta` collapses the back-solve to
+a function of the portfolio ratio alone:
+
+```
+Delta_own = (phi_own + phi_cross) / (phi_own + ratio·phi_cross)        [ratio = 2.0, hardcoded]
+```
+
+Verified exactly against all three observed cases:
+
+| case | phi_own | phi_cross | predicted `Delta_cross` | observed |
+|---|---|---|---|---|
+| baseline (pre-EBA) | 0.250 | 0.150 | 1.4545 | **1.45** (C-1 in CLAUDE.md) |
+| EBA D-bank | 2.390 | 0.018 | 1.9852 | **1.9852** |
+| EBA F-bank | 2.760 | 0.069 | 1.9524 | **1.9524** |
+
+So `Delta_cross > 1` whenever `Delta_own > 0.5` — i.e. essentially always. The pre-EBA
+calibration merely sat far enough from the boundary (`Delta_own=0.73`) to limp; EBA's
+realistic concentration (`phi_own=2.39`) drives `Delta_own→0.99`, and `Delta_eff = Delta +
+psi·def_rate` then crosses 1, flipping the sign of the collateral channel. **This is exactly
+why `psi_lambda_B` had to be rescaled 3.0 → 0.31** to restore correct signs.
+
+*Permanent fix (not yet done):* solve `lambda_gk` from the multi-asset IC jointly —
+`lambda_gk = value/(θ − (1−Delta_own)phi_own − (1−Delta_cross)phi_cross)`, a fixed point since
+`value` depends on `Omega(lambda_gk, θ)`. That would make `Delta` a genuine free parameter and
+let `Delta_D=0.2 / Delta_F=0.4` be hardcoded as CLAUDE.md prefers.
+
+*Ruled out:* using EBA **total-asset** leverage as `θ` (GR 16.56, DE 42.62). `θ` multiplies
+only the GK book (capital+sovereign), whereas EBA total assets include low-yield
+loans/reserves; `θ=16.56` on the model's fixed `rk−rdep=0.74%` spread implies ~52% annual
+banker ROE and the SS **does not converge** (verified). Do not retry.
+
 ### Open issue: the EBA sovereign doom loop is intrinsically explosive here
 
 Full stationarity is **not** achieved. `phi_lamb` (fiscal feedback) damps the amplitude
