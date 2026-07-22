@@ -73,7 +73,14 @@ def _run_ss_residual_diagnostic(ss, calibration_start):
         Q_c     = _get(f'Q_{c}')
         K_c     = _get(f'K_{c}')
         n_c     = _get(f'n_inter_{c}')
-        kappa_c = Q_c * K_c / n_c
+        omega_K_c = _get(f'omega_K_{c}')
+        # Bank holds only omega_K_c of total capital K_c (the rest sits in the
+        # passive capital fund, see smart_steady_D/F) -- kappa is the bank's own
+        # balance-sheet share, omega_K_c*Q_c*K_c/n_c, not the economy-wide Q_c*K_c/n_c.
+        # Pre-existing bug: this diagnostic predates the omega_K capital-fund split
+        # and was never updated, so it silently computed kappa ~1/omega_K too large
+        # (omega_K~0.06) and flagged a large spurious IC "FAIL" that was never real.
+        kappa_c = omega_K_c * Q_c * K_c / n_c
         if c == 'D':
             nu_K, nu_bD, nu_bF = _get('nu_K_D'), _get('nu_bD_D'), _get('nu_bF_D')
             q_h, q_x = _get('q_b_D'), _get('q_b_F')

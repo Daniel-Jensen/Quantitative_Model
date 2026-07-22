@@ -24,10 +24,18 @@ import sequence_jacobian as sj
 from sequence_jacobian import combine
 
 RES = {}
+FAILURES = []  # collected regression-check failures; raised together at the end
+              # so one failing check doesn't hide the rest of the diagnostics.
 
 def jlog(key, val):
     RES[key] = val
     print(f"[audit] {key}: {val}")
+
+def check(name, ok, detail=""):
+    status = "OK" if ok else "*** FAIL"
+    print(f"[check] {name}: {status}" + (f"  ({detail})" if detail else ""))
+    if not ok:
+        FAILURES.append(f"{name}: {detail}")
 
 # ═══════════════ CELL 2-3: calibration ═══════════════
 calibration_start = {
@@ -44,11 +52,17 @@ calibration_start = {
     'lambda_BD_D': 0.06, 'lambda_BF_F': 0.06, 'lambda_BF_D': 0.06, 'lambda_BD_F': 0.06,
     'psi_lambda_B_D': 3.0, 'psi_lambda_B_F': 3.0,
     'n_inter_D': 0.75*4, 'n_inter_F': 0.75*4, 'theta_D': 4, 'theta_F': 4,
+    # omega_K=1: banks hold 100% of capital (no passive capital fund) -- the
+    # structural no-op default, reproducing pre-EBA-calibration behaviour exactly.
+    'omega_K_D': 1.0, 'omega_K_F': 1.0,
     'psi_nu_bD_D': 0.0, 'psi_nu_bD_F': 0.0, 'psi_nu_bF_D': 0.0, 'psi_nu_bF_F': 0.0,
     'B_supply_D': 0.6*4, 'B_supply_F': 0.6*4,
     'b_gov_D': 0.6*4, 'b_gov_F': 0.6*4, 'b_gov_ss_D': 0.6*4, 'b_gov_ss_F': 0.6*4,
     'tau_D': 0.181, 'tau_F': 0.181, 'lamb_D': 0.85, 'lamb_F': 0.85,
     'lamb_ss_D': 0.85, 'lamb_ss_F': 0.85, 'phi_lamb_D': 0.15, 'phi_lamb_F': 0.15,
+    # mv_rule=0: par/face-value Bohn rule -- the structural default (F-1's
+    # market-value option is off); mv_gov_ss is an unused placeholder at mv_rule=0.
+    'mv_rule_D': 0.0, 'mv_rule_F': 0.0, 'mv_gov_ss_D': 0.6*4, 'mv_gov_ss_F': 0.6*4,
     'shock_def_D': 0.000, 'shock_def_F': 0.0, 'T_ls_D': 0.000, 'T_ls_F': 0.000,
     'def_rate_D': 0.000, 'def_rate_F': 0.0, 'def_scale_D': 0.25, 'def_scale_F': 0.25,
     'def_curvature_D': 0.5, 'def_curvature_F': 0.5, 'def_offset_D': 0.05, 'def_offset_F': 0.05,
@@ -117,41 +131,11 @@ targets_ss  = ['deposit_mkt_D', 'deposit_mkt_F', 'ca_res_D']
 print("Solving SS (cold start)...")
 ss = ha.solve_steady_state(calibration_start, unknowns_ss, targets_ss, solver='broyden_custom')
 
-def _apply_ss_anchors(ss_in, cal):
-    anchors = {
-        'phi_bD_D_ss': float(ss_in['q_b_D'])*float(ss_in['b_D_D'])/float(ss_in['n_inter_D']),
-        'phi_bF_F_ss': float(ss_in['q_b_F'])*float(ss_in['b_F_F'])/(float(ss_in['p'])*float(ss_in['n_inter_F'])),
-        'b_F_D_anchor': float(ss_in['b_F_D']), 'b_D_F_anchor': float(ss_in['b_D_F']),
-        'excess_return_bD_D_ss': float(ss_in['rb_actual_D'])-float(ss_in['rdep_D'])-cal['T0_D'],
-        'excess_return_bF_F_ss': float(ss_in['rb_actual_F'])-float(ss_in['rdep_F'])-cal['T0_F'],
-        'excess_return_F_D_ss': float(ss_in['rb_actual_F'])-float(ss_in['rdep_D'])-cal['T0_D'],
-        'excess_return_D_F_ss': float(ss_in['rb_actual_D'])-float(ss_in['rdep_F'])-cal['T0_F'],
-        'psi_spread_F': float(ss_in['lambda_gk_F'])*cal['psi_lambda_B_F']/(float(ss_in['beta_inter_F'])*float(ss_in['Omega_F'])),
-        'psi_spread_D': float(ss_in['lambda_gk_D'])*cal['psi_lambda_B_D']/(float(ss_in['beta_inter_D'])*float(ss_in['Omega_D'])),
-        'q_b_D': float(ss_in['q_b_D']), 'q_b_F': float(ss_in['q_b_F']),
-        'p': float(ss_in['p']), 'C_D_ss': float(ss_in['C_D']), 'C_F_ss': float(ss_in['C_F']),
-    }
-    cal.update(anchors)
-    for k, v in anchors.items():
-        ss_in.toplevel[k] = v
-    ss_in.toplevel['b_F_D_ss'] = float(ss_in['b_F_D'])
-    ss_in.toplevel['b_D_F_ss'] = float(ss_in['b_D_F'])
-    ss_in.toplevel['Rgross_D'] = float(1+ss_in['rdep_D'])
-    ss_in.toplevel['Rgross_F'] = float(1+ss_in['rdep_F'])
-    _fr_D = float(ss_in['frisch_D']); _fr_F = float(ss_in['frisch_F'])
-    ss_in.toplevel['X_D'] = (float(ss_in['C_D']) - float(ss_in['vphi_D'])*float(ss_in['N_D'])**(1+1/_fr_D)/(1+1/_fr_D))
-    ss_in.toplevel['X_F'] = (float(ss_in['C_F']) - float(ss_in['vphi_F'])*float(ss_in['N_F'])**(1+1/_fr_F)/(1+1/_fr_F))
-    ss_in.toplevel['U_D'] = ss_in.toplevel['X_D']/float(ss_in['C_D'])
-    ss_in.toplevel['U_F'] = ss_in.toplevel['X_F']/float(ss_in['C_F'])
-    ss_in.toplevel['Phi_D'] = float(ss_in['Phi_D'])
-    ss_in.toplevel['Phi_F'] = float(ss_in['Phi_F'])
-    ss_in.toplevel['value_D'] = (float(ss_in['beta_inter_D'])*float(ss_in['Omega_D'])*(1+float(ss_in['rn_D'])))
-    ss_in.toplevel['value_F'] = (float(ss_in['beta_inter_F'])*float(ss_in['Omega_F'])*(1+float(ss_in['rn_F'])))
-    for k, v in {'tau_mp_D':0.0,'tau_mp_F':0.0,'T_D':0.0,'T_F':0.0,'T_ls_D':0.0,'T_ls_F':0.0,
-                 'b_F_D_res':0.0,'b_D_F_res':0.0,'rb_D_res':0.0,'rb_F_res':0.0,
-                 'labor_mkt_res_D':0.0,'labor_mkt_res_F':0.0,'w_res_D':0.0,'w_res_F':0.0}.items():
-        ss_in.toplevel[k] = v
-    return anchors
+# _apply_ss_anchors previously duplicated steady_state.py's function by hand; that
+# copy silently fell out of sync (missing EL_price_D/F from the macro-pru-fix
+# commit) and crashed the Jacobian stage with a bare KeyError. Import the one
+# definition instead so this script can never drift from it again.
+from steady_state import _apply_ss_anchors
 
 # replicate cell 10 anchor application (psi_spread not in cell-10 anchors, but
 # _apply_ss_anchors is re-run in cells 12/13 which adds it; final state identical)
@@ -199,10 +183,23 @@ phi_bD_F_ss = float(ss['q_b_D'])*float(ss['b_D_F'])/n_F_ss
 D_bF_F, D_bD_F, val_F = _ic_delta(phi_bF_F_ss, phi_bD_F_ss,
     float(ss['nu_K_F']), float(ss['nu_bF_F']), float(ss['nu_bD_F']), float(ss['eta_F']),
     float(ss['lambda_gk_F']), float(ss['theta_F']), ratio_F)
-calibration_start.update({'Delta_bD_D': D_bD_D, 'Delta_bF_D': D_bF_D,
-                          'Delta_bF_F': D_bF_F, 'Delta_bD_F': D_bD_F})
-jlog('Delta_calibrated', {'Delta_bD_D': D_bD_D, 'Delta_bF_D': D_bF_D,
-                          'Delta_bF_F': D_bF_F, 'Delta_bD_F': D_bD_F})
+# C-1 fix: steady_auxilliary_D/F now solve lambda_gk from the multi-asset IC
+# using the hardcoded Delta_bD_D/Delta_bF_D (D) and Delta_bF_F/Delta_bD_F (F) in
+# calibration_start directly -- Delta is a calibration input, not back-solved.
+# This re-derivation should now recover those same inputs almost exactly; do NOT
+# overwrite calibration_start with it. A mismatch means the SS does not actually
+# satisfy the multi-asset IC (regression), not a value to calibrate away.
+Delta_in = {k: calibration_start[k] for k in
+            ('Delta_bD_D', 'Delta_bF_D', 'Delta_bF_F', 'Delta_bD_F')}
+Delta_out = {'Delta_bD_D': D_bD_D, 'Delta_bF_D': D_bF_D, 'Delta_bF_F': D_bF_F, 'Delta_bD_F': D_bD_F}
+jlog('Delta_ic_consistency', {'input': Delta_in, 'back_solved': Delta_out})
+_DELTA_TOL = 1e-6
+_delta_mismatches = {k: (Delta_in[k], Delta_out[k]) for k in Delta_in
+                     if abs(Delta_in[k] - Delta_out[k]) > _DELTA_TOL}
+check("C-1: back-solved Delta matches hardcoded input", not _delta_mismatches,
+      f"tol={_DELTA_TOL}, mismatches={_delta_mismatches}" if _delta_mismatches else "")
+check("C-1: back-solved Delta <= 1 (IC non-degenerate)",
+      D_bD_D <= 1 and D_bF_D <= 1 and D_bF_F <= 1 and D_bD_F <= 1, str(Delta_out))
 
 # ═══════════════ CELL 13: depreciation recalibration ═══════════════
 rk_D_target = rk_F_target = 0.01
@@ -323,17 +320,26 @@ irfs_Z_D   = G @ {'Z_D': dZ,  'Z_F': zero, 'shock_def_D': zero, 'shock_def_F': z
 irfs_def_D = G @ {'Z_D': zero,'Z_F': zero, 'shock_def_D': dZ,  'shock_def_F': zero}
 
 # ═══════════════ C. Walras leak test ═══════════════
+# Acceptance thresholds from docs/verification_report.md / CLAUDE.md.
+WALRAS_TOL = {'goods_mkt_D': 1e-14, 'goods_mkt_F': 1e-7, 'ca_res_D': 1e-7,
+              'deposit_mkt_D': 1e-13, 'deposit_mkt_F': 1e-13}
 leakvars = ['ca_res_D','goods_mkt_F','goods_mkt_D','global_goods_res','deposit_mkt_D','deposit_mkt_F']
+_walras_failures = []
 for nm, irf in [('Z_D', irfs_Z_D), ('def_D', irfs_def_D)]:
     out = {}
     for v in leakvars:
         try:
             path = irf[v]
-            out[v] = {'max_abs': float(np.max(np.abs(path))),
-                      't0': float(path[0]), 't1': float(path[1]), 't5': float(path[5])}
+            max_abs = float(np.max(np.abs(path)))
+            out[v] = {'max_abs': max_abs, 't0': float(path[0]), 't1': float(path[1]), 't5': float(path[5])}
+            tol = WALRAS_TOL.get(v)
+            if tol is not None and max_abs > tol:
+                _walras_failures.append(f"{v} ({nm}): max|.|={max_abs:.3e} > tol {tol:.0e}")
         except (KeyError, TypeError):
             out[v] = 'MISSING from G outputs'
     jlog(f'leak_{nm}', out)
+check("Walras residuals within CLAUDE.md acceptance thresholds", not _walras_failures,
+      "; ".join(_walras_failures))
 
 # ═══════════════ D. Leak decomposition ═══════════════
 def dec(irf, label):
@@ -389,6 +395,17 @@ def stats(irf, label):
 stats(irfs_def_D, 'def_D')
 stats(irfs_Z_D, 'Z_D')
 
+# Sign-convention check (CLAUDE.md "Typical iteration" step 4): on a positive
+# default shock, bank net worth and output must both FALL. A positive reading
+# here is the T-2-class timing/sign bug this project has hit repeatedly
+# (T-2, C-1, the psi_lambda_B rescale) -- catch it mechanically, not by eyeball.
+_n_inter_D_0 = float(irfs_def_D['n_inter_D'][0])
+_Y_D_0       = float(irfs_def_D['Y_D'][0])
+jlog('sign_check_def_D', {'n_inter_D[0]': _n_inter_D_0, 'Y_D[0]': _Y_D_0})
+check("Sign: n_inter_D[0] < 0 on default shock (doom loop not inverted)",
+      _n_inter_D_0 < 0, f"n_inter_D[0]={_n_inter_D_0:.6e}")
+check("Sign: Y_D[0] < 0 on default shock", _Y_D_0 < 0, f"Y_D[0]={_Y_D_0:.6e}")
+
 np.savez(ROOT/'audit_artifacts'/'irfs.npz',
          **{f'Z_D__{k}': v for k, v in irfs_Z_D.toplevel.items() if np.ndim(v)==1},
          **{f'def_D__{k}': v for k, v in irfs_def_D.toplevel.items() if np.ndim(v)==1})
@@ -415,4 +432,13 @@ except Exception as e:
 
 with open(ROOT/'audit_artifacts'/'run1_results.json','w') as fh:
     json.dump(RES, fh, indent=2, default=str)
-print("AUDIT RUN COMPLETE")
+
+print("\n" + "=" * 85)
+if FAILURES:
+    print(f"AUDIT RUN COMPLETE -- {len(FAILURES)} CHECK(S) FAILED:")
+    for f in FAILURES:
+        print(f"  *** {f}")
+else:
+    print("AUDIT RUN COMPLETE -- all checks passed")
+print("=" * 85)
+assert not FAILURES, f"{len(FAILURES)} regression check(s) failed (see above): {FAILURES}"

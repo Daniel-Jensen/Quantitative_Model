@@ -106,7 +106,7 @@ def smart_steady_F(theta_F, Y_F, n_inter_F, rdep_F, alpha_F, delta_F, f_F, N_F,
     div_fund_F   = (rk_F - rdep_F) * Q_F * (1.0 - omega_K_F) * K_F
     Z_F          = Y_F / ((K_F ** alpha_F) * (N_F ** (1 - alpha_F)))
     cap_profit_F = Q_F * (K_F - (1 - delta_F) * K_F(-1)) - I_F
-    return K_F, rk_F, rn_F, m_F, k_inter_F, I_F, D_supply_F, Z_F, cap_profit_F, Phi_F, T_F, div_fund_F
+    return K_F, rk_F, rn_F, m_F, k_inter_F, I_F, D_supply_F, Z_F, cap_profit_F, Phi_F, T_F, div_fund_F, phi_bF_F, phi_bD_F
 
 @simple
 def market_clearing_F(Y_F, C_F, I_F, G_F, NX_F, DEP_F, D_supply_F, P_CES_F, Phi_F, T_F):
@@ -130,11 +130,15 @@ def import_demand_F(C_F, omega, epsilon_trade, p, P_CES_F):
 @simple
 def steady_auxilliary_F(theta_F, rk_F, rdep_F, delta_F, alpha_F, Y_F, K_F, N_F,
                         beta_inter_F, ksi_F, rn_F, f_F,
-                        rb_actual_F, rb_actual_D):
+                        rb_actual_F, rb_actual_D,
+                        phi_bF_F, phi_bD_F, Delta_bF_F, Delta_bD_F):
     iota_F       = delta_F
     mpk_F        = alpha_F * (Y_F / K_F)
     w_F          = (1 - alpha_F) * Y_F / N_F
-    lambda_gk_F  = f_F / (theta_F * (1 / (beta_inter_F * (1 + rn_F)) - (1 - f_F)))
+    # C-1 fix: see steady_auxilliary_D for the derivation. D_target_F replaces
+    # theta_F's role in the original single-asset denominator.
+    D_target_F  = theta_F - (1 - Delta_bF_F) * phi_bF_F - (1 - Delta_bD_F) * phi_bD_F
+    lambda_gk_F  = f_F / (D_target_F / (beta_inter_F * (1 + rn_F)) - (1 - f_F) * theta_F)
     Omega_F      = f_F + (1 - f_F) * lambda_gk_F * theta_F
     nu_K_F       = beta_inter_F * Omega_F * (rk_F        - rdep_F)
     nu_bF_F      = beta_inter_F * Omega_F * (rb_actual_F - rdep_F)

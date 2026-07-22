@@ -44,6 +44,15 @@ IRFs (`ca_res_D`, `goods_mkt_F` ~1e-8; solved targets ~1e-16). Verified as a no-
 
 ## Stability: what works, what's open
 
+**Update (2026-07-22): C-1 is now fixed at its root (see below), and the explosive
+root reported below turned out to be a symptom of C-1, not of the EBA concentration
+itself.** With the multi-asset `lambda_gk` fix in place, the same calibration
+(`psi_lambda_B=0.31`, `mv_rule=1`, `phi_lamb=0.60`, unchanged) is **near-stationary**:
+`b_gov_D[499]` is `~1e-5` on both the TFP and default shocks (was 3.4–79.5 across the
+variants tested below), and `ρ_b (partial-eq.) = 0.373` (well under the 0.95 target).
+The section below is kept as the historical record of the pre-fix diagnosis; see
+"C-1 fix (2026-07-22)" further down for what changed and why.
+
 With `psi_lambda_B` rescaled **3.0 → 0.31** (doom-loop amplification ~ `psi·phi_own`;
 `phi_own` rose ~10×, so `psi` falls ~10× to keep comparable amplification and keep
 `Delta_eff = Delta + psi·def_rate` below 1), plus `mv_rule=1` and `phi_lamb=0.60`:
@@ -51,9 +60,10 @@ With `psi_lambda_B` rescaled **3.0 → 0.31** (doom-loop amplification ~ `psi·p
 - ✅ **Doom-loop signs correct**: a default shock gives spread ↑, `q_b` ↓, `rb` ↓,
   bank net worth ↓ (previously inverted by the C-1 `Delta→1` collateral flip).
 - ✅ **Walras clean** on all IRFs.
-- ⚠️ **Residual ~1.2%/period explosive root** (`K_D`, `b_gov_D` drift up to t=499).
-  `phi_lamb` reduces the amplitude (`K_D[499]` 9.5→3.4 as `phi_lamb` 0.3→0.6) but not
-  the root.
+- ⚠️ ~~Residual ~1.2%/period explosive root~~ **RESOLVED by the C-1 fix** (`K_D`,
+  `b_gov_D` drift up to t=499). `phi_lamb` reduces the amplitude (`K_D[499]` 9.5→3.4
+  as `phi_lamb` 0.3→0.6) but not the root -- *this diagnosis turned out to be
+  incomplete; the root was the C-1 degeneracy, not the concentration ratio itself.*
 
 ### Why C-1 forces `Delta→1` (analytical; explains the collateral flip)
 
@@ -82,49 +92,151 @@ realistic concentration (`phi_own=2.39`) drives `Delta_own→0.99`, and `Delta_e
 psi·def_rate` then crosses 1, flipping the sign of the collateral channel. **This is exactly
 why `psi_lambda_B` had to be rescaled 3.0 → 0.31** to restore correct signs.
 
-*Permanent fix (not yet done):* solve `lambda_gk` from the multi-asset IC jointly —
-`lambda_gk = value/(θ − (1−Delta_own)phi_own − (1−Delta_cross)phi_cross)`, a fixed point since
-`value` depends on `Omega(lambda_gk, θ)`. That would make `Delta` a genuine free parameter and
-let `Delta_D=0.2 / Delta_F=0.4` be hardcoded as CLAUDE.md prefers.
+*Permanent fix -- DONE (2026-07-22):* `steady_auxilliary_D/F` (`code/equations_D.py`,
+`code/equations_F.py`) now solve `lambda_gk` from the multi-asset IC directly. The
+"fixed point" collapses to closed form because `value` is *linear* in `lambda_gk`
+(via `Omega = f + (1-f)*lambda_gk*theta`):
+
+```
+D_target = theta - (1-Delta_own)*phi_own - (1-Delta_cross)*phi_cross
+lambda_gk = f / (D_target/(beta_inter*(1+rn)) - (1-f)*theta)
+```
+
+This is the *original* single-asset formula with `theta` replaced by `D_target` in
+the first term only -- `D_target == theta` (recovering the old formula exactly)
+iff `Delta_own == Delta_cross == 1`, confirming the old formula silently assumed
+full (`Delta=1`) bond divertability. `Delta_bD_D=0.2` / `Delta_bF_D=0.4` (D) and
+`Delta_bF_F=0.2` / `Delta_bD_F=0.4` (F) are now genuine hardcoded calibration
+inputs (already sitting as placeholders in `code/calibration.py`, previously
+overwritten by the degenerate back-solve). `code/ic_delta_calibration.py`'s
+back-solve is no longer authoritative -- it now re-derives the *same* equation as
+a consistency check and asserts it recovers the hardcoded Delta (verified to
+recover 0.20000000000000157 / 0.40000000000000313 etc., i.e. exact to
+floating-point). `smart_steady_D/F` were extended to also return `phi_bD_D`/
+`phi_bF_D` (D) and `phi_bF_F`/`phi_bD_F` (F) so `steady_auxilliary_*` can consume
+them -- SSJ wires `@simple` block outputs to same-named inputs automatically, but
+note its output-name parser is a single-line regex over the `return` statement
+(`utilities/function.py::output_list`), so multi-line `return (...)` tuples
+silently break block wiring with an opaque `ValueError: ... is output twice`. Keep
+all `@simple` return statements on one line.
+
+**Consequence for stability:** this also resolved the "explosive root" reported
+below as intrinsic to the EBA calibration -- see the update note at the top of
+this section. `run_audit.py`'s IC/Walras/sign checks (frozen pre-EBA calibration)
+and `code/main.py`'s live EBA pipeline both confirm the fix; see
+`audit_artifacts/run_audit.py`'s `check()` output for the regression harness.
 
 *Ruled out:* using EBA **total-asset** leverage as `θ` (GR 16.56, DE 42.62). `θ` multiplies
 only the GK book (capital+sovereign), whereas EBA total assets include low-yield
 loans/reserves; `θ=16.56` on the model's fixed `rk−rdep=0.74%` spread implies ~52% annual
 banker ROE and the SS **does not converge** (verified). Do not retry.
 
-### Open issue: the EBA sovereign doom loop is intrinsically explosive here
+### Formerly "open issue": the EBA sovereign doom loop is intrinsically explosive here -- RESOLVED (2026-07-22)
 
-Full stationarity is **not** achieved. `phi_lamb` (fiscal feedback) damps the amplitude
-(`K_D[499]` 9.5→3.4 as `phi_lamb` 0.3→0.6) but leaves a residual ~1.2%/period explosive
-root. Two capital-structure variants were tested; **neither** removes the root:
+*(Kept verbatim below as the historical record of the diagnosis at the time; the
+conclusion it reaches turned out to be wrong -- see the correction after.)*
 
-- **Fixed `omega_K`** (bank holds `omega_K·K`): `K = (θN−bonds)/(omega_K·Q)` levers `K`
-  `1/omega_K≈16–67×` on thin net worth. *Least unstable of the two* (default-shock
-  `b_gov[499]=0.17` at `phi_lamb=0.6`). **This is the current committed state.**
-- **Endogenous `omega_K` = fixed fund quantity** (bank holds `Kbank=K−Kfund_ss`): tested
-  (commit history) and made it **worse** (`b_gov[499]=79.5`). `Kbank=0.65` is a small
-  difference of large numbers (`10.8−10.15`), so it becomes hyper-sensitive to `K` and
-  `kappa=Kbank·Q/N` inherits it. Reverted.
+> Full stationarity is **not** achieved. `phi_lamb` (fiscal feedback) damps the
+> amplitude (`K_D[499]` 9.5→3.4 as `phi_lamb` 0.3→0.6) but leaves a residual
+> ~1.2%/period explosive root. Two capital-structure variants were tested;
+> **neither** removes the root:
+>
+> - **Fixed `omega_K`** (bank holds `omega_K·K`): `K = (θN−bonds)/(omega_K·Q)`
+>   levers `K` `1/omega_K≈16–67×` on thin net worth. *Least unstable of the two*
+>   (default-shock `b_gov[499]=0.17` at `phi_lamb=0.6`). **This is the current
+>   committed state.**
+> - **Endogenous `omega_K` = fixed fund quantity** (bank holds `Kbank=K−Kfund_ss`):
+>   tested (commit history) and made it **worse** (`b_gov[499]=79.5`). Reverted.
+>
+> **Conclusion:** the instability is not the capital plumbing — it is the **strong
+> EBA sovereign doom loop itself** (`phi_bD_D=2.39`). Both variants are correctly
+> signed and Walras-clean; both mildly explode.
 
-**Conclusion:** the instability is not the capital plumbing — it is the **strong EBA
-sovereign doom loop itself** (`phi_bD_D=2.39`: Greek banks held 2.39× their capital in
-Greek debt). Both variants are correctly signed (spread↑, `q_b`↓, net worth↓ on default)
-and Walras-clean; both mildly explode.
+**Correction:** that conclusion was wrong. The explosive root was **the C-1
+degeneracy** (`lambda_gk` built from the single-asset formula, implicitly
+`Delta=1`, while `Delta_eff` was being pushed near/over 1 by the `psi_lambda_B`
+collateral-friction term) -- not the 2.39× concentration ratio itself. With the
+multi-asset `lambda_gk` fix (previous section) and **no other calibration change**
+(`psi_lambda_B=0.31`, `mv_rule=1`, `phi_lamb=0.60` all unchanged), `code/main.py`'s
+live EBA pipeline gives:
 
-**This is arguably economically meaningful, not just a nuisance:** a self-reinforcing,
-(locally) explosive doom loop is *precisely the condition a backstop is meant to
-neutralise*. The natural next step — feeding the measured **SMP purchase path through the
-TPI conduit (phase 2)** — is the candidate stabiliser, and the instability strengthens
-that narrative rather than undercutting it.
+```
+b_gov_D[499] on TFP shock:      -0.000010   (was 3.4-79.5 across variants above)
+b_gov_D[499] on default shock:   0.000002
+rho_b (partial-eq.) = 0.373     (target < 0.95)
+```
 
-**Options for the author:**
-1. **Proceed to phase 2 (SMP conduit)** and test whether the backstop restores
-   stationarity — the intended paper mechanism. *Recommended.*
-2. **Microfound the fund** (Gertler-Karadi-Prestipino management cost) for a downward-
-   sloping capital demand — the rigorous fix, real equation work.
-3. **Relax the 2.39× target** toward a value where the baseline is stationary — revisits
-   the "faithful to EBA" cross-holding choice.
-4. **Report bounded-horizon IRFs** where signs are correct and Walras holds (weakest).
+i.e. **near-stationary to numerical noise**, not merely "less explosive." The 2.39×
+concentration ratio is not, by itself, destabilizing; it was the internally
+inconsistent collateral value (bonds silently priced as if `Delta=1`, a single-asset
+artifact) amplifying itself through the leverage/IC loop. The 4 "options for the
+author" from the original diagnosis (relax the 2.39× target, microfound the fund,
+etc.) are **moot** -- none were needed. This does *not* mean the SMP-conduit
+stabiliser story is wrong, only that it is no longer required to explain why the
+baseline doom loop is stable; the conduit experiment can now be evaluated as a
+genuine "how does welfare/spread respond to CB purchases" question on a system that
+is already well-behaved without it, rather than as an emergency stabiliser for a
+broken one.
+
+### TPI conduit accounting leak -- found and fixed alongside C-1 (2026-07-22)
+
+Running the TPI (ECB capital-key conduit) experiment on the EBA calibration surfaced
+a second, independent bug: `code/tpi.py` builds its own copy of the full dynamic
+model (`ha_full_tpi`) rather than reusing `full_model.py`'s, and that copy predates
+the `omega_K` capital-fund commits -- it was missing the `capital_fund_D`/
+`capital_fund_F` blocks entirely (same "shared equations evolved, a downstream
+duplicate didn't" pattern as the `run_audit.py` drift below). Effect: `div_fund_D`/
+`div_fund_F` (the passive fund's rebate into household income) was silently frozen
+at its steady-state level in the TPI model instead of responding to the shock, so
+the TPI's goods-market/external-account accounting quietly diverged from the
+baseline model's by exactly that omitted response.
+
+Symptom (pre-fix, EBA calibration): `max|ca_res_D|` up to **6.2e-2** and
+`max|goods_mkt_F|` up to **1.3e-3** at every `gamma` -- five to seven orders of
+magnitude above the ~1e-8 floor the rest of the model holds to. The `G_tpi[cb=0]`
+vs. baseline-Jacobian sanity check (should match to `<1e-8` since zeroing CB
+purchases should exactly reproduce the no-TPI model) differed by `2.54e-3` --
+**the same order of magnitude as the reported welfare gains themselves**. Any TPI
+welfare number computed on the EBA calibration before this fix is not reliable --
+the leak was large enough to be a first-order contributor to, not just noise
+around, the result.
+
+Fix: added `capital_fund_D`/`capital_fund_F` to `tpi.py`'s imports and to
+`ha_full_tpi`'s block list, in the same position as `full_model.py`. Post-fix:
+`G_tpi[cb=0]` vs baseline Jacobian `max|err| = 0.00e+00` (was `2.54e-3`);
+`max|ca_res_D|` down to `~2-5e-8`, `max|goods_mkt_F|` down to `~6-7e-10` at every
+gamma -- back in line with the rest of the model. The `loading` schedule (premium
+PV / EL PV) is still declining in gamma post-fix (0.83 → 0.74 → 0.62 at
+gamma=2/5/10), consistent with the self-extinguishing-premium narrative, but the
+*levels* differ from anything reported before this fix (and before the EBA
+calibration switch) -- treat all TPI welfare/loading numbers from before
+2026-07-22 as superseded.
+
+### Remaining open items (author decisions, not yet acted on)
+
+- **`psi_lambda_B` re-exploration:** it was rescaled 3.0→0.31 specifically to keep
+  the (buggy) `Delta_eff` under 1. With C-1 fixed, `Delta_bD_D=0.2`/`Delta_bF_D=0.4`
+  are now genuine small numbers with a lot of headroom before `Delta+psi*def_rate`
+  approaches 1 -- the constraint that forced the 10x rescale no longer binds with
+  the same force. Whether to revert toward a more standard/interpretable value is
+  an open calibration question, not yet explored.
+- **`rk_F` depreciation-calibration miss:** `code/depreciation_calibration.py`
+  targets `rk_F=0.01` by setting `delta_F` from the *pre-re-solve* `K_F`/`Y_F`
+  (a one-shot, not iterated-to-convergence, calibration), then re-solves SS with
+  the new `delta_F`. Post-EBA (thin `n_inter_F`, `omega_K_F=0.019`), this one-shot
+  approximation misses: actual `rk_F` comes out at `0.0133`, not `0.0100`
+  (`rk_D` hits its target exactly; only F misses). Likely pre-existing and
+  independent of the C-1 fix, but not verified against a pre-EBA baseline.
+- **Small `Y_D[0]` sign anomaly on the default shock:** `Y_D[0]` comes out
+  *positive* (`+0.0124%` at baseline calibration, `+6.17e-4%`/`+1.24e-4%` in the
+  EBA runs) even though `n_inter_D[0]` is correctly negative. Economically
+  plausible as a portfolio-substitution effect (bonds `Delta=0.4` are now good
+  collateral at baseline and become relatively worse on impact, so capital demand
+  can rise enough to offset the direct hit to `Y_D` at t=0) -- this tension
+  between "substitution" and "deleveraging" channels was already flagged in an
+  earlier diagnostic (`diagnostics/` "substitution vs deleveraging" experiment,
+  commit `1e82e22`). Small in magnitude (two orders below `n_inter_D`), but worth
+  checking before reporting `Y_D` impact signs in the paper.
 
 ## Reproduce
 

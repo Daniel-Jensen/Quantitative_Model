@@ -121,7 +121,7 @@ def smart_steady_D(theta_D, Y_D, n_inter_D, rdep_D, alpha_D, delta_D, f_D, N_D,
     div_fund_D   = (rk_D - rdep_D) * Q_D * (1.0 - omega_K_D) * K_D
     Z_D          = Y_D / ((K_D ** alpha_D) * (N_D ** (1 - alpha_D)))
     cap_profit_D = Q_D * (K_D - (1 - delta_D) * K_D(-1)) - I_D
-    return K_D, rk_D, rn_D, m_D, k_inter_D, I_D, D_supply_D, Z_D, cap_profit_D, Phi_D, T_D, div_fund_D
+    return K_D, rk_D, rn_D, m_D, k_inter_D, I_D, D_supply_D, Z_D, cap_profit_D, Phi_D, T_D, div_fund_D, phi_bD_D, phi_bF_D
 
 @simple
 def market_clearing_D(Y_D, C_D, I_D, G_D, NX_D, DEP_D, D_supply_D, P_CES_D, Phi_D, T_D):
@@ -146,11 +146,21 @@ def import_demand_D(C_D, omega, epsilon_trade, p, P_CES_D):
 @simple
 def steady_auxilliary_D(theta_D, rk_D, rdep_D, delta_D, alpha_D, Y_D, K_D, N_D,
                         beta_inter_D, ksi_D, rn_D, f_D,
-                        rb_actual_D, rb_actual_F):
+                        rb_actual_D, rb_actual_F,
+                        phi_bD_D, phi_bF_D, Delta_bD_D, Delta_bF_D):
     iota_D       = delta_D
     mpk_D        = alpha_D * (Y_D / K_D)
     w_D          = (1 - alpha_D) * Y_D / N_D
-    lambda_gk_D  = f_D / (theta_D * (1 / (beta_inter_D * (1 + rn_D)) - (1 - f_D)))
+    # C-1 fix: lambda_gk solved from the MULTI-ASSET IC (bonds weighted by their
+    # own divertability Delta, vs capital at Delta=1), not the single-asset
+    # formula. D_target_D replaces theta_D's role in the original single-asset
+    # denominator; D_target_D == theta_D (recovering the line below exactly)
+    # iff Delta_bD_D == Delta_bF_D == 1. The old formula silently assumed full
+    # (Delta=1) bond divertability, which made the downstream Delta back-solve
+    # in ic_delta_calibration.py degenerate (>1) at realistic (EBA) portfolio
+    # concentration -- see docs/eba_calibration.md "Why C-1 forces Delta->1".
+    D_target_D   = theta_D - (1 - Delta_bD_D) * phi_bD_D - (1 - Delta_bF_D) * phi_bF_D
+    lambda_gk_D  = f_D / (D_target_D / (beta_inter_D * (1 + rn_D)) - (1 - f_D) * theta_D)
     Omega_D      = f_D + (1 - f_D) * lambda_gk_D * theta_D
     nu_K_D       = beta_inter_D * Omega_D * (rk_D        - rdep_D)
     nu_bD_D      = beta_inter_D * Omega_D * (rb_actual_D - rdep_D)

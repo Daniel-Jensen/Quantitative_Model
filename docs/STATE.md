@@ -1,6 +1,75 @@
 # Project State
 
-**Branch:** `main` | **Date:** 2026-06-22 | **Status:** post-forensic-audit baseline (all fixes merged)
+**Branch:** `main` | **Date:** 2026-07-22 | **Status:** EBA-anchored calibration + C-1 structural fix (see below); post-forensic-audit baseline still applies underneath
+
+## EBA calibration + C-1 fix (2026-07-22) -- current state supersedes the sections below
+
+Everything from here to "What is complete (post-audit)" describes the state as of
+the 2026-06-22 forensic audit. Since then (2026-07-13 to 2026-07-22), the
+calibration was re-anchored to EBA 2011 stress-test data (see `docs/eba_calibration.md`
+for the full derivation) and a structural bug (C-1) was found and fixed. Summary:
+
+- **Calibration is now EBA-anchored, not the placeholder values below.**
+  `n_inter_D/F`, `phi_bD_D_ss` etc., bank-held debt stocks, and bank concentration
+  ratios all come from the EBA 2011 disclosure (`data/DATA_DISCLOSURE.CSV`), not
+  the round-number placeholders in the table further down. See `docs/eba_calibration.md`
+  for the parameter -> moment map.
+- **A passive capital-intermediation fund (`omega_K`) was added**: banks hold only
+  `omega_K` of the physical capital stock (`omega_K_D=0.0601`, `omega_K_F=0.0190`);
+  the rest sits in a deposit-funded passive fund that rebates its spread to
+  households (`capital_fund_D/F`, `div_fund_D/F`). Needed because EBA's thin bank
+  net worth (`n_inter_D=0.408`) can't plausibly intermediate the entire capital
+  stock. Verified Walras-neutral and a no-op at `omega_K=1`.
+- **C-1 (`Delta_cross > 1`, degenerate IC) is fixed at its root, not calibrated
+  around.** The single-asset `lambda_gk` formula in `steady_auxilliary_D/F`
+  implicitly assumed full (`Delta=1`) bond divertability; substituted into the
+  back-solve, this forced `Delta_cross > 1` whenever `Delta_own > 0.5` -- i.e.
+  essentially always at realistic (EBA) concentration. `steady_auxilliary_D/F`
+  now solve `lambda_gk` from the multi-asset IC directly (closed form, since
+  `value` is linear in `lambda_gk`), taking `Delta_bD_D=0.2`/`Delta_bF_D=0.4` (D)
+  and `Delta_bF_F=0.2`/`Delta_bD_F=0.4` (F) as genuine hardcoded calibration
+  inputs instead of back-solved outputs. Verified to recover those exact values
+  (to floating-point) via `code/ic_delta_calibration.py`'s consistency check and
+  independently via `audit_artifacts/run_audit.py`. See `docs/eba_calibration.md`
+  "Why C-1 forces Delta->1" for the full derivation.
+- **The "explosive EBA doom loop" finding in `docs/eba_calibration.md` was
+  superseded by the C-1 fix, not just improved.** With C-1 fixed and *no other
+  calibration change* (`psi_lambda_B=0.31`, `mv_rule=1`, `phi_lamb=0.60` all
+  unchanged from the pre-fix explosive runs), `b_gov_D[499]` is `~1e-5` on both
+  shocks (was 3.4-79.5 across the variants previously tested) -- near-stationary,
+  not merely damped. The explosive root was the C-1 degeneracy amplifying itself
+  through the leverage/IC loop, not an intrinsic feature of the 2.39x EBA
+  concentration ratio as previously concluded.
+- **A second, independent bug was found and fixed alongside C-1**: `code/tpi.py`
+  builds its own copy of the dynamic model and had not been updated for the
+  `omega_K` capital-fund commits -- it was missing `capital_fund_D/F`, so
+  `div_fund_D/F` was silently frozen at its SS level instead of responding to
+  shocks in the TPI experiment. This produced a real (not machine-precision)
+  accounting leak on every `gamma` (`max|ca_res_D|` up to 6.2e-2, comparable in
+  size to the reported welfare gains). Fixed by adding the missing blocks; the
+  `G_tpi[cb=0]` vs. baseline-Jacobian sanity check now matches to `0.00e+00`
+  (was `2.54e-3`). **Any TPI welfare number from before 2026-07-22 is superseded.**
+- **`audit_artifacts/run_audit.py` had drifted out of sync** with the shared
+  equation files across three separate additions (`omega_K`, `mv_rule`,
+  `EL_price` from the macro-pru-fix) and could not run at all without patching.
+  Fixed: its calibration fixture now has the missing (neutral-default) params,
+  its duplicated `_apply_ss_anchors` now imports the one true definition from
+  `steady_state.py`, and it gained real regression assertions (Walras thresholds
+  from this file's own acceptance table, the default-shock sign check from
+  "Typical iteration" step 4, and a C-1 consistency check) that fail loudly with
+  a collected summary instead of silently passing or crashing on unrelated
+  `KeyError`s.
+- **Two smaller items are flagged, not yet resolved** (see `docs/eba_calibration.md`
+  "Remaining open items"): a `rk_F` depreciation-calibration miss (0.0133 vs.
+  target 0.01, likely a pre-existing one-shot-calibration imprecision) and a small
+  (two orders of magnitude below bank net worth) positive `Y_D[0]` on the default
+  shock, plausibly a portfolio-substitution effect rather than a bug.
+- **`psi_lambda_B=0.31`** was a rescale forced by the now-fixed C-1 degeneracy
+  (to keep the buggy `Delta_eff` under 1); with `Delta` now genuinely 0.2/0.4,
+  there is far more headroom and the rescale may no longer be necessary at its
+  full strength. Not yet re-explored -- an open calibration question.
+
+## Historical state (as of 2026-06-22 forensic audit) -- see above for what changed since
 
 ## Current status
 
@@ -73,21 +142,109 @@ Pre-fix peaks for reference: goods_mkt_F 2.0e−2 (~2% of F GDP); ca_res_D 1.5e�
 
 | ID | Description | Status |
 |----|-------------|--------|
-| C-1 | `Delta_cross=1.45 > 1`: divertable fraction exceeds 1, making the multi-asset IC constraint degenerate. `lambda_gk` absorbs the slack but the theoretical interpretation breaks down. | Author decision. Preferred resolution: hardcode `Delta=0.2/0.4` per bank-cal (avoids back-solve entirely). |
+| C-1 | ~~`Delta_cross=1.45 > 1`: divertable fraction exceeds 1, making the multi-asset IC constraint degenerate.~~ | **RESOLVED (2026-07-22).** `lambda_gk` now solved from the multi-asset IC directly; `Delta_bD_D/F=0.2/0.4` are genuine hardcoded inputs, verified to bind exactly. See "EBA calibration + C-1 fix" above and `docs/eba_calibration.md`. |
 | S-1 | `writeoff_enabled=0`: default shock produces zero realized bank losses. `recovery_rate` and `zeta_writeoff` are set but inert. Model is currently a pure risk-premium loop, not a balance-sheet doom loop. | Author decision. Resolution: set `writeoff_enabled=1` with `recovery=0.40, zeta=1.0` (GR 2012 ~50% haircut → ~0.4–0.5 recovery). |
+| RK-1 | `rk_F` depreciation calibration misses its target (0.0133 vs. 0.0100) post-EBA; the one-shot `delta_F` calibration in `depreciation_calibration.py` isn't iterated to convergence against the re-solved SS. `rk_D` hits its target exactly; only F misses. | Open (2026-07-22). Not yet investigated against a pre-EBA baseline. |
+| Y-1 | Small positive `Y_D[0]` on the default shock (`+0.01%` to `+0.03%` across calibrations) even though `n_inter_D[0]` is correctly negative. Plausibly a portfolio-substitution effect (bonds are now good collateral at `Delta=0.4` and become relatively worse on impact) partially offsetting the direct hit — a tension already flagged in an earlier "substitution vs deleveraging" diagnostic. | Open (2026-07-22). Small magnitude; worth checking before reporting `Y_D` impact signs. |
 | X-1 | Dead-code imports in notebook cell 7: blocks no longer in the model remain in the import list. | Minor cleanup; no numerical effect. |
 
 ## Next priorities
 
-1. **Port bank-cal calibration values** onto `main`: `delta_b=0.036/0.038`, `f=0.03`, EBA bilateral exposures (verified targets from bank-cal cell `96c6bd50`), hardcode `Delta=0.2/0.4` (resolves C-1), `recovery=0.40`. See `docs/bank_cal_review.md` §Recommendation for the full porting list.
-2. **Decide S-1**: set `writeoff_enabled=1` to give default realized losses, or keep pure risk-premium framing and state it explicitly in the paper.
-3. **Re-map (phi_lamb, def_scale) stability on the fixed model** — *investigated; see Finding F-1 below.* Porting bank-cal's empirical long duration is explosive at every phi_lamb under both transmission channels; the resolution is the market-value fiscal rule (now a switchable option).
-4. **Re-generate all figures** from `main` (via `code/tpi_plots.py` / `code/irf_plots.py`). All previously produced figures were generated on a pre-fix or mid-fix model state.
+**Superseded by the 2026-07-22 EBA calibration + C-1 fix (see top of file):**
+EBA bilateral exposures are ported and live (item 1's exposures/Delta=0.2/0.4
+portion is done); `delta_b`/`f` are **not yet** ported to the bank-cal empirical
+values (still `0.10`/`0.12`) — that part of item 1 remains open. Figures were
+regenerated 2026-07-22 under the fixed, EBA-anchored calibration (item 4 done for
+now, but re-do again after any further calibration change).
+
+1. **Port remaining bank-cal calibration values**: `delta_b=0.036/0.038` (empirical
+   7yr/6.5yr duration), `f=0.03` (bank exit rate). Given C-1 is now fixed and the
+   baseline doom loop is stable without it, re-test Finding F-1's explosive-root
+   concern (below) under the *fixed* model before assuming it still applies —
+   it was diagnosed on the pre-C-1-fix, non-EBA calibration.
+2. **Decide S-1**: set `writeoff_enabled=1` to give default realized losses, or
+   keep pure risk-premium framing and state it explicitly in the paper.
+3. **Re-explore `psi_lambda_B`**: rescaled 3.0→0.31 to compensate for the C-1
+   degeneracy; with `Delta` now genuinely 0.2/0.4 there is much more headroom
+   before `Delta_eff` approaches 1. Whether a larger, more standard value works
+   (and what it implies for doom-loop amplitude) is unexplored.
+4. **Investigate RK-1 and Y-1** (open issues table above) before reporting `rk_F`
+   or `Y_D` impact-sign results in the paper.
+5. **Re-generate all figures** from `main` after any of the above — the current
+   `outputs/` figures (2026-07-22) reflect the EBA calibration + C-1 fix + TPI
+   conduit-leak fix, but not any further calibration change.
 
 ## Finding F-1: market-value fiscal rule (duration ↔ fiscal-stability tension)
 
-The Bohn rule responds to the **par/face-value** lagged debt gap (`tax_rule_*`). With empirical long-duration bonds (`delta_b=0.036/0.038`, 7yr/6.5yr) this is **explosive at every `phi_lamb ∈ [0.02, 0.50]`** under both the balance-sheet (write-off ON) and risk-premium channels — the debt dynamics collapse to a near-unit-root ~250-quarter cycle (dominant modulus ≈ 1.005–1.015) that fiscal feedback cannot damp. The original model is stable at `phi_lamb=0.15` only *because* its duration is short (`delta_b=0.10`). So empirical duration, a literature `phi_lamb`, and a stable live doom loop are jointly infeasible with the par-value rule. (Sweeps: `audit_artifacts/philamb_sweep*.py`.)
+**Historical diagnosis below predates the C-1 fix** (kept verbatim; the doom loop's
+amplification was resting on a degenerate collateral value at the time). **Re-tested
+2026-07-22** on the now-fixed model, using today's actual committed calibration
+(EBA-anchored, `psi_lambda_B=0.31`, `def_scale=0.25`, `writeoff=0`) with only
+`delta_b` (duration), `phi_lamb`, and `mv_rule` varied. This went through three
+rounds before landing on a trustworthy answer -- worth keeping all three, since the
+methodological correction is as important as the result:
 
-**Resolution — market-value rule.** Reacting to the mark-to-market debt gap `q_b·b_gov(-1) − q_b_ss·b_gov_ss` (it sees the current spread) opens a stable plateau at `phi_lamb ∈ [0.07, 0.12]` (modulus down to 0.983 at 0.12; `phi_lamb≈0.10` robustly interior) with empirical duration and a live, correctly-signed doom loop — **but only in the risk-premium framing** (`psi_lambda_B=1.0`, `def_scale=0.10`, write-off OFF). With write-off ON it is a *false victory*: `|λ|<1` but the default shock is perverse (spread narrows, bank net worth and output rise). So adopting the market-value rule **forces the risk-premium framing — it couples to the S-1 decision** (keep write-off OFF).
+**Round 1 (coarse grid, energy-ratio proxy, `audit_artifacts/philamb_sweep_postC1.py`).**
+`mv_rule=0` (par value): explosive at every `phi_lamb` in `{0.05,...,0.60}` tested,
+but mildly (modulus 1.002-1.005, vs. 1.005-1.015 pre-fix; `bgov[499]` ~1e-6, vs.
+9.5-79.5 pre-fix). `mv_rule=1` (market value): STABLE at 0.05, EXPLOSIVE at 0.10 and
+0.15, STABLE again at 0.25-0.60 -- a non-monotonic "explosive island" sitting exactly
+where the pre-fix finding's stable plateau (`phi_lamb` in `[0.07,0.12]`) was reported.
 
-**Status.** Implemented as a switchable option: `mv_rule_D/F` in calibration (`0`=par, default, behaviour unchanged; `1`=market value). `mv_gov_ss_D/F` is set from the solved SS in `build_and_solve`. Default keeps all existing results bit-for-bit (verified, `audit_artifacts/verify_promotion.py`). Adopting it as the baseline calibration (set `mv_rule=1`, port `delta_b`/`f`, `phi_lamb≈0.10`, risk-premium) remains an author decision — coupled to priorities #1–#2.
+**Round 2 (finer grid, naive Prony/eigenvalue estimator, `philamb_sweep_postC1_fine.py`).**
+The two-window energy-ratio proxy used in round 1 is known to be foolable by
+oscillatory near-unit-circle modes, so a proper linear-prediction (Prony) estimate
+was built: fit an order-`p` AR recursion to the IRF tail (t=150-500), take the
+eigenvalues of the resulting companion matrix. Validated first against synthetic
+signals (recovered known poles to ~1e-15) and an adversarial two-mode case (correctly
+resolved a true dominant pole an energy-ratio proxy would have underestimated by 7x)
+-- then applied at `p=8` (with `p=4` as a cross-check) to the real IRFs. **This gave
+an implausible modulus of ~3.2** at every grid point, flatly contradicting the
+observed `bgov[499]` levels (~1e-6) a true modulus of 3.2 could never produce over
+500 periods.
+
+**Root cause (`audit_artifacts/philamb_order_selection_check.py`).** R^2 of the AR
+fit already saturates to machine precision (`1-1e-9`) at order `p=2-3`; every order
+beyond that fits pure numerical noise into spurious high-modulus "ghost" poles that
+contribute negligibly to the actual signal but have huge companion-matrix
+eigenvalues -- textbook AR/Prony overfitting once model order exceeds what the data
+supports. `p=4` (round 2's "conservative" cross-check) was *already* past this onset
+for at least one grid point -- it wasn't a safe fallback either.
+
+**Round 3 (corrected: automatic order selection, `philamb_sweep_postC1_fine_v2.py`).**
+Refit every cell at `p=1..4`, taking the modulus at the *smallest* order whose R^2
+clears `0.99999` (falling back to `p=3`, flagged, if none does -- never triggered).
+Result, `mv_rule=1`, fine grid over `phi_lamb` in `{0.05, 0.075, ..., 0.25}`:
+
+```
+phi_lamb:  0.05    0.075   0.10    0.125   0.15    0.175   0.20    0.225   0.25
+trusted:   0.997   0.982   0.998   0.996   0.999   1.003   0.990   0.990   0.990
+verdict:   STABLE  STABLE  STABLE  STABLE  ~1.000  mild-X  STABLE  STABLE  STABLE
+```
+
+**Verdict: the "explosive island" was mostly an artifact of the energy-ratio
+proxy.** The properly order-selected estimate is comfortably stable (modulus
+0.98-0.997) across nearly the *entire* `phi_lamb ∈ [0.05, 0.25]` range under
+`mv_rule=1` -- including 0.10 and 0.125, which round 1's proxy called explosive.
+There is a real (not noise-floor -- this system's Jacobian conditioning implies a
+~1e-10 floor, far below the ~0.003 excess seen here), but narrow and mild, near-unit-
+root zone right around `phi_lamb ≈ 0.15-0.175` (modulus 0.999-1.003). That is much
+smaller and narrower than either the round-1 or round-2 estimates suggested, and it
+sits at a different location than the original pre-C-1-fix "stable plateau"
+(`[0.07,0.12]`) claimed, but "avoid `phi_lamb` in roughly `[0.15,0.18]`, most other
+values in `[0.05,0.25]` are fine" is a defensible, much more precise statement than
+either "there's a stable plateau at 0.10" (pre-fix finding) or "there's an explosive
+island at 0.10-0.15" (round-1 proxy). `mv_rule=0` (par value) was not re-swept at
+finer resolution or order-selected precision -- round 1's mild-explosive-everywhere
+reading for it should be treated with the same "proxy could be off" caveat pending
+that redo. See `audit_artifacts/philamb_sweep_postC1_fine_v2_results.json` for the
+full per-cell R^2/order/modulus breakdown, and `philamb_order_selection_check.py` for
+the overfitting diagnostic.
+
+*Historical diagnosis (pre-C-1-fix, kept for record):*
+
+> The Bohn rule responds to the **par/face-value** lagged debt gap (`tax_rule_*`). With empirical long-duration bonds (`delta_b=0.036/0.038`, 7yr/6.5yr) this is **explosive at every `phi_lamb ∈ [0.02, 0.50]`** under both the balance-sheet (write-off ON) and risk-premium channels — the debt dynamics collapse to a near-unit-root ~250-quarter cycle (dominant modulus ≈ 1.005–1.015) that fiscal feedback cannot damp. The original model is stable at `phi_lamb=0.15` only *because* its duration is short (`delta_b=0.10`). So empirical duration, a literature `phi_lamb`, and a stable live doom loop are jointly infeasible with the par-value rule. (Sweeps: `audit_artifacts/philamb_sweep*.py`.)
+>
+> **Resolution — market-value rule.** Reacting to the mark-to-market debt gap `q_b·b_gov(-1) − q_b_ss·b_gov_ss` (it sees the current spread) opens a stable plateau at `phi_lamb ∈ [0.07, 0.12]` (modulus down to 0.983 at 0.12; `phi_lamb≈0.10` robustly interior) with empirical duration and a live, correctly-signed doom loop — **but only in the risk-premium framing** (`psi_lambda_B=1.0`, `def_scale=0.10`, write-off OFF). With write-off ON it is a *false victory*: `|λ|<1` but the default shock is perverse (spread narrows, bank net worth and output rise). So adopting the market-value rule **forces the risk-premium framing — it couples to the S-1 decision** (keep write-off OFF).
+
+**Status.** Implemented as a switchable option: `mv_rule_D/F` in calibration (`0`=par, default, behaviour unchanged; `1`=market value). `mv_gov_ss_D/F` is set from the solved SS in `build_and_solve`. Adopting `delta_b` (empirical duration) as the baseline calibration remains an author decision. Per the round-3 (order-selected) re-test above, `phi_lamb` in roughly `[0.05, 0.125]` or `[0.20, 0.25]` reads as genuinely stable under `mv_rule=1`; avoid the narrow `[0.15, 0.18]` zone. Do not reuse the pre-fix `[0.07, 0.12]` "stable plateau" language as if it were re-confirmed — it wasn't specifically re-tested at the old paper's exact framing (risk-premium, `psi_lambda_B=1.0`, `def_scale=0.10`), only at today's committed EBA amplification (`psi_lambda_B=0.31`, `def_scale=0.25`), which happens to also land in a stable region there but for different reasons.
