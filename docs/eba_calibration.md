@@ -237,7 +237,24 @@ calibration switch) -- treat all TPI welfare/loading numbers from before
   <1" concern raised in a paper-direction hostile review the same day -- at
   roughly a third the magnitude of the stale "~7x" figure previously in
   `docs/FRAMING_HANDOFF.md` (now retired; see `docs/SPEC.md`'s theoretical
-  framing section, updated accordingly).
+  framing section, updated accordingly). **Re-tuned again same day to
+  `psi_lambda_B=1.1793`** after resolving `recovery_rate` below (`EL_price`
+  fell, pulling the spread response with it; re-verified 150.02bp).
+- ~~**EL-1 (`recovery_rate` placeholder)**~~ **DONE (2026-07-22).** Set to
+  `0.30`, an NPV-recovery estimate for the actual March 2012 Greek PSI
+  (Zettelmeyer-Trebesch-Gulati "Autopsy": 59-65% NPV loss; contemporaneous bank
+  estimates: 73-78%; 0.30 recovery / 70% haircut sits centrally). `EL_price`
+  fell from 0.1025 to 0.0717 as a result, which required the `psi_lambda_B`
+  re-tune noted above. TPI loading rose to 3.59/3.03/2.47 at gamma=2/5/10 (a
+  smaller `EL_price` denominator makes the same premium look like a bigger
+  multiple of fair compensation).
+- ~~**PT-1 (pass-through validation)**~~ **DONE (2026-07-22).** Checked the
+  model's ≈-4.5%/100bp bank-net-worth-to-spread pass-through against
+  Acharya-Drechsler-Schnabl (2014 JF, Table 6): their bank-equity-return-on-
+  sovereign-CDS coefficient (-0.096, post-bailout, full controls) implies
+  -1.8% to -8.6%/100bp depending on the baseline CDS level assumed for the
+  log-to-level conversion. The model's figure sits within this range under
+  every reasonable baseline -- same order of magnitude, not a stray number.
 - **`rk_F` depreciation-calibration miss:** `code/depreciation_calibration.py`
   targets `rk_F=0.01` by setting `delta_F` from the *pre-re-solve* `K_F`/`Y_F`
   (a one-shot, not iterated-to-convergence, calibration), then re-solves SS with

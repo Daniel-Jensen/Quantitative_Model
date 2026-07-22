@@ -54,7 +54,12 @@ def get_calibration():
         # value -- 2.8 and 3.0 both land inside the broken region on this model.
         # psi_lambda_B=1.1284 verified directly: spread=151.3bp (target 150bp),
         # smooth/monotonic neighbourhood (147bp at 1.10, 154bp at 1.15).
-        'psi_lambda_B_D': 1.1284, 'psi_lambda_B_F': 1.1284,
+        # Re-tuned to 1.1793 (2026-07-22, same day) after resolving EL-1
+        # (recovery_rate 0.00->0.30): EL_price fell from 0.1025 to 0.0717, which
+        # pulled the spread response down (143.0bp at the old 1.1284); re-solved
+        # for the value that restores exactly 150bp (audit_artifacts/psilam_verify_postEL1.py) --
+        # verified directly: spread=150.02bp.
+        'psi_lambda_B_D': 1.1793, 'psi_lambda_B_F': 1.1793,
         # EBA 2011 (31 Dec 2010): CT1 / quarterly own-GDP. GR 22,778/55,898=0.408;
         # DE 114,317/653,815=0.175. (was 0.75*4=3.0 each — overstated bank equity ~7x.)
         'n_inter_D':    0.408,   'n_inter_F':    0.175,
@@ -111,7 +116,20 @@ def get_calibration():
         'def_scale_D':      0.25,   'def_scale_F':      0.25,
         'def_curvature_D':  0.5,    'def_curvature_F':  0.5,
         'def_offset_D':     0.05,   'def_offset_F':     0.05,
-        'recovery_rate_D':  0.00,   'recovery_rate_F':  0.00,
+        # Greek PSI (March 2012), NPV-recovery framing -- the theoretically correct
+        # mapping for a "recovery rate" that multiplies a payoff already priced at
+        # market terms (EL_price uses q_b, not face value). NPV haircut estimates:
+        # Zettelmeyer, Trebesch & Gulati "The Greek Debt Restructuring: An Autopsy"
+        # (PIIE WP13-8) put actual investor losses at 59-65% (considerably below the
+        # ~75% commonly quoted); contemporary bank estimates (Credit Suisse, Morgan
+        # Stanley) put NPV haircuts at 73-78%. 0.30 recovery (70% haircut) sits at
+        # the harsher end of Zettelmeyer's range / softer end of the bank estimates
+        # -- a defensible central value, not the harsher face-value-haircut framing
+        # (53.5% face cut -> ~46.5% recovery) that a naive reading would suggest.
+        # Only affects EL_price (the fundamental expected-loss loading, entered via
+        # divert_bond_foc_D/F's req_spread) -- inert everywhere else while
+        # writeoff_enabled=0 (S-1, still the committed risk-premium framing).
+        'recovery_rate_D':  0.30,   'recovery_rate_F':  0.30,
         'zeta_writeoff_D':  0.0,    'zeta_writeoff_F':  0.0,
         'writeoff_enabled_D': 0.0,  'writeoff_enabled_F': 0.0,
 

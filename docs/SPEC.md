@@ -56,11 +56,13 @@ moment map and `docs/STATE.md` for the live calibration table:**
   `phi_bF_F_ss=2.76` (DE); cross-holdings `phi_bF_D_ss=0.018`, `phi_bD_F_ss=0.069`
   (q·sovereign-book / bank-capital, not asset-normalised — do not conflate with
   the pre-EBA "b_D_D/asset≈24.47%" moments this section previously cited).
-- `psi_lambda_B_D/F = 1.1284`, data-disciplined to the 2010 GR-DE spread
-  (~150bp on a 1pp default-probability shock) — the amplification dial has no
-  other empirical anchor and must be re-verified against this target after any
-  structural change to the collateral/IC block
-  (`audit_artifacts/psilam_moment_sweep_postC1.py`). **Values above ~1.5-2.0
+- `psi_lambda_B_D/F = 1.1793` (re-tuned 2026-07-22 after resolving `EL_price`
+  below), data-disciplined to the 2010 GR-DE spread (~150bp on a 1pp
+  default-probability shock) — the amplification dial has no other empirical
+  anchor and must be re-verified against this target after any structural
+  change to the collateral/IC block, or to `recovery_rate`/`EL_price`
+  (`audit_artifacts/psilam_moment_sweep_postC1.py`,
+  `audit_artifacts/psilam_verify_postEL1.py`). **Values above ~1.5-2.0
   currently sit in a linear-approximation-breakdown region on this model and
   must not be used without re-checking stability at that value.**
 - Bond duration: `delta_b_D/F=0.10` (2.5yr); empirical target `0.036/0.038`
@@ -69,10 +71,17 @@ moment map and `docs/STATE.md` for the live calibration table:**
 - Bohn fiscal coefficient: `phi_lamb_D/F=0.60`; literature 0.025–0.038 quarterly
   for EA periphery (Staehr 2008) is far below what this model needs for
   stability at current amplification.
-- `EL_price_D/F≈0.1025`, from `(1-recovery)·delta_b/q_b`. **`recovery_rate_D/F=0`
-  is a placeholder, not the actual Greek PSI recovery (~25-35% typically
-  cited) — this is the paper's one external anchor for expected-loss pricing
-  and the first thing a referee will interrogate.**
+- `EL_price_D/F≈0.0717`, from `(1-recovery)·delta_b/q_b`. **`recovery_rate_D/F=0.30`
+  (resolved 2026-07-22)**, an NPV-recovery estimate for the actual March 2012
+  Greek PSI: Zettelmeyer, Trebesch & Gulati ("The Greek Debt Restructuring: An
+  Autopsy", PIIE WP13-8) find actual investor NPV losses of 59-65% (below the
+  ~75% commonly quoted); contemporaneous bank estimates (Credit Suisse, Morgan
+  Stanley) put NPV haircuts at 73-78%. 0.30 recovery (70% haircut) is central
+  in this range. The pass-through ("consistency") moment — bank net worth
+  response per 100bp of spread, ≈−4.5%/100bp — was checked against
+  Acharya-Drechsler-Schnabl (2014 JF)'s bank-equity-return-on-sovereign-CDS
+  elasticity and sits within its literature-implied range (−1.8% to
+  −8.6%/100bp depending on baseline CDS level); see `docs/STATE.md` issue PT-1.
 
 ## Out of scope (current phase)
 
@@ -178,14 +187,17 @@ why the litigation was tortured, not a claim to have out-theorised the Court.
 
 1. **Expected P&L favours the CB.** `EL_price·def_rate` is actuarially fair by
    construction — the expected loss is *fully* compensated, not partially.
-   `psi_spread·def_rate` sits **on top**. **Post-recalibration (2026-07-22,
-   `psi_lambda_B=1.1284`): loading (TPI premium PV / expected-loss PV) is
-   2.54/2.14/1.74 at gamma=2/5/10** — over-compensated, declining in
-   aggressiveness. (Superseded number: this section previously cited ~7-7.6x
-   at the pre-fix `psi_lambda_B=2.8-3.0`; that calibration is no longer valid
-   on this model — see `docs/eba_calibration.md` "psi_lambda_B re-exploration."
-   Re-verify this number after any further recalibration.) **The
-   monetary-financing objection fails on the model's own terms.**
+   `psi_spread·def_rate` sits **on top**. **Current calibration (2026-07-22,
+   `psi_lambda_B=1.1793`, `recovery_rate=0.30`): loading (TPI premium PV /
+   expected-loss PV) is 3.59/3.03/2.47 at gamma=2/5/10** — over-compensated,
+   declining in aggressiveness. (This number moved twice the same day: first
+   recalibrating `psi_lambda_B` to the 150bp target gave 2.54/2.14/1.74;
+   resolving `recovery_rate` afterward — which shrinks `EL_price`, the
+   denominator — raised it to the current 3.59/3.03/2.47. Both supersede the
+   pre-fix ~7-7.6x figure at `psi_lambda_B=2.8-3.0`, which is no longer a valid
+   calibration on this model — see `docs/eba_calibration.md`. Re-verify this
+   number after any further recalibration.) **The monetary-financing objection
+   fails on the model's own terms.**
 2. **The `psi_spread` ambiguity — preserve it, do not resolve it.** Since the
    model has *no* risk-aversion channel, `psi_spread` is the only place a
    real-world risk premium could hide. Either (a) genuine agency rent
@@ -215,8 +227,8 @@ why the litigation was tortured, not a claim to have out-theorised the Court.
    So intervention erodes its own profit source: more credible backstop →
    spreads compress toward fundamentals → `psi_spread` shrinks → less earned
    per unit. **Confirmed post-recalibration**: loading declines monotonically
-   in gamma (2.54→2.14→1.74 at gamma=2/5/10). **"Germany profits" and "TPI
-   works" are in tension.**
+   in gamma at the current calibration (3.59→3.03→2.47 at gamma=2/5/10).
+   **"Germany profits" and "TPI works" are in tension.**
 6. **The `EL_price`/`psi_spread` decomposition must not be confused with
    Bocola-Dovis's.** Ours is expected-loss vs collateral-friction; theirs is
    fundamental vs rollover (88%/12%). **Orthogonal decompositions.** State
