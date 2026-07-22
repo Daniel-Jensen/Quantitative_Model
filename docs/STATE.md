@@ -64,10 +64,24 @@ for the full derivation) and a structural bug (C-1) was found and fixed. Summary
   target 0.01, likely a pre-existing one-shot-calibration imprecision) and a small
   (two orders of magnitude below bank net worth) positive `Y_D[0]` on the default
   shock, plausibly a portfolio-substitution effect rather than a bug.
-- **`psi_lambda_B=0.31`** was a rescale forced by the now-fixed C-1 degeneracy
-  (to keep the buggy `Delta_eff` under 1); with `Delta` now genuinely 0.2/0.4,
-  there is far more headroom and the rescale may no longer be necessary at its
-  full strength. Not yet re-explored -- an open calibration question.
+- **`psi_lambda_B` recalibrated 0.31 → 1.1284 (2026-07-22, later same day).**
+  0.31 was never a calibration target -- it was chosen only to dodge the (now
+  fixed) C-1 degeneracy and undershot the paper's external anchor (2010 GR-DE
+  spread ~150bp on a 1pp default shock) by more than 3x (44bp). Re-ran the
+  moment-matching exercise on today's model (`audit_artifacts/psilam_moment_sweep_postC1.py`)
+  and found the spread-vs-`psi_lambda_B` response is smooth/monotonic only up
+  to about 1.5-2.0, then turns wildly non-monotonic (219bp at 2.0, 97bp at 2.6,
+  853bp at 2.8, 353bp at 3.0, 11478bp at 5.0) -- a linear-approximation
+  breakdown, not real moments. **Both the pre-fix literature value (2.8, per
+  `docs/FRAMING_HANDOFF.md`) and the original round-number default (3.0) now
+  sit inside that broken region on this model and must not be restored
+  as-is.** `psi_lambda_B=1.1284` verified directly to hit 151.3bp (smooth
+  neighbourhood: 147bp at 1.10, 154bp at 1.15) and is now the committed value.
+  Side effect: this also resolves the TPI loading concern from the paper-
+  direction hostile review below (§ "Hostile review addendum") -- loading is
+  back above 1 (2.54/2.14/1.74 at γ=2/5/10) and still declining, restoring the
+  paper's central over-compensation claim, at roughly a third the magnitude of
+  the stale "~7x" figure in `docs/FRAMING_HANDOFF.md`, which needs updating.
 
 ## Historical state (as of 2026-06-22 forensic audit) -- see above for what changed since
 
@@ -164,10 +178,10 @@ now, but re-do again after any further calibration change).
    it was diagnosed on the pre-C-1-fix, non-EBA calibration.
 2. **Decide S-1**: set `writeoff_enabled=1` to give default realized losses, or
    keep pure risk-premium framing and state it explicitly in the paper.
-3. **Re-explore `psi_lambda_B`**: rescaled 3.0→0.31 to compensate for the C-1
-   degeneracy; with `Delta` now genuinely 0.2/0.4 there is much more headroom
-   before `Delta_eff` approaches 1. Whether a larger, more standard value works
-   (and what it implies for doom-loop amplitude) is unexplored.
+3. ~~Re-explore `psi_lambda_B`~~ **DONE (2026-07-22).** Recalibrated to 1.1284
+   (150bp spread target), replacing the never-validated 0.31. See the entry
+   above this table for the full rationale and the discovered non-monotonic
+   breakdown region above `psi_lambda_B~2`.
 4. **Investigate RK-1 and Y-1** (open issues table above) before reporting `rk_F`
    or `Y_D` impact-sign results in the paper.
 5. **Re-generate all figures** from `main` after any of the above — the current

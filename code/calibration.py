@@ -35,11 +35,26 @@ def get_calibration():
         'Delta_bF_D':   0.4,     'Delta_bD_F':   0.4,
         'lambda_BD_D':  0.06,    'lambda_BF_F':  0.06,
         'lambda_BF_D':  0.06,    'lambda_BD_F':  0.06,
-        # Collateral-friction doom-loop sensitivity. Amplification ~ psi_lambda_B * phi_own.
-        # With EBA phi_bD_D=2.39 (~10x the old 0.25), psi must fall ~10x (0.75/2.39≈0.31)
-        # to keep comparable amplification AND keep Delta_eff = Delta + psi*def_rate below 1
-        # (Delta_own back-solves to ~0.99; psi=3.0 makes def shocks cross 1 -> sign inversion).
-        'psi_lambda_B_D': 0.31,  'psi_lambda_B_F': 0.31,
+        # Collateral-friction doom-loop sensitivity. Data-disciplined (2026-07-22,
+        # post-C-1-fix) to the paper's external target: 2010 GR-DE spread ~150bp on
+        # a 1pp default-probability shock (audit_artifacts/psilam_moment_sweep_postC1.py).
+        # 0.31 (the pre-fix placeholder) was never a calibration target -- it was
+        # chosen only to dodge the now-fixed C-1 degeneracy (Delta_eff crossing 1
+        # under the old single-asset lambda_gk formula) and undershoots 150bp by
+        # more than 3x (44bp). The pre-C-1-fix literature value (psi_lambda_B=2.8,
+        # "data-disciplined to ~150bp" per docs/FRAMING_HANDOFF.md) does NOT transfer:
+        # re-run on today's EBA-anchored, C-1-fixed model, the spread-vs-psi_lambda_B
+        # response is smooth and monotonic only up to about psi_lambda_B~1.5-2.0, then
+        # turns wildly non-monotonic (219bp at 2.0, 97bp at 2.6, 853bp at 2.8, 353bp at
+        # 3.0, 11478bp at 5.0) -- a linear-approximation breakdown region, not real
+        # economic moments (same phenomenon docs/FRAMING_HANDOFF.md §8 flagged at
+        # psi_lambda_B 4-5 under the OLD calibration; EBA's thinner bank net worth
+        # (n_inter_D=0.408 vs the old 3.0) pulls that breakdown much earlier). Do
+        # NOT set psi_lambda_B >= ~2 without first re-checking stability at that
+        # value -- 2.8 and 3.0 both land inside the broken region on this model.
+        # psi_lambda_B=1.1284 verified directly: spread=151.3bp (target 150bp),
+        # smooth/monotonic neighbourhood (147bp at 1.10, 154bp at 1.15).
+        'psi_lambda_B_D': 1.1284, 'psi_lambda_B_F': 1.1284,
         # EBA 2011 (31 Dec 2010): CT1 / quarterly own-GDP. GR 22,778/55,898=0.408;
         # DE 114,317/653,815=0.175. (was 0.75*4=3.0 each — overstated bank equity ~7x.)
         'n_inter_D':    0.408,   'n_inter_F':    0.175,

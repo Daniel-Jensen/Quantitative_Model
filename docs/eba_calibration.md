@@ -53,6 +53,12 @@ variants tested below), and `ρ_b (partial-eq.) = 0.373` (well under the 0.95 ta
 The section below is kept as the historical record of the pre-fix diagnosis; see
 "C-1 fix (2026-07-22)" further down for what changed and why.
 
+**`psi_lambda_B` was subsequently recalibrated 0.31 → 1.1284 later the same day**
+(see "Remaining open items" below) -- 0.31 was never itself a calibration target,
+only a value that avoided the C-1 degeneracy. Re-verified stationary at the new
+value too (`b_gov_D[499] ~1e-6/1e-7`, `ρ_b = 0.373`, unchanged) -- the stability
+finding above is not an artifact of the specific (stale) `psi_lambda_B`.
+
 With `psi_lambda_B` rescaled **3.0 → 0.31** (doom-loop amplification ~ `psi·phi_own`;
 `phi_own` rose ~10×, so `psi` falls ~10× to keep comparable amplification and keep
 `Delta_eff = Delta + psi·def_rate` below 1), plus `mv_rule=1` and `phi_lamb=0.60`:
@@ -214,12 +220,23 @@ calibration switch) -- treat all TPI welfare/loading numbers from before
 
 ### Remaining open items (author decisions, not yet acted on)
 
-- **`psi_lambda_B` re-exploration:** it was rescaled 3.0→0.31 specifically to keep
-  the (buggy) `Delta_eff` under 1. With C-1 fixed, `Delta_bD_D=0.2`/`Delta_bF_D=0.4`
-  are now genuine small numbers with a lot of headroom before `Delta+psi*def_rate`
-  approaches 1 -- the constraint that forced the 10x rescale no longer binds with
-  the same force. Whether to revert toward a more standard/interpretable value is
-  an open calibration question, not yet explored.
+- ~~**`psi_lambda_B` re-exploration**~~ **DONE (2026-07-22).** Re-ran the moment-
+  matching exercise (`audit_artifacts/psilam_moment_sweep_postC1.py`, same
+  external target as the pre-fix `2.8` calibration: 2010 GR-DE spread ~150bp on
+  a 1pp default shock) on today's model. Result: `psi_lambda_B=1.1284`
+  (verified: 151.3bp), replacing `0.31` (never a target, undershot 150bp by
+  >3x) as the committed value. Neither `2.8` nor the original `3.0` transfers:
+  the spread-vs-`psi_lambda_B` response is smooth/monotonic only up to
+  `psi_lambda_B~1.5-2.0`, then turns wildly non-monotonic (219bp at 2.0, 97bp
+  at 2.6, 853bp at 2.8, 353bp at 3.0, 11478bp at 5.0) -- both legacy values now
+  sit inside a linear-approximation-breakdown region on this model, not a
+  region of valid economic moments. (EBA's thinner bank net worth pulls this
+  breakdown much earlier than the old calibration's -- there it only appeared
+  around `psi_lambda_B` 4-5.) Side effect: this restores the TPI loading above
+  1 (2.54/2.14/1.74 at gamma=2/5/10, still declining), resolving the "loading
+  <1" concern raised in a paper-direction hostile review the same day -- at
+  roughly a third the magnitude of the stale "~7x" figure in
+  `docs/FRAMING_HANDOFF.md`, which needs its numbers updated accordingly.
 - **`rk_F` depreciation-calibration miss:** `code/depreciation_calibration.py`
   targets `rk_F=0.01` by setting `delta_F` from the *pre-re-solve* `K_F`/`Y_F`
   (a one-shot, not iterated-to-convergence, calibration), then re-solves SS with
