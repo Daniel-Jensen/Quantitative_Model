@@ -1,5 +1,5 @@
-# **numba JIT kernels for the two hot loops (EGM backward + distribution forward).**
-# Replicate the numpy reference ops-for-op (tested to float precision in
+# NUMBA JIT KERNELS FOR THE TWO HOT LOOPS (EGM BACKWARD + DISTRIBUTION FORWARD).
+# These replicate the numpy reference ops-for-op (equivalence is tested in
 # test_fast_kernels.py); callers fall back to numpy when numba is absent or
 # cal["use_numba"]=False. cache=True lets spawned Jacobian workers load artifacts.
 import numpy as np
@@ -10,8 +10,10 @@ try:
 except ImportError:                                   # pragma: no cover
     HAVE_NUMBA = False
 
-    def njit(*args, **kwargs):                        # no-op decorator
+    def njit(*args, **kwargs):
+        # NO-OP STAND-IN FOR numba.njit WHEN NUMBA IS UNAVAILABLE.
         def wrap(f):
+            # RETURN THE FUNCTION UNCOMPILED.
             return f
         return wrap
 
@@ -19,7 +21,7 @@ except ImportError:                                   # pragma: no cover
 @njit(cache=True)
 def hh_backward(a_grid, Pi_T, r_path, y_path, c_terminal, beta, sigma, a_min,
                 vN_path):
-    # **EGM backward induction over the path (mirrors household.egm_step exactly).**
+    # EGM BACKWARD INDUCTION OVER THE PATH (MIRRORS household.egm_step EXACTLY).
     # Pi_T = Pi.T; r_path has length T+1 (Fisher-adjusted upstream).
     T, n_e = y_path.shape
     n_a = a_grid.shape[0]
@@ -33,12 +35,10 @@ def hh_backward(a_grid, Pi_T, r_path, y_path, c_terminal, beta, sigma, a_min,
         r_next = r_path[t + 1]
         vN_today = vN_path[t]
 
-        # GHH composite tomorrow and expected marginal utility
-        x_next = np.maximum(c_next - vN_next, 1e-11)
-        Eu_next = (x_next ** (-sigma)) @ Pi_T                    # (n_a, n_e)
+        x_next = np.maximum(c_next - vN_next, 1e-11)             # GHH composite tomorrow
+        Eu_next = (x_next ** (-sigma)) @ Pi_T                     # (n_a, n_e)
 
-        # EGM inversion and endogenous asset grid
-        x_endo = (beta * (1.0 + r_next) * Eu_next) ** (-1.0 / sigma)
+        x_endo = (beta * (1.0 + r_next) * Eu_next) ** (-1.0 / sigma)   # Euler inversion
         c_endo = x_endo + vN_today
 
         for e in range(n_e):
@@ -71,9 +71,9 @@ def hh_backward(a_grid, Pi_T, r_path, y_path, c_terminal, beta, sigma, a_min,
 
 @njit(cache=True)
 def dist_forward(D0, a_pol_path, c_path, a_grid, Pi):
-    # **Distribution forward simulation with Young (2010) lottery weights.**
-    # C_t over the start-of-period dist, A_t over the end-of-period; D_start[t]
-    # is the dist entering period t.
+    # DISTRIBUTION FORWARD SIMULATION WITH YOUNG (2010) LOTTERY WEIGHTS.
+    # C_t over the start-of-period dist, A_t over the end-of-period one;
+    # D_start[t] is the dist entering period t.
     T = a_pol_path.shape[0]
     n_a, n_e = D0.shape
     A_path = np.empty(T)

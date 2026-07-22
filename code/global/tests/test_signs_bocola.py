@@ -1,19 +1,17 @@
-"""Acceptance criteria for the centerpiece risk-only experiment (Bocola 2016
-pass-through).  An exogenous rise in the PRICED default probability π_t must:
-  - reprice sovereign bonds down (MTM),
-  - shrink both banks' net worth on impact (D directly, F via cross-holdings),
-  - widen the lending spread rk − rdep,
-  - contract output on impact,
-  - raise the debt stock and Bohn taxes (beliefs worsen fundamentals),
-while no default is ever realized.  These are the signs that were wrong in
-the pre-rework model (sovereign risk was expansionary)."""
+# ACCEPTANCE CRITERIA FOR THE CENTERPIECE RISK-ONLY EXPERIMENT (BOCOLA PASS-THROUGH).
+# An exogenous rise in the PRICED default probability must reprice sovereign
+# bonds down, shrink both banks' net worth on impact (D directly, F through
+# cross-holdings), widen the lending spread, contract output, and raise the debt
+# stock and Bohn taxes — all with no default ever realized. These are exactly
+# the signs that came out wrong in the pre-rework model.
 import numpy as np
 
-from common import get_ss, transition_residuals
-from transition import solve_transition
+from common import get_ss
+from transition import solve_transition, market_residuals
 
 
 def test_risk_only_shock_signs():
+    # EVERY SIGN OF THE PASS-THROUGH EXPERIMENT, AT A 3% PEAK PRICED PROBABILITY.
     cal, ss = get_ss()
     T = cal["T"]
     pi = 0.03 * 0.90 ** np.arange(T)
@@ -60,15 +58,13 @@ def test_risk_only_shock_signs():
         f"impact-composition identity violated: {lhs:.3e} vs {rhs:.3e}"
 
     # Accounting stays closed while all of this happens
-    res = transition_residuals(out, cal)
+    res = market_residuals(out, cal)
     assert res["goods_F"] < 2e-6, f"goods_F = {res['goods_F']:.2e}"
 
 
 def test_headline_calibration_comovement():
-    """Acceptance criterion of the comovement fix: at the HEADLINE experiment
-    (pi = 1%·0.95^t, the main.py configuration) impact output and consumption
-    must both fall. I_D[0] and the risk-on n ordering are reported, not
-    asserted, on the first pass."""
+    # COMOVEMENT FIX: AT THE HEADLINE SHOCK, IMPACT OUTPUT AND CONSUMPTION BOTH FALL.
+    # I_D[0] is reported rather than asserted.
     cal, ss = get_ss()
     T = cal["T"]
     pi = 0.01 * 0.95 ** np.arange(T)

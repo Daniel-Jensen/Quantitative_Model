@@ -1,14 +1,14 @@
-"""Bocola (2016) risk-channel tests: nesting, pricing identity, and the
-directional predictions (precautionary deleveraging)."""
+# BOCOLA (2016) RISK-CHANNEL TESTS: NESTING, PRICING IDENTITY, DIRECTIONAL PREDICTIONS.
 import numpy as np
 
-from common import get_ss, ss_input_paths, transition_residuals
+from common import get_ss, ss_input_paths
 from bank import bank_backward
-from transition import solve_transition
+from transition import solve_transition, market_residuals
 from risk_branch import solve_transition_risk, bond_decomposition
 
 
 def _bwd(cal, ss, **kw):
+    # RUN bank_backward ON CONSTANT STEADY-STATE INPUT PATHS.
     paths = ss_input_paths(cal, ss)
     return bank_backward(paths["rk_D"], paths["rk_F"], paths["rdep_D"],
                          paths["rdep_F"], paths["p_path"], cal,
@@ -16,9 +16,8 @@ def _bwd(cal, ss, **kw):
 
 
 def test_pi_zero_nesting():
-    """risk_D with pi ≡ 0 must reproduce the risk-neutral backward pass
-    exactly, whatever the branch objects say. def_price_D stays None: in
-    risk mode D risk enters via pi only."""
+    # risk_D WITH pi = 0 MUST REPRODUCE THE RISK-NEUTRAL BACKWARD PASS EXACTLY.
+    # def_price_D stays None: in risk mode, D risk enters through pi only.
     cal, ss = get_ss()
     T = cal["T"]
     risk_D = dict(
@@ -36,8 +35,8 @@ def test_pi_zero_nesting():
 
 
 def test_degenerate_branch_nesting():
-    """With Ω^d = Ω^nd and branch prices equal to the continuation values,
-    the two-branch formulas collapse to the surv-form pricing."""
+    # WITH Omega^d = Omega^nd AND BRANCH PRICES EQUAL TO THE CONTINUATION VALUES,
+    # THE TWO-BRANCH FORMULAS COLLAPSE TO SURV-FORM PRICING.
     cal, ss = get_ss()
     T = cal["T"]
     defp = 0.03 * 0.9 ** np.arange(T)
@@ -70,9 +69,8 @@ def test_degenerate_branch_nesting():
 
 
 def test_pricing_identity_and_positive_premium():
-    """GE run with the risk channel: the per-period decomposition identity is
-    exact, the risk premium is positive during the crisis, and it is zero in
-    the risk-off run."""
+    # GE RUN WITH THE RISK CHANNEL: EXACT DECOMPOSITION IDENTITY, POSITIVE CRISIS
+    # RISK PREMIUM, ZERO PREMIUM IN THE RISK-OFF RUN.
     cal, ss = get_ss()
     T = cal["T"]
     Z_D = np.full(T, cal["Z_ss_D"])
@@ -116,7 +114,7 @@ def test_pricing_identity_and_positive_premium():
         f"branch govt budget (incl. recap) violated: {np.max(np.abs(iss_check)):.2e}"
 
     # Accounting still closed with the risk machinery on
-    res = transition_residuals(on, cal)
+    res = market_residuals(on, cal)
     assert res["goods_F"] < 2e-6, f"goods_F = {res['goods_F']:.2e}"
     # goods_D is the IMPOSED residual — its size is the solver's stopping
     # point, not an accounting identity (acceptance is cal["tol_transition"],
@@ -129,9 +127,9 @@ def test_pricing_identity_and_positive_premium():
     assert np.all(on["def_real_D"] == 0), "no default realized on the base path"
 
 
-def test_quality_and_wc_nesting():
-    """quality0 = 1 and zeta_wc = 0 must reproduce the plain blocks exactly
-    (capital path unchanged; no labour wedge)."""
+def test_capital_lag_and_wc_nesting():
+    # AN EXPLICIT Kap_lag_path MUST REPRODUCE THE IMPLICIT ONE, AND zeta_wc = 0
+    # MUST LEAVE THE SS WAGE AT ITS WEDGE-FREE VALUE.
     from capital import solve_capital_path
     cal, ss = get_ss()
     T = cal["T"]
@@ -139,19 +137,12 @@ def test_quality_and_wc_nesting():
     Kap = ss["Kap_D_ss"] * (1 + 0.01 * rng.standard_normal(T)).cumprod() ** 0.1
     mpk = np.full(T, ss["ss_firm_D"]["mpk_ss"]) * (1 + 0.005 * rng.standard_normal(T))
     base = solve_capital_path(Kap, ss["Kap_D_ss"], 1.0, mpk, cal, "D")
-    same = solve_capital_path(Kap, ss["Kap_D_ss"], 1.0, mpk, cal, "D", quality0=1.0)
+    lag_path = np.concatenate(([ss["Kap_D_ss"]], Kap[:-1]))
+    same = solve_capital_path(Kap, ss["Kap_D_ss"], 1.0, mpk, cal, "D",
+                              Kap_lag_path=lag_path)
     for k in ("Q", "rk", "I", "iota", "cap_profit"):
-        assert np.array_equal(base[k], same[k]), f"quality0=1 not neutral in {k}"
-    # quality0 < 1: only the t=0 objects move, and the claim return takes
-    # exactly the proportional payoff hit
-    xi = 0.05
-    shocked = solve_capital_path(Kap, ss["Kap_D_ss"], 1.0, mpk, cal, "D",
-                                 quality0=1.0 - xi)
-    delta = cal["delta_D"]
-    rk0_expected = ((1 - xi) * (mpk[0] + (1 - delta) * shocked["Q"][0]) / 1.0 - 1)
-    assert abs(shocked["rk"][0] - rk0_expected) < 1e-14
+        assert np.array_equal(base[k], same[k]), f"explicit Kap_lag_path differs in {k}"
 
-    # zeta = 0 leaves the SS wage/chi at the wedge-free values
     from firms import steady_state_firm, markup_ss
     cal0 = dict(cal); cal0["zeta_wc_D"] = 0.0
     fm0 = steady_state_firm(cal0, ss["Kap_D_ss"], "D")
@@ -165,7 +156,7 @@ def test_quality_and_wc_nesting():
 
 
 def test_zero_shock_with_risk_machinery():
-    """pi ≡ 0: the risk loop must return the SS fixed point (exact nesting)."""
+    # pi = 0: THE RISK LOOP MUST RETURN THE SS FIXED POINT (EXACT NESTING).
     cal, ss = get_ss()
     T = cal["T"]
     Z_D = np.full(T, cal["Z_ss_D"])
@@ -179,7 +170,7 @@ def test_zero_shock_with_risk_machinery():
 if __name__ == "__main__":
     test_pi_zero_nesting()
     test_degenerate_branch_nesting()
-    test_quality_and_wc_nesting()
+    test_capital_lag_and_wc_nesting()
     test_pricing_identity_and_positive_premium()
     test_zero_shock_with_risk_machinery()
     print("test_risk_channel: ALL PASSED")

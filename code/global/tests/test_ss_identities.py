@@ -1,10 +1,11 @@
-"""Steady-state identities against GK/Bocola theory (machine precision)."""
+# STEADY-STATE IDENTITIES AGAINST GK/BOCOLA THEORY, AT MACHINE PRECISION.
 import numpy as np
 
 from common import get_ss
 
 
 def test_bank_bellman_and_pricing():
+    # BANK BELLMAN, KERNEL WEIGHTS, SINGLE lambda, AND IC-CONSISTENT BOND PRICING.
     cal, ss = get_ss()
     for c in ("D", "F"):
         bk = ss[f"ss_bank_{c}"]
@@ -32,6 +33,7 @@ def test_bank_bellman_and_pricing():
 
 
 def test_ss_market_clearing():
+    # DEPOSIT AND GOODS MARKETS MUST CLEAR AT THE SOLVED STEADY STATE.
     cal, ss = get_ss()
     for c in ("D", "F"):
         bk = ss[f"ss_bank_{c}"]
@@ -42,7 +44,7 @@ def test_ss_market_clearing():
 
 
 def test_government_stationary():
-    """govt_transition at SS prices with zero default keeps debt constant."""
+    # govt_transition AT SS PRICES WITH NO DEFAULT MUST KEEP DEBT CONSTANT.
     from government import govt_transition
     cal, ss = get_ss()
     T = cal["T"]
@@ -54,7 +56,7 @@ def test_government_stationary():
 
 
 def test_calibration_targets():
-    """Bocola calibration anchors documented in calibration.py."""
+    # THE BOCOLA CALIBRATION ANCHORS DOCUMENTED IN calibration.py MUST BE HIT.
     cal, ss = get_ss()
     bk = ss["ss_bank_D"]
     exposure = ss["Q_bD_ss"] * ss["b_D_D_ss"] / bk["n_ss"]

@@ -1,6 +1,6 @@
-"""Fast-kernel equivalence: the numba kernels (fast_kernels.py) must
-reproduce the pure-numpy reference implementations to float precision, and
-the bincount scatter must match the historical np.add.at scatter."""
+# FAST-KERNEL EQUIVALENCE: THE NUMBA KERNELS MUST REPRODUCE THE PURE-NUMPY
+# REFERENCE IMPLEMENTATIONS TO FLOAT PRECISION, AND THE BINCOUNT SCATTER MUST
+# MATCH THE HISTORICAL np.add.at SCATTER.
 import os
 import sys
 
@@ -15,6 +15,7 @@ from distribution import (forward_iterate, forward_paths,  # noqa: E402
 
 
 def _random_problem(seed=0, T=40, n_a=80, n_e=3):
+    # RANDOM HOUSEHOLD PROBLEM EXERCISING BOTH THE INTERIOR AND CONSTRAINED BRANCHES.
     rng = np.random.default_rng(seed)
     a_grid = np.linspace(0.0, 1.0, n_a) ** 2 * 60.0
     Pi = rng.uniform(0.05, 1.0, (n_e, n_e))
@@ -32,6 +33,7 @@ def _random_problem(seed=0, T=40, n_a=80, n_e=3):
 
 
 def test_hh_backward_equivalence():
+    # THE EGM BACKWARD KERNEL MUST MATCH THE NUMPY REFERENCE.
     if not fast_kernels.HAVE_NUMBA:
         print("  numba not importable — hh_backward equivalence skipped")
         return
@@ -50,6 +52,7 @@ def test_hh_backward_equivalence():
 
 
 def test_dist_forward_equivalence():
+    # THE DISTRIBUTION FORWARD KERNEL MUST MATCH THE NUMPY REFERENCE.
     if not fast_kernels.HAVE_NUMBA:
         print("  numba not importable — dist_forward equivalence skipped")
         return
@@ -74,8 +77,8 @@ def test_dist_forward_equivalence():
 
 
 def test_bincount_scatter_matches_add_at():
-    """forward_iterate's one-shot bincount must equal the historical per-e
-    np.add.at scatter (identical sums up to float associativity)."""
+    # forward_iterate'S ONE-SHOT BINCOUNT MUST EQUAL THE HISTORICAL PER-e
+    # np.add.at SCATTER, UP TO FLOAT ASSOCIATIVITY.
     rng = np.random.default_rng(7)
     n_a, n_e = 120, 4
     a_grid = np.linspace(0.0, 1.0, n_a) ** 2 * 40.0

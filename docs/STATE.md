@@ -2,6 +2,16 @@
 
 **Branch:** `file-reorganisation` | **Date:** 2026-07-07 | **Status:** Bocola (2016) / Cole-Kehoe sovereign-risk mechanism implemented and verified; **risk channel added** via two-branch default-branch pricing (standalone `code/global/` model)
 
+> **Reading note (added 2026-07-21).** The dated entries below are a historical
+> record and are NOT a description of the current code. Two later reworks
+> superseded parts of them: the 2026-07-16 Bocola-faithful rewrite (exogenous π,
+> no Cole-Kehoe crisis zones, occasionally-binding IC) and the 2026-07-21 clarity
+> cleanup, which deleted every switched-off branch flag —
+> `def_output_cost_D`, `def_output_rho_D`, `def_capital_quality_D` (and its
+> `quality0` plumbing), `recap_share_D` — plus the `pin_rdep` diagnostic. Any
+> parameter named below that is missing from `calibration.py` was removed there;
+> `CLAUDE.md` and `docs/function_reference.md` are the current-state documents.
+
 ## Risk channel (added 2026-07-07, `risk_branch.py`)
 
 Bocola's second transmission channel — precautionary deleveraging — is now

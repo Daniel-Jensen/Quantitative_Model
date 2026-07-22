@@ -47,13 +47,15 @@ exact pure-numpy fallback (`cal["use_numba"]`; equivalence is tested).
 | `steady_state.py` | Two-stage SS solve: {rk_D, rk_F, p} on capital markets + current account, then {β_D, β_F} on deposit markets. Symmetric SS required (see docstring). |
 | `bank.py` | GK/Bocola bank block. `bank_backward` (α, μ, bond prices, cross-border FOC holdings), `bank_forward` (net worth, dividends, deposit supply; portfolio shares on ACTUAL net worth). PRICED (`def_price_D`) vs REALIZED (`def_real_D`) default split; only D is risky, F bonds are safe. |
 | `government.py` | HM perpetuity bonds, Bohn rule. `govt_transition` forward-integrates the debt stock in one pass. Default risk is exogenous (no crisis zones). |
-| `transition.py` | 7T stacked system: 2 FB complementarities, 2 labour, UNION deposit clearing + deposit-UIP, goods-D. IC is OCCASIONALLY BINDING: the capital-market block imposes the Fischer-Burmeister complementarity 0 ≤ μ ⊥ slack ≥ 0 (slack = αn − λ·assets); μ from the capital FOC is valid in both regimes. Capital is PREDETERMINED (Bocola eq. 6): the production stock at t is Kap[t−1] (impact output moves through hours alone). Debt is endogenous inside every residual call; banks clear bonds against the true end-of-period stock (`b_D_D = b_gov_eop − b_D_F`). `make_residual` builds the residual from a picklable spec (shared with Jacobian workers). Supports mid-crisis initial conditions (`init=`) for default branches and policy runs. |
+| `transition.py` | 7T stacked system: 2 FB complementarities, 2 labour, UNION deposit clearing + deposit-UIP, goods-D. IC is OCCASIONALLY BINDING: the capital-market block imposes the Fischer-Burmeister complementarity 0 ≤ μ ⊥ slack ≥ 0 (slack = αn − λ·assets); μ from the capital FOC is valid in both regimes. Capital is PREDETERMINED (Bocola eq. 6): the production stock at t is Kap[t−1] (impact output moves through hours alone). Debt is endogenous inside every residual call; banks clear bonds against the true end-of-period stock (`b_D_D = b_gov_eop − b_D_F`). `make_residual` builds the residual from a picklable spec (shared with Jacobian workers). Supports mid-crisis initial conditions (`init=`) for default branches and policy runs. `market_residuals(out, cal, ss=None)` is the ONE definition of the clearing diagnostics, used by both `prints.py` and the tests. |
 | `solvers.py` | Parallel FD Jacobian + damped Newton with Broyden updates, stall-triggered rebuilds, and cross-solve Jacobian reuse (`jac_cache`). |
 | `fast_kernels.py` | numba kernels for EGM backward + distribution forward; exact numpy fallback when numba is absent (`cal["use_numba"]`). |
-| `risk_branch.py` | **Bocola risk channel**: representative post-default branch — ONE deterministic solve of the PURE-HAIRCUT feared event (def_real_D[0]=1, recovery 0.45 = Greek PSI). Diagnostic flags off at baseline: `def_output_cost_D`, `def_capital_quality_D`, `recap_share_D`. Two-branch risk inputs for `bank_backward`, `solve_transition_risk` outer loop (base ↔ branch fixed point at exogenous π), and `bond_decomposition` (default comp. + risk premium + liquidity premium, exact identity). |
+| `risk_branch.py` | **Bocola risk channel**: representative post-event branches — ONE deterministic solve of the PURE-HAIRCUT feared default (def_real_D[0]=1, recovery 0.45 = Greek PSI), plus the TPI-reneged branch. Two-branch risk inputs for `bank_backward`, `solve_transition_risk` outer loop (base ↔ branch fixed point at exogenous π), and `bond_decomposition` (default comp. + risk premium + liquidity premium, exact identity). A recap-share ladder (`_RECAP_LADDER`) exists ONLY as a numerical continuation when the direct branch solve stalls; the returned branch always has zero recap. |
 | `household.py`, `distribution.py` | EGM with GHH utility; stationary distribution and forward iteration. |
-| `firms.py`, `capital.py`, `trade.py` | Flexible-price production with the Neumeyer-Perri working-capital wedge (w ÷ (1+ζ·r_wc), the spread→output channel; ζ=0 nests exactly — Bocola §V.C's own open-economy fix), Jermann adjustment costs (+ branch capital-quality hook `quality0`), CES/Armington trade. |
-| `main.py` | End-to-end run: SS → TFP IRF → Bocola pass-through experiment (exogenous π path 1%·0.95^t). Full pipeline ≈ 1–2 min (branch cold-start ≈ 30s incl. the recap-share warm-start continuation; later rounds ~1s via `jac_cache`). |
+| `firms.py`, `capital.py`, `trade.py` | Flexible-price production with the Neumeyer-Perri working-capital wedge (w ÷ (1+ζ·r_wc), the spread→output channel; ζ=0 nests exactly — Bocola §V.C's own open-economy fix), Jermann adjustment costs, CES/Armington trade. |
+| `prints.py` | ALL console reporting: `banner`, `print_ss_table`, `print_transition_residuals`, `print_risk_table`, `print_tpi_table`, `lending_spread_bps`. Model code never formats output. |
+| `plots.py` | IRF panels + the spread decomposition, written to `output/`. |
+| `main.py` | End-to-end run: SS → TFP IRF → Bocola pass-through → TPI backstop. Orchestration only — shock paths are built here (`PI_SHOCK`/`PI_RHO`, `TPI_*`), everything printed comes from `prints.py`. Full pipeline ≈ 1–2 min (branch cold-start ≈ 30s; later rounds ~1s via `jac_cache`). |
 | `tests/` | Regression suite (see below). |
 
 ## Running and testing
@@ -67,7 +69,14 @@ python3 tests/test_fast_kernels.py           # numba/numpy kernel equivalence (f
 python3 tests/test_transition_walras.py      # fixed point + Walras with moving debt (~30s)
 python3 tests/test_signs_bocola.py           # sign acceptance criteria (~20s)
 python3 tests/test_risk_channel.py           # risk-channel nesting/identity/signs (~2 min)
+python3 tests/test_tpi.py                    # TPI nesting + CB budget closure (~5 min)
 ```
+
+**Comment convention** (enforced across `code/global/`): every module and every
+function carries exactly ONE leading ALL-CAPS comment saying what it is; any
+further explanation is lowercase `#` comments attached to the specific hard
+line. No docstrings, no bold markers, no prose blocks inside function bodies.
+Console output lives in `prints.py`, never inside the model blocks.
 
 **Acceptance thresholds** (all enforced in tests):
 - goods_D (imposed) ≤ 1e−9; goods_F (Walras-redundant diagnostic) ≤ 2e−6 —
@@ -148,11 +157,14 @@ python3 tests/test_risk_channel.py           # risk-channel nesting/identity/sig
   solves a single deterministic event — a full write-down to recovery
   `recovery_rate_D` = 0.45 (Greek PSI; Bocola's D = 0.55) on the whole
   claim, with the default-state recession arising endogenously through bank
-  balance sheets. Diagnostic flags, all 0 at baseline: `def_output_cost_D`
-  (Arellano), `def_capital_quality_D` (GK ξ_K), `recap_share_D` (HFSF-style
-  equity injection financed by branch issuance). If the event is infeasible
-  the branch RAISES. Bohn taxes respond to the SURVIVING stock (taxing the
-  pre-haircut stock at t=0 was a ~31%-of-GDP artifact).
+  balance sheets. There are no scarring add-ons: the old Arellano output
+  cost, GK ξ_K capital-quality loss and HFSF recap FLAGS were all 0 at the
+  Bocola-pure baseline and were deleted in the 2026-07-21 cleanup (see git
+  history if a variant needs them back). The recap machinery survives only
+  as `_RECAP_LADDER`, a warm-start continuation used when the direct branch
+  solve stalls. If the event is infeasible after that, the branch RAISES.
+  Bohn taxes respond to the SURVIVING stock (taxing the pre-haircut stock at
+  t=0 was a ~31%-of-GDP artifact).
 - **Working capital (Neumeyer-Perri):** ζ_wc=1 × wage bill pre-financed at
   r_wc = rdep(−1) + λμ/Ω̃; the wedge is the only channel from spreads into
   impact output (without it Y_D moved −0.2% even at Q_bD −30%, n_D −20%).
@@ -161,9 +173,9 @@ python3 tests/test_risk_channel.py           # risk-channel nesting/identity/sig
   break the closed-form leverage/spread calibration.
 - **Walras redundancy:** goods_F and the current account are *dropped* from
   the residual system and monitored as diagnostics.
-- **No macroprudential policy** (by design, current phase). The only policy
-  rule is the Bohn tax (the default-branch recap flag is a diagnostic, off
-  at baseline).
+- **Policy rules present:** the Bohn tax, and the TPI backstop (a Markov-
+  switching CB price floor on the D-sovereign, `psi_cb_D`, with an explicit
+  CB-budget rebate `rem_cb_D`). No macroprudential policy, by design.
 
 ## Known limitations (documented, next thesis phases)
 
@@ -176,8 +188,8 @@ python3 tests/test_risk_channel.py           # risk-channel nesting/identity/sig
 - Risk channel approximations: single representative default branch,
   Λ^nd ≡ beta_inter, rep-agent income-SDF proxy for Λ^d, household-side
   π-blindness (the deposit Euler never weights the default branch —
-  faithful to Bocola, where household deposits are riskless too; see
-  risk_branch.py docstring). Validation moment: risk-channel share of the
+  faithful to Bocola, where household deposits are riskless too; see the
+  risk_branch.py module header). Validation moment: risk-channel share of the
   lending-spread response vs Bocola's "up to 45%".
 - On a deterministic path the occasionally-binding IC regime is a
   perfect-foresight switch, not a distribution over binding states —

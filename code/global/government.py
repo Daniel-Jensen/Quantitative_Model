@@ -1,61 +1,46 @@
-# **Government block: HM perpetuity bonds, Bohn (1998) fiscal rule.**
+# GOVERNMENT BLOCK: HATCHONDO-MARTINEZ PERPETUITY BONDS, BOHN (1998) FISCAL RULE.
 # Default risk is EXOGENOUS (Bocola 2016 eqs. 11-12): the priced default
-# probability π_t is an input path to the transition solver, not a function
-# of the debt stock. Debt still evolves endogenously under the Bohn tax.
+# probability is an input path to the transition solver, never a function of
+# the debt stock. Debt still evolves endogenously under the Bohn tax.
 import numpy as np
 
 
-def hm_bond_price_ss(rdep_ss, delta_b):
-    # **Steady-state HM perpetuity price.**
-    return delta_b / (rdep_ss + delta_b)
-
-
-def hm_bond_return_ss(Q_B_ss, delta_b):
-    # **Realized SS return on the HM perpetuity (= rdep_ss by no-arbitrage).**
-    return (delta_b + (1 - delta_b) * Q_B_ss) / Q_B_ss - 1
-
-
 def govt_steady_state(cal, rdep_ss, country):
-    # **Steady-state government block (no default, constant debt stock).**
+    # STEADY-STATE GOVERNMENT BLOCK (NO DEFAULT, CONSTANT DEBT STOCK).
     delta_b  = cal[f"delta_b_{country}"]
     B_gov_ss = cal[f"B_gov_{country}_ss"]
     G        = cal[f"G_{country}"]
 
-    Q_B_ss    = hm_bond_price_ss(rdep_ss, delta_b)
-    rb_ss     = hm_bond_return_ss(Q_B_ss, delta_b)
-    coupon_ss = delta_b * B_gov_ss
-    Tax_ss    = G + coupon_ss * (1.0 - Q_B_ss)   # budget: G + coupon = Tax + issuance
-    return dict(Q_B_ss=Q_B_ss, rb_ss=rb_ss,
-                Tax_ss=Tax_ss, b_gov_ss=B_gov_ss, coupon_ss=coupon_ss)
+    Q_B_ss = delta_b / (rdep_ss + delta_b)
+    Tax_ss = G + delta_b * B_gov_ss * (1.0 - Q_B_ss)   # G + coupon = Tax + issuance
+    return dict(Q_B_ss=Q_B_ss, Tax_ss=Tax_ss, b_gov_ss=B_gov_ss)
 
 
 def govt_transition(cal, gs, Q_B_path, def_real_path, country, b_gov0=None,
                     b_anchor=None, recap_path=None):
-    # **Forward-integrate the debt stock under the Bohn tax at given bond prices.**
-    # recap_path: default-branch bailout outlays (extra spending financed by issuance).
+    # FORWARD-INTEGRATE THE DEBT STOCK UNDER THE BOHN TAX AT GIVEN BOND PRICES.
     delta_b       = cal[f"delta_b_{country}"]
-    recovery_rate = cal.get(f"recovery_rate_{country}", 1.0)   # F: never defaults
+    recovery_rate = cal.get(f"recovery_rate_{country}", 1.0)   # F never defaults
     phi_lamb      = cal[f"phi_lamb_{country}"]
     G             = cal[f"G_{country}"]
-    Tax_ss        = gs["Tax_ss"]
     b_gov_ss      = gs["b_gov_ss"]
     T             = len(Q_B_path)
 
     if def_real_path is None:
         def_real_path = np.zeros(T)
     if recap_path is None:
-        recap_path = np.zeros(T)
+        recap_path = np.zeros(T)   # branch bailout outlays, financed by issuance
 
     if b_anchor is None:
         b_anchor = b_gov_ss
-        Tax_base = Tax_ss
+        Tax_base = gs["Tax_ss"]
     else:
-        # branches re-anchor to the post-haircut stock (else the haircut becomes a
-        # tax-cut windfall → default expansionary, wrong-signed risk premium)
+        # branches re-anchor to the post-haircut stock, else the haircut becomes a
+        # tax-cut windfall -> default expansionary, wrong-signed risk premium
         Tax_base = G + delta_b * b_anchor * (1.0 - gs["Q_B_ss"])
 
     b_gov_bop = np.empty(T)   # beginning-of-period stock
-    b_gov_eop = np.empty(T)   # end-of-period stock (bank-held over t→t+1)
+    b_gov_eop = np.empty(T)   # end-of-period stock (bank-held over t -> t+1)
     Tax       = np.empty(T)
     coupon    = np.empty(T)
     net_iss   = np.empty(T)

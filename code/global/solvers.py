@@ -1,32 +1,32 @@
-# **Stacked-system solver utilities: parallel FD Jacobian + damped Newton with reuse.**
+# STACKED-SYSTEM SOLVER UTILITIES: PARALLEL FD JACOBIAN + DAMPED NEWTON WITH REUSE.
 # The point is Jacobian REUSE: jac_cache is a caller-owned dict, so the expensive
 # FD Jacobian (7T+1 evaluations) is built once per system kind and shared across
-# warm re-solves of the risk fixed point (scipy hybr rebuilds every call).
-# Workers are spawned (macOS) → every entry-point needs its __main__ guard.
+# warm re-solves of the risk fixed point (scipy hybr rebuilds it every call).
+# Workers are spawned (macOS), so every entry point needs its __main__ guard.
 import os
 import numpy as np
 from scipy.linalg import lu_factor, lu_solve
 
 _SQRT_EPS = np.sqrt(np.finfo(float).eps)   # ~1.49e-8, MINPACK's default step
-_WALL = 5.0        # |ΔF| this large means the perturbation hit a penalty wall
+_WALL = 5.0        # |dF| this large means the perturbation hit a penalty wall
 _WORKER = {}       # per-worker residual context (set by _init_worker)
 
 
 def _fd_steps(y0):
-    # **Per-component forward-difference steps: relative with an O(1) floor.**
-    # Floor keeps the step sane for deposit rates near 0 (else eps·|x| ≈ FD noise).
+    # PER-COMPONENT FORWARD-DIFFERENCE STEPS: RELATIVE WITH AN O(1) FLOOR.
+    # The floor keeps the step sane for deposit rates near 0 (else eps*|x| ~ FD noise).
     return _SQRT_EPS * np.maximum(np.abs(y0), 1.0)
 
 
 def _fd_columns(residual, y0, F0, cols, steps):
-    # **FD columns for `cols`, backing off the step if a perturbation hits the penalty wall.**
+    # FD COLUMNS FOR `cols`, BACKING OFF THE STEP IF A PERTURBATION HITS THE PENALTY WALL.
     out = np.empty((F0.size, len(cols)))
     for k, j in enumerate(cols):
         h = steps[j]
         y = y0.copy()
         y[j] += h
         Fj = residual(y)
-        if np.max(np.abs(Fj - F0)) >= _WALL:          # penalty wall — back off
+        if np.max(np.abs(Fj - F0)) >= _WALL:          # penalty wall - back off
             y = y0.copy()
             y[j] += h / 8.0
             Fj_small = residual(y)
@@ -37,27 +37,26 @@ def _fd_columns(residual, y0, F0, cols, steps):
 
 
 def _init_worker(spec):
-    # **Multiprocessing worker init: rebuild the residual from the picklable spec.**
+    # MULTIPROCESSING WORKER INIT: REBUILD THE RESIDUAL FROM THE PICKLABLE SPEC.
     import transition
     _WORKER["residual"] = transition.make_residual(spec)
 
 
 def _worker_columns(args):
-    # **Worker entry: compute its assigned FD columns.**
+    # WORKER ENTRY: COMPUTE ITS ASSIGNED FD COLUMNS.
     y0, F0, cols, steps = args
     return cols, _fd_columns(_WORKER["residual"], y0, F0, cols, steps)
 
 
 def fd_jacobian(residual, y0, F0, spec=None, n_jobs=0, verbose=False):
-    # **Forward-difference Jacobian dF/dy at y0 (parallel over columns; serial fallback).**
-    # spec != None enables the multiprocessing path; n_jobs=0 → os.cpu_count().
+    # FORWARD-DIFFERENCE JACOBIAN dF/dy AT y0 (PARALLEL OVER COLUMNS, SERIAL FALLBACK).
     n = y0.size
     steps = _fd_steps(y0)
     if n_jobs == 0:
         n_jobs = os.cpu_count() or 1
     n_jobs = min(n_jobs, n)
 
-    if spec is not None and n_jobs > 1:
+    if spec is not None and n_jobs > 1:   # spec != None enables the parallel path
         try:
             import multiprocessing as mp
             ctx = mp.get_context("spawn")
@@ -81,7 +80,7 @@ def fd_jacobian(residual, y0, F0, spec=None, n_jobs=0, verbose=False):
 
 def newton_solve(residual, y0, F0=None, jac_cache=None, accept_tol=1e-10,
                  build_jac=None, max_iter=80, max_rebuilds=8, verbose=False):
-    # **Damped Newton on max|F| with a reusable LU-factorized Jacobian (never raises).**
+    # DAMPED NEWTON ON max|F| WITH A REUSABLE LU-FACTORIZED JACOBIAN (NEVER RAISES).
     # jac_cache (caller-owned) may carry a Jacobian from a nearby system; Broyden
     # updates + stall-triggered rebuilds absorb the mismatch. Failure is declared
     # only when the line search fails on a FRESHLY built Jacobian.
@@ -93,11 +92,12 @@ def newton_solve(residual, y0, F0=None, jac_cache=None, accept_tol=1e-10,
     if fnorm <= accept_tol:
         return y, F, True
     if fnorm >= _WALL:
-        # starting point on the penalty wall → FD would difference wall vs wall
+        # starting point on the penalty wall -> FD would difference wall vs wall
         # (zero Jacobian); let the caller's trust-region fallback take over
         return y, F, False
 
     def _factor(J):
+        # STORE AND LU-FACTORIZE A JACOBIAN IN THE CACHE.
         if not np.all(np.isfinite(J)):
             raise np.linalg.LinAlgError("non-finite Jacobian")
         jac_cache["J"] = J
@@ -137,13 +137,12 @@ def newton_solve(residual, y0, F0=None, jac_cache=None, accept_tol=1e-10,
                 _factor(build_jac(y_new, F_new))
             y, F, fnorm = y_new, F_new, fn_new
             if verbose:
-                print(f"    [newton] it {it + 1:2d}: max|F|={fnorm:.3e} "
-                      f"(step {lam})")
+                print(f"    [newton] it {it + 1:2d}: max|F|={fnorm:.3e} (step {lam})")
             if fnorm <= accept_tol:
                 return y, F, True
         else:
             if just_rebuilt or rebuilds >= max_rebuilds:
-                return y, F, False   # line search failed on a fresh Jacobian → true stall
+                return y, F, False   # line search failed on a fresh Jacobian -> true stall
             rebuilds += 1
             if verbose:
                 print(f"    [newton] stall at max|F|={fnorm:.3e}; "

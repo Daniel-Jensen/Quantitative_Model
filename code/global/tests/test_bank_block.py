@@ -1,5 +1,5 @@
-"""Bank-block unit tests: fixed point at SS, per-period bond FOC identities
-under priced default risk, and no-arbitrage around a realized default event."""
+# BANK-BLOCK UNIT TESTS: SS FIXED POINT, BOND FOC IDENTITIES UNDER PRICED DEFAULT
+# RISK, AND NO-ARBITRAGE AROUND A REALIZED DEFAULT EVENT.
 import numpy as np
 
 from common import get_ss, ss_input_paths
@@ -7,6 +7,7 @@ from bank import bank_backward, bank_forward
 
 
 def _run_bank(cal, ss, def_price_D=None, def_real_D=None):
+    # RUN THE BACKWARD AND FORWARD BANK PASSES ON CONSTANT SS INPUT PATHS.
     paths = ss_input_paths(cal, ss)
     bwd = bank_backward(paths["rk_D"], paths["rk_F"], paths["rdep_D"],
                         paths["rdep_F"], paths["p_path"], cal,
@@ -22,6 +23,7 @@ def _run_bank(cal, ss, def_price_D=None, def_real_D=None):
 
 
 def test_fixed_point_at_ss():
+    # AT SS INPUTS THE BANK BLOCK MUST REPRODUCE EVERY SS OBJECT.
     cal, ss = get_ss()
     bwd, fwd = _run_bank(cal, ss)
     assert np.max(np.abs(bwd["Q_bD"] - ss["Q_bD_ss"])) < 1e-12
@@ -31,8 +33,8 @@ def test_fixed_point_at_ss():
 
 
 def test_priced_risk_foc_identity():
-    """E_t[1+rb_{t+1}] = 1 + rdep_t + λμ_t/Ω_{t+1} at every t under a sunspot
-    priced-default path (the exact GK bond FOC with expected haircut)."""
+    # E_t[1+rb'] = 1 + rdep_t + lambda*mu_t/Omega AT EVERY t UNDER PRICED DEFAULT
+    # RISK — THE EXACT GK BOND FOC WITH AN EXPECTED HAIRCUT.
     cal, ss = get_ss()
     T = cal["T"]
     defp = 0.03 * 0.9 ** np.arange(T)
@@ -56,8 +58,8 @@ def test_priced_risk_foc_identity():
 
 
 def test_realized_default_no_arbitrage():
-    """One-off realized haircut at t=5: fully priced at t=4, so the realized
-    return in the default period equals the required return."""
+    # A ONE-OFF HAIRCUT AT t=5 IS FULLY PRICED AT t=4, SO THE REALIZED RETURN IN
+    # THE DEFAULT PERIOD EQUALS THE REQUIRED RETURN.
     cal, ss = get_ss()
     T = cal["T"]
     defp = np.zeros(T); defp[5] = 0.20
@@ -72,8 +74,8 @@ def test_realized_default_no_arbitrage():
 
 
 def test_no_sunspot_equals_no_shock():
-    """With def_price = 0 the paths are identical to the no-shock run —
-    guards against any hidden sunspot channel re-appearing (old ψ_bd bug)."""
+    # def_price = 0 MUST GIVE PATHS IDENTICAL TO THE NO-SHOCK RUN, GUARDING
+    # AGAINST ANY HIDDEN SUNSPOT CHANNEL RE-APPEARING.
     cal, ss = get_ss()
     bwd0, fwd0 = _run_bank(cal, ss)
     bwdz, fwdz = _run_bank(cal, ss, def_price_D=np.zeros(cal["T"]))
