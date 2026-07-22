@@ -95,10 +95,10 @@ See `docs/STATE.md` for the full calibration table. Key tensions:
 
 | Issue | Description |
 |-------|-------------|
-| **C-1** | `Delta_cross=1.45>1`: back-solved divertable fraction exceeds 1; multi-asset IC is degenerate. Preferred resolution: hardcode `Delta_D=0.2, Delta_F=0.4` per bank-cal branch. |
-| **S-1** | `writeoff_enabled=0`: default shock produces no realized bank losses. Model is currently a pure risk-premium loop. Enabling writeoff (`writeoff_enabled=1`, `recovery_rate=0.40`) gives the balance-sheet doom loop. Author decision pending — **now coupled to F-1: with the market-value fiscal rule, writeoff must stay OFF (risk-premium framing), else the default response is perverse.** |
-| **Calibration** | `delta_b_D/F=0.10` (2.5yr) is empirically too short; target is `0.036/0.038` (7yr/6.5yr GR/DE). Porting from bank-cal is the next major task (see `docs/bank_cal_review.md`). **But empirical long duration is explosive under the par-value fiscal rule at every `phi_lamb` (F-1) — it requires `mv_rule=1`.** |
-| **F-1** | Par-value Bohn rule is explosive with empirical long-duration bonds at all `phi_lamb`. The switchable **market-value rule** (`mv_rule_D/F`, default 0=par) restores stationarity at `phi_lamb≈0.10` in the risk-premium framing. See `docs/STATE.md` Finding F-1. |
+| **C-1** | **RESOLVED (2026-07-22).** Was: `Delta_cross=1.45>1`, back-solved divertable fraction exceeds 1, multi-asset IC degenerate. Fixed at its root: `steady_auxilliary_D/F` now solve `lambda_gk` from the multi-asset IC directly; `Delta_bD_D/F=0.2/0.4` are genuine hardcoded inputs, verified to bind exactly. See `docs/eba_calibration.md`. |
+| **S-1** | `writeoff_enabled=0`: default shock produces no realized bank losses. Model is currently a pure risk-premium loop. Enabling writeoff (`writeoff_enabled=1`, `recovery_rate=0.40`) gives the balance-sheet doom loop. Author decision pending — **now coupled to F-1: with the market-value fiscal rule, writeoff must stay OFF (risk-premium framing), else the default response is perverse.** Also coupled to `recovery_rate_D/F` currently being a placeholder (0.00, not the actual Greek PSI ~25-35%) — see `docs/STATE.md` issue EL-1. |
+| **Calibration** | EBA 2011 bank-sovereign concentration (`phi_bD_D_ss=2.39` etc.) and `psi_lambda_B=1.1284` (data-disciplined to the 150bp spread target, 2026-07-22) are now live — see `docs/eba_calibration.md`. `delta_b_D/F=0.10` (2.5yr) is still empirically too short; target is `0.036/0.038` (7yr/6.5yr GR/DE), not yet ported. **`psi_lambda_B` must not be raised above ~1.5-2.0 without re-checking stability — the model enters a linear-approximation-breakdown region there on the current calibration (both the pre-EBA value 2.8 and the original default 3.0 now sit inside it).** |
+| **F-1** | Re-tested 2026-07-22 on the C-1-fixed, EBA-anchored model with a validated (order-selected Prony/eigenvalue) stability estimator — the original energy-ratio-proxy estimate was itself found to be an overfitting artifact partway through. Result: the market-value rule (`mv_rule_D/F`, default 0=par, currently committed at 1) is stable across nearly all of `phi_lamb∈[0.05,0.25]` with empirical long-duration bonds, except a narrow, mild zone around `phi_lamb≈0.15-0.18` — do not reuse the pre-fix "`phi_lamb≈0.10`" plateau claim, it sits inside a range not re-confirmed at the old paper's exact risk-premium parameterization. See `docs/STATE.md` Finding F-1 for all three re-test rounds. |
 
 ## Typical iteration
 
@@ -115,7 +115,8 @@ See `docs/STATE.md` for the full calibration table. Key tensions:
 | File | Contains |
 |------|----------|
 | `docs/STATE.md` | Current calibration table, Walras residuals, open issues, next priorities |
-| `docs/SPEC.md` | Research goals, functional requirements, modelling choices, calibration targets |
+| `docs/SPEC.md` | Research goals, functional requirements, modelling choices, calibration targets, **and the paper's theoretical framing/narrative** (merged in from the retired `docs/FRAMING_HANDOFF.md`) |
+| `docs/eba_calibration.md` | EBA 2011 parameter→moment map; the C-1 structural fix; `psi_lambda_B` recalibration and its breakdown-region warning |
 | `docs/PROCESS.md` | Workflow, debugging steps, EBA verification assertions |
 | `docs/HANDOFF.md` | Quick-start, session priorities, important file locations |
 | `docs/audit.md` | Master audit log: all findings ranked by severity, fix history, open hypotheses |

@@ -235,8 +235,9 @@ calibration switch) -- treat all TPI welfare/loading numbers from before
   around `psi_lambda_B` 4-5.) Side effect: this restores the TPI loading above
   1 (2.54/2.14/1.74 at gamma=2/5/10, still declining), resolving the "loading
   <1" concern raised in a paper-direction hostile review the same day -- at
-  roughly a third the magnitude of the stale "~7x" figure in
-  `docs/FRAMING_HANDOFF.md`, which needs its numbers updated accordingly.
+  roughly a third the magnitude of the stale "~7x" figure previously in
+  `docs/FRAMING_HANDOFF.md` (now retired; see `docs/SPEC.md`'s theoretical
+  framing section, updated accordingly).
 - **`rk_F` depreciation-calibration miss:** `code/depreciation_calibration.py`
   targets `rk_F=0.01` by setting `delta_F` from the *pre-re-solve* `K_F`/`Y_F`
   (a one-shot, not iterated-to-convergence, calibration), then re-solves SS with

@@ -73,15 +73,18 @@ for the full derivation) and a structural bug (C-1) was found and fixed. Summary
   to about 1.5-2.0, then turns wildly non-monotonic (219bp at 2.0, 97bp at 2.6,
   853bp at 2.8, 353bp at 3.0, 11478bp at 5.0) -- a linear-approximation
   breakdown, not real moments. **Both the pre-fix literature value (2.8, per
-  `docs/FRAMING_HANDOFF.md`) and the original round-number default (3.0) now
-  sit inside that broken region on this model and must not be restored
-  as-is.** `psi_lambda_B=1.1284` verified directly to hit 151.3bp (smooth
-  neighbourhood: 147bp at 1.10, 154bp at 1.15) and is now the committed value.
-  Side effect: this also resolves the TPI loading concern from the paper-
-  direction hostile review below (§ "Hostile review addendum") -- loading is
-  back above 1 (2.54/2.14/1.74 at γ=2/5/10) and still declining, restoring the
-  paper's central over-compensation claim, at roughly a third the magnitude of
-  the stale "~7x" figure in `docs/FRAMING_HANDOFF.md`, which needs updating.
+  `docs/SPEC.md`'s theoretical framing) and the original round-number default
+  (3.0) now sit inside that broken region on this model and must not be
+  restored as-is.** `psi_lambda_B=1.1284` verified directly to hit 151.3bp
+  (smooth neighbourhood: 147bp at 1.10, 154bp at 1.15) and is now the
+  committed value. Side effect: this also resolves a "loading <1" concern
+  raised in a same-day paper-direction hostile review (the model's TPI
+  compensation appeared to have inverted below the actuarially-fair level at
+  the pre-recalibration `psi_lambda_B=0.31`) -- loading is back above 1
+  (2.54/2.14/1.74 at γ=2/5/10) and still declining, restoring the paper's
+  central over-compensation claim, at roughly a third the magnitude of the
+  stale "~7x" figure in `docs/SPEC.md`'s theoretical framing, which has been
+  updated accordingly.
 
 ## Historical state (as of 2026-06-22 forensic audit) -- see above for what changed since
 
@@ -129,7 +132,7 @@ Pre-fix peaks for reference: goods_mkt_F 2.0e−2 (~2% of F GDP); ca_res_D 1.5e�
 **TPI (ECB capital-key conduit, ecb-balance-sheet branch, 2026-07-16):**
 - ΔW_D = +1.38/+2.75/+4.13, ΔW_F = −1.36/−2.70/−4.03 (% quarterly SS consumption, 100q) at γ=2/5/10. Near-transfer, slightly positive-sum (+0.10 at γ=10). Spread now compresses with γ: peak 0.409pp (γ=0) → 0.161pp (γ=10).
 - ECB P&L (PV at β_F over 100q, % of quarterly SS Y_D, γ=10): peak exposure 1.57%, purchases PV 4.20%, expected-loss leg 0.0070%, default-premium leg 0.0227%, MTM leg +0.0253%; SS-carry 0 (SS yields equalised).
-- **Loading (premium PV / EL PV) declines monotonically in γ: 4.86 → 4.06 → 3.22** — the self-extinguishing premium (FRAMING_HANDOFF §5.5) confirmed in-model; `loading_arr` over `gammas_fine` in `tpi_results` is the key-figure schedule.
+- **Loading (premium PV / EL PV) declines monotonically in γ: 4.86 → 4.06 → 3.22** — the self-extinguishing premium (`docs/SPEC.md` "Theoretical framing," Live Claim 5) confirmed in-model at this (now superseded) calibration; `loading_arr` over `gammas_fine` in `tpi_results` is the key-figure schedule. **Superseded 2026-07-22**: current committed calibration gives 2.54/2.14/1.74 at γ=2/5/10 (see the EBA/C-1-fix section at the top of this file).
 - Germany (κ=0.929): bears EL PV 0.0065% Y_D, receives premium PV 0.0210% at γ=10 (memo at full EA key 26.1%: EL 0.0018%).
 - Conduit residuals at every γ: `ca_res_D` ≤ 7.4e−8, `goods_mkt_F` ≤ 6.2e−10. The pre-conduit "zero-sum transfer, no spread compression" numbers (ΔW_D +1.88/ΔW_F −1.90) were from the notebook-era model and are superseded.
 
@@ -160,6 +163,10 @@ Pre-fix peaks for reference: goods_mkt_F 2.0e−2 (~2% of F GDP); ca_res_D 1.5e�
 | S-1 | `writeoff_enabled=0`: default shock produces zero realized bank losses. `recovery_rate` and `zeta_writeoff` are set but inert. Model is currently a pure risk-premium loop, not a balance-sheet doom loop. | Author decision. Resolution: set `writeoff_enabled=1` with `recovery=0.40, zeta=1.0` (GR 2012 ~50% haircut → ~0.4–0.5 recovery). |
 | RK-1 | `rk_F` depreciation calibration misses its target (0.0133 vs. 0.0100) post-EBA; the one-shot `delta_F` calibration in `depreciation_calibration.py` isn't iterated to convergence against the re-solved SS. `rk_D` hits its target exactly; only F misses. | Open (2026-07-22). Not yet investigated against a pre-EBA baseline. |
 | Y-1 | Small positive `Y_D[0]` on the default shock (`+0.01%` to `+0.03%` across calibrations) even though `n_inter_D[0]` is correctly negative. Plausibly a portfolio-substitution effect (bonds are now good collateral at `Delta=0.4` and become relatively worse on impact) partially offsetting the direct hit — a tension already flagged in an earlier "substitution vs deleveraging" diagnostic. | Open (2026-07-22). Small magnitude; worth checking before reporting `Y_D` impact signs. |
+| EL-1 | `recovery_rate_D/F=0.00` is a placeholder (zero recovery), not the actual Greek PSI recovery (~25–35% typically cited). This sets `EL_price`, one of only two numbers the entire TPI loading/over-compensation argument rests on (the other is `psi_lambda_B`). | Author decision (from `docs/FRAMING_HANDOFF.md`, now retired into `docs/SPEC.md`). **The first thing a referee interrogates.** Not yet resolved. |
+| PT-1 | Bank-net-worth-to-spread pass-through (the "consistency moment," `Δn per 100bp` in `audit_artifacts/psilam_moment_sweep_postC1.py`) is now ≈−4.5%/100bp at the calibrated point — roughly 5× the pre-EBA value (≈−0.85%/100bp), because EBA bank net worth is ~7× thinner. Not yet checked against bank-equity/sovereign-spread event studies (Altavilla–Pagano–Simonelli; Acharya–Drechsler–Schnabl) at this new magnitude. | Open (2026-07-22). The one remaining external check on whether the doom-loop transmission is sized correctly — it just moved 5×. |
+| DIST-1 | Distributional resolution is Gini-only this iteration; per-decile deferred. `GINI_C` is specifically the wrong statistic for the Greek crisis — measured inequality barely moved (already highly unequal pre-crisis; worst-affected households dropped out of surveys). | Open. Any incidence claim in the paper must state its distributional resolution explicitly. |
+| A5-1 | The TPI's German fiscal cost/benefit should be reported as three distinct objects — **exposure** (discounted purchases, what capital-key sharing acts on), **priced expected loss** (hand-computed off-path per `docs/SPEC.md`'s "structural constraints"), and **Greek fiscal saving** (`pd_D` differential vs. a passive counterfactual, the cleanest headline, no pricing assumption needed) — not conflated into a single "implicit transfer." Discount rate should be German risk-free for a cross-border object (currently `beta_F`, the creditor side — check this is deliberate and justified in the paper, not just a default). | Open; check `code/tpi.py`'s `cb_pnl` reports all three cleanly before writing this section of the paper. |
 | X-1 | Dead-code imports in notebook cell 7: blocks no longer in the model remain in the import list. | Minor cleanup; no numerical effect. |
 
 ## Next priorities
