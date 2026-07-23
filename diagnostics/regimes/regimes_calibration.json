@@ -1,0 +1,12 @@
+{
+  "gammas": {
+    "aggressive": 17.050276006339118,
+    "medium": 5.7177932385820895,
+    "passive": 0.0
+  },
+  "pk_passive_bp": 156.60097211636028,
+  "A_cb_impact": -0.019455046849572406,
+  "selection_rule": "peak-spread compression 50%/25% (spec \u00a77; feasible on main, A_cb<0 \u2014 capital-key conduit; ms-regime SA-1 pathology absent)",
+  "model": "main (psi_lambda_B=1.1793, mv_rule=1, capital-key conduit)",
+  "generated": "2026-07-23 20:54:32.114670"
+}
