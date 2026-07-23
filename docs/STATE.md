@@ -86,6 +86,38 @@ for the full derivation) and a structural bug (C-1) was found and fixed. Summary
   stale "~7x" figure in `docs/SPEC.md`'s theoretical framing, which has been
   updated accordingly.
 
+## Policy regimes (exogenous backstop aggressiveness) — added 2026-07-23
+
+Three exogenous ECB backstop regimes over the TPI feedback coefficient γ on the
+endogenous D–F yield spread (`TPI_t = γ·(spread_t − spread_ss)`, dormant at SS),
+plus a Stage-B lottery in which banks price an ex-ante-unknown CB type revealed at
+date k. All post-Jacobian numpy on cached `G_tpi` response matrices — production
+`main.py` untouched. Code/outputs in `diagnostics/regimes/` (`run_regimes.py` =
+Stage A, `uncertain_regime.py` = Stage B, `lottery_math.py`+tests = the math core,
+`regime_model.py` = the cache layer; see `regimes_log.md`). Beliefs disciplined by
+the 3-state Markov-switching intervention-regime estimation in `Empirics/` (via
+`beliefs_from_empirics.py`).
+
+**The backstop compresses spreads on this model, as intended.** A unit CB purchase
+gives `d(spread_rb)/d(cb_buy) = −1.95e-2` (compression): the ECB **capital-key
+conduit** (`kappa_cb_F=0.929`) funds a D-bond purchase 92.9% through F's treasury,
+so D banks shed bonds (`d(b_D_D)=−0.72`) and the periphery–core spread narrows.
+Stage A (spec §7 spread-compression targeting): aggressive/medium γ = 17.05/5.72
+hit 78/117 bp peak spread vs 156 bp passive, cushioning bank net worth; the A6
+amplifier-invariance ranking **survives** at `psi_lambda_B=0`. Stage B: the impact
+spread rises with the belief weight on a passive CB (fear of no backstop is priced
+before any policy acts), with a positive regime-uncertainty premium (+52/+23 bp on
+the aggressive/medium branches); the §10.3 structural identities hold exactly.
+
+**Provenance caveat (important).** An earlier build of this feature on the retired
+`ms-regime` branch reported the OPPOSITE — that CB purchases *widen* the impact
+spread ("Finding SA-1"), forcing an output-protection workaround and an inverted
+Stage-B sign. That result was an artifact of `ms-regime`'s **superseded** model
+(single-country conduit, par-value fiscal rule, `psi_lambda_B=2.8` — now known to
+sit in this model's linear-approximation-breakdown region). It does **not** hold on
+main; the capital-key conduit + market-value rule resolve it. Any SA-1/SB-1
+"spread-widening" or "output-protection" statement from `ms-regime` is void here.
+
 ## Historical state (as of 2026-06-22 forensic audit) -- see above for what changed since
 
 ## Current status
