@@ -5,7 +5,7 @@
 1. Run the model via `code/main.py` (the production pipeline).
 2. Core model equations live in `code/equations_D.py`, `code/equations_F.py`, `code/equations_global.py`. Edit these first; the pipeline imports them.
 3. Figures output to `plots/`. Audit reproduction scripts in `audit_artifacts/`.
-4. Update the living docs after any calibration or structural change — **STATE.md, PROCESS.md, HANDOFF.md** (and CLAUDE.md if instructions change), not just one of them. Enforced by a pre-commit hook (see *Doc-sync policy* below).
+4. Update the living docs after any calibration or structural change — **STATE.md, PROGRESS.md (changelog), HANDOFF.md** (and CLAUDE.md if instructions change), not just one of them. Enforced by a pre-commit hook (see *Doc-sync policy* below).
 
 ## Python environment
 
@@ -34,13 +34,13 @@ Committed notebooks will have outputs and execution counts stripped automaticall
 2. Re-run the pipeline: `/opt/anaconda3/envs/ssj/bin/python code/main.py`.
 3. Inspect diagnostic residuals: `goods_mkt_D`, `goods_mkt_F`, `ca_res_D`, `deposit_mkt_D/F` — all should be ≤1e-7 at any shock magnitude, or you have a structural problem.
 4. Run IRFs; check that `n_inter_D[0]` and `Y_D[0]` fall on a default shock (positive = timing bug).
-5. Update the living docs (**STATE.md, PROCESS.md, HANDOFF.md**), then commit the changed files. A pre-commit hook blocks code commits that skip the docs (see *Doc-sync policy*).
+5. Update the living docs (**STATE.md, PROGRESS.md, HANDOFF.md** — add a `PROGRESS.md` changelog entry for the change), then commit the changed files. A pre-commit hook blocks code commits that skip the docs (see *Doc-sync policy*).
 
 ## Doc-sync policy (pre-commit hook)
 
-The living docs must stay in lockstep with the code — not just `CLAUDE.md`. A PreToolUse hook (`.claude/settings.json` → `.claude/hooks/require-docs-before-commit.sh`) **blocks any `git commit` that stages model/code changes** (`code/**`, `audit_artifacts/**`, `*.py`) **unless `docs/STATE.md`, `docs/PROCESS.md`, and `docs/HANDOFF.md` are updated in the same commit.** Doc-only / config-only commits pass untouched. The hook fails open (a broken hook never wedges committing) and its message lists exactly which docs are missing. To change the required set or lift the gate, edit the hook or run `/hooks`.
+The living docs must stay in lockstep with the code — not just `CLAUDE.md`. A PreToolUse hook (`.claude/settings.json` → `.claude/hooks/require-docs-before-commit.sh`) **blocks any `git commit` that stages model/code changes** (`code/**`, `audit_artifacts/**`, `*.py`) **unless `docs/STATE.md`, `docs/PROGRESS.md`, and `docs/HANDOFF.md` are updated in the same commit.** Doc-only / config-only commits pass untouched. The hook fails open (a broken hook never wedges committing) and its message lists exactly which docs are missing. To change the required set or lift the gate, edit the hook or run `/hooks`.
 
-Doc roles: **STATE.md** = current state / calibration table / findings; **PROCESS.md** = workflow / verification (this file); **HANDOFF.md** = session status / priorities.
+Doc roles: **STATE.md** = current state / calibration table / findings; **PROGRESS.md** = changelog (append an entry per commit); **HANDOFF.md** = session status / priorities. `PROCESS.md` (this file) is the workflow doc and is deliberately **not** in the required set — it changes rarely.
 
 ## Structural regression test
 
@@ -90,6 +90,7 @@ assert abs(b_F_F + b_F_D - B_supply_F) < 1e-6
 
 ## Version history
 
-- `model_v11.ipynb` (in `OLD models/`): predecessor with free bond trade between intermediaries
-- `model_v12`: the notebook the current modular pipeline (`code/main.py`) was reorganised from (PR #28, then removed); added NK labour, portfolio adjustment costs, TPI extension
-- Structural fixes applied on `audit` branch (2026-06-11): W-1, W-2, W-3, T-2, A-2, TPI-1 — see `docs/audit.md`
+Moved to **`docs/PROGRESS.md`** (the changelog). See there for the full dated
+timeline — predecessor notebooks (`model_v11`/`model_v12`), the 2026-06-11 forensic
+audit fixes (W-1…TPI-1), the modular reorganisation (PR #28), the EBA calibration,
+and all findings (C-1, F-1, F-2, EL-1, PT-1, …).

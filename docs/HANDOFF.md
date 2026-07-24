@@ -56,7 +56,11 @@ Regression test after any equation change (~6 min):
   (`audit_artifacts/pac_sweep.py`.)
 - **Added a pre-commit doc-sync hook** (`.claude/settings.json` +
   `.claude/hooks/require-docs-before-commit.sh`): blocks committing model/code
-  changes unless STATE.md, PROCESS.md, HANDOFF.md are updated in the same commit.
+  changes unless STATE.md, PROGRESS.md, HANDOFF.md are updated in the same commit.
+- **Created `docs/PROGRESS.md`** — a comprehensive changelog reverse-engineered from
+  the 135-commit git history + STATE/audit/EBA docs (`PROCESS.md`'s old "Version
+  history" moved here). PROGRESS is now the hook's required changelog; PROCESS stays
+  the (rarely-changing) workflow doc.
 
 ## Current model state (2026-07-22)
 

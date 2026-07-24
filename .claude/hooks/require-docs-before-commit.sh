@@ -37,13 +37,13 @@ printf '%s\n' "$staged" | grep -Eq '^(code/|audit_artifacts/)|\.py$' || exit 0
 
 # Which required living docs are missing from the commit?
 missing=""
-for d in docs/STATE.md docs/PROCESS.md docs/HANDOFF.md; do
+for d in docs/STATE.md docs/PROGRESS.md docs/HANDOFF.md; do
   printf '%s\n' "$staged" | grep -qxF "$d" || missing="$missing $d"
 done
 
 [ -z "$missing" ] && exit 0
 
-reason="Commit blocked by project policy (.claude/hooks/require-docs-before-commit.sh): model/code changes are staged, but these living docs are NOT updated in this commit:${missing}. Update each so it reflects the change — STATE.md (current state / calibration / findings), PROCESS.md (workflow / verification), HANDOFF.md (session status / priorities) — plus CLAUDE.md if instructions changed. Stage the doc updates and re-commit. To change the required set or lift this gate, edit the hook or run /hooks."
+reason="Commit blocked by project policy (.claude/hooks/require-docs-before-commit.sh): model/code changes are staged, but these living docs are NOT updated in this commit:${missing}. Update each so it reflects the change — STATE.md (current state / calibration / findings), PROGRESS.md (changelog entry for this commit), HANDOFF.md (session status / priorities) — plus CLAUDE.md if instructions changed. Stage the doc updates and re-commit. To change the required set or lift this gate, edit the hook or run /hooks."
 
 jq -cn --arg r "$reason" \
   '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}' 2>/dev/null || exit 0

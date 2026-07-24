@@ -107,14 +107,15 @@ See `docs/STATE.md` for the full calibration table. Key tensions:
 3. Inspect residuals: `goods_mkt_D`, `goods_mkt_F`, `ca_res_D`, `deposit_mkt_D/F` — all ≤ 1e−7.
 4. Verify default shock: `n_inter_D[0]` and `Y_D[0]` must both fall (positive = timing bug).
 5. Run `audit_artifacts/run_audit.py` to confirm no regression.
-6. Update `docs/STATE.md` after any calibration or structural change.
-7. Commit the changed `.py` files.
+6. Update the living docs after any calibration or structural change — **STATE.md, PROGRESS.md (changelog entry), HANDOFF.md** (not just CLAUDE.md). A pre-commit hook enforces this on code commits (see `docs/PROCESS.md` → *Doc-sync policy*).
+7. Commit the changed `.py` files, with the doc updates in the same commit.
 
 ## Docs reference
 
 | File | Contains |
 |------|----------|
 | `docs/STATE.md` | Current calibration table, Walras residuals, open issues, next priorities |
+| `docs/PROGRESS.md` | Changelog — dated development timeline (git history + findings); pre-commit hook requires an entry per code commit |
 | `docs/SPEC.md` | Research goals, functional requirements, modelling choices, calibration targets, **and the paper's theoretical framing/narrative** (merged in from the retired `docs/FRAMING_HANDOFF.md`) |
 | `docs/eba_calibration.md` | EBA 2011 parameter→moment map; the C-1 structural fix; `psi_lambda_B` recalibration and its breakdown-region warning |
 | `docs/PROCESS.md` | Workflow, debugging steps, EBA verification assertions |
