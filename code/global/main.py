@@ -15,7 +15,13 @@ from prints import (banner, print_ss_table, print_transition_residuals,
 
 RUN_TFP  = True   # experiment 1: TFP shock in D
 RUN_RISK = True   # experiment 2: exogenous sovereign-risk shock (Bocola)
-RUN_TPI  = True   # experiment 3: TPI backstop under the same risk shock
+RUN_TPI  = False   # experiment 3: TPI backstop under the same risk shock
+# headline = LIQUIDITY CHANNEL ONLY (risk-neutral pricing of pi_t): correct
+# signs, tested in tests/test_signs_bocola.py. The two-branch risk channel
+# currently produces an expansionary artifact (capital is the branch safe
+# haven; see docs) and is being rebuilt against the Bocola (2016) global
+# replication in code/bocola2016/ -- keep it opt-in until that lands.
+RUN_RISK_TWO_BRANCH = False
 
 TFP_SHOCK, TFP_RHO = 0.01, 0.9    # 1% impact, AR(1) decay
 
@@ -55,19 +61,33 @@ def run_tfp(ss, cal):
 
 
 def run_risk(ss, cal):
-    # EXPERIMENT 2: EXOGENOUS SOVEREIGN-RISK SHOCK WITH THE BOCOLA RISK CHANNEL.
-    banner(f"Sovereign-risk shock in D: peak priced default prob "
-           f"{PI_SHOCK:.0%} per quarter, rho = {PI_RHO}")
+    # EXPERIMENT 2: EXOGENOUS SOVEREIGN-RISK SHOCK, LIQUIDITY CHANNEL HEADLINE.
+    # Risk-neutral pricing of the exogenous pi_t path (MTM losses tighten the
+    # IC today) -- the subset of Bocola's decomposition with verified signs.
+    banner(f"Sovereign-risk shock in D (liquidity channel): peak priced "
+           f"default prob {PI_SHOCK:.0%} per quarter, rho = {PI_RHO}")
     Z_D, Z_F, pi_D = _risk_paths(cal)
 
     t0 = time.perf_counter()
-    out = solve_transition_risk(ss, cal, Z_D, Z_F, pi_D_path=pi_D, verbose=True)
+    out = solve_transition(ss, cal, Z_D, Z_F, def_price_D=pi_D, verbose=False)
     print(f"  solved in {time.perf_counter() - t0:.0f}s")
     print_transition_residuals(out, cal)
     print_risk_table(out, ss, cal, PI_SHOCK, PI_RHO)
 
     plot_default_irf(out, ss, cal)
     plot_bond_decomposition(out, ss, cal)
+
+    if RUN_RISK_TWO_BRANCH:
+        banner("Two-branch risk channel [UNDER REPAIR: expansionary artifact]")
+        t0 = time.perf_counter()
+        out_rb = solve_transition_risk(ss, cal, Z_D, Z_F, pi_D_path=pi_D,
+                                       verbose=True)
+        print(f"  solved in {time.perf_counter() - t0:.0f}s")
+        print_transition_residuals(out_rb, cal)
+        print_risk_table(out_rb, ss, cal, PI_SHOCK, PI_RHO)
+        plot_default_irf(out_rb, ss, cal, filename="default_irf_twobranch.png")
+        plot_bond_decomposition(out_rb, ss, cal,
+                                filename="bond_decomposition_twobranch.png")
     return out
 
 

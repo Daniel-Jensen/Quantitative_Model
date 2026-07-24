@@ -135,11 +135,15 @@ def print_transition_residuals(out, cal, ss=None):
 
 def print_risk_table(out, ss, cal, pi_shock, pi_rho):
     # BOCOLA PASS-THROUGH DIAGNOSTICS FOR THE SOVEREIGN-RISK RUN.
+    # Works for both pricing modes: liquidity-only (plain solve_transition,
+    # no branch) and the two-branch risk channel (solve_transition_risk).
     bk_D = ss["ss_bank_D"];  bk_F = ss["ss_bank_F"];  fm_D = ss["ss_firm_D"]
     dec = bond_decomposition(out, ss, cal)
     lend = lending_spread_bps(out, ss, cal)
     i_peak = int(np.argmax(dec["total_yield"]))
-    br = out["branch"]
+    br = out.get("branch")
+    mode = ("liquidity channel (risk-neutral pricing)" if br is None
+            else "two-branch risk channel")
 
     def line(label, val, note=""):
         # ONE SINGLE-VALUE DIAGNOSTIC LINE.
@@ -147,8 +151,8 @@ def print_risk_table(out, ss, cal, pi_shock, pi_rho):
 
     print()
     _rule(72)
-    print(f"  Bocola pass-through  (pi_0={pi_shock:.0%}, rho={pi_rho})")
-    print(_row("Statistic", "Risk-on", "", "Note", label_w=30))
+    print(f"  Bocola pass-through — {mode}  (pi_0={pi_shock:.0%}, rho={pi_rho})")
+    print(_row("Statistic", "Value", "", "Note", label_w=30))
     _rule(72)
     print(line("Q_bD[0]  (% dev from SS)",
                f"{(out['Q_bD'][0]/ss['Q_bD_ss']-1)*100:+.2f}%", "MTM repricing"))
@@ -176,8 +180,9 @@ def print_risk_table(out, ss, cal, pi_shock, pi_rho):
     print(line("NFA deposit position peak",
                f"{out['nfa_dep_D'][int(np.argmax(np.abs(out['nfa_dep_D'])))]:+.4f}",
                "D claim on the union interbank (D-goods)"))
-    print(line("[branch] n_D(0)/n_ss", f"{br['n_D'][0]/bk_D['n_ss']:.3f}",
-               f"Y_D(0) dev {(br['Y_D'][0]/fm_D['Y_ss']-1)*100:+.2f}%  (feared default state)"))
+    if br is not None:
+        print(line("[branch] n_D(0)/n_ss", f"{br['n_D'][0]/bk_D['n_ss']:.3f}",
+                   f"Y_D(0) dev {(br['Y_D'][0]/fm_D['Y_ss']-1)*100:+.2f}%  (feared default state)"))
     _rule(72)
 
 
