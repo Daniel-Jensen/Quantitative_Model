@@ -154,7 +154,15 @@ Core equations: `code/equations_D.py`, `code/equations_F.py`, `code/equations_gl
 
 Pre-fix peaks for reference: goods_mkt_F 2.0e−2 (~2% of F GDP); ca_res_D 1.5e−4. All cross-country spillover and welfare results from the pre-fix model are first-order invalid and must be regenerated from `main`.
 
-## IRF summary (post-fix, main, phi_lamb=0.15)
+## IRF summary (historical, pre-EBA — phi_lamb=0.15 era; SUPERSEDED)
+
+> **Superseded (2026-07-24).** The committed fiscal-feedback coefficient is
+> `phi_lamb=0.60` (see the C-1-fix section at line ~37 and `code/calibration.py`),
+> **not** the `0.15` this section's title assumed — that was a stale table value,
+> now corrected. The impact numbers below also predate the current EBA /
+> `psi_lambda_B` / `recovery_rate` calibration; the 2026-07-24 production run gives
+> `n_inter_D[0]=−2.83%`, `Y_D[0]=+0.032%`, peak D–F spread `+0.392pp`,
+> `b_gov_D[499]≈2e−6`.
 
 **1pp default shock to D (ρ=0.8):**
 - `n_inter_D[0] = −3.5%` (falls), `Y_D[0] = −2.5e−4` (falls) — both signs correct post-T-2-fix; were positive/perverse pre-fix.
@@ -172,7 +180,7 @@ Pre-fix peaks for reference: goods_mkt_F 2.0e−2 (~2% of F GDP); ca_res_D 1.5e�
 
 | Parameter | Value | Source / note |
 |-----------|-------|---------------|
-| `phi_lamb_D/F` | 0.15 | Bohn=0.60/yr; min stable at current amplification. Literature: 0.10–0.15/yr (Staehr 2008 EA periphery). Tension: bank-cal's 0.03 was tuned on pre-fix model. Re-map needed (see §Next priorities). |
+| `phi_lamb_D/F` | 0.60 | ~Bohn (1998) fiscal-feedback magnitude. Hand-set for stationarity under EBA doom-loop amplification (not moment-matched); enters only `tax_rule_D/F`, and under `mv_rule=1` reacts to the market-value debt gap (so it couples to `q_b`). Well above the F-1 near-unit-root zone `[0.15,0.18]`; stability confirmed (2026-07-24 run: `b_gov_D[499]≈2e−6`, `ρ_b=0.373`). Governs the debt/fiscal mode only — **not** the ~25q financial-accelerator ring (that mode is set by the PAC `psi_bF_D/psi_bD_F`). **Corrected 2026-07-24 from a stale `0.15` entry.** |
 | `def_scale_D` | 0.25 | Strong amplification. Exceeds GR 2011 crisis peak (0.12–0.23 from spread-debt slope calibration). |
 | `delta_b_D/F` | 0.10 | 2.5yr avg maturity. Empirically too short; bank-cal has 0.036/0.038 matching GR/DE 2011 ~7yr/6.5yr. |
 | `theta_D/F` | 4.0 | GK leverage; conservative vs 2011 historical 10–25×. |
@@ -300,4 +308,31 @@ the overfitting diagnostic.
 >
 > **Resolution — market-value rule.** Reacting to the mark-to-market debt gap `q_b·b_gov(-1) − q_b_ss·b_gov_ss` (it sees the current spread) opens a stable plateau at `phi_lamb ∈ [0.07, 0.12]` (modulus down to 0.983 at 0.12; `phi_lamb≈0.10` robustly interior) with empirical duration and a live, correctly-signed doom loop — **but only in the risk-premium framing** (`psi_lambda_B=1.0`, `def_scale=0.10`, write-off OFF). With write-off ON it is a *false victory*: `|λ|<1` but the default shock is perverse (spread narrows, bank net worth and output rise). So adopting the market-value rule **forces the risk-premium framing — it couples to the S-1 decision** (keep write-off OFF).
 
-**Status.** Implemented as a switchable option: `mv_rule_D/F` in calibration (`0`=par, default, behaviour unchanged; `1`=market value). `mv_gov_ss_D/F` is set from the solved SS in `build_and_solve`. Adopting `delta_b` (empirical duration) as the baseline calibration remains an author decision. Per the round-3 (order-selected) re-test above, `phi_lamb` in roughly `[0.05, 0.125]` or `[0.20, 0.25]` reads as genuinely stable under `mv_rule=1`; avoid the narrow `[0.15, 0.18]` zone. Do not reuse the pre-fix `[0.07, 0.12]` "stable plateau" language as if it were re-confirmed — it wasn't specifically re-tested at the old paper's exact framing (risk-premium, `psi_lambda_B=1.0`, `def_scale=0.10`), only at today's committed EBA amplification (`psi_lambda_B=0.31`, `def_scale=0.25`), which happens to also land in a stable region there but for different reasons.
+**Status.** Implemented as a switchable option: `mv_rule_D/F` in calibration (`0`=par, default, behaviour unchanged; `1`=market value). `mv_gov_ss_D/F` is set from the solved SS in `build_and_solve`. Adopting `delta_b` (empirical duration) as the baseline calibration remains an author decision. Per the round-3 (order-selected) re-test above, `phi_lamb` in roughly `[0.05, 0.125]` or `[0.20, 0.25]` reads as genuinely stable under `mv_rule=1`; avoid the narrow `[0.15, 0.18]` zone. Do not reuse the pre-fix `[0.07, 0.12]` "stable plateau" language as if it were re-confirmed — it wasn't specifically re-tested at the old paper's exact framing (risk-premium, `psi_lambda_B=1.0`, `def_scale=0.10`), only at today's committed EBA amplification (`psi_lambda_B=0.31`, `def_scale=0.25`), which happens to also land in a stable region there but for different reasons. **Committed value (2026-07-24): `phi_lamb=0.60`** — above the entire fine-swept range `[0.05,0.25]`. Round-1 (coarse) read `mv_rule=1` as stable at `0.25–0.60`, and the 2026-07-24 production run confirms it (`b_gov_D[499]≈2e−6`; debt mode well-damped, `ρ_b=0.373`). The `[0.15,0.18]` caveat therefore does **not** bind the committed calibration — it matters only if `phi_lamb` is ever lowered toward the literature range. Note this is the *debt/fiscal* dominant mode; the ~25q financial-accelerator ring in the asset-price IRFs is a separate, faster complex pair governed by the PAC (`psi_bF_D/psi_bD_F`), not `phi_lamb` — see `audit_artifacts/pac_sweep.py`.
+
+## Finding F-2: financial-accelerator ring (2026-07-24)
+
+The baseline IRFs carry a damped oscillatory "ring", concentrated in the
+asset-price / bank-net-worth variables (`n_inter_D`, `q_b_D`, `q_b_F`, `C_D`) and
+**absent** from the real block (`Y_D`, `w_D` decay monotonically). Quantified at
+the committed calibration with a Prony / companion-eigenvalue extractor
+(`audit_artifacts/pac_sweep.py`):
+
+- **Complex pair: |λ| = 0.954, period ≈ 25q (~6.25 yr), half-life ≈ 14.6q
+  (~3.6 yr).** R²=1.00000; consistent across `n_inter_D`/`q_b_F`/`q_b_D`, Prony
+  orders 6 and 8, and the empirical peak-spacing (~24q). Comfortably damped —
+  **not** a stability concern (each swing falls to ~30% of the last; ~99% gone by
+  q100).
+- **It is the GK IC/leverage financial accelerator, not a portfolio-friction
+  artifact.** A PAC sweep (`psi_bF_D=psi_bD_F` over 0.05→5.0, a 100× range) moves
+  |λ| by <0.006 (0.954→0.960) and leaves the period fixed at ~25q; the dependence
+  is mildly U-shaped with the committed `PAC=0.5` sitting at the modulus
+  *minimum*. So the ring is intrinsic to the amplification block
+  (`psi_lambda_B`/`def_scale`/`theta`/`f`), which is pinned to the 150bp spread
+  target — **there is no free cosmetic fix.** Three modes, three owners:
+  debt/fiscal → `phi_lamb` (fast-damped, `ρ_b=0.373`); cross-border position →
+  PAC; the ~6yr financial cycle → the accelerator. Neither the fiscal nor the
+  portfolio dial touches the third.
+- **Takeaway:** treat the ring as a structurally-identified ~6yr financial cycle
+  to *describe* in the paper's propagation discussion, not a bug to patch. Full
+  per-cell R²/order/modulus table: `audit_artifacts/pac_sweep_results.json`.

@@ -5,7 +5,7 @@
 1. Run the model via `code/main.py` (the production pipeline).
 2. Core model equations live in `code/equations_D.py`, `code/equations_F.py`, `code/equations_global.py`. Edit these first; the pipeline imports them.
 3. Figures output to `plots/`. Audit reproduction scripts in `audit_artifacts/`.
-4. Update `docs/STATE.md` after any calibration or structural change.
+4. Update the living docs after any calibration or structural change — **STATE.md, PROCESS.md, HANDOFF.md** (and CLAUDE.md if instructions change), not just one of them. Enforced by a pre-commit hook (see *Doc-sync policy* below).
 
 ## Python environment
 
@@ -34,7 +34,13 @@ Committed notebooks will have outputs and execution counts stripped automaticall
 2. Re-run the pipeline: `/opt/anaconda3/envs/ssj/bin/python code/main.py`.
 3. Inspect diagnostic residuals: `goods_mkt_D`, `goods_mkt_F`, `ca_res_D`, `deposit_mkt_D/F` — all should be ≤1e-7 at any shock magnitude, or you have a structural problem.
 4. Run IRFs; check that `n_inter_D[0]` and `Y_D[0]` fall on a default shock (positive = timing bug).
-5. Commit the changed `.py` files. Update `docs/STATE.md`.
+5. Update the living docs (**STATE.md, PROCESS.md, HANDOFF.md**), then commit the changed files. A pre-commit hook blocks code commits that skip the docs (see *Doc-sync policy*).
+
+## Doc-sync policy (pre-commit hook)
+
+The living docs must stay in lockstep with the code — not just `CLAUDE.md`. A PreToolUse hook (`.claude/settings.json` → `.claude/hooks/require-docs-before-commit.sh`) **blocks any `git commit` that stages model/code changes** (`code/**`, `audit_artifacts/**`, `*.py`) **unless `docs/STATE.md`, `docs/PROCESS.md`, and `docs/HANDOFF.md` are updated in the same commit.** Doc-only / config-only commits pass untouched. The hook fails open (a broken hook never wedges committing) and its message lists exactly which docs are missing. To change the required set or lift the gate, edit the hook or run `/hooks`.
+
+Doc roles: **STATE.md** = current state / calibration table / findings; **PROCESS.md** = workflow / verification (this file); **HANDOFF.md** = session status / priorities.
 
 ## Structural regression test
 
@@ -77,6 +83,7 @@ assert abs(b_F_F + b_F_D - B_supply_F) < 1e-6
 - `audit_artifacts/fix_test.py` — isolated W-1/W-2 Walras repair test
 - `audit_artifacts/tpi_test.py` — TPI CB accounting verification
 - `audit_artifacts/philamb_test.py` — phi_lamb stability sweep
+- `audit_artifacts/pac_sweep.py` — Finding F-2: financial-accelerator ring eigenvalue vs PAC (Prony complex-pair extractor)
 - `audit_artifacts/bankcal_stability_test.py` — low-amplification probe at bank-cal params
 - `docs/walras_forensics.md` — analytical derivation of all Walras leaks
 - `docs/audit.md` — master audit log with ranked finding list and fix history

@@ -98,8 +98,11 @@ def get_calibration():
         # phi_lamb raised from 0.02 after T-2 fix: deposit re-dating makes the
         # debt→spread spiral live; phi_lamb < ~0.12 is explosive at current amplification.
         # EBA sovereign exposure (phi_bD_D=2.39) massively amplifies the doom loop,
-        # so the fiscal feedback must be stronger than the old 0.15 (F-1). Raised to
-        # 0.30; market-value rule (mv_rule=1) on to restore stationarity.
+        # so the fiscal feedback must be stronger than the old 0.15 (F-1). Set to 0.60
+        # (~Bohn 1998 fiscal-feedback magnitude); market-value rule (mv_rule=1) on to
+        # restore stationarity. Well above the F-1 near-unit-root zone [0.15,0.18];
+        # governs the debt/fiscal mode only, not the ~25q financial-accelerator ring
+        # (that mode is set by the PAC psi_bF_D/psi_bD_F — see audit_artifacts/pac_sweep.py).
         'phi_lamb_D':   0.60,    'phi_lamb_F':   0.60,
         # Fiscal-rule debt measure: 0 = par/face value (default), 1 = market value
         # (q_b·b_gov(-1)). mv_gov_ss is recomputed exactly from the solved SS in

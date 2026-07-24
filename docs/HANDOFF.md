@@ -34,6 +34,30 @@ Regression test after any equation change (~6 min):
 /opt/anaconda3/envs/ssj/bin/python audit_artifacts/run_audit.py
 ```
 
+## Latest session (2026-07-24)
+
+- **Ran `code/main.py` end-to-end** (clean: SS `goods_mkt_D≈-4.8e-7`,
+  `ca_res_D≈2.3e-16`; `b_gov_D[499]≈2e-6`). Fresh impacts on the default shock:
+  `n_inter_D[0]=-2.83%`, `Y_D[0]=+0.032%` (Y-1), peak D–F spread `+0.392pp`. TPI:
+  spread compresses 0.392→0.244pp (−38%) over γ=0→10; loading 3.59/3.03/2.47 at
+  γ=2/5/10 (matches SPEC Live Claim 1). NB: TPI welfare deltas came out small and
+  D-negative under the committed calibration — differs from STATE.md's old
+  line-165 (2026-07-16, pre-EBA) numbers; it's the delicate decomposition-dependent
+  object SPEC says not to lead with.
+- **Corrected a stale `phi_lamb` value in the docs.** Committed value is `0.60`
+  (~Bohn); STATE.md's calibration table and IRF-summary header wrongly said `0.15`
+  (STATE.md line 37 and `calibration.py` already had 0.60; the table + the
+  `calibration.py` comment lagged). Fixed in STATE.md and the `calibration.py`
+  comment.
+- **PAC sweep → Finding F-2 (STATE.md).** The ~25q ring in the asset-price IRFs is
+  the IC/leverage financial accelerator (**|λ|=0.954, ~6yr period, 3.6yr
+  half-life**), NOT a portfolio-friction artifact — a 100× PAC change barely moves
+  it. No free cosmetic fix; it's a structural financial cycle to describe.
+  (`audit_artifacts/pac_sweep.py`.)
+- **Added a pre-commit doc-sync hook** (`.claude/settings.json` +
+  `.claude/hooks/require-docs-before-commit.sh`): blocks committing model/code
+  changes unless STATE.md, PROCESS.md, HANDOFF.md are updated in the same commit.
+
 ## Current model state (2026-07-22)
 
 Calibration is EBA-2011-anchored (real GR/DE bank-sovereign concentration data,
@@ -53,22 +77,25 @@ real TPI conduit accounting leak). Full details: `docs/eba_calibration.md`,
   reconcile EBA-thin bank net worth with a plausible aggregate capital stock)
 - `Delta_bD_D=0.2`/`Delta_bF_D=0.4` (D), `Delta_bF_F=0.2`/`Delta_bD_F=0.4` (F) —
   genuine hardcoded collateral parameters (C-1 fix), not a degenerate back-solve
-- `psi_lambda_B_D/F=1.1284` (recalibrated 2026-07-22 to the 150bp spread target;
-  **do not raise above ~1.5-2.0 without re-checking stability** — the model
-  enters a linear-approximation-breakdown region there)
-- `mv_rule_D/F=1` (market-value fiscal rule), `phi_lamb_D/F=0.60`
+- `psi_lambda_B_D/F=1.1793` (recalibrated 2026-07-22 to the 150bp spread target,
+  re-tuned from 1.1284 when EL-1 resolved; **do not raise above ~1.5-2.0 without
+  re-checking stability** — the model enters a linear-approximation-breakdown
+  region there)
+- `mv_rule_D/F=1` (market-value fiscal rule), `phi_lamb_D/F=0.60` (~Bohn; governs
+  the debt/fiscal mode, not the F-2 financial-accelerator ring)
 - `delta_b_D/F=0.10` (2.5yr duration; empirical target 0.036/0.038 not yet
   ported), `f_D/F=0.12` (bank exit rate; bank-cal target 0.03 not yet ported)
 - `writeoff_enabled=0` (pure risk-premium framing; S-1, still an author
-  decision), `recovery_rate_D/F=0.00` (placeholder, not actual Greek PSI; EL-1)
+  decision), `recovery_rate_D/F=0.30` (EL-1 resolved 2026-07-22; NPV Greek-PSI
+  recovery, not the old 0.00 placeholder)
 
 **Verified (2026-07-22):**
 - Walras clean: `goods_mkt_D/F` ~1e-7, `ca_res_D` ~1e-16, TPI conduit
   `max|ca_res_D|` ~1e-7 across all `gamma`
 - Stability: `b_gov_D[499]` ~1e-6/1e-7, `ρ_b(partial-eq.)=0.373` (target <0.95)
-- Signs: default shock gives `n_inter_D[0]≈-2.85%` (correct); `Y_D[0]` is a
+- Signs: default shock gives `n_inter_D[0]≈-2.83%` (correct); `Y_D[0]` is a
   small, persistent positive anomaly (Y-1, open)
-- TPI: loading (premium PV / expected-loss PV) = 2.54/2.14/1.74 at
+- TPI: loading (premium PV / expected-loss PV) = 3.59/3.03/2.47 at
   `gamma=2/5/10` — over-compensated, declining (self-extinguishing premium
   claim holds)
 
@@ -122,6 +149,7 @@ consequential for the paper right now:
 | `audit_artifacts/run_audit.py` | Full Walras/sign/C-1 regression pipeline |
 | `audit_artifacts/psilam_moment_sweep_postC1.py` | `psi_lambda_B` moment-matching sweep |
 | `audit_artifacts/philamb_sweep_postC1_fine_v2.py` | Finding F-1 stability re-test (order-selected Prony estimator) |
+| `audit_artifacts/pac_sweep.py` | Finding F-2: ring eigenvalue vs PAC (Prony complex-pair extractor) |
 | `code/tpi_plots.py`, `code/irf_plots.py` | Figure-generation scripts (regenerate from `main`) |
 | Overleaf | https://www.overleaf.com/project/698b4f88aeef1d0e1d08cc0c |
 
