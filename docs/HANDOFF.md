@@ -22,13 +22,18 @@
 > end-to-end. Spread 187.2bp ann vs 150bp target. See `docs/STATE.md` → *CURRENT
 > CALIBRATION* for the full table.
 >
-> **Open items:** (1) `diagnostics/regimes/` aborts — `gamma_for_compression`
-> requires global monotonicity of `peak(γ)` on `linspace(0,60,61)`; it holds on
-> `[0,25]` but ticks up 1.1bp at γ=30. Targets are at γ≈1.6/5.1, so narrowing `hi`
-> to 25 fixes it. (2) `run_regimes.py:75` hardcodes `"mv_rule=1"` in its provenance
-> string — now false. (3) `psi_lambda_B=3.0` overshoots the 150bp target by ~25%;
-> retuning is unfinished business. (4) `delta_b=0.10` still short of the empirical
-> 7yr/6.5yr — porting it needs `mv_rule=1` **and** `phi_lamb=0.60` together.
+> **Policy-regime feature runs end-to-end** (Stage A + Stage B-lite + unit tests, all
+> exit 0). Doc-sync is enforced by `.githooks/pre-commit` - enable once per clone:
+> `git config core.hooksPath .githooks`.
+>
+> **Open items:** (1) **A6 invariance at the lottery stage is a false pass** - all three
+> branch peaks are identical (`9.302980`bp); the check passes on floating-point noise
+> because with `k=2` the peak sits in the common pre-`k` window. Reword or drop that
+> line; Stage A's A6 is the real test. (2) `psi_lambda_B=3.0` gives 187.2bp, outside
+> `run_regimes.py`'s own 120-180bp band - retuning to the 150bp target is unfinished.
+> (3) `delta_b=0.10` still short of the empirical 7yr/6.5yr - porting needs `mv_rule=1`
+> **and** `phi_lamb=0.60` together. (4) `beliefs.json` predates the calibration revert
+> (2026-07-23). (5) EBA calibration to be revisited on a new branch.
 
 ## Quick start
 

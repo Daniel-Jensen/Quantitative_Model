@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # PreToolUse(Bash) gate: block `git commit` of model/code changes unless the
-# living docs (STATE.md, PROCESS.md, HANDOFF.md) are updated in the SAME commit.
+# living docs (STATE.md, PROGRESS.md, HANDOFF.md) are updated in the SAME commit.
 #
 # Project policy: keep the docs in lockstep with the code — not just CLAUDE.md.
 # Reads the tool-call JSON on stdin; on a policy violation it emits a PreToolUse
@@ -9,6 +9,9 @@
 #
 # Scope: only fires on commits that stage model/code (code/**, audit_artifacts/**,
 # or *.py). Doc-only / config-only commits pass untouched.
+#
+# Git-native twin: .githooks/pre-commit (covers terminal commits, which a
+# PreToolUse hook never sees). Keep the required-doc set in the two files in sync.
 #
 # To change the required-doc set or lift the gate: edit this file or run /hooks.
 

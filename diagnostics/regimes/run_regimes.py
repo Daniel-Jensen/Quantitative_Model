@@ -22,6 +22,11 @@ sys.path.insert(0, HERE)
 from regime_model import build_caches, load_cache, PSILAM_MAIN
 from lottery_math import closed_loop, gamma_for_compression, peak
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), "code"))
+from calibration import get_calibration  # noqa: E402 - needs the sys.path insert above
+
+_cal = get_calibration()
+
 LOG = os.path.join(HERE, "regimes_log.md")
 BLUE, RED, GREEN, ORANGE = "#002147", "#8C1515", "#1a6e3a", "#c87941"
 BP_ANN = 4.0 * 1e4   # quarterly rate deviation -> annualised basis points
@@ -72,7 +77,11 @@ def main():
     json.dump({"gammas": gammas, "pk_passive_bp": pk_passive_bp, "A_cb_impact": float(A_cb[0, 0]),
                "selection_rule": "peak-spread compression 50%/25% (spec §7; feasible on main, "
                                  "A_cb<0 — capital-key conduit; ms-regime SA-1 pathology absent)",
-               "model": "main (psi_lambda_B=%.4f, mv_rule=1, capital-key conduit)" % PSILAM_MAIN,
+               # Read from the live calibration, never hardcoded: this string is the
+               # provenance stamp on every number in this file, and a hardcoded
+               # "mv_rule=1" silently mislabelled output generated at mv_rule=0.
+               "model": "main (psi_lambda_B=%.4f, mv_rule=%g, recovery_rate=%.2f, capital-key conduit)"
+                        % (_cal["psi_lambda_B_D"], _cal["mv_rule_D"], _cal["recovery_rate_D"]),
                "generated": str(datetime.datetime.now())},
               open(os.path.join(HERE, "regimes_calibration.json"), "w"), indent=2)
 

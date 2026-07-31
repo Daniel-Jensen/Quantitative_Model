@@ -35,6 +35,21 @@ expected loss is **10.9%** of the default loading, GK collateral friction **89%*
 **Units.** `spread_rb` is a *quarterly* rate deviation; annualise ×4×1e4 for comparison
 with the 150bp target.
 
+**Policy-regime feature (2026-07-31): runs end-to-end at this calibration.** Stage A,
+Stage B-lite and the unit tests all pass (exit 0) after three fixes: `PSILAM_MAIN` now
+reads the live calibration (it was hardcoded while doubling as the cache key),
+`PSILAM_BREAKDOWN=4.0` replaces the EBA-specific `<1.5` guard, and
+`gamma_for_compression`'s scan narrowed 60->25. Headline: `A_cb=-2.406e-2` (backstop
+compresses, SA-1 absent), `gamma_aggressive=5.0813` / `gamma_medium=1.5730`, peak spread
+187.2/140.4/93.6bp passive/medium/aggressive; Stage A A6 amplifier invariance holds
+cleanly (9.33/8.54/7.14bp at `psi_lambda_B=0`).
+
+> **Caveat - A6 at the LOTTERY stage is a false pass.** All three branch peaks are
+> numerically identical (`9.302980`bp, gap `0.000000`); the strict-inequality check
+> passes only on last-ULP noise. With `k=2` the peak sits in the common pre-`k` window,
+> so branches coincide there by construction. Use the deterministic Stage A A6; the
+> lottery A6 line should be reworded or dropped, not cited as a result.
+
 > **Note:** `audit_artifacts/` was removed 2026-07-30 — the harness carried its own
 > hardcoded copy of the calibration instead of importing `get_calibration()`, so it
 > silently tested a different model than `code/main.py`. Every `audit_artifacts/*`

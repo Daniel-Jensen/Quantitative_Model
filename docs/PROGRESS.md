@@ -8,8 +8,65 @@ derivations live in those docs; this file is the timeline.
 
 Convention: `[hash]` is a commit on `main`; dates are commit dates. Doc-sync
 policy: every commit touching model/code (`code/**`, `*.py`) gets an entry here.
-(The pre-commit hook that was meant to enforce this is documented but not
-installed in `.git/hooks` — treat it as convention.)
+Enforced by `.claude/hooks/require-docs-before-commit.sh` (Claude Code commits)
+and `.githooks/pre-commit` (terminal commits; enable with
+`git config core.hooksPath .githooks`).
+
+---
+
+## 2026-07-31 - doc-sync enforced by a git hook; regimes feature unblocked and verified  [this commit]
+
+**Doc-sync is now actually enforced.** Correction to yesterday's entry: the policy *was*
+already implemented as a Claude Code PreToolUse hook
+(`.claude/hooks/require-docs-before-commit.sh`, tracked); the "not installed" claim came
+from checking `.git/hooks/`. Two real gaps found:
+
+- A PreToolUse hook cannot see terminal commits at all. Added **`.githooks/pre-commit`**,
+  the git-native twin and now the primary enforcement: enable once per clone with
+  `git config core.hooksPath .githooks`. It inspects the git *index*, so unlike the
+  command-string-matching PreToolUse hook it cannot false-positive. Verified: exits 1
+  with the block message when code is staged without the docs.
+- The PreToolUse hook's `if` filter is prefix-matched, so it never fired on compound
+  commands (`cd X; git commit ...`). Removing the filter was tried and **reverted** - it
+  makes the script scan every Bash command string and it then denied an unrelated
+  documentation edit. The filter stays; the git hook is the real gate, and the
+  PreToolUse hook is early feedback for the simple-command case.
+- Stale `PROCESS.md` reference in the script header corrected to `PROGRESS.md`.
+
+**`run_regimes.py` provenance string no longer hardcoded.** It read `"mv_rule=1"`
+regardless of calibration, silently mislabelling every number in
+`regimes_calibration.json`. Now reads `psi_lambda_B`, `mv_rule`, `recovery_rate` live.
+
+**Policy-regime feature now runs end-to-end at the pre-EBA calibration** - it did not
+before. `gamma_for_compression`'s scan range narrowed 60 -> 25: bisection's validity
+condition is monotonicity on the *bracketing interval*, and `peak(gamma)` falls
+monotonically 187.2 -> 34.2bp on [0,25] then ticks up 1.1bp at gamma=30 (saturation at
+81% compression, not economics), which aborted the whole run.
+
+Verified, all exit 0: `test_lottery_math.py`, Stage A `run_regimes.py`, Stage B-lite
+`uncertain_regime.py`.
+
+- Stage A: `A_cb=-2.406e-2` (compresses; SA-1 absent), passive peak 187.2bp,
+  `gamma_aggressive=5.0813` (50% compression), `gamma_medium=1.5730` (25%). Peak spread
+  187.2 / 140.4 / 93.6 bp passive / medium / aggressive.
+- Stage A A6 (deterministic, `psi_lambda_B=0`): 9.33 / 8.54 / 7.14 bp - amplifier
+  invariance genuinely holds, clean separation.
+- Stage B-lite: sec 10.3 assertions PASS; uncertainty premium +69.0 / +34.4 / -2.2 bp
+  (aggressive / medium / passive); impact spread rises with the passive belief weight
+  (151.5 -> 187.2bp), sign computed not targeted.
+
+**Open - A6 invariance at the LOTTERY stage is a false pass.** All three branch peaks are
+numerically identical (`9.302980` bp, gap `0.000000`), yet
+`pk0[0] < pk0[1] < pk0[2]` returns True on last-ULP floating-point noise. Structural, not
+a coding slip: with `k=2` the peak spread falls in the common pre-`k` window where no
+branch has acted, so the branches coincide there by construction. Stage A's deterministic
+A6 is the informative test; the lottery A6 line should be reworded or dropped rather than
+reported as a result.
+
+**Also open, none EBA-related:** `psi_lambda_B=3.0` gives 187.2bp, outside
+`run_regimes.py`'s own 120-180bp sanity band (it logs "investigate"); `delta_b=0.10`
+still needs `mv_rule=1` AND `phi_lamb=0.60` jointly; `beliefs.json` dates from
+2026-07-23, before the calibration revert.
 
 ---
 

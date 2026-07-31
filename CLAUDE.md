@@ -108,7 +108,11 @@ See `docs/STATE.md` for the full calibration table. Key tensions:
 3. Inspect residuals: `goods_mkt_D`, `goods_mkt_F`, `ca_res_D`, `deposit_mkt_D/F` — all ≤ 1e−7.
 4. Verify default shock: `n_inter_D[0]` and `Y_D[0]` must both fall (positive = timing bug).
 5. Confirm the IC-δ consistency check and Walras residuals printed by `main.py` are unchanged.
-6. Update the living docs after any calibration or structural change — **STATE.md, PROGRESS.md (changelog entry), HANDOFF.md** (not just CLAUDE.md). Doc-sync policy: every commit touching `code/**` or `*.py` gets a PROGRESS.md entry. (`docs/PROCESS.md` was retired 2026-07-30, superseded by PROGRESS.md; note the pre-commit hook is documented but is **not** currently installed in `.git/hooks`, so this is convention, not enforcement.)
+6. Update the living docs after any calibration or structural change — **STATE.md, PROGRESS.md (changelog entry), HANDOFF.md** (not just CLAUDE.md). This is **enforced** by two hooks that block the commit otherwise:
+   - `.claude/hooks/require-docs-before-commit.sh` — PreToolUse gate, fires when Claude Code runs the commit.
+   - `.githooks/pre-commit` — git-native twin, covers terminal commits. **Enable once per clone: `git config core.hooksPath .githooks`.**
+
+   Both fire only when the commit stages `code/**` or any `*.py`; doc-only commits pass. Bypass a false positive with `git commit --no-verify`. Keep the required-doc set in the two files in sync. (`docs/PROCESS.md` was retired 2026-07-30, superseded by PROGRESS.md.)
 7. Commit the changed `.py` files, with the doc updates in the same commit.
 
 ## Docs reference

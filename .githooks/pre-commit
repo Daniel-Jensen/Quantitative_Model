@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Git pre-commit gate: block commits of model/code changes unless the living docs
+# (docs/STATE.md, docs/PROGRESS.md, docs/HANDOFF.md) are updated in the SAME commit.
+#
+# This is the git-native twin of .claude/hooks/require-docs-before-commit.sh, which
+# only fires when Claude Code runs the commit. This one covers terminal commits too.
+# Keep the required-doc set in the two files in sync.
+#
+# Enable (once per clone):
+#     git config core.hooksPath .githooks
+#
+# Bypass for a one-off (e.g. a genuine docs-only fixup that trips a false positive):
+#     git commit --no-verify
+#
+# Scope: only fires when the commit stages code/** or any *.py. Doc-only and
+# config-only commits pass untouched.
+
+set -uo pipefail
+
+staged="$(git diff --cached --name-only --diff-filter=ACMR 2>/dev/null)"
+
+# Nothing staged: let git produce its own "nothing to commit".
+[ -n "${staged//[[:space:]]/}" ] || exit 0
+
+# Does this commit touch model/code? If not, no doc requirement.
+printf '%s\n' "$staged" | grep -Eq '^code/|\.py$' || exit 0
+
+missing=""
+for d in docs/STATE.md docs/PROGRESS.md docs/HANDOFF.md; do
+  printf '%s\n' "$staged" | grep -qxF "$d" || missing="$missing $d"
+done
+
+[ -z "$missing" ] && exit 0
+
+cat >&2 <<EOF
+
+  COMMIT BLOCKED by project doc-sync policy (.githooks/pre-commit)
+
+  Model/code changes are staged, but these living docs are NOT updated in this
+  commit:${missing}
+
+  Update each so it reflects the change, then stage it:
+    docs/STATE.md     current state / calibration table / findings
+    docs/PROGRESS.md  changelog entry for this commit
+    docs/HANDOFF.md   session status / priorities
+  (plus CLAUDE.md if the working instructions changed)
+
+  To bypass for a genuine false positive:  git commit --no-verify
+  To change the required set: edit .githooks/pre-commit AND
+  .claude/hooks/require-docs-before-commit.sh (keep them in sync).
+
+EOF
+exit 1
