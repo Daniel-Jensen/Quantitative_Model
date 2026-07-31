@@ -49,22 +49,48 @@ machine-zero, the IC-δ check passed exactly, stability passed, and the TPI
 loading still declined.** All of it meaningless. This is the C-1 failure mode
 reborn: silent degeneracy passing every check the pipeline ran.
 
-The constraint bounds `Delta_own > ~0.73`, but `ic_delta_calibration._ic_delta`
-hardcodes `ratio = Delta_cross/Delta_own = 2.0`, which with `Delta_cross <= 1`
-caps `Delta_own <= 0.5`. **The feasible set is empty.** `f` would need > 0.349
-(literature 0.03–0.12) and `theta` > 16.03 (measured 5.51). Tested directly:
-`Delta = 0.80/0.90` gives `lambda_gk_F = -12.45`, `Omega_F = -75.91` — just past
-the `lambda_gk` pole.
+The constraint bounds `Delta_own > ~0.73`. What had pinned it at 0.2 was an
+undocumented convention inside `ic_delta_calibration` —
+`ratio = Delta_cross/Delta_own = 2.0` — which with `Delta_cross <= 1` capped
+`Delta_own <= 0.5`. That convention is a back-solve closure masquerading as a
+consistency check, and it is exactly why `0.2/0.4` "passed".
+
+**RESOLVED — collateral mapping fixed.** The ratio convention is gone; `Delta` is
+now free and `ic_delta_calibration` checks the IC *residual* directly (tol 1e-8,
+plus a positive-divertable-leverage check). Sweeping:
+
+| `Delta_own`/`Delta_cross` | `lambda_gk_D` | `lambda_gk_F` | `Omega_D` | `Omega_F` |
+|---|---|---|---|---|
+| **0.85 / 0.90** | **+0.927** | **+0.960** | +4.62 | +5.98 |
+| 0.90 / 0.95 | +0.488 | +0.456 | +2.49 | +2.91 |
+
+`lambda_gk_D = +0.927` is essentially the pre-EBA `+0.923`, so the amplification
+block keeps its strength while concentration becomes measured. `K_D=10.80`,
+`K_F=10.65` vs the 10.8 target. This is a correction, not a fudge: leverage of
+5.5× on a 43%-sovereign book is inconsistent with sovereigns being good
+collateral — if they were, the bank would lever further.
 
 **Guarded.** `steady_state.assert_gk_well_posed` runs inside `_apply_ss_anchors`,
-i.e. on every solved SS in both `steady_state.py` and
-`depreciation_calibration.py`. This is the most valuable artifact of the
-rebuild — it makes the C-1 class of failure impossible to commit silently.
+on every solved SS in both `steady_state.py` and `depreciation_calibration.py`.
 
-**The escape is a modelling decision, not a parameter tweak** (see
-`docs/eba_calibration.md` "GK feasibility" for the three routes). Note the
-economics: clearing the pole needs `Delta_own ≈ 0.85–0.95`, i.e. sovereign bonds
-nearly worthless as collateral — which removes the channel the doom loop runs on.
+### Still blocking: dynamic instability
+
+Steady state is now correct; **dynamics are not**. `b_gov_D[499] ~ 1e2–1e3`
+against a ~1e-5 target. Measured amplification is `theta*phi_own = 13.17` vs
+`4.0*0.25 = 1.0` for the placeholder — a ~13× stronger leverage loop. It is
+neither the fiscal mode nor the collateral friction:
+
+| Test | Result |
+|---|---|
+| `psi_lambda_B = 0` | still explosive, `b_gov[499] = -2038` |
+| `phi_lamb` 0.6 → 25 | **flat** (peak ~1.1e7bp at 0.6, 1.5 *and* 25) |
+| `mv_rule = 1` | does not fix it |
+| `chi1` 0 → 0.5 | peak spread **1.1e7bp → 6.0bp**, `b_gov[499]` −2038 → +70 |
+| `chi1` ∈ [0.2, 5.0] | `b_gov[499]` stays 70–560 — amplitude damped, root remains |
+
+`chi1` (intermediary adjustment cost, currently 0) is the strongest lever and
+restores a sane spread, but no tested value removes the root. Three open routes
+in `docs/eba_calibration.md` → *Dynamic instability*.
 
 ### Secondary results
 

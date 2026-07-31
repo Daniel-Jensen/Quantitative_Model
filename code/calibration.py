@@ -20,27 +20,41 @@ def load_eba_targets(path: str = _EBA_MOMENTS) -> dict:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# EBA switch. Default False — the pre-EBA calibration, which solves and is
-# well-posed. Set True to feed the MEASURED EBA 2011 moments straight in.
+# EBA switch. True = the MEASURED EBA 2011 moment set (code/eba_calibration.py ->
+# data/eba_moments.json). False = the pre-EBA placeholder calibration, kept
+# bit-exact for regression comparison.
 #
-# WARNING (2026-07-31): True currently does NOT produce a usable model, and this
-# is a RESULT, not a wiring bug. At the measured concentration
-# (phi_own = 2.39 / 2.76 with theta = 5.51 / 6.94, f = 0.12) the Gertler-Karadi
-# block is well-posed only if
-#       f*theta > (1-Delta_own)*phi_own + (1-Delta_cross)*phi_cross
-# which forces Delta_own > ~0.73. But `ic_delta_calibration._ic_delta` hardcodes
-# ratio = Delta_cross/Delta_own = 2.0, and non-degeneracy needs Delta_cross <= 1,
-# i.e. Delta_own <= 0.5. **The feasible set is empty.** Verified directly:
-# Delta 0.2/0.4 gives lambda_gk_D = -0.087, Omega_D = -0.301 (negative franchise
-# value, every IRF meaningless, yet all Walras residuals machine-zero);
-# Delta 0.8/0.9 lands just past the lambda_gk pole with lambda_gk_F = -12.4.
+# STATUS (2026-07-31): the STEADY STATE is now correct under the measured moments
+# — that was the collateral-mapping fix — but the DYNAMICS are still explosive,
+# so the default stays False. Two separate problems, one solved:
 #
-# Escaping needs a MODELLING decision, not a parameter tweak — see
-# docs/eba_calibration.md "GK feasibility". Note the economics: pushing
-# Delta_own to ~0.85-0.95 to clear the pole makes sovereign bonds nearly
-# worthless as collateral, which removes the very channel the paper's doom loop
-# runs on. Guarded by steady_state.assert_gk_well_posed, so turning this on
-# fails loudly instead of silently producing degenerate results.
+# 1. SOLVED — collateral mapping. The GK block is well-posed only if
+#        f*theta > (1-Delta_own)*phi_own + (1-Delta_cross)*phi_cross
+#    which needs Delta_own > ~0.73. The inherited Delta_own=0.2 violated it by
+#    -1.26 (D) / -1.42 (F), giving lambda_gk_D=-0.087, Omega_D=-0.301 (negative
+#    IC multiplier and franchise value) while the solver still converged with
+#    machine-zero residuals. What had pinned Delta at 0.2/0.4 was an undocumented
+#    convention inside ic_delta_calibration (ratio = Delta_cross/Delta_own = 2.0)
+#    which with Delta_cross<=1 capped Delta_own at 0.5. That convention is gone;
+#    Delta is now free and the module checks the IC residual directly. At
+#    Delta = 0.85/0.90: lambda_gk_D=+0.927, Omega_D=+4.62, K_D=10.80 — and
+#    +0.927 is essentially the pre-EBA +0.923, so the amplification block keeps
+#    its previous strength with measured concentration.
+#
+# 2. OPEN — dynamic instability. The measured moments give a financial-accelerator
+#    gain theta*phi_own = 13.17, versus 4*0.25 = 1.0 for the placeholder, and the
+#    linearised system has an unstable root there: b_gov_D[499] ~ 1e2-1e3 instead
+#    of ~1e-5. Diagnosed 2026-07-31 and NOT a fiscal or friction problem:
+#      - present at psi_lambda_B = 0 (collateral friction fully off);
+#      - flat in phi_lamb up to 25 (peak spread ~1.1e7bp at 0.6, 1.5 AND 25), so
+#        it is not the debt/fiscal mode;
+#      - mv_rule=1 does not fix it either.
+#    `chi1` (intermediation adjustment cost, currently 0) is the strongest lever
+#    found: chi1=0.5 cuts the peak spread 1.1e7bp -> 6.0bp and b_gov[499]
+#    -2038 -> +70. But no chi1 in [0.2, 5.0] removes the root (b_gov[499] stays
+#    70-560). It damps amplitude, not stability.
+#
+# See docs/eba_calibration.md "GK feasibility" and "Dynamic instability".
 EBA_CALIBRATION = False
 
 
@@ -97,28 +111,36 @@ def get_calibration():
         # Divertability of sovereign bonds in the multi-asset IC (higher = worse
         # collateral). Genuine hardcoded structural inputs since the C-1 fix.
         #
-        # RAISED 0.2/0.4 -> 0.80/0.90 by the 2026-07-31 EBA rebuild. This is NOT a
-        # free choice: the GK block is well-posed only if the banker's franchise
-        # value covers the non-divertable part of the sovereign book,
+        # RAISED 0.2/0.4 -> 0.85/0.90 by the 2026-07-31 EBA rebuild. Not a free
+        # choice: the GK block is well-posed only if the banker's franchise value
+        # covers the non-divertable part of the sovereign book,
         #     f*theta > (1-Delta_own)*phi_own + (1-Delta_cross)*phi_cross
-        # (see steady_state.assert_gk_well_posed). At the MEASURED EBA moments
-        # (theta=5.51/6.94, phi_own=2.39/2.76, f=0.12) the old 0.2/0.4 violates
-        # this by -1.26 (D) / -1.42 (F): lambda_gk and Omega both go NEGATIVE, the
-        # solver still converges with machine-zero Walras residuals, and every IRF
-        # is uninterpretable. The measured concentration therefore puts a hard
-        # LOWER BOUND on Delta_own of ~0.73 (D) / ~0.71 (F) — the EBA data
-        # partially identifies a parameter that has no direct empirical counterpart.
+        # (steady_state.assert_gk_well_posed). At the MEASURED moments
+        # (theta=5.51/6.94, phi_own=2.39/2.76, f=0.12) the old 0.2/0.4 violates it
+        # by -1.26 (D) / -1.42 (F): lambda_gk and Omega go NEGATIVE while the
+        # solver converges with machine-zero residuals. The measured concentration
+        # therefore puts a LOWER BOUND on Delta_own of ~0.73 — EBA data partially
+        # identifies a parameter with no direct empirical counterpart. The other
+        # levers are out of range: f would need > 0.349 (literature 0.03-0.12),
+        # theta > 16.03 (measured 5.51).
         #
-        # The other two levers are out of range: f would need > 0.349 (GK
-        # literature is 0.03-0.12) and theta > 16.03 (measured 5.51; even the
-        # rejected CT1/total-assets 14.9 falls short).
+        # ECONOMICS, and why this is a correction rather than a fudge: measured
+        # leverage is only 5.5x on a book that is ~43% sovereign. You cannot also
+        # claim sovereigns are excellent collateral — if they were, the bank would
+        # lever further and theta=5.5 would not be the binding constraint. High
+        # concentration at low leverage *implies* bonds are nearly as divertable as
+        # capital. Consistent with 2010-12 Greece (collapsing GGB collateral
+        # eligibility, rising ECB haircuts).
         #
-        # 0.80/0.90 sits above the bound with margin (+0.18 D / +0.27 F) and keeps
-        # the economic ordering Delta_own < Delta_cross (own sovereign is still
-        # better collateral than foreign). **The exact level above ~0.73 remains an
-        # AUTHOR DECISION** — see docs/eba_calibration.md "GK feasibility".
-        'Delta_bD_D':   0.80 if EBA_CALIBRATION else 0.2,
-        'Delta_bF_F':   0.80 if EBA_CALIBRATION else 0.2,
+        # 0.85 chosen from a Delta sweep (docs/eba_calibration.md): it delivers
+        # lambda_gk_D=+0.927, essentially identical to the pre-EBA +0.923, so the
+        # amplification block keeps its previous strength while the concentration
+        # becomes measured. 0.90/0.95 also works (lambda_gk ~0.49/0.46) but halves
+        # it. Delta_cross=0.90 preserves Delta_own < Delta_cross (own sovereign
+        # still better collateral than foreign); cross-holdings are ~1% of the
+        # book so this barely binds.
+        'Delta_bD_D':   0.85 if EBA_CALIBRATION else 0.2,
+        'Delta_bF_F':   0.85 if EBA_CALIBRATION else 0.2,
         'Delta_bF_D':   0.90 if EBA_CALIBRATION else 0.4,
         'Delta_bD_F':   0.90 if EBA_CALIBRATION else 0.4,
         'lambda_BD_D':  0.06,    'lambda_BF_F':  0.06,
@@ -181,13 +203,19 @@ def get_calibration():
         # Fiscal-rule debt measure: 0 = par/face value (default), 1 = market value
         # (q_b·b_gov(-1)). mv_gov_ss is recomputed exactly from the solved SS in
         # build_and_solve; these are placeholders (unused when mv_rule=0).
-        # Par/face-value rule retained through the EBA rebuild. F-1's "the par
-        # rule is explosive at every phi_lamb once duration is empirical" finding
-        # was diagnosed at delta_b=0.036/0.038 (6.5-7y). The rebuilt, MEASURED
-        # duration is 0.0777/0.0568 (3.1y/4.2y modified) — much closer to the old
-        # 0.10 than to 0.036 — so the par rule is not being pushed into that
-        # region and mv_rule=1 is not needed. Verify b_gov_D[499] on every run.
-        'mv_rule_D':    0.0,     'mv_rule_F':    0.0,
+        # Market-value rule REQUIRED under the EBA calibration; par rule for the
+        # pre-EBA placeholder. Measured 2026-07-31: at mv_rule=0 with the measured
+        # concentration the debt path explodes even with the collateral friction
+        # switched off entirely (psi_lambda_B=0 gives b_gov_D[499]=6.4e+03 and a
+        # nonsense peak spread), so this is the DEBT/fiscal mode, not amplification.
+        # The driver is phi_own=2.39 (a ~10x stronger doom loop than the 0.25
+        # placeholder), not duration — which is why the "measured delta_b is close
+        # to the old 0.10, so the par rule is fine" reasoning did not carry: it was
+        # about duration. mv_rule=1 + phi_lamb=0.60 is the pairing the 2026-07-22
+        # EBA build verified stationary, and F-1's hard break at
+        # mv_rule=1 + phi_lamb=0.15 is far away.
+        'mv_rule_D':    1.0 if EBA_CALIBRATION else 0.0,
+        'mv_rule_F':    1.0 if EBA_CALIBRATION else 0.0,
         'mv_gov_ss_D':  0.6*4,   'mv_gov_ss_F':  0.6*4,
 
         # ── Sovereign Default ─────────────────────────────────────────────────

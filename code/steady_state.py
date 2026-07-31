@@ -22,7 +22,12 @@ from equations_global import (
     portfolio_level_anchors, portfolio_adj_cost, bond_yield,
     global_goods_mkt, external_account_D,
 )
-from calibration import load_eba_targets, EBA_CALIBRATION
+# NB: import the MODULE, not the flag. `from calibration import EBA_CALIBRATION`
+# binds the value at import time, so a sweep that flips the switch afterwards
+# would silently keep the old portfolio targets — the same stale-binding trap as
+# the regimes cache key and PSILAM_MAIN.
+import calibration
+from calibration import load_eba_targets
 
 
 def assert_gk_well_posed(ss_in):
@@ -48,15 +53,16 @@ def assert_gk_well_posed(ss_in):
     `Delta_own` — which is how the EBA data partially identifies a parameter
     that has no direct empirical counterpart. See docs/eba_calibration.md.
     """
-    bad = []
+    vals, bad = [], []
     for c in ("D", "F"):
         lam, om = float(ss_in[f"lambda_gk_{c}"]), float(ss_in[f"Omega_{c}"])
+        vals.append(f"{c}: lambda_gk={lam:+.6f}, Omega={om:+.6f}")
         if not (lam > 0.0 and om > 0.0):
-            bad.append(f"{c}: lambda_gk={lam:+.6f}, Omega={om:+.6f}")
+            bad.append(c)
     if bad:
         raise ValueError(
-            "GK block is NOT well-posed — negative IC multiplier / franchise value:\n  "
-            + "\n  ".join(bad)
+            f"GK block is NOT well-posed — negative IC multiplier / franchise "
+            f"value in {'/'.join(bad)}:\n  " + "\n  ".join(vals)
             + "\n\nThe steady state will still 'solve' and every Walras residual will be "
               "machine-zero, but the banker's continuation value is negative and all "
               "IRFs are uninterpretable. Required (approximately):\n"
@@ -218,7 +224,7 @@ def solve_steady_state(calibration_start):
     # Gated by calibration.EBA_CALIBRATION — see the switch note there. At the
     # measured concentration the GK block has no feasible Delta (empty set), so
     # the default is the pre-EBA symmetric placeholder, which solves.
-    if EBA_CALIBRATION:
+    if calibration.EBA_CALIBRATION:
         print("Targeting portfolio shares (EBA 2011, 31 Dec 2010)...")
         _eba = load_eba_targets()
         target_phi_bD_D = _eba['phi_bD_D_ss']

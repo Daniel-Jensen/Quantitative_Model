@@ -28,14 +28,23 @@
 > Acharya–Steffen MTM for amplification (the 2011 adverse scenario is rejected).
 > Flipping `EBA_CALIBRATION = True` turns the whole set on in one line.
 >
-> **But it does not currently produce a usable model, and that is a result.** At
-> the measured concentration the GK block requires
-> `f*theta > (1-Delta_own)*phi_own + (1-Delta_cross)*phi_cross`, which forces
-> `Delta_own > ~0.73`, while `_ic_delta`'s hardcoded `ratio=2.0` plus
-> `Delta_cross <= 1` caps it at 0.5 — **the feasible set is empty**. Read
-> `docs/STATE.md` → *EBA REBUILD* and `docs/eba_calibration.md` → *GK feasibility*
-> before touching this. New guard `steady_state.assert_gk_well_posed` makes the
-> failure loud instead of silent.
+> **Steady state now works; dynamics do not.** Two problems, one solved:
+>
+> 1. **SOLVED — collateral mapping.** The GK block needs
+>    `f*theta > (1-Delta_own)*phi_own + (1-Delta_cross)*phi_cross`, i.e.
+>    `Delta_own > ~0.73`. `Delta=0.2` gave `lambda_gk_D=-0.087`, `Omega_D=-0.301`
+>    while the solver converged cleanly. The culprit was `_ic_delta`'s hidden
+>    `ratio=Delta_cross/Delta_own=2.0` closure, now removed — `Delta` is free and
+>    the IC residual is checked directly. At **0.85/0.90**: `lambda_gk_D=+0.927`
+>    (vs pre-EBA +0.923), `Omega_D=+4.62`, `K_D=10.80`.
+> 2. **OPEN — dynamic instability.** `b_gov_D[499] ~ 1e2–1e3`. Amplification is
+>    `theta*phi_own = 13.17` vs 1.0 for the placeholder. Not fiscal (flat in
+>    `phi_lamb` to 25), not the friction (present at `psi_lambda_B=0`). `chi1`
+>    0→0.5 cuts peak spread 1.1e7bp→6.0bp but no value removes the root.
+>
+> Read `docs/STATE.md` → *EBA REBUILD* and `docs/eba_calibration.md` →
+> *GK feasibility* / *Dynamic instability* before touching this.
+> `steady_state.assert_gk_well_posed` makes the steady-state failure loud.
 >
 > **Policy-regime feature runs end-to-end** (Stage A + Stage B-lite + unit tests, all
 > exit 0). Doc-sync is enforced by `.githooks/pre-commit` - enable once per clone:

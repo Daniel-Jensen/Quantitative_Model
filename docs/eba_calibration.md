@@ -164,61 +164,103 @@ The other two levers are out of range:
 - `theta` would need **> 16.03** (measured 5.51; even the rejected CT1/total-assets
   14.9 falls short, and that variant was already verified not to converge).
 
-### …and the feasible set is actually EMPTY
+### What had pinned `Delta` at 0.2/0.4: a hidden `ratio = 2.0` convention
 
-Raising `Delta` is not enough. `ic_delta_calibration._ic_delta` hardcodes
-**`ratio = Delta_cross / Delta_own = 2.0`**, an undocumented structural
-convention that was invisible while `Delta_own = 0.2` (it is exactly why
-`0.2/0.4` "passed" the consistency check). Non-degeneracy needs
-`Delta_cross <= 1`, so the convention caps `Delta_own <= 0.5`. Therefore:
+`ic_delta_calibration._ic_delta` back-solved `Delta` from one equation in two
+unknowns, closing the system with a hardcoded
+**`ratio = Delta_cross / Delta_own = 2.0`**. That was an undocumented structural
+convention masquerading as a consistency check — it is exactly why the inherited
+`0.2/0.4` pair "passed". With `Delta_cross <= 1` it also caps `Delta_own <= 0.5`,
+below the ~0.73 the measured moments require.
 
-| Constraint | Implication for `Delta_own` |
+**Fixed 2026-07-31.** The convention is gone. `Delta_own` and `Delta_cross` are
+free structural parameters, and the module now checks the thing that matters —
+the IC residual
+
+```
+value  ==  lambda_gk * [theta - (1-Delta_own)*phi_own - (1-Delta_cross)*phi_cross]
+```
+
+a genuine one-equation residual with no free closure (`ic_residual`, tolerance
+1e-8, plus a positive-divertable-leverage check).
+
+### Resolution: `Delta = 0.85 / 0.90`
+
+Sweeping `Delta_own` with `Delta_cross = Delta_own + 0.05`:
+
+| `Delta_own`/`Delta_cross` | `lambda_gk_D` | `lambda_gk_F` | `Omega_D` | `Omega_F` | `K_D` | `K_F` |
+|---|---|---|---|---|---|---|
+| 0.85 / 0.90 | **+0.927** | **+0.960** | +4.62 | +5.98 | 10.80 | 10.65 |
+| 0.90 / 0.95 | +0.488 | +0.456 | +2.49 | +2.91 | 10.80 | 10.65 |
+
+**0.85/0.90 is committed for the EBA branch.** `lambda_gk_D = +0.927` is
+essentially identical to the pre-EBA `+0.923`, so the amplification block keeps
+its previous strength while the concentration becomes measured — the cleanest
+possible basis for comparing the two calibrations.
+
+Note the closed-form bound (~0.73) understates the requirement because it ignores
+the endogenous banker return `rn`, which enters as `D_target/(beta_inter*(1+rn))`.
+`Delta = 0.80/0.90` lands just past the `lambda_gk` **pole** (the denominator
+crosses zero, so `lambda_gk` runs `-inf -> +inf`) with `lambda_gk_F = -12.45`.
+The real frontier is a fixed point, not a formula — sweep, don't solve.
+
+**Why this is a correction and not a fudge.** Measured leverage is only 5.5× on a
+book that is ~43% sovereign. You cannot simultaneously claim sovereigns are
+excellent collateral: if they were, the bank would lever further and `theta=5.5`
+would not be the binding constraint. High concentration at low leverage *implies*
+bonds are nearly as divertable as capital. That is also the right story for
+2010–12 Greece — collapsing GGB collateral eligibility, rising ECB haircuts.
+
+## Dynamic instability — the remaining blocker
+
+With the steady state correct, the **dynamics are still explosive**:
+`b_gov_D[499] ~ 1e2-1e3` against a ~1e-5 target. This is a *separate* problem
+from the collateral mapping, and it is structural.
+
+The measured moments give a financial-accelerator gain
+
+```
+theta * phi_own = 5.51 * 2.39 = 13.17     (placeholder: 4.0 * 0.25 = 1.0)
+```
+
+— a ~13× stronger leverage loop. Diagnosed 2026-07-31; it is **not** the fiscal
+mode and **not** the collateral friction:
+
+| Test | Result |
 |---|---|
-| GK well-posedness at measured moments | `> ~0.73` |
-| `ratio = 2.0` convention + `Delta_cross <= 1` | `<= 0.5` |
+| `psi_lambda_B = 0` (friction fully off) | still explosive, `b_gov[499] = -2038` |
+| `phi_lamb` 0.6 → 25 | **flat**: peak spread ~1.1e7bp at 0.6, 1.5 *and* 25 |
+| `mv_rule = 1` | does not fix it |
+| `chi1` 0 → 0.5 | peak spread **1.1e7bp → 6.0bp**, `b_gov[499]` −2038 → +70 |
+| `chi1` ∈ [0.2, 5.0] | `b_gov[499]` stays 70–560 — amplitude damped, root not removed |
 
-**Empty.** Confirmed numerically: `Delta = 0.80/0.90` re-solves with
-`lambda_gk_F = -12.45`, `Omega_F = -75.91` — still negative, now sitting just
-past the `lambda_gk` **pole** (the denominator crosses zero, so `lambda_gk`
-runs `-inf -> +inf` and "just above the bound" is the worst place to be). The
-back-solve simultaneously returns `Delta_cross = 1.59 > 1`, i.e. C-1's
-degeneracy warning, because `0.90` is inconsistent with `ratio = 2.0`.
+`chi1` (the Auclert intermediary capital adjustment cost, currently **0**) is by
+far the strongest lever and makes the spread response sane again, but no value
+tested removes the unstable root.
 
-Note also that the closed-form bound above understates the requirement: it
-ignores the endogenous banker return `rn`, which enters as
-`D_target/(beta_inter*(1+rn))`. At the solved `rn_F ~ 0.049` the true
-requirement for F is `Delta_own > 0.803`, and `rn` itself moves with `Delta`,
-so the real frontier is a fixed point rather than a formula.
+**Open routes:**
 
-### What this means
-
-Escaping needs a **modelling decision, not a parameter tweak**. Three candidate
-routes, none costless:
-
-1. **Drop the `ratio = 2.0` convention** and let `Delta_own`/`Delta_cross` be
-   free in `(0,1)`. Cheapest change, but `Delta_own` then has to sit around
-   **0.85–0.95** to clear the pole with a sane `lambda_gk` — which says Greek
-   sovereign bonds were *nearly worthless as collateral*. Defensible for 2010–12
-   (GGB collateral eligibility was collapsing, ECB haircuts rising), **but it
-   largely removes the collateral channel the paper's doom loop runs on.**
-2. **Re-scope the bank block** so `phi_own` is not 2.39 — e.g. model only the
+1. **Damp the accelerator structurally** — `chi1` is the natural home but needs
+   pairing with something else (slower `theta` adjustment, or a leverage rule
+   with inertia).
+2. **Re-scope the bank block** so `phi_own` is not 2.39 — model only the
    sovereign-exposed sub-book, or let `n_inter` be broader than stress-test CT1.
-   This keeps the mechanism but weakens the claim that the calibration is
-   EBA-measured.
-3. **Replace the GK IC** with a constraint that tolerates high concentration
-   (e.g. a value-at-risk or risk-weighted constraint rather than a linear
-   divertability IC).
+   Keeps the mechanism, weakens the "EBA-measured" claim.
+3. **Replace the GK IC** with a constraint tolerating high concentration
+   (value-at-risk / risk-weighted rather than linear divertability).
 
-**Committed for now: `EBA_CALIBRATION = False`** in `code/calibration.py` — the
-pre-EBA calibration, which is well-posed and solves. The switch flips the whole
-measured moment set on in one line, and `assert_gk_well_posed` guarantees that
-turning it on fails loudly rather than silently producing degenerate results.
+**Committed: `EBA_CALIBRATION = False`** — the pre-EBA calibration, which solves.
+The switch turns the whole measured moment set on in one line, and
+`assert_gk_well_posed` guarantees the steady-state failure mode can never return
+silently.
 
-**The headline is not "the rebuild failed".** It is that the measured Greek
-bank-sovereign concentration is *structurally incompatible* with this model's
-collateral constraint — a result the 2026-07-22 build hid by back-solving
-`omega_K` around an assumed `theta`, and that the 2026-07-30 revert avoided by
-abandoning EBA anchoring altogether.
+**The headline.** Measured Greek bank-sovereign concentration implies a
+financial-accelerator gain ~13× the placeholder's, and this model is linearly
+unstable there regardless of the fiscal rule or the collateral friction. The
+2026-07-22 build hid the steady-state half of this by back-solving `omega_K`
+around an assumed `theta`; the 2026-07-30 revert avoided both halves by
+abandoning EBA anchoring. Neither is a reason the concentration is wrong — it is
+measured — so the model, not the data, is what has to give.
 
 **Guarded in code.** `steady_state.assert_gk_well_posed` now runs inside
 `_apply_ss_anchors`, i.e. on every solved steady state in both

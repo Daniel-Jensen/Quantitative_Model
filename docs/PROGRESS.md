@@ -14,7 +14,68 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
-## 2026-07-31 — EBA calibration rebuilt and identified; measured moments found infeasible in the GK block  [this commit]
+## 2026-07-31 — fix the collateral mapping; EBA steady state now correct, dynamics still explosive  [this commit]
+
+Follow-up to the rebuild below. The previous entry concluded the feasible `Delta`
+set was empty. **That was wrong, and the reason is instructive:** the emptiness
+came entirely from an undocumented convention, not from the economics.
+
+`ic_delta_calibration._ic_delta` back-solved `Delta` from one equation in two
+unknowns and closed the system with a hardcoded
+`ratio = Delta_cross/Delta_own = 2.0`. With `Delta_cross <= 1` that caps
+`Delta_own <= 0.5`, against the `> ~0.73` GK well-posedness requires. It was a
+back-solve closure masquerading as a consistency check — which is exactly why the
+inherited `0.2/0.4` pair "passed" it.
+
+**Fixed.** The convention is gone. `Delta_own`/`Delta_cross` are free structural
+parameters and the module now checks the IC **residual** directly
+(`ic_residual`, tol 1e-8, plus a positive-divertable-leverage check). Verified on
+the pre-EBA calibration: residual `+8.9e-16` (D) / `+1.8e-15` (F).
+
+**`Delta = 0.85/0.90` resolves the steady state:**
+
+| `Delta_own`/`Delta_cross` | `lambda_gk_D` | `lambda_gk_F` | `Omega_D` | `Omega_F` | `K_D` | `K_F` |
+|---|---|---|---|---|---|---|
+| **0.85 / 0.90** | **+0.927** | **+0.960** | +4.62 | +5.98 | 10.80 | 10.65 |
+| 0.90 / 0.95 | +0.488 | +0.456 | +2.49 | +2.91 | 10.80 | 10.65 |
+
+`lambda_gk_D = +0.927` is essentially the pre-EBA `+0.923`, so the amplification
+block keeps its strength with measured concentration. Not a fudge: leverage of
+5.5× on a 43%-sovereign book is inconsistent with sovereigns being good
+collateral — if they were, the bank would lever further and `theta=5.5` would not
+bind. Also the right story for 2010–12 Greece (collapsing GGB eligibility, rising
+ECB haircuts). Note `Delta=0.80/0.90` lands just past the `lambda_gk` **pole**
+(`lambda_gk_F=-12.45`): the closed-form bound ignores endogenous `rn`, so the real
+frontier is a fixed point — sweep, don't solve.
+
+**STILL BLOCKING — dynamic instability (GK-2).** With the SS correct,
+`b_gov_D[499] ~ 1e2–1e3` vs a ~1e-5 target. Measured amplification is
+`theta*phi_own = 13.17` against `4.0*0.25 = 1.0` for the placeholder. Diagnosed:
+
+| Test | Result |
+|---|---|
+| `psi_lambda_B = 0` | still explosive, `b_gov[499] = -2038` |
+| `phi_lamb` 0.6 → 25 | **flat** (peak ~1.1e7bp at 0.6, 1.5 *and* 25) — not the fiscal mode |
+| `mv_rule = 1` | does not fix it |
+| `chi1` 0 → 0.5 | peak spread **1.1e7bp → 6.0bp**, `b_gov[499]` −2038 → +70 |
+| `chi1` ∈ [0.2, 5.0] | `b_gov[499]` stays 70–560 — amplitude damped, root not removed |
+
+`chi1` (Auclert intermediary adjustment cost, currently 0) is the strongest lever
+and restores a sane spread response, but no tested value removes the root. Three
+open routes in `docs/eba_calibration.md` → *Dynamic instability*.
+
+**Also fixed:** `steady_state.py` did `from calibration import EBA_CALIBRATION`,
+binding the flag at import time so a sweep flipping it would silently keep the old
+portfolio targets — the same stale-binding trap as the regimes cache key and
+`PSILAM_MAIN`. Now imports the module and resolves at call time. The GK guard also
+reports both countries' `lambda_gk`/`Omega` on failure, not just the failing one.
+
+`EBA_CALIBRATION` stays **False**. Full `main.py` re-verified: `n_inter_D[0]=-3.0009%`,
+`Y_D[0]=-0.0261%`, `ρ_b=0.8451`, `b_gov_D[499]=-1.3e-5`, all residuals < 1e-8.
+
+---
+
+## 2026-07-31 — EBA calibration rebuilt and identified; measured moments found infeasible in the GK block  [050e54a]
 
 Rebuilt the EBA 2011 moment set to be **identified rather than back-solved**, then
 found that the measured moments are structurally incompatible with the model's
