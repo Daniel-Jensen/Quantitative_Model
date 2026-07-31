@@ -1,12 +1,12 @@
 {
   "gammas": {
-    "aggressive": 5.081315353163518,
-    "medium": 1.5730033250292763,
+    "aggressive": 12.72601367381867,
+    "medium": 5.079798909719102,
     "passive": 0.0
   },
-  "pk_passive_bp": 187.18636233609476,
-  "A_cb_impact": -0.024060192966400662,
+  "pk_passive_bp": 150.30634590442162,
+  "A_cb_impact": -0.018889149864477227,
   "selection_rule": "peak-spread compression 50%/25% (spec \u00a77; feasible on main, A_cb<0 \u2014 capital-key conduit; ms-regime SA-1 pathology absent)",
-  "model": "main (psi_lambda_B=3.0000, mv_rule=0, recovery_rate=0.30, capital-key conduit)",
-  "generated": "2026-07-31 10:26:51.895252"
+  "model": "main (psi_lambda_B=8.5000, mv_rule=0, recovery_rate=0.30, capital-key conduit)",
+  "generated": "2026-07-31 16:56:22.937696"
 }

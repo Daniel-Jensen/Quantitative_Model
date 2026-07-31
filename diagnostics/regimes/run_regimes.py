@@ -86,20 +86,28 @@ def main():
               open(os.path.join(HERE, "regimes_calibration.json"), "w"), indent=2)
 
     # ── Closed-loop IRFs per regime ──────────────────────────────────────────
+    # SSJ IRFs are LEVEL deviations, so x100 is a percentage only where the SS level
+    # is ~1. Y_D_ss ~ 1 so Y_D passes; n_inter_D_ss=2.14 and K_D_ss=10.8 do NOT, and
+    # the panels below used to be titled "(%)" while plotting raw level x100 — a 2x
+    # error on net worth and a 10x error on capital. Scale both by their SS level.
+    n_ss, K_ss = float(cM["n_inter_D_ss"]), float(cM["K_D_ss"])
+    pct = {"n_inter_D": 100.0 / n_ss, "K_D": 100.0 / K_ss}
+
     irfs = {}
     for name, g in gammas.items():
         sp, cb = closed_loop(A_def, A_cb, eps, g)
         irfs[name] = irf_all(cM, cb, eps, T)
         log(f"  {name:>10}: peak spread {peak(sp)*BP_ANN:7.1f} bp, "
-            f"Y_D[0] {irfs[name]['Y_D'][0]*100:+.4f}%, "
-            f"n_inter_D[0] {irfs[name]['n_inter_D'][0]*100:+.3f}%")
+            f"Y_D[0] {irfs[name]['Y_D'][0]*100:+.4f}% of SS, "
+            f"n_inter_D[0] {irfs[name]['n_inter_D'][0]*pct['n_inter_D']:+.3f}% of SS "
+            f"(level dev {irfs[name]['n_inter_D'][0]*100:+.3f})")
 
     # ── §8.1 IRF figure ──────────────────────────────────────────────────────
     panels = [("spread_rb", "D-F yield spread (bp ann)", BP_ANN),
               ("q_b_D", "q_b_D", 1.0), ("Y_D", "Y_D", 100.0), ("I_D", "I_D", 100.0),
               ("C_D", "C_D", 100.0), ("NX_D", "NX_D", 100.0),
-              ("n_inter_D", "bank net worth n_inter_D (%)", 100.0),
-              ("K_D", "capital level K_D (%)", 100.0),
+              ("n_inter_D", "bank net worth n_inter_D (% of SS)", pct["n_inter_D"]),
+              ("K_D", "capital level K_D (% of SS)", pct["K_D"]),
               ("b_D_D", "b_D_D quantity", 1.0), ("mv_b_D_D", "b_D_D market value", 1.0),
               ("pd_D", "primary deficit (austerity channel)", 1.0),
               ("cb_buy_D", "CB purchases", 1.0)]

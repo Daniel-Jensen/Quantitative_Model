@@ -142,10 +142,19 @@ def build_and_solve(ss_results):
     phi_lamb = calibration_start['phi_lamb_D']
     print(f"  ρ_b (partial-eq.) = {round((0.953 * 0.95 + 0.05 - phi_lamb) / 0.953, 4)}"
           "  [target < 0.95]")
-    print(f"  n_inter_D[0] on default shock = {irfs_def_D['n_inter_D'][0]*100:+.4f}%"
-          "  (negative = doom loop correct sign)")
-    print(f"  Y_D[0]       on default shock = {irfs_def_D['Y_D'][0]*100:+.4f}%"
-          "  (negative = correct sign)")
+    # SSJ returns LEVEL deviations. Y_D_ss ~ 1 so Y_D*100 happens to read as a
+    # percent, but n_inter_D_ss is not 1 (2.138 under BANK_SCOPE="broad", 3.0
+    # pre-EBA, 0.408 under CT1), so the raw x100 was NOT a percentage and was not
+    # comparable across calibrations — the "-7.227%" widely quoted in the docs is
+    # the level deviation; the true impact is -3.38% of SS net worth. Both are
+    # printed now: the level for continuity with the historical logs, the
+    # percent-of-SS as the number to quote.
+    n0, Y0 = irfs_def_D['n_inter_D'][0], irfs_def_D['Y_D'][0]
+    n_ss, Y_ss = float(ss_final['n_inter_D']), float(ss_final['Y_D'])
+    print(f"  n_inter_D[0] on default shock = {n0/n_ss*100:+.4f}% of SS"
+          f"  (level dev {n0*100:+.4f}; negative = doom loop correct sign)")
+    print(f"  Y_D[0]       on default shock = {Y0/Y_ss*100:+.4f}% of SS"
+          f"  (level dev {Y0*100:+.4f}; negative = correct sign)")
 
     return {
         'ha_full':           ha_full,

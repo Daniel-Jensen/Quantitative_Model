@@ -27,7 +27,8 @@
 > `phi_lamb = 0.15`, `mv_rule = 0`.
 >
 > Verified end-to-end: `K_D=10.800`/`K_F=10.832` (target 10.8), IC residual
-> −8.9e−16, `ca_res_D=6.9e−17`, `b_gov_D[499]=1.4e−05`, `n_inter_D[0]=−7.227%`,
+> −8.9e−16, `ca_res_D=6.9e−17`, `b_gov_D[499]=1.4e−05`,
+> `n_inter_D[0]=−3.380% of SS` (level dev −7.227 — see the units fix below),
 > `Y_D[0]=−0.0149%` (**Y-1 resolved**), `rk_D=rk_F=0.010000` (**RK-1 resolved**),
 > peak spread 150.4bp, TPI loading 4.35/4.01/3.44 declining.
 >
@@ -40,21 +41,31 @@
 > **Set `BANK_SCOPE="ct1"` to reproduce the CT1 variant**, which is explosive
 > (`b_gov[499] ~ 1e2-1e3`) and needs `Delta_own > 0.73`.
 >
-> **Policy-regime feature runs end-to-end** (Stage A + Stage B-lite + unit tests, all
-> exit 0). Doc-sync is enforced by `.githooks/pre-commit` - enable once per clone:
+> **Policy regimes RE-RUN at this calibration (2026-07-31)** — Stage A, Stage B-lite,
+> the new certainty-equivalence decomposition and 18/18 tests all exit 0; all three
+> figures regenerated. `A_cb=-1.889e-2` (backstop compresses, SA-1 absent),
+> `gamma` 12.726/5.080, peak spread 75.2/112.7/**150.3**bp, so the 120–180bp sanity
+> band now passes. A6 invariance holds in Stage A and in the lottery.
+> `PSILAM_BREAKDOWN` re-derived **2.5 → 15.0** (pole located between 27 and 28;
+> guard set from the first pathology at 14–18, not the pole). Doc-sync is enforced
+> by `.githooks/pre-commit` — enable once per clone:
 > `git config core.hooksPath .githooks`.
 >
-> A6 lottery invariance was fixed 2026-07-31 (ranked post-revelation, checked at both
-> amplifier settings, with a noise margin) — it now genuinely holds.
+> **Units fix (2026-07-31), affects published numbers.** SSJ IRFs are *level*
+> deviations; `×100` is a percent only where the SS level is ≈1. `n_inter_D_ss=2.138`
+> and `K_D_ss=10.8` are not, so `main.py`'s `n_inter_D[0]` print and two Stage A
+> figure panels were mislabelled `%` (2.1× and **10×**). Fixed. **Do not quote the
+> old −7.227%** — it is the level deviation; the impact is −3.380% of SS. `PT-1`'s
+> pass-through is consequently −2.25%/100bp, not ≈−4.5%.
 >
-> **Open items:** (1) `diagnostics/regimes/` has NOT been re-run at the new
-> calibration — caches are fingerprinted so they will rebuild, but `PSILAM_BREAKDOWN`
-> (currently 2.5) needs re-deriving for `psi_lambda_B=8.5`, and `run_regimes.py`'s
-> 120-180bp sanity band should now pass (150.4bp). (2) `beliefs.json` dates from
-> 2026-07-23. (3) Figures need regenerating. (4) The `theta`-for-the-whole-sector
-> assumption is the one load-bearing judgement left in the bank block; an ECB BSI
-> cross-check on bank credit to NFCs would test it. (5) S-1 (`writeoff_enabled=0`)
-> still an author decision.
+> **Open items:** (1) `beliefs.json` dates from 2026-07-23 (estimated MS chain on the
+> FRED peripheral–Bund composite; calibration-independent). (2) `Y_D[0]` is positive
+> under both intervening regimes and the A5 `dY_D` trough never goes negative —
+> output never falls under the backstop. At `gamma_aggressive=12.7` this is likely
+> linear-rule overshoot; check before reporting intervening-regime output paths.
+> (3) The `theta`-for-the-whole-sector assumption is the one load-bearing judgement
+> left in the bank block; an ECB BSI cross-check on bank credit to NFCs would test
+> it. (4) S-1 (`writeoff_enabled=0`) still an author decision.
 
 ## Quick start
 

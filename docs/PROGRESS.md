@@ -14,7 +14,59 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
-## 2026-07-31 — broad capital-funding-sector scope: the EBA calibration goes LIVE  [this commit]
+## 2026-07-31 — regimes re-run at the broad scope; `PSILAM_BREAKDOWN` re-derived; units bug fixed  [this commit]
+
+Follow-up to the broad-scope commit below: the policy-regime diagnostics had never
+been run at the live calibration, and their hard guard blocked it.
+
+**`PSILAM_BREAKDOWN` re-derived: 2.5 → 15.0.** New
+`diagnostics/psilam_breakdown_sweep.py` sweeps 16 points above the live 8.5,
+solving the SS once (`psi_spread` is exactly linear in `psi_lambda_B`) and
+re-solving the Jacobian per point with both dials moved together. Peak spread
+150.3 → 223.8 → 273.6 → 625.3 → 1034.5 → 8903.8 bp at 8.5 / 14 / 20 / 25 / 26 / 27,
+then **sign-flips at 28** — a pole between 27 and 28. The A7 >1000bp flag first
+fires at 26; the *first* pathology is earlier, `n_inter_D[0]` shrinking over
+`[14,18]` while the spread still rises. The guard is set from that, not from the
+pole, so it keeps real margin. The old 2.5 was CT1-scope and would have blocked
+the live calibration outright.
+
+**Regimes re-run, all three figures regenerated.** Caches rebuilt (the calibration
+fingerprint forced it). `A_cb=-1.889e-2` — backstop still compresses, SA-1 absent.
+`gamma_aggressive=12.726` / `gamma_medium=5.080`; peak spread 75.2 / 112.7 /
+**150.3** bp, so `run_regimes.py`'s 120–180bp band now passes. A6 amplifier
+invariance holds in both Stage A (3.78/4.67/5.44 at `psi_lambda_B=0`) and the
+lottery (2.51/3.09/3.59). 18/18 tests pass.
+
+**New: `diagnostics/regimes/certainty_equivalence.py`** — answers whether the
+regime lottery is degenerate under first-order certainty equivalence. It is not,
+but the non-degeneracy is ~9% of what the Stage B figure shows: comparing the
+lottery to one *known* CB at `gamma_bar` (same silence-until-`k` timing) gives
+`LOT − CE = +1.477bp` at ergodic beliefs against a 16.6bp total belief-shift
+effect. The wedge is exactly `A_cb[0,:] @ (cb^e − cb_CE)` (verified to 6e−15 bp);
+mechanism is that uncertainty **back-loads** the expected backstop while the
+date-0 spread weights near-term purchases most. See `docs/STATE.md`.
+
+**Units bug fixed (pre-existing, affected published numbers).** SSJ IRFs are
+*level* deviations, so `×100` is a percent only where the SS level is ≈1.
+`Y_D_ss≈1` passes; `n_inter_D_ss=2.138` and `K_D_ss=10.8` do not. `main.py`
+printed `n_inter_D[0]×100` as `%` — the widely-quoted **−7.227%** is the level
+deviation and the true impact is **−3.380% of SS** — and the Stage A figure
+titled two panels `(%)` on the same basis (2.1× on net worth, **10×** on
+capital). Both fixed; level deviations retained alongside for continuity.
+Consequence: `PT-1`'s pass-through moment is **−2.25%/100bp**, not ≈−4.5%; still
+inside the Acharya–Drechsler–Schnabl-implied range but at its low end.
+
+**Watch item recorded:** `Y_D[0]` is positive under both intervening regimes and
+the A5 `dY_D` trough never goes negative — output never falls at all under the
+backstop. At `gamma_aggressive=12.7` that is more likely linear-rule overshoot
+than economics; flagged in STATE.md, not reported as a result.
+
+Full `code/main.py` re-verified (exit 0): residuals, `b_gov_D[499]=+1.4e−05`,
+`ρ_b=0.845`, peak spread 0.376pp, TPI loading 4.35/4.01/3.44 all unchanged.
+
+---
+
+## 2026-07-31 — broad capital-funding-sector scope: the EBA calibration goes LIVE
 
 The last blocker was the **scope of `n_inter`**, not any parameter. EBA CT1 is the
 capital of the *sovereign-exposed stress-test sample*; the model's `n_inter` is

@@ -117,7 +117,7 @@ sector. If non-stress-tested capital funding levers less, `N_broad` is larger an
 | IC residual | −8.9e−16 (D) / 0.0 (F) at `Delta = 0.2/0.4` |
 | Walras | `ca_res_D = 6.9e−17`; all block residuals < 1e−8 |
 | stability | `b_gov_D[499] = +1.4e−05`, `ρ_b = 0.845` |
-| `n_inter_D[0]` | **−7.227%** ✓ |
+| `n_inter_D[0]` | **−3.380% of SS** ✓ (level dev −7.227 — see the units fix below) |
 | `Y_D[0]` | **−0.0149%** ✓ — **Y-1 RESOLVED** |
 | `rk_D`, `rk_F` | both exactly 0.010000 — **RK-1 RESOLVED** |
 | peak spread (γ=0) | 0.376pp = **150.4bp**, on target |
@@ -145,20 +145,50 @@ calibration.
   moments (was 0.0133 in the 2026-07-22 build).
 - **Regimes staleness fixed**: cache filenames now carry a calibration
   fingerprint (they keyed only on `psi_lambda_B`, so the `psilam=0` cache would
-  have been silently reused across different models); `PSILAM_BREAKDOWN` 4.0→2.5
-  with the net-worth dependence documented; the hardcoded `"market-value rule"`
-  figure suptitle now reads the live `mv_rule`.
-- **Units caveat found**: `main.py` prints `n_inter_D[0]` as the raw IRF level
-  ×100, *not* a percentage of steady state. Across calibrations with different
-  `n_inter_ss` these numbers are not comparable — the true impact is
-  `raw/n_inter_ss`.
+  have been silently reused across different models); the hardcoded
+  `"market-value rule"` figure suptitle now reads the live `mv_rule`.
+- **Units bug FIXED (2026-07-31)**: SSJ IRFs are *level* deviations, so `×100` is
+  a percentage only where the SS level is ≈1. `Y_D_ss≈1` passes;
+  `n_inter_D_ss=2.138` and `K_D_ss=10.8` do not. `main.py` printed
+  `n_inter_D[0]×100` as `%` (a 2.1× overstatement — the widely-quoted "−7.227%"
+  is the level deviation, the true impact is **−3.380% of SS**), and the Stage A
+  figure titled two panels `(%)` on the same basis (2.1× on net worth, **10×** on
+  capital). Both now divide by the SS level and print/plot `% of SS`, with the
+  level deviation retained alongside for continuity with the historical logs.
+
+### `psi_lambda_B` breakdown ceiling — re-derived 2026-07-31
+
+`diagnostics/psilam_breakdown_sweep.py`, 16-point grid. The SS is solved once
+(`psi_spread` is exactly linear in `psi_lambda_B`) and the Jacobian re-solved per
+point with **both** dials moved together.
+
+| `psi_lambda_B` | 8.5 | 14 | 15 | 18 | 20 | 25 | 26 | 27 | 28 |
+|---|---|---|---|---|---|---|---|---|---|
+| peak spread (bp) | 150.3 | 223.8 | 225.8 | 234.6 | 273.6 | 625.3 | 1034.5 | 8903.8 | 41.0 |
+| `n_inter_D[0]` (% SS) | −3.38 | −4.82 | −4.63 | −4.33 | −5.29 | −15.47 | −27.72 | −264.9 | **+29.87** |
+
+There is a **pole between 27 and 28** — the amplification denominator crosses
+zero, the response runs up superlinearly and returns sign-flipped. The A7
+>1000bp flag first fires at **26**. The *first* pathology is earlier and milder:
+over `[14,18]` the net-worth response **shrinks while the peak spread keeps
+rising**, an internally inconsistent doom loop.
+
+`PSILAM_BREAKDOWN` is therefore set to **15.0** — from that first pathology, not
+from the pole, so the guard has real margin (55% of the pole, 1.76× the live
+8.5). It was 2.5, derived for CT1-scope net worth, and would have blocked the
+live calibration outright. `run_regimes.py`'s A7 flag remains the empirical
+backstop.
 
 ### Not done
 
-- **`psi_lambda_B` retune to 150bp is NOT done.** A sweep was run but on the
-  degenerate model, so it is void and has been discarded. It must be redone once
-  the GK feasibility question is settled.
 - The `omega_K` cross-check against ECB BSI bank-credit statistics is unpulled.
+- `beliefs.json` still dates from 2026-07-23 (estimated MS chain on the FRED
+  peripheral–Bund composite; calibration-independent, so not stale in principle).
+- `PT-1` (bank-net-worth-to-spread pass-through vs Acharya–Drechsler–Schnabl)
+  was computed from the mis-scaled net-worth number and should be recomputed:
+  at the live calibration it is **−2.25%/100bp** (−3.380% at 150.3bp), still
+  inside the literature-implied −1.8% to −8.6%/100bp range but now at the low
+  end rather than mid-range.
 
 ## Historical (2026-07-22 onward) — superseded by the section above
 
@@ -195,14 +225,32 @@ expected loss is **10.9%** of the default loading, GK collateral friction **89%*
 **Units.** `spread_rb` is a *quarterly* rate deviation; annualise ×4×1e4 for comparison
 with the 150bp target.
 
-**Policy-regime feature (2026-07-31): runs end-to-end at this calibration.** Stage A,
-Stage B-lite and the unit tests all pass (exit 0) after three fixes: `PSILAM_MAIN` now
-reads the live calibration (it was hardcoded while doubling as the cache key),
-`PSILAM_BREAKDOWN=4.0` replaces the EBA-specific `<1.5` guard, and
-`gamma_for_compression`'s scan narrowed 60->25. Headline: `A_cb=-2.406e-2` (backstop
-compresses, SA-1 absent), `gamma_aggressive=5.0813` / `gamma_medium=1.5730`, peak spread
-187.2/140.4/93.6bp passive/medium/aggressive; Stage A A6 amplifier invariance holds
-cleanly (9.33/8.54/7.14bp at `psi_lambda_B=0`).
+**Policy regimes — RE-RUN 2026-07-31 at the broad-scope EBA calibration.** Caches
+rebuilt from scratch (the calibration fingerprint forced it), Stage A, Stage B-lite,
+the certainty-equivalence decomposition and 18/18 unit tests all pass (exit 0). All
+three figures regenerated.
+
+| | aggressive | medium | passive |
+|---|---|---|---|
+| `gamma` | 12.7260 | 5.0798 | 0 |
+| peak spread (bp ann) | 75.2 | 112.7 | **150.3** |
+| `Y_D[0]` (% SS) | +0.0338 | +0.0111 | −0.0149 |
+| `n_inter_D[0]` (% SS) | −1.099 | −2.167 | −3.380 |
+| A6 peak at `psi_lambda_B=0` | 3.78 | 4.67 | 5.44 |
+
+`A_cb = -1.889e-2` — the backstop still **compresses**, so the ms-regime SA-1
+pathology remains absent. The passive peak is 150.3bp, so `run_regimes.py`'s
+120–180bp sanity band now **passes** (it did not at the pre-EBA 187.2bp). The
+`gamma` values roughly doubled (12.73/5.08 vs 5.08/1.57) because `A_def` scaled with
+`psi_lambda_B` while `A_cb` barely moved — more gain is needed per unit of
+compression.
+
+> **Watch item.** `Y_D[0]` is **positive** under both intervening regimes, and the
+> A5 table's `dY_D` trough is `+0.0000` (aggressive) / `+0.0024` (medium) — output
+> never falls at all. A backstop that fully offsets a sovereign shock on impact is
+> a strong claim; at `gamma_aggressive=12.7` this is more likely linear-rule
+> overshoot than economics. Do not report the intervening-regime output paths
+> without checking this.
 
 **A6 at the lottery stage — fixed 2026-07-31, and the invariance is real.** The old
 check ranked the *full-sample* peak, which is the common pre-`k` spread (no branch has
@@ -215,12 +263,56 @@ never produce a verdict:
 
 | `psi_lambda_B` | aggressive | medium | passive | ordered |
 |---|---|---|---|---|
-| as calibrated (3.0) | 76.98 | 117.87 | 160.19 | YES |
-| 0 (fundamental floor) | 4.91 | 5.89 | 6.43 | YES |
+| as calibrated (8.5) | 51.12 | 72.77 | 91.59 | YES |
+| 0 (fundamental floor) | 2.51 | 3.09 | 3.59 | YES |
 
-Separation at `psi_lambda_B=0` is 0.548bp, ~550x the margin. **A6 amplifier invariance
+Separation at `psi_lambda_B=0` is 0.508bp, ~500x the margin. **A6 amplifier invariance
 holds in the lottery as well as in deterministic Stage A** — the previous "false pass"
 verdict was a measurement-window error, not a failure of the economics.
+
+### What regime uncertainty actually is under first-order certainty equivalence
+
+`diagnostics/regimes/certainty_equivalence.py` (new, 2026-07-31). The model prices
+the first moment exactly and the second moment not at all, so it is fair to ask
+whether the Stage B lottery is degenerate — i.e. observationally identical to one
+*known* CB with the belief-weighted coefficient `gamma_bar`. It is not, but the
+non-degeneracy is smaller than the Stage B figure suggests, and the two must not be
+conflated.
+
+Three constructions, all with the same silence-until-`k=2` timing so delay is not
+doing the work: **CE** = one known CB at `gamma_bar`; **MIX** = belief-weighted
+mixture of known-type economies; **LOT** = the actual lottery.
+
+| beliefs | `gamma_bar` | CE | MIX | LOT | LOT − CE |
+|---|---|---|---|---|---|
+| onset (crisis-conditional) | 0.582 | 148.562 | 148.410 | 148.526 | **−0.036** |
+| ergodic (unconditional) | 5.577 | 132.089 | 133.132 | 133.567 | **+1.477** |
+
+(impact spread, bp ann.) The wedge is *exactly* decomposable — pre-revelation both
+economies see the same `A_def@eps`, so
+`LOT_0 − CE_0 = A_cb[0,:] @ (cb^e − cb_CE)`, verified to 6e−15 bp. At ergodic
+beliefs the horizon split is `[2,5): +1.828`, `[5,12): +0.228`, `[12,40): −0.538`,
+`[40,∞): −0.041`. **Mechanism: regime uncertainty back-loads the expected backstop**
+(the lottery expects less buying in the first three quarters, more later), and the
+date-0 spread weights near-term purchases most heavily, so the impact spread rises.
+
+The decisive non-degeneracy check is that the impact spread is **non-affine in
+beliefs**: 0.289bp of curvature over the medium→passive path. An affine profile
+would make the lottery observationally equivalent to a known-`gamma` CB.
+
+**Reporting discipline.** The 16.6bp move in `fig_stageB_premium_vs_pi.png`
+(133.7→150.3 as beliefs go ergodic→pure-passive) is ~91% a shift in the
+**conditional mean** of the backstop path — which linearisation prices correctly —
+and only ~9% (1.48bp) the genuine uncertainty-vs-equivalent-certainty wedge.
+Neither component is a risk premium. Call it the *expected-backstop* or
+*anticipation* channel, never a "regime-uncertainty risk premium".
+
+> A first version of this script asserted a negative `Cov_pi(gamma_s, spread^s)`
+> and read the sign off the purchase *totals*. Both are wrong: the covariance is
+> positive here, and the totals point the opposite way to the wedge because
+> `A_cb[0,:]` decays in the horizon, so the two economies differ in **timing**
+> while nearly agreeing in total. The exact identity above replaces the argument;
+> the covariance is retained as a reported diagnostic only.
 
 > **Note:** `audit_artifacts/` was removed 2026-07-30 — the harness carried its own
 > hardcoded copy of the calibration instead of importing `get_calibration()`, so it

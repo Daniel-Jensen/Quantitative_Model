@@ -11,8 +11,9 @@ REBUILT FOR MAIN (2026-07-23). Differs from the ms-regime version:
   * Main's ECB capital-key conduit needs cb_flow_D and kappa_cb_F in the SS.
   * recovery_rate=0.30 on main, so EL_price is NOT 0.102491 — it is logged, not
     asserted against the ms-regime anchor.
-  * psi_lambda_B=1.1793 (main's 150bp-target value). Main warns psi_lambda_B must
-    not exceed ~1.5-2.0 (linear-approximation-breakdown region) — guarded here.
+  * psi_lambda_B is read live from calibration.py (the 150bp-target value; 8.5
+    under BANK_SCOPE="broad" since 2026-07-31). The breakdown ceiling is
+    calibration-dependent and re-derived per calibration — see PSILAM_BREAKDOWN.
   * On main the CB backstop COMPRESSES the spread (A_cb<0): the ms-regime SA-1
     pathology is absent (capital-key conduit socialises the funding to F).
 """
@@ -39,15 +40,29 @@ PSILAM_MAIN = _live_psilam()
 
 # Linear-approximation-breakdown threshold. CALIBRATION-DEPENDENT — it scales with
 # bank net worth, so it must be re-derived whenever n_inter moves:
-#   n_inter_D = 0.408 (EBA 2011)   -> breakdown from ~1.5-2.0
-#   n_inter_D = 3.0   (pre-EBA)    -> breakdown from ~4-5
-# The 2026-07-31 EBA REBUILD returns to measured net worth (n_inter_D=0.4075), so
-# the thin-net-worth bound applies again and the 4.0 set during the pre-EBA revert
-# would NOT have caught a breakdown. Re-derived on the rebuilt model by the
-# psi_lambda_B sweep recorded in docs/eba_calibration.md; see also the A7 flag in
-# run_regimes.py, which catches breakdown empirically (peak spread > 1000bp)
-# rather than by threshold.
-PSILAM_BREAKDOWN = 2.5
+#   n_inter_D = 0.408 (EBA 2011, CT1 scope) -> breakdown from ~1.5-2.0
+#   n_inter_D = 3.0   (pre-EBA placeholder) -> breakdown from ~4-5
+#   n_inter_D = 2.138 (EBA 2011, BANK_SCOPE="broad", LIVE) -> see below
+#
+# RE-DERIVED 2026-07-31 for the broad scope by diagnostics/psilam_breakdown_sweep.py
+# (16-point grid, steady state solved once because psi_spread is exactly linear in
+# psi_lambda_B, Jacobian re-solved per point with BOTH dials moved together):
+#
+#   psi_lambda_B   8.5    14     15     18     20     25      26      27      28
+#   peak spread   150.3  223.8  225.8  234.6  273.6  625.3  1034.5  8903.8   41.0(flip)
+#   n_inter_D[0]  -3.38  -4.82  -4.63  -4.33  -5.29 -15.47  -27.72 -264.92  +29.87
+#
+# There is a POLE between 27 and 28 — the amplification denominator crosses zero, the
+# response runs up superlinearly and comes back sign-flipped. The A7 >1000bp flag
+# first fires at 26. But the FIRST pathology is milder and earlier: over [14,18]
+# n_inter_D[0] *shrinks* while the peak spread keeps rising, which is already an
+# internally inconsistent doom loop.
+#
+# The guard is set from that first pathology, not from the pole, so it has real
+# margin (15.0 is 55% of the pole and 1.76x the live psi_lambda_B=8.5) rather than
+# sitting on the edge of a singularity. run_regimes.py's A7 flag remains the
+# empirical backstop — it catches breakdown by measurement, not by threshold.
+PSILAM_BREAKDOWN = 15.0
 
 # Spec §8.1 output set, resolved against main's model. REQUIRED: hard error if absent.
 REQUIRED = ["spread_rb", "rb_D", "rb_F", "q_b_D", "q_b_F", "Y_D", "C_D", "I_D",
