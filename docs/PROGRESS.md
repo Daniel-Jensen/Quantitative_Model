@@ -14,7 +14,92 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
-## 2026-07-31 - fix A6 lottery invariance test (measurement-window error)  [this commit]
+## 2026-07-31 — EBA calibration rebuilt and identified; measured moments found infeasible in the GK block  [this commit]
+
+Rebuilt the EBA 2011 moment set to be **identified rather than back-solved**, then
+found that the measured moments are structurally incompatible with the model's
+collateral constraint. The rebuild is sound; the incompatibility is the finding.
+
+**Live calibration unchanged.** `EBA_CALIBRATION = False` (`code/calibration.py`)
+selects the pre-EBA values bit-exactly — verified parameter-by-parameter and by a
+full `main.py` run reproducing `n_inter_D[0]=-3.0009%`, `Y_D[0]=-0.0261%`,
+`ρ_b=0.8451`, `b_gov_D[499]=-1.3e-5`, TPI peaks 0.468/0.330/0.236/0.163 pp.
+
+**Newly measured** (`code/eba_calibration.py` → `data/eba_moments.json`):
+
+| Parameter | Was | Now | From |
+|---|---|---|---|
+| `delta_b_D/F` | 0.10, no EBA counterpart | 0.0777 / 0.0568 | maturity ladder (`MATURITY_CODE` 125–155, previously unread) repriced at the end-2010 market yield |
+| `theta_D/F` | 4.0 assumed | 5.51 / 6.94 | (corp ex-CRE + CRE + sovereign) EAD / CT1 |
+| `omega_K_D/F` | back-solved plug | 0.117 / 0.067 | corp+CRE EAD ÷ K at `K/Y_ann=2.7` |
+
+- **`delta_b` retires the F-1 duration blocker.** The old "port 0.036/0.038 (7y)"
+  target measured the sovereign's *whole outstanding stock*; `delta_b` governs the
+  *bank-held book at the yields banks faced*, whose modified duration is 3.12y
+  (GGB) / 4.22y (Bund). Close to the old 0.10 — `mv_rule=1` + `phi_lamb=0.60` not
+  needed.
+- **`omega_K` kept, not dropped.** Banks fund ~12%/7% of the capital stock, so
+  `omega_K=1` is counterfactual. Now measured, with `K` an output: the balance
+  sheet delivers `K_D = 10.800` vs the 10.8 target.
+- **Amplification moment is Acharya–Steffen, not CT1 depletion.** Ladder ×
+  observed 2011 yield moves (GGB 12.01%→21.14%) gives mechanical
+  **−5.73%/100bp** of CT1, −39.8% realised over 2011. The pre-EBA calibration
+  generates −0.61%/100bp, **~10× too weak** — almost entirely `phi_own`
+  (0.25 vs 2.39), not duration. This is what `psi_lambda_B=3.0` was standing in
+  for, and it reframes S-1's "89% collateral friction" as a calibration artifact.
+  The 2011 adverse scenario is *deliberately rejected* (it excluded banking-book
+  sovereign default) and guarded by a test.
+
+**BLOCKING FINDING — GK feasibility.** The block is well-posed only if
+`f*theta > (1-Delta_own)*phi_own + (1-Delta_cross)*phi_cross`. At the measured
+moments this is violated by −1.26 (D) / −1.42 (F):
+
+```
+lambda_gk_D = -0.0869   Omega_D = -0.3013
+lambda_gk_F = -0.0723   Omega_F = -0.3217
+```
+
+Negative IC multiplier and negative banker franchise value — yet the solver
+converged, `ca_res_D = -7.7e-17`, the IC-δ check passed exactly, stability passed,
+and the TPI loading still declined. Every IRF meaningless. C-1's failure mode
+reborn.
+
+The bound is `Delta_own > ~0.73`, but `_ic_delta` hardcodes
+`ratio = Delta_cross/Delta_own = 2.0`, which with `Delta_cross <= 1` caps
+`Delta_own <= 0.5`. **Feasible set empty.** `f` would need > 0.349 (literature
+0.03–0.12), `theta` > 16.03 (measured 5.51). Tested: `Delta = 0.80/0.90` →
+`lambda_gk_F = -12.45`, `Omega_F = -75.91`, just past the pole. Escaping is a
+modelling decision; clearing the pole needs `Delta_own ≈ 0.85–0.95`, i.e.
+sovereign bonds nearly worthless as collateral — removing the channel the doom
+loop runs on.
+
+**New guard: `steady_state.assert_gk_well_posed`**, called from
+`_apply_ss_anchors`, so it fires on every solved SS in both `steady_state.py` and
+`depreciation_calibration.py`. Exports `gk_feasibility_margin` / `min_Delta_own`.
+The most valuable artifact here — it makes this failure class impossible to commit
+silently.
+
+**Also fixed** (all pre-existing, surfaced while working):
+- `diagnostics/regimes/` cache filenames keyed only on `psi_lambda_B`, so the
+  `psilam=0` cache would be **silently reused across different models**. Now
+  carries a SHA of the whole calibration. Stale pre-EBA caches deleted.
+- `PSILAM_BREAKDOWN` 4.0 → 2.5, with its net-worth dependence documented.
+- `run_regimes.py`'s figure suptitle hardcoded `"market-value rule"` while the
+  committed calibration is the par rule; now reads live `mv_rule`. (The earlier
+  fix covered the JSON provenance string only.)
+- `data/README.md`: full worksheet-4/5 code map and the maturity-bucket decode.
+
+**Tests:** `code/test_eba_calibration.py` 10/10 pass, including ladder-exhausts-total,
+duration-below-maturity, `delta_b` round-trip, the balance-sheet identity, the
+mechanical-MTM magnitude, and a guard that the adverse scenario is never used.
+
+**NOT done:** the `psi_lambda_B` retune to 150bp. A sweep was run but on the
+degenerate model, so it is **void and discarded**; redo it after the GK
+feasibility question is settled.
+
+---
+
+## 2026-07-31 - fix A6 lottery invariance test (measurement-window error)
 
 The A6 amplifier-invariance check in `uncertain_regime.py` ranked the **full-sample**
 peak spread across the three lottery branches. That peak is the common pre-`k` spread —

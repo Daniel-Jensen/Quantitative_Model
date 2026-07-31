@@ -110,8 +110,12 @@ def main():
             ax.plot(np.arange(N), irfs[name][v][:N] * scale, color=colors[name], label=name)
         ax.set_title(title, fontsize=9); ax.axhline(0, lw=0.5, color="gray")
     axes.flat[0].legend(fontsize=8)
+    # Provenance read live, never hardcoded: the JSON string was fixed on
+    # 2026-07-31 but this suptitle still claimed "market-value rule" while the
+    # committed calibration is the par rule (mv_rule=0).
+    _rule = "market-value rule" if float(_cal["mv_rule_D"]) else "par-value rule"
     fig.suptitle(f"Stage A (main): 1pp default shock under three exogenous backstop regimes "
-                 f"(psi_lambda_B={PSILAM_MAIN}, market-value rule, capital-key conduit)")
+                 f"(psi_lambda_B={PSILAM_MAIN}, {_rule}, capital-key conduit)")
     fig.text(0.5, 0.02,
              "Three exogenous ECB backstop regimes (deviation-form rule TPI=gamma*(spread-ss)): "
              "more aggressive regimes COMPRESS the D-F spread and cushion investment, output and "

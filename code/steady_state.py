@@ -22,9 +22,65 @@ from equations_global import (
     portfolio_level_anchors, portfolio_adj_cost, bond_yield,
     global_goods_mkt, external_account_D,
 )
+from calibration import load_eba_targets, EBA_CALIBRATION
+
+
+def assert_gk_well_posed(ss_in):
+    """Hard guard: the Gertler-Karadi block must be economically well-posed.
+
+    `lambda_gk` is the IC multiplier and `Omega` the banker's marginal value of
+    net worth; both must be strictly positive. When they are not, the solver
+    still converges, every Walras residual is machine-zero, and the IRFs look
+    plausible — but the banker's continuation value is negative and nothing
+    computed from the block means anything. This is the C-1 failure mode:
+    silent degeneracy that passes every check the pipeline previously ran.
+
+    From `steady_auxilliary_D/F`,
+        lambda_gk = f / (D_target/(beta_inter*(1+rn)) - (1-f)*theta),
+        D_target  = theta - (1-Delta_own)*phi_own - (1-Delta_cross)*phi_cross,
+    so lambda_gk > 0 requires a positive denominator, i.e. approximately
+
+        f * theta  >  (1-Delta_own)*phi_own + (1-Delta_cross)*phi_cross.
+
+    Read: the banker's franchise value (left) must cover the non-divertable
+    ("good collateral") part of the sovereign book (right). High measured
+    concentration `phi_own` therefore puts a LOWER BOUND on the divertability
+    `Delta_own` — which is how the EBA data partially identifies a parameter
+    that has no direct empirical counterpart. See docs/eba_calibration.md.
+    """
+    bad = []
+    for c in ("D", "F"):
+        lam, om = float(ss_in[f"lambda_gk_{c}"]), float(ss_in[f"Omega_{c}"])
+        if not (lam > 0.0 and om > 0.0):
+            bad.append(f"{c}: lambda_gk={lam:+.6f}, Omega={om:+.6f}")
+    if bad:
+        raise ValueError(
+            "GK block is NOT well-posed — negative IC multiplier / franchise value:\n  "
+            + "\n  ".join(bad)
+            + "\n\nThe steady state will still 'solve' and every Walras residual will be "
+              "machine-zero, but the banker's continuation value is negative and all "
+              "IRFs are uninterpretable. Required (approximately):\n"
+              "    f*theta > (1-Delta_own)*phi_own + (1-Delta_cross)*phi_cross\n"
+              "Raise Delta_own (bond divertability), raise f, or lower the sovereign "
+              "concentration. See assert_gk_well_posed.__doc__ and "
+              "docs/eba_calibration.md 'GK feasibility'.")
+
+
+def gk_feasibility_margin(theta, f, phi_own, phi_cross, Delta_own, Delta_cross):
+    """f*theta - [(1-Delta_own)*phi_own + (1-Delta_cross)*phi_cross]; must be > 0."""
+    return f * theta - ((1.0 - Delta_own) * phi_own + (1.0 - Delta_cross) * phi_cross)
+
+
+def min_Delta_own(theta, f, phi_own, phi_cross, Delta_cross, margin=0.0):
+    """Smallest own-bond divertability consistent with a well-posed GK block."""
+    return 1.0 - (f * theta - (1.0 - Delta_cross) * phi_cross - margin) / phi_own
 
 
 def _apply_ss_anchors(ss_in, cal):
+    # Fires on every solved SS (this is the common path for steady_state.py and
+    # depreciation_calibration.py). Note psi_spread below divides by Omega, so a
+    # negative Omega would silently flip the sign of the collateral channel.
+    assert_gk_well_posed(ss_in)
     anchors = {
         'phi_bD_D_ss':           float(ss_in['q_b_D']) * float(ss_in['b_D_D']) / float(ss_in['n_inter_D']),
         'phi_bF_F_ss':           float(ss_in['q_b_F']) * float(ss_in['b_F_F']) / (float(ss_in['p']) * float(ss_in['n_inter_F'])),
@@ -152,17 +208,29 @@ def solve_steady_state(calibration_start):
         ss.toplevel[k] = v
 
     # ── Portfolio share targeting ─────────────────────────────────────────────
-    # PRE-EBA REVERT (2026-07-30): symmetric pre-EBA shares, as at abcbb6e.
-    # The EBA 2011 (31 Dec 2010) values were:
-    #   target_phi_bD_D = 2.390   GR banks' Greek book / capital
-    #   target_phi_bF_D = 0.018   GR banks' Bund  / capital (cross)
-    #   target_phi_bD_F = 0.069   DE banks' Greek book / capital (cross, contagion)
-    #   target_phi_bF_F = 2.760   DE banks' Bund  / capital
-    print("Targeting portfolio shares (pre-EBA)...")
-    target_phi_bD_D = 0.25
-    target_phi_bF_D = 0.15
-    target_phi_bD_F = 0.15
-    target_phi_bF_F = 0.25
+    # EBA 2011 REBUILD (2026-07-31): bank-sovereign concentration, 31 Dec 2010,
+    # read from data/eba_moments.json (single source of truth — do NOT hardcode
+    # a second copy here). Regenerate with `python code/eba_calibration.py`.
+    #   phi_bD_D = 2.390   GR banks' Greek book / capital  (own, doom loop)
+    #   phi_bF_D = 0.018   GR banks' Bund  / capital       (cross)
+    #   phi_bD_F = 0.069   DE banks' Greek book / capital  (cross, contagion)
+    #   phi_bF_F = 2.758   DE banks' Bund  / capital       (own)
+    # Gated by calibration.EBA_CALIBRATION — see the switch note there. At the
+    # measured concentration the GK block has no feasible Delta (empty set), so
+    # the default is the pre-EBA symmetric placeholder, which solves.
+    if EBA_CALIBRATION:
+        print("Targeting portfolio shares (EBA 2011, 31 Dec 2010)...")
+        _eba = load_eba_targets()
+        target_phi_bD_D = _eba['phi_bD_D_ss']
+        target_phi_bF_D = _eba['phi_bF_D_ss']
+        target_phi_bD_F = _eba['phi_bD_F_ss']
+        target_phi_bF_F = _eba['phi_bF_F_ss']
+    else:
+        print("Targeting portfolio shares (pre-EBA symmetric placeholder)...")
+        target_phi_bD_D = 0.25
+        target_phi_bF_D = 0.15
+        target_phi_bD_F = 0.15
+        target_phi_bF_F = 0.25
 
     n_D  = float(ss['n_inter_D'])
     n_F  = float(ss['n_inter_F']) * float(ss['p'])
@@ -176,22 +244,28 @@ def solve_steady_state(calibration_start):
     B_D_new   = b_D_D_new + b_D_F_new
     B_F_new   = b_F_D_new + b_F_F_new
 
-    # PRE-EBA REVERT: omega_K pinned to 1 — all capital sits on bank balance sheets
-    # and the passive capital fund is empty (div_fund = 0), i.e. exactly the pre-EBA
-    # balance sheet. K is then whatever (theta·N - bonds)/Q delivers, as before.
-    # The EBA branch instead solved omega_K to hold K at K_target=10.8 against
-    # EBA-thin net worth:
-    #   omega_K·Q·K = theta·N - bonds  ⇒  omega_K = N·(theta - phi_own - phi_cross)/(Q·K_target)
-    #   K_target_D = K_target_F = 10.8
-    #   omega_K_D_new = n_D * (theta_D - target_phi_bD_D - target_phi_bF_D) / (Q_D * 10.8)
-    #   omega_K_F_new = n_inter_F_raw * (theta_F - target_phi_bF_F - target_phi_bD_F) / (Q_F * 10.8)
-    omega_K_D_new = 1.0
-    omega_K_F_new = 1.0
+    # omega_K is MEASURED (corporate+CRE EAD / K), not back-solved. It stays at
+    # its calibration value; K is then an OUTPUT of the balance sheet,
+    #   K = (theta·N - q_b·bonds) / (omega_K·Q),
+    # and comparing it to the conventional K/Y_annual=2.7 target (K=10.8 in
+    # quarterly-GDP units) is a genuine over-identifying check on the EBA
+    # balance sheet. The 2026-07-22 build had this backwards: it ASSUMED
+    # theta=4.0 and solved omega_K to force K=10.8, so the check was vacuous and
+    # omega_K was a free plug absorbing the theta assumption.
+    omega_K_D_new = float(calibration_start['omega_K_D'])
+    omega_K_F_new = float(calibration_start['omega_K_F'])
+
+    K_implied_D = (float(calibration_start['theta_D']) * n_D
+                   - target_phi_bD_D * n_D - target_phi_bF_D * n_D) / omega_K_D_new
+    K_implied_F = (float(calibration_start['theta_F']) * n_F
+                   - target_phi_bF_F * n_F - target_phi_bD_F * n_F) / omega_K_F_new
 
     print(f"  D-bank: phi_bD_D = {target_phi_bD_D:.3f}  phi_bF_D = {target_phi_bF_D:.3f}"
           f"  omega_K_D = {omega_K_D_new:.4f}")
     print(f"  F-bank: phi_bD_F = {target_phi_bD_F:.3f}  phi_bF_F = {target_phi_bF_F:.3f}"
           f"  omega_K_F = {omega_K_F_new:.4f}")
+    print(f"  over-identifying check (K from the measured balance sheet, target 10.8):"
+          f"  K_D = {K_implied_D:.3f}   K_F = {K_implied_F:.3f}")
 
     calibration_start.update({
         'b_D_D': b_D_D_new, 'b_F_D': b_F_D_new,

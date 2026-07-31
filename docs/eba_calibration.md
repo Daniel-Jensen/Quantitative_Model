@@ -1,11 +1,303 @@
 # EBA-anchored calibration
 
 Source: EBA **2011 EU-wide stress test** disclosure (`data/DATA_DISCLOSURE.CSV`),
-base **31 Dec 2010 actual**; nominal GDP from Eurostat `nama_10_gdp` (2010).
+base **31 Dec 2010 actual**; nominal GDP from Eurostat `nama_10_gdp` (2010);
+sovereign yields from FRED via `Empirics/outputs/spreads_fred.csv`.
 Country map: **D = Greece** (banks GR030–GR035, issuer GR), **F = Germany**
 (banks DE0xx, issuer DE). Moments produced by `code/eba_calibration.py` →
 `data/eba_moments.json`. Code map validated: `DE017 = Deutsche Bank`
 (2010 RWA €346.6 bn, CT1 €30.4 bn, 8.76% — matches published).
+
+---
+
+# REBUILD (2026-07-31) — supersedes everything below
+
+The 2026-07-22 EBA build was reverted on 2026-07-30 because it was **not
+identified**: it matched a set of EBA moments by inventing a free parameter to
+absorb the resulting over-identification. This rebuild fixes that. Everything
+from "Parameter → moment map" down is the historical record of the old build.
+
+## What was wrong before
+
+| # | Failure | Fix |
+|---|---|---|
+| 1 | **`omega_K` was a free plug.** `theta=4.0` was *assumed*; `omega_K` was then back-solved as `N(θ−φ_own−φ_cross)/(Q·K_target)` to force `K=10.8`. A parameter with no data counterpart absorbing an assumption. | `theta` is now **measured** (CT1 / GK-eligible assets) and `omega_K` is **measured** (corporate+CRE EAD / K). `K` becomes an *output* and the 10.8 comparison becomes a real over-identifying check. |
+| 2 | **`delta_b` had no EBA counterpart at all.** Only the `MATURITY_CODE=999` total row was read; the target `0.036/0.038` came from the sovereign's *whole outstanding stock* average maturity — the wrong object. | The **maturity ladder** (`MATURITY_CODE` 125–155) is now read and repriced. |
+| 3 | **`psi_lambda_B` absorbed a mis-calibrated mechanical channel** and its moment-match was non-monotone (219bp@2.0, 97bp@2.6, 853bp@2.8). | The mechanical MTM channel is now measured, so `psi_lambda_B` only has to supply genuine amplification. It remains unidentified — see the ledger. |
+| 4 | **Amplification risked being matched to adverse-scenario CT1 depletion.** | Explicitly rejected and guarded by a test. The 2011 adverse scenario excluded sovereign default in the banking book (this is why Dexia passed and failed months later); its depletion understates sovereign pass-through *by construction*. |
+
+## The maturity ladder → `delta_b`
+
+The EBA 2011 sovereign template reports gross direct long exposure in seven
+residual-maturity buckets (upper bounds 3M/1Y/2Y/3Y/5Y/10Y/15Y). They sum
+exactly to the reported total (asserted in `validate()`), so the last bucket is
+effectively "10Y and over".
+
+| Book | Face €m | Wtd-avg residual maturity | Modified duration | → `delta_b` |
+|---|---|---|---|---|
+| GR banks / GGB | 54,447 | 5.13y | **3.12y** @ 12.01% | **0.0777** |
+| DE banks / Bund | 315,313 | 4.86y | **4.22y** @ 2.91% | **0.0568** |
+| DE banks / GGB (contagion) | 7,934 | 7.41y | 4.05y | 0.0593 |
+| GR banks / Bund | 411 | 7.27y | 6.45y | 0.0363 |
+
+The gap between maturity and duration is the whole point: at Greece's 12%
+end-2010 yield, a 5.13y-maturity ladder has only **3.12y** of duration. Duration,
+not maturity, is what governs the mark-to-market loss `delta_b` exists to
+generate. Durations are inverted through the Hatchondo–Martinez perpetuity
+(`−dlog q_b/dr = 1/(r_q + delta_b)` quarters).
+
+**This retires the `delta_b` / F-1 blocker.** The standing item was "port
+`delta_b=0.036/0.038` (7y/6.5y) from `bank-cal`", which F-1 showed requires
+`mv_rule=1` *and* `phi_lamb=0.60` jointly, with a hard break at `phi_lamb=0.15`.
+The measured value is **0.0777/0.0568**, much closer to the old `0.10` than to
+`0.036` — so the par rule (`mv_rule=0`) is not pushed into F-1's explosive
+region and the two-parameter move is not needed. The old target was measuring
+the wrong object.
+
+## `theta` and `omega_K` from the same balance sheet
+
+`theta` multiplies only the GK book, so the denominator is **GK-eligible
+assets** = corporate (ex-CRE) + commercial real estate + sovereign EAD, own
+country. Residential mortgages are excluded (the model has no housing stock).
+
+| | Corp ex-CRE | CRE | Sovereign | GK assets | CT1 | **θ** | (CT1/TA memo) |
+|---|---|---|---|---|---|---|---|
+| D (GR) | 57,254 | 13,410 | 54,858 | 125,522 | 22,778 | **5.51** | 14.9 |
+| F (DE) | 352,593 | 117,679 | 323,247 | 793,519 | 114,317 | **6.94** | 32.9 |
+
+The total-assets version (14.9 / 32.9) stays rejected — it includes interbank,
+reserves and retail, and was previously verified not to converge in steady state.
+
+`omega_K` = (corporate + CRE) / K with `K = 2.7 × annual GDP`: **0.117 (D)**,
+**0.067 (F)**. Banks fund roughly a tenth of the productive capital stock; the
+rest is equity, retained earnings and non-bank credit. Setting `omega_K=1` would
+assert banks fund *all* capital, which is the counterfactual that generated the
+original over-identification — so `omega_K` is **kept, not dropped**, but it is
+now measured rather than back-solved.
+
+**Over-identifying check.** With θ, `n_inter`, `omega_K` and the φ ratios all
+measured independently, the balance sheet `omega_K·Q·K + q_b·bonds = θ·N`
+implies `K_D = K_F = 10.80` — against the conventional `K/Y_annual = 2.7`
+target of 10.8. `steady_state.py` prints this every run.
+
+## The amplification moment: exposure ladder × observed yield moves
+
+Acharya–Steffen ("The Greatest Carry Trade Ever") construction — bank-level
+mark-to-market loss from the observed sovereign repricing, **not** the stress
+test's own scenario output.
+
+GGB 10y: 12.01% (Dec-2010) → 21.14% (Dec-2011), **+913bp**. Bund: 2.91% → 1.93%.
+
+| | Mechanical `dNW/CT1` per 100bp | Realised 2011 |
+|---|---|---|
+| D (GR banks, GGB book) | **−5.73%** | **−39.8% of CT1** |
+| F (DE banks, Bund book) | −11.92% | +12.3% of CT1 (Bund rally) |
+
+This is the headline diagnostic of the rebuild:
+
+- The measured mechanical channel is **−5.73%/100bp**. The pre-EBA calibration
+  (`phi_own=0.25`, `delta_b=0.10`) could generate only **−0.61%/100bp** — an
+  order of magnitude too weak. Setting `phi_own=2.39` with the *old* `delta_b`
+  already gives −5.85%, so essentially the entire gap was the concentration
+  ratio, not the duration.
+- That explains S-1's "expected loss is 10.9% of the default loading, collateral
+  friction 89%" split as a **calibration artifact**: `psi_lambda_B=3.0` was
+  standing in for a mechanical mark-to-market loss that had been mis-calibrated
+  by ~10×. With the mechanical channel measured, `psi_lambda_B` only has to
+  supply true amplification.
+- Only **11.1%** of GR banks' GGB book was fair-valued (AFS+FVO+trading); the
+  rest sat at amortised cost. The −39.8% figure is therefore an *economic*, not
+  an accounting, loss — which is the right concept, because the model's
+  `n_inter` is economic net worth and marks the whole book through `q_b`.
+
+## GK feasibility — the measured concentration BOUNDS `Delta_own`
+
+**The most consequential finding of the rebuild.** Feeding the measured moments
+into the model at the inherited `Delta_bD_D=0.2 / Delta_bF_D=0.4` produces a
+steady state with
+
+```
+lambda_gk_D = -0.0869    Omega_D = -0.3013
+lambda_gk_F = -0.0723    Omega_F = -0.3217
+```
+
+— a **negative IC multiplier and negative banker franchise value**. The solver
+still converges, every Walras residual is machine-zero (`ca_res_D = -7.7e-17`),
+the IC-δ consistency check passes exactly, the stability check passes
+(`b_gov_D[499]=2e-6`), and the TPI loading schedule still declines. **All of it
+is meaningless** — the banker's continuation value is negative. This is the C-1
+failure mode in a new guise: silent degeneracy that passes every check the
+pipeline previously ran.
+
+From `steady_auxilliary_D/F`, `lambda_gk > 0` requires a positive denominator:
+
+```
+f * theta  >  (1 - Delta_own) * phi_own + (1 - Delta_cross) * phi_cross
+```
+
+The banker's franchise value (left) must cover the non-divertable "good
+collateral" part of the sovereign book (right). At the measured moments:
+
+| | `f*theta` | required | margin |
+|---|---|---|---|
+| D | 0.6613 | 1.9231 | **−1.2618 VIOLATED** |
+| F | 0.8330 | 2.2482 | **−1.4153 VIOLATED** |
+
+**This is an identification result, not just a bug.** The measured concentration
+`phi_own = 2.39 / 2.76` puts a hard **lower bound** on `Delta_own`:
+
+| `Delta_cross` | min `Delta_own` (D) | min `Delta_own` (F) |
+|---|---|---|
+| 0.4 | 0.7279 | 0.7131 |
+| 0.6 | 0.7264 | 0.7081 |
+| 0.8 | 0.7249 | 0.7030 |
+| 0.9 | 0.7241 | 0.7005 |
+
+The bound is essentially independent of `Delta_cross` (cross-holdings are tiny).
+So EBA data does not point-identify `Delta_own`, but it **rules out the entire
+region below ~0.73 — including the 0.2 that was hardcoded.** A parameter the
+previous ledger called wholly unidentified turns out to be bounded by data.
+
+The other two levers are out of range:
+
+- `f` would need **> 0.349** (GK literature: 0.03–0.12).
+- `theta` would need **> 16.03** (measured 5.51; even the rejected CT1/total-assets
+  14.9 falls short, and that variant was already verified not to converge).
+
+### …and the feasible set is actually EMPTY
+
+Raising `Delta` is not enough. `ic_delta_calibration._ic_delta` hardcodes
+**`ratio = Delta_cross / Delta_own = 2.0`**, an undocumented structural
+convention that was invisible while `Delta_own = 0.2` (it is exactly why
+`0.2/0.4` "passed" the consistency check). Non-degeneracy needs
+`Delta_cross <= 1`, so the convention caps `Delta_own <= 0.5`. Therefore:
+
+| Constraint | Implication for `Delta_own` |
+|---|---|
+| GK well-posedness at measured moments | `> ~0.73` |
+| `ratio = 2.0` convention + `Delta_cross <= 1` | `<= 0.5` |
+
+**Empty.** Confirmed numerically: `Delta = 0.80/0.90` re-solves with
+`lambda_gk_F = -12.45`, `Omega_F = -75.91` — still negative, now sitting just
+past the `lambda_gk` **pole** (the denominator crosses zero, so `lambda_gk`
+runs `-inf -> +inf` and "just above the bound" is the worst place to be). The
+back-solve simultaneously returns `Delta_cross = 1.59 > 1`, i.e. C-1's
+degeneracy warning, because `0.90` is inconsistent with `ratio = 2.0`.
+
+Note also that the closed-form bound above understates the requirement: it
+ignores the endogenous banker return `rn`, which enters as
+`D_target/(beta_inter*(1+rn))`. At the solved `rn_F ~ 0.049` the true
+requirement for F is `Delta_own > 0.803`, and `rn` itself moves with `Delta`,
+so the real frontier is a fixed point rather than a formula.
+
+### What this means
+
+Escaping needs a **modelling decision, not a parameter tweak**. Three candidate
+routes, none costless:
+
+1. **Drop the `ratio = 2.0` convention** and let `Delta_own`/`Delta_cross` be
+   free in `(0,1)`. Cheapest change, but `Delta_own` then has to sit around
+   **0.85–0.95** to clear the pole with a sane `lambda_gk` — which says Greek
+   sovereign bonds were *nearly worthless as collateral*. Defensible for 2010–12
+   (GGB collateral eligibility was collapsing, ECB haircuts rising), **but it
+   largely removes the collateral channel the paper's doom loop runs on.**
+2. **Re-scope the bank block** so `phi_own` is not 2.39 — e.g. model only the
+   sovereign-exposed sub-book, or let `n_inter` be broader than stress-test CT1.
+   This keeps the mechanism but weakens the claim that the calibration is
+   EBA-measured.
+3. **Replace the GK IC** with a constraint that tolerates high concentration
+   (e.g. a value-at-risk or risk-weighted constraint rather than a linear
+   divertability IC).
+
+**Committed for now: `EBA_CALIBRATION = False`** in `code/calibration.py` — the
+pre-EBA calibration, which is well-posed and solves. The switch flips the whole
+measured moment set on in one line, and `assert_gk_well_posed` guarantees that
+turning it on fails loudly rather than silently producing degenerate results.
+
+**The headline is not "the rebuild failed".** It is that the measured Greek
+bank-sovereign concentration is *structurally incompatible* with this model's
+collateral constraint — a result the 2026-07-22 build hid by back-solving
+`omega_K` around an assumed `theta`, and that the 2026-07-30 revert avoided by
+abandoning EBA anchoring altogether.
+
+**Guarded in code.** `steady_state.assert_gk_well_posed` now runs inside
+`_apply_ss_anchors`, i.e. on every solved steady state in both
+`steady_state.py` and `depreciation_calibration.py`. It raises with the
+feasibility inequality and the suggested levers. `gk_feasibility_margin` and
+`min_Delta_own` are exported for sweeps. **This guard is the single most
+valuable artifact of the rebuild** — it makes the C-1 class of failure
+impossible to commit silently.
+
+## Identification ledger
+
+Emitted into `data/eba_moments.json` under `identification`, and mirrored here.
+
+**Identified by EBA 2011:**
+
+| Parameter | Moment |
+|---|---|
+| `n_inter_D/F` | CT1 / own quarterly nominal GDP → 0.4075 / 0.1748 |
+| `phi_bD_D_ss`, `phi_bF_F_ss` | own-sovereign gross long / CT1 → 2.390 / 2.758 |
+| `phi_bD_F_ss`, `phi_bF_D_ss` | cross-border sovereign / CT1 → 0.069 / 0.018 |
+| `theta_D/F` | (corp ex-CRE + CRE + sovereign) EAD / CT1 → 5.51 / 6.94 |
+| `delta_b_D/F` | ladder modified duration at the end-2010 market yield → 0.0777 / 0.0568 |
+| `B_supply_D/F` | bank-held sovereign / own quarterly GDP → 1.116 / 0.483 |
+
+**Identified jointly with one standard macro target:**
+
+| Parameter | Moment |
+|---|---|
+| `omega_K_D/F` | measured corp+CRE EAD ÷ K, with `K/Y_annual = 2.7` → 0.117 / 0.067 |
+
+**Still NOT identified — the honest list:**
+
+| Parameter | Status |
+|---|---|
+| `Delta_bD_D`, `Delta_bF_F` (own) | **Partially identified — bounded below, not point-identified.** GK feasibility at the measured `theta`/`phi_own`/`f` forces `Delta_own > ~0.73 (D) / ~0.71 (F)`; see "GK feasibility" above. Committed at 0.80. The level above the bound is an author decision. |
+| `Delta_bF_D`, `Delta_bD_F` (cross) | Still unidentified. Committed at 0.90 to preserve `Delta_own < Delta_cross`. The feasibility bound barely constrains these (cross-holdings are ~1% of the book), so they are close to free. |
+| `psi_lambda_B_D/F` | Tuned to the 150bp GR–DE spread target. The mechanical channel is now measured, so this parameter does far less work than before — but its level is still one moment, one parameter. **Proper identification needs bank equity returns regressed on the EBA exposure cross-section (Acharya–Steffen). Those returns are not in this repo.** The exposure cross-section *is* (per-bank columns in the disclosure), so this is a data-acquisition task, not a modelling one. |
+| `def_scale_D/F` | 0.25, hand-set. Exceeds the 2011 GR crisis peak (0.12–0.23). |
+| `f_D/F` | 0.12, GK literature. `bank-cal` has 0.03. Not an EBA object. |
+| `phi_lamb_D/F` | 0.60, ~Bohn (1998). Chosen for stationarity under the measured doom loop, not moment-matched. |
+| `recovery_rate_D/F` | 0.30, Greek-PSI NPV literature (EL-1). Not EBA. |
+| `theta` own-country vs total book | Own-country (5.51/6.94) is used. The total-book alternative (7.21/13.30) is equally defensible for F, which lends heavily outside the euro area. Reported under `leverage_alternatives`. |
+
+**Deliberately rejected:**
+
+- **Adverse-scenario (105) CT1 depletion** — the 2011 exercise excluded
+  sovereign default in the banking book, so its capital depletion is not a
+  measure of sovereign-stress pass-through. Guarded by
+  `test_adverse_scenario_not_used`.
+- **`theta` from total assets** — 14.9 / 32.9; includes assets `theta` does not
+  multiply; previously verified not to converge.
+
+## Conventions that are choices, not measurements
+
+Recorded so they can be argued with rather than discovered later:
+
+1. **Discount rate for the ladder duration.** Durations are computed at the
+   **31-Dec-2010 market yield**, so the model reproduces the *realised* MTM
+   sensitivity. Evaluating at the model's own SS yield (1% annual) instead gives
+   longer durations (4.88y GGB / 4.67y Bund → `delta_b` 0.0489/0.0511), because
+   the model's SS has no sovereign risk premium. The ~40% gap between the two is
+   a real modelling choice.
+2. **Bucket midpoints.** Each bucket is represented by its midpoint; the last
+   ("10Y–15Y") uses 12.5y.
+3. **Coupons.** GGB 4.7%, Bund 3.5% (legacy stock outstanding at end-2010).
+   `coupon_sensitivity_modified_duration_b_D_D` in the JSON reports the effect.
+4. **Full book vs fair-valued book.** The MTM moment marks the *whole* book,
+   matching the model's economic-net-worth concept, not 2011 accounting.
+
+## Unclosed check
+
+`omega_K` implies bank credit to non-financial corporations of ~12% (D) / ~7%
+(F) of the capital stock. This has an independent counterpart in ECB BSI
+statistics that has **not** been pulled. If it disagrees materially, `omega_K`
+and hence `theta` need revisiting.
+
+---
+
+# Historical: the 2026-07-22 build (superseded by the rebuild above)
 
 ## Parameter → moment map
 

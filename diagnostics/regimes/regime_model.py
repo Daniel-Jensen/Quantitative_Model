@@ -16,7 +16,7 @@ REBUILT FOR MAIN (2026-07-23). Differs from the ms-regime version:
   * On main the CB backstop COMPRESSES the spread (A_cb<0): the ms-regime SA-1
     pathology is absent (capital-key conduit socialises the funding to F).
 """
-import os, sys, copy, datetime
+import os, sys, copy, datetime, hashlib
 import numpy as np
 import sequence_jacobian as sj
 
@@ -37,15 +37,17 @@ def _live_psilam():
 
 PSILAM_MAIN = _live_psilam()
 
-# Linear-approximation-breakdown threshold. CALIBRATION-DEPENDENT: the 1.5 figure
-# previously hardcoded here was derived on the EBA calibration, whose thin bank net
-# worth (n_inter_D=0.408) pulls breakdown early. Under pre-EBA net worth
-# (n_inter_D=3.0) the documented breakdown region is psi_lambda_B ~4-5
-# (docs/eba_calibration.md, quoting the old FRAMING_HANDOFF §8), so 3.0 is inside
-# the documented-safe range for THIS calibration. Empirically corroborated by the
-# 2026-07-30 full-pipeline run at psi_lambda_B=3.0: smooth IRFs, stationary b_gov,
-# monotone TPI gamma-sweep, ~50bp spread. Re-derive this bound if net worth changes.
-PSILAM_BREAKDOWN = 4.0
+# Linear-approximation-breakdown threshold. CALIBRATION-DEPENDENT — it scales with
+# bank net worth, so it must be re-derived whenever n_inter moves:
+#   n_inter_D = 0.408 (EBA 2011)   -> breakdown from ~1.5-2.0
+#   n_inter_D = 3.0   (pre-EBA)    -> breakdown from ~4-5
+# The 2026-07-31 EBA REBUILD returns to measured net worth (n_inter_D=0.4075), so
+# the thin-net-worth bound applies again and the 4.0 set during the pre-EBA revert
+# would NOT have caught a breakdown. Re-derived on the rebuilt model by the
+# psi_lambda_B sweep recorded in docs/eba_calibration.md; see also the A7 flag in
+# run_regimes.py, which catches breakdown empirically (peak spread > 1000bp)
+# rather than by threshold.
+PSILAM_BREAKDOWN = 2.5
 
 # Spec §8.1 output set, resolved against main's model. REQUIRED: hard error if absent.
 REQUIRED = ["spread_rb", "rb_D", "rb_F", "q_b_D", "q_b_F", "Y_D", "C_D", "I_D",
@@ -67,8 +69,29 @@ def log(m=""):
         f.write(m + "\n")
 
 
+def _calibration_fingerprint():
+    """Short hash of the WHOLE live calibration, used in the cache filename.
+
+    Without this the filename keys only on psi_lambda_B, so the psi_lambda_B=0
+    cache built under one calibration is silently reused under another — exactly
+    the failure mode that bit PSILAM_MAIN when it was hardcoded, and that the
+    2026-07-31 EBA rebuild would have hit (its psilam=0 baseline is a different
+    model from the pre-EBA one bearing the same filename). Any calibration change
+    now yields a new filename, so a stale cache can never be picked up.
+    """
+    from calibration import get_calibration  # noqa: PLC0415 - dynamic sys.path
+    cal = get_calibration()
+    payload = ";".join(f"{k}={float(v):.12g}" for k, v in sorted(cal.items())
+                       if isinstance(v, (int, float)) and not isinstance(v, bool))
+    return hashlib.sha256(payload.encode()).hexdigest()[:8]
+
+
+CAL_FINGERPRINT = _calibration_fingerprint()
+
+
 def cache_path(psilam):
-    return os.path.join(HERE, f"cache_G_main_psilam{f'{psilam:.2f}'.replace('.', 'p')}.npz")
+    tag = f"{psilam:.2f}".replace(".", "p")
+    return os.path.join(HERE, f"cache_G_main_psilam{tag}_cal{CAL_FINGERPRINT}.npz")
 
 
 def build_tpi_model_main(tpi, financial_solved_D, financial_solved_F):

@@ -1,7 +1,55 @@
+import json
+import os
+
 import numpy as np
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_EBA_MOMENTS = os.path.join(os.path.dirname(_HERE), "data", "eba_moments.json")
+
+
+def load_eba_targets(path: str = _EBA_MOMENTS) -> dict:
+    """Read the EBA 2011 moment set produced by ``code/eba_calibration.py``.
+
+    Single source of truth: nothing here or in ``steady_state.py`` may carry its
+    own copy of these numbers. (The retired ``audit_artifacts/`` harness did
+    exactly that and silently tested a different model for weeks.) Regenerate
+    with ``python code/eba_calibration.py``.
+    """
+    with open(path) as fh:
+        return json.load(fh)["model_targets"]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# EBA switch. Default False — the pre-EBA calibration, which solves and is
+# well-posed. Set True to feed the MEASURED EBA 2011 moments straight in.
+#
+# WARNING (2026-07-31): True currently does NOT produce a usable model, and this
+# is a RESULT, not a wiring bug. At the measured concentration
+# (phi_own = 2.39 / 2.76 with theta = 5.51 / 6.94, f = 0.12) the Gertler-Karadi
+# block is well-posed only if
+#       f*theta > (1-Delta_own)*phi_own + (1-Delta_cross)*phi_cross
+# which forces Delta_own > ~0.73. But `ic_delta_calibration._ic_delta` hardcodes
+# ratio = Delta_cross/Delta_own = 2.0, and non-degeneracy needs Delta_cross <= 1,
+# i.e. Delta_own <= 0.5. **The feasible set is empty.** Verified directly:
+# Delta 0.2/0.4 gives lambda_gk_D = -0.087, Omega_D = -0.301 (negative franchise
+# value, every IRF meaningless, yet all Walras residuals machine-zero);
+# Delta 0.8/0.9 lands just past the lambda_gk pole with lambda_gk_F = -12.4.
+#
+# Escaping needs a MODELLING decision, not a parameter tweak — see
+# docs/eba_calibration.md "GK feasibility". Note the economics: pushing
+# Delta_own to ~0.85-0.95 to clear the pole makes sovereign bonds nearly
+# worthless as collateral, which removes the very channel the paper's doom loop
+# runs on. Guarded by steady_state.assert_gk_well_posed, so turning this on
+# fails loudly instead of silently producing degenerate results.
+EBA_CALIBRATION = False
 
 
 def get_calibration():
+    _eba_json = load_eba_targets()
+    # `eba` returns the measured EBA value only when the switch is on;
+    # otherwise the pre-EBA fallback passed as the second argument.
+    def eba_or(key, pre_eba):
+        return _eba_json[key] if EBA_CALIBRATION else pre_eba
     calibration_start = {
 
         # ── Preferences ───────────────────────────────────────────────────────
@@ -19,7 +67,22 @@ def get_calibration():
         'ksi_D':        0.50,    'ksi_F':        0.50,
 
         # ── Long-term bonds ───────────────────────────────────────────────────
-        'delta_b_D':    0.10,    'delta_b_F':    0.10,
+        # EBA REBUILD (2026-07-31): delta_b is now MEASURED, from the sovereign
+        # maturity ladder (EBA worksheet 5, MATURITY_CODE 125..155) repriced at
+        # the 31-Dec-2010 market yield. GR banks' GGB book: 5.13y weighted-average
+        # residual maturity but only 3.12y MODIFIED DURATION (a 12% discount rate
+        # pulls duration far below maturity); DE banks' Bund book: 4.86y / 4.22y.
+        # Inverting through the HM perpetuity gives 0.0777 (D) / 0.0568 (F).
+        #
+        # This retires the long-standing "empirical duration is 7y, port
+        # delta_b=0.036/0.038 from bank-cal" item. That target was the average
+        # residual maturity of the SOVEREIGN's whole outstanding stock, which is
+        # the wrong object: delta_b governs the duration of the book sitting on
+        # BANK balance sheets, at the yields those banks actually faced. The
+        # F-1 blocker (porting 0.036 needs mv_rule=1 AND phi_lamb=0.60 jointly)
+        # therefore does not bind — 0.0777/0.0568 is close to the old 0.10 and
+        # runs under the par rule.
+        'delta_b_D':    eba_or('delta_b_D', 0.10),   'delta_b_F':    eba_or('delta_b_F', 0.10),
 
         # ── Aggregate Targets (SS) ────────────────────────────────────────────
         'Y_D':          1.00,    'Y_F':          1.00,
@@ -31,71 +94,99 @@ def get_calibration():
         'f_D':          0.12,    'f_F':          0.12,
         'lambda_gk_D':  0.2,     'lambda_gk_F':  0.2,
         'beta_inter_D': 0.9975155088,  'beta_inter_F': 0.9975155088,
-        'Delta_bD_D':   0.2,     'Delta_bF_F':   0.2,
-        'Delta_bF_D':   0.4,     'Delta_bD_F':   0.4,
+        # Divertability of sovereign bonds in the multi-asset IC (higher = worse
+        # collateral). Genuine hardcoded structural inputs since the C-1 fix.
+        #
+        # RAISED 0.2/0.4 -> 0.80/0.90 by the 2026-07-31 EBA rebuild. This is NOT a
+        # free choice: the GK block is well-posed only if the banker's franchise
+        # value covers the non-divertable part of the sovereign book,
+        #     f*theta > (1-Delta_own)*phi_own + (1-Delta_cross)*phi_cross
+        # (see steady_state.assert_gk_well_posed). At the MEASURED EBA moments
+        # (theta=5.51/6.94, phi_own=2.39/2.76, f=0.12) the old 0.2/0.4 violates
+        # this by -1.26 (D) / -1.42 (F): lambda_gk and Omega both go NEGATIVE, the
+        # solver still converges with machine-zero Walras residuals, and every IRF
+        # is uninterpretable. The measured concentration therefore puts a hard
+        # LOWER BOUND on Delta_own of ~0.73 (D) / ~0.71 (F) — the EBA data
+        # partially identifies a parameter that has no direct empirical counterpart.
+        #
+        # The other two levers are out of range: f would need > 0.349 (GK
+        # literature is 0.03-0.12) and theta > 16.03 (measured 5.51; even the
+        # rejected CT1/total-assets 14.9 falls short).
+        #
+        # 0.80/0.90 sits above the bound with margin (+0.18 D / +0.27 F) and keeps
+        # the economic ordering Delta_own < Delta_cross (own sovereign is still
+        # better collateral than foreign). **The exact level above ~0.73 remains an
+        # AUTHOR DECISION** — see docs/eba_calibration.md "GK feasibility".
+        'Delta_bD_D':   0.80 if EBA_CALIBRATION else 0.2,
+        'Delta_bF_F':   0.80 if EBA_CALIBRATION else 0.2,
+        'Delta_bF_D':   0.90 if EBA_CALIBRATION else 0.4,
+        'Delta_bD_F':   0.90 if EBA_CALIBRATION else 0.4,
         'lambda_BD_D':  0.06,    'lambda_BF_F':  0.06,
         'lambda_BF_D':  0.06,    'lambda_BD_F':  0.06,
-        # PRE-EBA REVERT (2026-07-30): calibration rolled back to the values in
-        # force at abcbb6e, the last commit before the EBA-calibration work
-        # (eade414 onward). Structural fixes (C-1 multi-asset lambda_gk, W-1/W-2,
-        # T-2, omega_K capital-fund generalisation) are RETAINED -- only parameter
-        # values move. Every EBA value is recorded in the adjacent comment so the
-        # roll-forward is mechanical. See docs/eba_calibration.md for the EBA map.
+        # EBA 2011 REBUILD (2026-07-31). Supersedes both the 2026-07-22 EBA build
+        # and the 2026-07-30 pre-EBA revert. All values below come from
+        # data/eba_moments.json (regenerate: python code/eba_calibration.py);
+        # see docs/eba_calibration.md for the identification ledger, including
+        # what this moment set does NOT pin down.
         #
-        # psi_lambda_B: original default (EBA-calibrated value was 1.1793, tuned to
-        # the 150bp GR-DE spread target). NOTE the breakdown warning in
-        # docs/eba_calibration.md applies to the EBA calibration's thin net worth;
-        # at n_inter=3.0 the pre-EBA model sat comfortably at 3.0.
-        'psi_lambda_B_D': 3.0,   'psi_lambda_B_F': 3.0,
-        # Bank net worth: 0.75 of annual GDP. (EBA 2011 values were 0.408 / 0.175,
-        # = CT1 / quarterly own-GDP; GR 22,778/55,898, DE 114,317/653,815.)
-        'n_inter_D':    0.75*4,  'n_inter_F':    0.75*4,
-        'theta_D':      4,       'theta_F':      4,
-        # Bank capital-intermediation share. omega_K=1 = all capital in banks, the
-        # pre-EBA balance sheet: the passive capital fund is empty and div_fund=0,
-        # so capital_fund_D/F and the fund terms in smart_steady_D/F are inert.
-        # (EBA values were 0.0602 / 0.0190, recomputed in steady_state.py to hold
-        # K≈10.8 against EBA-thin net worth.)
-        'omega_K_D':    1.0,     'omega_K_F':    1.0,
+        # psi_lambda_B is the one amplification dial and remains UNIDENTIFIED by
+        # EBA -- it is tuned to the 150bp GR-DE spread target. What changed is how
+        # much work it has to do: the mechanical mark-to-market channel is now
+        # measured (phi_own x ladder duration), so psi_lambda_B no longer stands
+        # in for a mechanical loss that was ~10x too weak. See the MTM block in
+        # data/eba_moments.json.
+        'psi_lambda_B_D': 1.0 if EBA_CALIBRATION else 3.0,
+        'psi_lambda_B_F': 1.0 if EBA_CALIBRATION else 3.0,
+        # Bank net worth = Core Tier 1 / own quarterly nominal GDP.
+        # GR 22,778/55,898 = 0.4075; DE 114,317/653,815 = 0.1748.
+        'n_inter_D':    eba_or('n_inter_D', 0.75*4),  'n_inter_F':    eba_or('n_inter_F', 0.75*4),
+        # GK leverage on the GK-ELIGIBLE book: (corporate ex-CRE + commercial real
+        # estate + sovereign) EAD / CT1, own-country. 5.51 (D) / 6.94 (F).
+        # NOT CT1/total assets (14.9/32.9) -- theta multiplies only the GK book,
+        # and the total-assets version was previously verified not to converge.
+        'theta_D':      eba_or('theta_D', 4.0),    'theta_F':      eba_or('theta_F', 4.0),
+        # Bank share of the capital stock, MEASURED: (corporate + CRE) EAD / K,
+        # with K from the conventional K/Y_annual = 2.7. 0.117 (D) / 0.067 (F).
+        # This is no longer the back-solved residual that made an ASSUMED
+        # theta=4.0 consistent with a K target; theta and omega_K now come from
+        # the same observed balance sheet, and the resulting K is an
+        # over-identifying check printed by steady_state.py (expect ~10.8).
+        'omega_K_D':    eba_or('omega_K_D', 1.0),  'omega_K_F':    eba_or('omega_K_F', 1.0),
 
         # ── Bellman nu risk-discount ───────────────────────────────────────────
         'psi_nu_bD_D':  0.0,     'psi_nu_bD_F':  0.0,
         'psi_nu_bF_D':  0.0,     'psi_nu_bF_F':  0.0,
 
         # ── Fiscal & Government Debt ──────────────────────────────────────────
-        # Government debt at 60% of annual GDP (quarterly units). These are
-        # placeholders: steady_state.py overwrites all three from the solved
-        # portfolio-share targets. (EBA values were 1.19 / 0.591 — bank-held
-        # sovereign only, 27.9% / 12.1% of annual own GDP.)
-        'B_supply_D':   0.6*4,   'B_supply_F':   0.6*4,
-        'b_gov_D':      0.6*4,   'b_gov_F':      0.6*4,
-        'b_gov_ss_D':   0.6*4,   'b_gov_ss_F':   0.6*4,
+        # BANK-HELD sovereign stock / own quarterly GDP: 1.116 (D) / 0.483 (F),
+        # i.e. 27.9% / 12.1% of annual own GDP. NOT headline debt/GDP (~150% GR):
+        # the non-bank / official / ECB residual is outside the model's bank
+        # block by construction. These are start values; steady_state.py
+        # overwrites all three from the solved portfolio-share targets.
+        'B_supply_D':   eba_or('B_supply_D_qgdp', 0.6*4),  'B_supply_F':   eba_or('B_supply_F_qgdp', 0.6*4),
+        'b_gov_D':      eba_or('B_supply_D_qgdp', 0.6*4),  'b_gov_F':      eba_or('B_supply_F_qgdp', 0.6*4),
+        'b_gov_ss_D':   eba_or('B_supply_D_qgdp', 0.6*4),  'b_gov_ss_F':   eba_or('B_supply_F_qgdp', 0.6*4),
 
         # ── Fiscal Rule ───────────────────────────────────────────────────────
         'tau_D':        0.181,   'tau_F':        0.181,
         'lamb_D':       0.85,    'lamb_F':       0.85,
         'lamb_ss_D':    0.85,    'lamb_ss_F':    0.85,
-        # phi_lamb raised from 0.02 after T-2 fix: deposit re-dating makes the
-        # debt→spread spiral live; phi_lamb < ~0.12 is explosive at current amplification.
-        # (EBA calibration raised this to 0.60 because phi_bD_D=2.39 massively
-        # amplifies the doom loop; at pre-EBA exposures 0.15 was the committed value.
-        # Caveat: F-1 later identified [0.15,0.18] as a near-unit-root zone on the
-        # EBA-anchored model — watch the IRF tails here.)
-        'phi_lamb_D':   0.15,    'phi_lamb_F':   0.15,
+        # ~Bohn (1998) fiscal-feedback magnitude. 0.60, not the pre-EBA 0.15:
+        # phi_bD_D=2.39 (measured) amplifies the doom loop roughly 10x relative to
+        # the 0.25 placeholder, and 0.60 is what the 2026-07-22 EBA build needed
+        # for stationarity. Also clears F-1's near-unit-root zone [0.15,0.18] by a
+        # wide margin. Not moment-matched — see the identification ledger.
+        'phi_lamb_D':   0.60 if EBA_CALIBRATION else 0.15,
+        'phi_lamb_F':   0.60 if EBA_CALIBRATION else 0.15,
         # Fiscal-rule debt measure: 0 = par/face value (default), 1 = market value
         # (q_b·b_gov(-1)). mv_gov_ss is recomputed exactly from the solved SS in
         # build_and_solve; these are placeholders (unused when mv_rule=0).
-        # Par/face-value rule (pre-EBA). mv_rule=1 was tried on 2026-07-30 and
-        # REVERTED: at the pre-EBA phi_lamb=0.15 it lands in F-1's near-unit-root
-        # zone [0.15,0.18] (which was identified UNDER mv_rule=1) and the model
-        # breaks -- n_inter_D[0]=-1554%, Y_D[0]=+0.17% (perverse sign),
-        # b_gov_D[499]=1.6e-2. Verified directly: mv_rule=1 needs phi_lamb=0.60
-        # (main's EBA-era pairing) to stay healthy (n_inter_D[0]=-5.89%,
-        # Y_D[0]=-0.024%, b_gov_D[499]=0.0). mv_rule=1 and phi_lamb=0.15 are NOT
-        # a usable pair. Consequence of mv_rule=0: empirical duration
-        # (delta_b=0.036/0.038) stays blocked -- F-1 finds the par rule explosive
-        # at every phi_lamb in [0.02,0.50] there -- and diagnostics/regimes/
-        # assumes the market-value rule in its provenance string.
+        # Par/face-value rule retained through the EBA rebuild. F-1's "the par
+        # rule is explosive at every phi_lamb once duration is empirical" finding
+        # was diagnosed at delta_b=0.036/0.038 (6.5-7y). The rebuilt, MEASURED
+        # duration is 0.0777/0.0568 (3.1y/4.2y modified) — much closer to the old
+        # 0.10 than to 0.036 — so the par rule is not being pushed into that
+        # region and mv_rule=1 is not needed. Verify b_gov_D[499] on every run.
         'mv_rule_D':    0.0,     'mv_rule_F':    0.0,
         'mv_gov_ss_D':  0.6*4,   'mv_gov_ss_F':  0.6*4,
 
@@ -143,10 +234,11 @@ def get_calibration():
         'p':                0.50,
 
         # ── Cross-Border Bond Portfolio ───────────────────────────────────────
-        # Symmetric cross-border share. Own-holdings set in steady_state.py.
-        # (EBA 2011 cross-holdings / capital were 0.018 GR-holds-Bund and
-        # 0.069 DE-holds-GR — a far thinner direct contagion channel.)
-        'phi_bF_D_ss':  0.25,    'phi_bD_F_ss':  0.25,
+        # EBA 2011 cross-holdings / capital: GR banks' Bund book 411/22,778 =
+        # 0.018; DE banks' GGB book 7,934/114,317 = 0.069. A 10-30x thinner
+        # direct contagion channel than the 0.25 symmetric placeholder.
+        # Own-holdings set in steady_state.py from the same moment file.
+        'phi_bF_D_ss':  eba_or('phi_bF_D_ss', 0.25),  'phi_bD_F_ss':  eba_or('phi_bD_F_ss', 0.25),
         'psi_bF_D':     0.5,     'psi_bD_F':     0.5,
 
         # ── Wage Markups ──────────────────────────────────────────────────────

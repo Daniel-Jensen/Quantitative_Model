@@ -16,11 +16,26 @@
   EBA-2011 calibration derivation — **historical**: the calibration was reverted
   to pre-EBA values on 2026-07-30.
 
-> **Current state (2026-07-30).** Calibration is **pre-EBA** (`psi_lambda_B=3.0`,
-> `n_inter=3.0`, `omega_K=1.0`, `phi_lamb=0.15`, `mv_rule=0`, cross-holdings 0.25),
-> keeping all structural fixes plus EL-1's `recovery_rate=0.30`. Verified clean
-> end-to-end. Spread 187.2bp ann vs 150bp target. See `docs/STATE.md` → *CURRENT
-> CALIBRATION* for the full table.
+> **Current state (2026-07-31).** Calibration is still **pre-EBA**
+> (`psi_lambda_B=3.0`, `n_inter=3.0`, `omega_K=1.0`, `phi_lamb=0.15`, `mv_rule=0`,
+> cross-holdings 0.25) plus EL-1's `recovery_rate=0.30` — now selected by
+> `EBA_CALIBRATION = False` in `code/calibration.py`. Verified bit-exact against
+> the 2026-07-30 values and by a full `main.py` run. Spread 187.2bp ann vs the
+> 150bp target.
+>
+> **The EBA moment set was rebuilt 2026-07-31 and is identified** — maturity
+> ladder → `delta_b`, GK-eligible assets → `theta`, measured EAD → `omega_K`,
+> Acharya–Steffen MTM for amplification (the 2011 adverse scenario is rejected).
+> Flipping `EBA_CALIBRATION = True` turns the whole set on in one line.
+>
+> **But it does not currently produce a usable model, and that is a result.** At
+> the measured concentration the GK block requires
+> `f*theta > (1-Delta_own)*phi_own + (1-Delta_cross)*phi_cross`, which forces
+> `Delta_own > ~0.73`, while `_ic_delta`'s hardcoded `ratio=2.0` plus
+> `Delta_cross <= 1` caps it at 0.5 — **the feasible set is empty**. Read
+> `docs/STATE.md` → *EBA REBUILD* and `docs/eba_calibration.md` → *GK feasibility*
+> before touching this. New guard `steady_state.assert_gk_well_posed` makes the
+> failure loud instead of silent.
 >
 > **Policy-regime feature runs end-to-end** (Stage A + Stage B-lite + unit tests, all
 > exit 0). Doc-sync is enforced by `.githooks/pre-commit` - enable once per clone:

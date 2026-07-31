@@ -1,6 +1,101 @@
 # Project State
 
-**Branch:** `main` | **Date:** 2026-07-22 | **Status:** EBA-anchored calibration + C-1 structural fix (see below); post-forensic-audit baseline still applies underneath
+**Branch:** `eba-recalibration` | **Date:** 2026-07-31 | **Status:** EBA moment set rebuilt and identified; measured moments found STRUCTURALLY INFEASIBLE in the GK block; calibration stays pre-EBA behind a switch
+
+## EBA REBUILD (2026-07-31) — read this first
+
+The EBA 2011 moment set was rebuilt from scratch to be identified rather than
+back-solved (`code/eba_calibration.py`, `data/eba_moments.json`,
+`docs/eba_calibration.md`). **The rebuild succeeded; feeding the result into the
+model did not, and that is the finding.**
+
+**Live calibration is unchanged** — `EBA_CALIBRATION = False` in
+`code/calibration.py` selects the pre-EBA values bit-exactly (verified
+parameter-by-parameter and by a full `main.py` run reproducing
+`n_inter_D[0]=-3.0009%`, `Y_D[0]=-0.0261%`, `ρ_b=0.8451`, TPI peaks
+0.468/0.330/0.236/0.163 pp).
+
+### What is now measured (was assumed or absent)
+
+| Parameter | Was | Measured | Source |
+|---|---|---|---|
+| `delta_b_D/F` | 0.10 (no EBA counterpart) | **0.0777 / 0.0568** | maturity ladder repriced at the end-2010 market yield |
+| `theta_D/F` | 4.0 assumed | **5.51 / 6.94** | (corp ex-CRE + CRE + sovereign) EAD / CT1 |
+| `omega_K_D/F` | back-solved plug | **0.117 / 0.067** | corp+CRE EAD ÷ K, `K/Y_ann=2.7` |
+| `n_inter`, `phi_*`, `B_supply` | placeholders | 0.4075/0.1748, 2.390/2.758/0.069/0.018, 1.116/0.483 | CT1 and sovereign books |
+
+`delta_b` measurement **retires the F-1 duration blocker**: the standing
+"port 0.036/0.038 (7y)" target measured the *sovereign's whole outstanding
+stock*, not the *bank-held book at the yields banks faced*. The bank book's
+modified duration is 3.12y (GGB) / 4.22y (Bund) — near the old 0.10, so
+`mv_rule=1` + `phi_lamb=0.60` are not needed.
+
+`omega_K` is **kept, not dropped**: banks fund ~12%/7% of the capital stock, so
+`omega_K=1` is counterfactual. It is now measured, and `K` becomes an output —
+the balance sheet delivers `K_D = 10.800` against the `K/Y=2.7` target of 10.8.
+
+### The blocking finding: GK feasibility
+
+The GK block is well-posed only if
+
+```
+f*theta > (1-Delta_own)*phi_own + (1-Delta_cross)*phi_cross
+```
+
+At the measured moments this is **violated by −1.26 (D) / −1.42 (F)**, giving
+`lambda_gk_D = -0.087`, `Omega_D = -0.301` — negative IC multiplier and negative
+banker franchise value. **The solver still converged, every Walras residual was
+machine-zero, the IC-δ check passed exactly, stability passed, and the TPI
+loading still declined.** All of it meaningless. This is the C-1 failure mode
+reborn: silent degeneracy passing every check the pipeline ran.
+
+The constraint bounds `Delta_own > ~0.73`, but `ic_delta_calibration._ic_delta`
+hardcodes `ratio = Delta_cross/Delta_own = 2.0`, which with `Delta_cross <= 1`
+caps `Delta_own <= 0.5`. **The feasible set is empty.** `f` would need > 0.349
+(literature 0.03–0.12) and `theta` > 16.03 (measured 5.51). Tested directly:
+`Delta = 0.80/0.90` gives `lambda_gk_F = -12.45`, `Omega_F = -75.91` — just past
+the `lambda_gk` pole.
+
+**Guarded.** `steady_state.assert_gk_well_posed` runs inside `_apply_ss_anchors`,
+i.e. on every solved SS in both `steady_state.py` and
+`depreciation_calibration.py`. This is the most valuable artifact of the
+rebuild — it makes the C-1 class of failure impossible to commit silently.
+
+**The escape is a modelling decision, not a parameter tweak** (see
+`docs/eba_calibration.md` "GK feasibility" for the three routes). Note the
+economics: clearing the pole needs `Delta_own ≈ 0.85–0.95`, i.e. sovereign bonds
+nearly worthless as collateral — which removes the channel the doom loop runs on.
+
+### Secondary results
+
+- **Mechanical MTM channel measured** (Acharya–Steffen construction; the 2011
+  adverse-scenario CT1 depletion is *deliberately rejected* — it excluded
+  banking-book sovereign default): **−5.73%/100bp** of CT1 for GR banks,
+  −39.8% of CT1 realised over 2011 (GGB 10y 12.01%→21.14%). The pre-EBA
+  calibration generates only **−0.61%/100bp**, ~10× too weak — essentially all
+  of the gap is `phi_own` (0.25 vs 2.39), not duration. This is what
+  `psi_lambda_B=3.0` had been standing in for, and it reframes S-1's "89%
+  collateral friction" split as a calibration artifact.
+- **`rk_F` (RK-1) improves** to 0.009896 vs target 0.0100 under the measured
+  moments (was 0.0133 in the 2026-07-22 build).
+- **Regimes staleness fixed**: cache filenames now carry a calibration
+  fingerprint (they keyed only on `psi_lambda_B`, so the `psilam=0` cache would
+  have been silently reused across different models); `PSILAM_BREAKDOWN` 4.0→2.5
+  with the net-worth dependence documented; the hardcoded `"market-value rule"`
+  figure suptitle now reads the live `mv_rule`.
+- **Units caveat found**: `main.py` prints `n_inter_D[0]` as the raw IRF level
+  ×100, *not* a percentage of steady state. Across calibrations with different
+  `n_inter_ss` these numbers are not comparable — the true impact is
+  `raw/n_inter_ss`.
+
+### Not done
+
+- **`psi_lambda_B` retune to 150bp is NOT done.** A sweep was run but on the
+  degenerate model, so it is void and has been discarded. It must be redone once
+  the GK feasibility question is settled.
+- The `omega_K` cross-check against ECB BSI bank-credit statistics is unpulled.
+
+## Historical (2026-07-22 onward) — superseded by the section above
 
 ## CURRENT CALIBRATION (2026-07-30) — supersedes every table below
 
