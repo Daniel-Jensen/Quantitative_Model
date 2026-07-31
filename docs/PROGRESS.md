@@ -14,6 +14,47 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-07-31 - fix A6 lottery invariance test (measurement-window error)  [this commit]
+
+The A6 amplifier-invariance check in `uncertain_regime.py` ranked the **full-sample**
+peak spread across the three lottery branches. That peak is the common pre-`k` spread —
+no branch has acted before revelation (the same pre-`k` identity asserted in sec 10.3) —
+so it is identical across branches *by construction*, and `pk0[0] < pk0[1] < pk0[2]` was
+comparing floating-point noise. Measured both ways:
+
+| `psi_lambda_B` | full-sample peaks | strict `<` | gap |
+|---|---|---|---|
+| 3.0 (calibrated) | all `184.992662` bp | **False** | `-5.1e-13` bp |
+| 0 | all `9.302930` bp | **True** | `+2.3e-14` bp |
+
+Same expression, opposite verdicts, decided by the last ULP — the reported "YES" was
+luck, not a result.
+
+**Fix:** rank on the **post-revelation window `t>=k`**, where branches have actually
+diverged; check **both** amplifier settings (that is what makes it an invariance test
+rather than a single reading); and require separation above a `1e-3` bp margin so
+numerical noise can never produce a verdict.
+
+| `psi_lambda_B` | aggressive | medium | passive | ordered |
+|---|---|---|---|---|
+| as calibrated | 76.98 | 117.87 | 160.19 | YES |
+| 0 | 4.91 | 5.89 | 6.43 | YES |
+
+**A6 invariance genuinely holds in the lottery** (separation 0.548bp at `psi_lambda_B=0`,
+~550x the margin) — the earlier "false pass" was a measurement-window error, not a
+failure of the economics. The deterministic Stage A A6 (9.33/8.54/7.14bp) is unaffected
+and independently confirms it.
+
+No other Stage B output changed: `E_pi[W_D]=-14.3343`, impact spread 151.46 -> 187.19bp,
+the `k` sweep and the welfare table are all identical. Full suite re-verified, exit 0:
+`test_lottery_math.py`, Stage A, Stage B-lite.
+
+Not touched: the Stage B table's `lottery` column is 185.0bp for all three branches, and
+that is *correct and deliberate* — before revelation nobody can tell the branches apart,
+which is exactly what the uncertainty premium (lottery minus known-delayed) prices.
+
+---
+
 ## 2026-07-31 - doc-sync enforced by a git hook; regimes feature unblocked and verified  [this commit]
 
 **Doc-sync is now actually enforced.** Correction to yesterday's entry: the policy *was*

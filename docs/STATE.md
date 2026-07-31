@@ -44,11 +44,23 @@ compresses, SA-1 absent), `gamma_aggressive=5.0813` / `gamma_medium=1.5730`, pea
 187.2/140.4/93.6bp passive/medium/aggressive; Stage A A6 amplifier invariance holds
 cleanly (9.33/8.54/7.14bp at `psi_lambda_B=0`).
 
-> **Caveat - A6 at the LOTTERY stage is a false pass.** All three branch peaks are
-> numerically identical (`9.302980`bp, gap `0.000000`); the strict-inequality check
-> passes only on last-ULP noise. With `k=2` the peak sits in the common pre-`k` window,
-> so branches coincide there by construction. Use the deterministic Stage A A6; the
-> lottery A6 line should be reworded or dropped, not cited as a result.
+**A6 at the lottery stage — fixed 2026-07-31, and the invariance is real.** The old
+check ranked the *full-sample* peak, which is the common pre-`k` spread (no branch has
+acted yet), so it was identical across branches by construction and the strict
+inequality compared floating-point noise: it read YES at `psi_lambda_B=0` on a
+`+2e-14`bp gap and NO at the calibrated `psi_lambda_B` on a `-5e-13`bp gap — same
+expression, opposite verdicts. Now ranked on the **post-revelation window `t>=k`** and
+checked at **both** amplifier settings, with a `1e-3`bp separation margin so noise can
+never produce a verdict:
+
+| `psi_lambda_B` | aggressive | medium | passive | ordered |
+|---|---|---|---|---|
+| as calibrated (3.0) | 76.98 | 117.87 | 160.19 | YES |
+| 0 (fundamental floor) | 4.91 | 5.89 | 6.43 | YES |
+
+Separation at `psi_lambda_B=0` is 0.548bp, ~550x the margin. **A6 amplifier invariance
+holds in the lottery as well as in deterministic Stage A** — the previous "false pass"
+verdict was a measurement-window error, not a failure of the economics.
 
 > **Note:** `audit_artifacts/` was removed 2026-07-30 — the harness carried its own
 > hardcoded copy of the calibration instead of importing `get_calibration()`, so it

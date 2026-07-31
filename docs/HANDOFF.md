@@ -26,14 +26,14 @@
 > exit 0). Doc-sync is enforced by `.githooks/pre-commit` - enable once per clone:
 > `git config core.hooksPath .githooks`.
 >
-> **Open items:** (1) **A6 invariance at the lottery stage is a false pass** - all three
-> branch peaks are identical (`9.302980`bp); the check passes on floating-point noise
-> because with `k=2` the peak sits in the common pre-`k` window. Reword or drop that
-> line; Stage A's A6 is the real test. (2) `psi_lambda_B=3.0` gives 187.2bp, outside
-> `run_regimes.py`'s own 120-180bp band - retuning to the 150bp target is unfinished.
-> (3) `delta_b=0.10` still short of the empirical 7yr/6.5yr - porting needs `mv_rule=1`
-> **and** `phi_lamb=0.60` together. (4) `beliefs.json` predates the calibration revert
-> (2026-07-23). (5) EBA calibration to be revisited on a new branch.
+> A6 lottery invariance was fixed 2026-07-31 (ranked post-revelation, checked at both
+> amplifier settings, with a noise margin) — it now genuinely holds.
+>
+> **Open items:** (1) `psi_lambda_B=3.0` gives 187.2bp, outside `run_regimes.py`'s own
+> 120-180bp band - retuning to the 150bp target is unfinished. (2) `delta_b=0.10` still
+> short of the empirical 7yr/6.5yr - porting needs `mv_rule=1` **and** `phi_lamb=0.60`
+> together. (3) `beliefs.json` predates the calibration revert (2026-07-23).
+> (4) EBA calibration to be revisited on a new branch.
 
 ## Quick start
 

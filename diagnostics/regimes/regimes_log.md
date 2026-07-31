@@ -202,3 +202,63 @@ Stage A (main) complete.
 - A6 (lottery, psi_lambda_B=0): branch peaks {'aggressive': 9.3, 'medium': 9.3, 'passive': 9.3} bp — aggressive<medium<passive ordering survives: YES (reported)
 
 Stage B-lite (main) complete.
+
+
+## Stage B-lite run (MAIN model) — 2026-07-31 10:26:30
+- gammas (spread-compression, spec §7): {'aggressive': 5.081, 'medium': 1.573, 'passive': 0.0}
+- impact A_cb = -2.406e-02 (compresses on main)
+- pi_onset = {'aggressive': 0.0002, 'medium': 0.0587, 'passive': 0.9411}, pi_ergodic = {'aggressive': 0.229, 'medium': 0.5241, 'passive': 0.2468}
+- §10.3 assertions PASS (pre-k identity, RE jump=0, Stage A nesting) at pi_onset, k=2
+
+| branch | known-immediate | known-delayed(k) | lottery | delay cost | uncertainty premium |
+|---|---|---|---|---|---|
+| aggressive | 93.6 | 116.0 | 185.0 | +22.4 | +69.0 |
+| medium | 140.4 | 150.6 | 185.0 | +10.2 | +34.4 |
+| passive | 187.2 | 187.2 | 185.0 | +0.0 | -2.2 |
+(all peak spread, bp ann; delay cost = known-delayed - known-immediate; uncertainty premium = lottery - known-delayed)
+
+| branch | W_D | W_F | discounted CB purchases (A5, per branch) |
+|---|---|---|---|
+| aggressive | -5.6253 | +6.0074 | 0.29922 |
+| medium | -9.7101 | +9.9601 | 0.15947 |
+| passive | -14.6251 | +14.8025 | 0.00000 |
+| **E_pi** | -14.3343 | +14.5161 | 0.00943 |
+(welfare: % SS cons., 100q, tpi.py convention; purchases: Sigma beta^t q_b cb_t)
+
+- impact spread vs pi_passive: **rises** (from 151.46 bp at pi_passive=0.247 to 187.19 bp at pi_passive=1.000); this is the regime-uncertainty price, sign computed not targeted.
+
+| k | impact spread (bp) | passive-branch peak (bp) | E_pi[W_D] |
+|---|---|---|---|
+| 1 | 184.7 | 184.7 | -14.3343 |
+| 2 | 183.0 | 183.0 | -14.0520 |
+| 4 | 181.0 | 181.0 | -13.5722 |
+
+- A6 (lottery): ranked on the post-revelation window t>=2; the pre-k spread (9.30 bp at psi_lambda_B=0) is common to all branches by construction, so the full-sample peak cannot rank them.
+  - post-k peaks, psi_lambda_B as calibrated: {'aggressive': 76.98, 'medium': 117.87, 'passive': 160.19} bp — ordered: YES
+  - post-k peaks, psi_lambda_B=0 (fundamental floor): {'aggressive': 4.91, 'medium': 5.89, 'passive': 6.43} bp — ordered: YES
+  - **A6 aggressive<medium<passive survives with the amplifier off: YES** (margin 0.001 bp; separation 0.548 bp at psi_lambda_B=0)
+
+Stage B-lite (main) complete.
+
+
+## Stage A run (MAIN model) — 2026-07-31 10:26:50
+- passive peak spread: 187.2 bp ann (main is calibrated to ~151bp at psi_lambda_B=3.0; investigate if outside 120-180)
+- impact A_cb = d(spread)/d(cb_buy)[0,0] = -2.406e-02 (COMPRESSES (backstop works — SA-1 absent on main))
+- gamma_aggressive = 5.0813 (50% peak-spread compression), gamma_medium = 1.5730 (25%), gamma_passive = 0 (fixed anchor)
+  aggressive: peak spread    93.6 bp, Y_D[0] +0.0067%, n_inter_D[0] -1.978%
+      medium: peak spread   140.4 bp, Y_D[0] -0.0102%, n_inter_D[0] -2.594%
+     passive: peak spread   187.2 bp, Y_D[0] -0.0261%, n_inter_D[0] -3.001%
+
+| regime | discounted CB purchases (Sum beta^t q_b cb_t) | dY_D peak (%) | dC_D peak (%) | pd_D peak |
+|---|---|---|---|---|
+| aggressive | 0.31965 | -0.0332 | -0.0631 | +0.00067 |
+| medium | 0.16945 | -0.0196 | -0.1348 | +0.00099 |
+| passive | 0.00000 | -0.0261 | -0.2276 | +0.00123 |
+
+### A6 — ranking at psi_lambda_B = 0 (fundamental floor)
+  aggressive: peak spread   7.14 bp, output loss 0.00060%
+      medium: peak spread   8.54 bp, output loss 0.00060%
+     passive: peak spread   9.33 bp, output loss 0.00098%
+- **A6 spread ranking survives at psi_lambda_B=0: YES** (aggressive < medium < passive in peak spread = crisis severity)
+
+Stage A (main) complete.

@@ -190,13 +190,44 @@ def main():
             f"{(pi_k*np.array(WDk)).sum():+.4f} |")
 
     # ── A6 extension: lottery ranking at psi_lambda_B = 0 (REPORTED) ─────────
+    # Ranked on the POST-REVELATION window t >= k. The full-sample peak is the common
+    # pre-k spread — no branch has acted yet (the same pre-k identity asserted in
+    # §10.3), so it is identical across branches *by construction* and ranking it
+    # compares floating-point noise. That is not hypothetical: the old full-sample
+    # test read "YES" at psi_lambda_B=0 on a +2e-14 bp gap and "NO" at the main
+    # calibration on a -5e-13 bp gap — the same expression, opposite verdicts, pure
+    # ULP luck. Post-k the branches have actually diverged, so the ranking is
+    # economically meaningful, and it is checked at BOTH amplifier settings, which is
+    # what makes this an invariance test rather than a single reading.
+    A6_MARGIN_BP = 1e-3   # separation must clear this to count as a real ordering
+
+    def _post_k_peak(sp_s):
+        """Peak spread over the post-revelation window, in annualised bp."""
+        return float(np.asarray(sp_s)[k:100].max()) * BP_ANN
+
+    def _ordered(pks):
+        """Strictly increasing AND separated by more than numerical noise."""
+        return (pks[1] - pks[0]) > A6_MARGIN_BP and (pks[2] - pks[1]) > A6_MARGIN_BP
+
     c0 = load_cache(0.0)
     sp0, cb0, ce0 = solve_lottery(c0["spread_rb__shock_def_D"], c0["spread_rb__cb_buy_D"],
                                   eps, gammas, pi_onset, k)
-    pk0 = [peak(sp0[s]) * BP_ANN for s in range(3)]
-    surv = pk0[0] < pk0[1] < pk0[2]
-    log(f"\n- A6 (lottery, psi_lambda_B=0): branch peaks {dict(zip(NAMES, [round(p, 2) for p in pk0]))} bp — "
-        f"aggressive<medium<passive ordering survives: {'YES' if surv else 'NO'} (reported)")
+    pk_main = [_post_k_peak(spreads[s]) for s in range(3)]   # psi_lambda_B as calibrated
+    pk_zero = [_post_k_peak(sp0[s]) for s in range(3)]       # amplifier off
+    ok_main, ok_zero = _ordered(pk_main), _ordered(pk_zero)
+    pre_common = float(np.asarray(sp0[0])[:k].max()) * BP_ANN
+
+    log(f"\n- A6 (lottery): ranked on the post-revelation window t>={k}; the pre-k spread "
+        f"({pre_common:.2f} bp at psi_lambda_B=0) is common to all branches by construction, "
+        f"so the full-sample peak cannot rank them.")
+    log(f"  - post-k peaks, psi_lambda_B as calibrated: "
+        f"{dict(zip(NAMES, [round(p, 2) for p in pk_main]))} bp — ordered: {'YES' if ok_main else 'NO'}")
+    log(f"  - post-k peaks, psi_lambda_B=0 (fundamental floor): "
+        f"{dict(zip(NAMES, [round(p, 2) for p in pk_zero]))} bp — ordered: {'YES' if ok_zero else 'NO'}")
+    log(f"  - **A6 aggressive<medium<passive survives with the amplifier off: "
+        f"{'YES' if (ok_main and ok_zero) else 'NO'}** "
+        f"(margin {A6_MARGIN_BP:g} bp; separation "
+        f"{min(pk_zero[1]-pk_zero[0], pk_zero[2]-pk_zero[1]):.3f} bp at psi_lambda_B=0)")
 
     log("\nStage B-lite (main) complete.")
 
