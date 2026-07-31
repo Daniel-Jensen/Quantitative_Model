@@ -323,48 +323,76 @@ So the root has **three** contributions, all multiplicative:
 
 (2) and (3) are both *measured* quantities, so neither can simply be tuned away.
 
-### What this forces
+### RESOLVED: the broad capital-funding-sector scope
 
-The trap is structural. You cannot simultaneously have
+The trap was that you cannot simultaneously have (1) stress-test **CT1 as
+`n_inter`**, (2) a conventional **`K/Y = 2.7`**, and (3) a **stable** leverage
+loop — (1)+(2) pin `omega_K` small and hence `dK/dN` huge.
 
-1. stress-test **CT1 as `n_inter`**,
-2. a conventional **`K/Y = 2.7`**, and
-3. a **stable** leverage loop —
+**(1) is the one to drop, because it was never right.** EBA CT1 is the capital of
+the *sovereign-exposed stress-test sample*; the model's `n_inter` is the net
+worth of the agent intermediating the **whole capital stock**. `BANK_SCOPE` in
+`code/calibration.py` selects:
 
-because (1)+(2) pin `omega_K` small and hence `dK/dN` huge. Ordered by how much
-each concedes:
+- `"ct1"` — historical. `n_inter = CT1/qGDP`, forcing `omega_K ≈ 0.12`.
+- **`"broad"` (live)** — the intermediary is the entire capital-funding sector and
+  its net worth follows from the measured leverage and the balance sheet:
+  `N = (Q*K + sovereign_book) / theta`, so **`omega_K = 1` by construction** and
+  the passive-fund device disappears entirely.
 
-1. **`n_inter` is the wrong object** (recommended). EBA CT1 is the capital of the
-   *sovereign-exposed stress-test sample*; the model's `n_inter` is the net worth
-   of the agent intermediating the whole capital stock. Use a broader
-   capital-funding-sector net worth and rescale the sovereign book so `phi_own`
-   still matches the measured concentration ratio. Keeps the doom-loop moment —
-   which is scale-free — and drops only the level claim.
-2. **Make the capital fund elastic** rather than a fixed share, so it absorbs
-   rather than amplifies bank deleveraging. Changes the model, not the data.
-3. **Drop `omega_K` (=1)** and accept banks fund all capital — stable, but then
-   measured CT1 is inconsistent with any sensible `K/Y`.
+| | CT1 scope | **broad scope** | pre-EBA placeholder |
+|---|---|---|---|
+| `n_inter_D/F` | 0.408 / 0.175 | **2.138 / 1.627** | 3.0 / 3.0 |
+| `phi_own_D/F` | 2.390 / 2.758 | **0.456 / 0.296** | 0.25 / 0.25 |
+| `omega_K_D/F` | 0.117 / 0.067 | **1.0 / 1.0** | 1.0 / 1.0 |
+| `theta_D/F` | 5.51 / 6.94 (measured) | **5.51 / 6.94** | 4.0 / 4.0 |
 
-**Committed: `EBA_CALIBRATION = False`** — the pre-EBA calibration, which solves.
-The switch turns the whole measured moment set on in one line, and
-`assert_gk_well_posed` guarantees the steady-state failure mode can never return
-silently.
+**What is kept measured:** `theta` (a ratio), the sovereign book (a level),
+`delta_b` (the ladder), `K/Y`. **What is given up:** `n_inter` as directly
+observed CT1, and `phi_own = 2.39` as a *model* parameter. 2.39 remains a true
+statement about the stress-tested slice — it is concentration *within* that
+slice, not within the whole capital-funding sector, and only the latter is what
+this model's `phi_own` means.
 
-**The headline.** Measured Greek bank-sovereign concentration implies a
-financial-accelerator gain ~13× the placeholder's, and this model is linearly
-unstable there regardless of the fiscal rule or the collateral friction. The
-2026-07-22 build hid the steady-state half of this by back-solving `omega_K`
-around an assumed `theta`; the 2026-07-30 revert avoided both halves by
-abandoning EBA anchoring. Neither is a reason the concentration is wrong — it is
-measured — so the model, not the data, is what has to give.
+**Key assumption, stated plainly:** applying the EBA sample's `theta` to the
+whole sector assumes non-stress-tested capital funding levers the same way. If
+its true leverage is lower, `N_broad` is larger and `phi_own` smaller. This is
+the main thing a referee should push on, and it is now the *only* load-bearing
+assumption left in the bank block.
 
-**Guarded in code.** `steady_state.assert_gk_well_posed` now runs inside
-`_apply_ss_anchors`, i.e. on every solved steady state in both
-`steady_state.py` and `depreciation_calibration.py`. It raises with the
-feasibility inequality and the suggested levers. `gk_feasibility_margin` and
-`min_Delta_own` are exported for sweeps. **This guard is the single most
-valuable artifact of the rebuild** — it makes the C-1 class of failure
-impossible to commit silently.
+**Everything works at this scope** (`code/main.py`, exit 0):
+
+| Check | Result |
+|---|---|
+| over-identifying `K` | `K_D = 10.800`, `K_F = 10.832` (target 10.8) |
+| IC residual at `Delta = 0.2/0.4` | −8.9e−16 (D) / 0.0 (F) |
+| Walras | `ca_res_D = 6.9e−17`; all block residuals < 1e−8 |
+| stability | `b_gov_D[499] = +1.4e−05` (default), `ρ_b = 0.845` |
+| `n_inter_D[0]` | **−7.227%** ✓ |
+| `Y_D[0]` | **−0.0149%** ✓ — **Y-1 resolved** |
+| `rk_D`, `rk_F` | both exactly 0.010000 — **RK-1 resolved** |
+| peak spread (γ=0) | 0.376pp = **150.4bp**, on target |
+| TPI loading | **4.35 / 4.01 / 3.44** at γ=2/5/10, declining |
+
+`Delta` returns to **0.2/0.4**: the feasibility bound that forced 0.85 was an
+artifact of CT1's `phi_own=2.39`. At 0.456 the constraint reads
+`f*theta = 0.661 > 0.367`, comfortably satisfied — so the paper's "sovereigns are
+good collateral" story is restored. The fiscal rule also returns to the pre-EBA
+`phi_lamb = 0.15`, `mv_rule = 0` (par), both verified stable here.
+
+`psi_lambda_B` retuned to **8.5** for the 150bp target. The mapping is smooth and
+monotone with no breakdown region — 5.4 / 23.1 / 58.6 / 111.0 / 142.5 / 157.8 bp
+at 0 / 1 / 3 / 6 / 8 / 9. It is higher than the historical 0.31 / 1.18 / 3.0
+because the broad scope's `phi_own = 0.456` is well below CT1's 2.39, so more of
+the default loading must come from the friction. The old "breakdown above
+~1.5-2.0" warning was specific to CT1-thin net worth and does not apply.
+
+> **Sweep-method caveat.** `psi_spread_D` is derived from `psi_lambda_B` inside
+> `_apply_ss_anchors`, so any `psi_lambda_B` sweep **must re-solve the steady
+> state per point**. Patching the flag onto an already-solved SS leaves
+> `psi_spread` stale and *inverts the apparent sign* of the spread response. An
+> earlier sweep here did exactly that and reported the spread falling in
+> `psi_lambda_B`; those numbers are void.
 
 ## Identification ledger
 

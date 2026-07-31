@@ -1,6 +1,6 @@
 # Project State
 
-**Branch:** `eba-recalibration` | **Date:** 2026-07-31 | **Status:** EBA moment set rebuilt and identified; measured moments found STRUCTURALLY INFEASIBLE in the GK block; calibration stays pre-EBA behind a switch
+**Branch:** `eba-recalibration` | **Date:** 2026-07-31 | **Status:** **EBA calibration rebuilt, identified, and LIVE** (`EBA_CALIBRATION=True`, `BANK_SCOPE="broad"`). Y-1 and RK-1 resolved; spread on target at 150.4bp; TPI loading declining.
 
 ## EBA REBUILD (2026-07-31) — read this first
 
@@ -9,11 +9,13 @@ back-solved (`code/eba_calibration.py`, `data/eba_moments.json`,
 `docs/eba_calibration.md`). **The rebuild succeeded; feeding the result into the
 model did not, and that is the finding.**
 
-**Live calibration is unchanged** — `EBA_CALIBRATION = False` in
-`code/calibration.py` selects the pre-EBA values bit-exactly (verified
-parameter-by-parameter and by a full `main.py` run reproducing
-`n_inter_D[0]=-3.0009%`, `Y_D[0]=-0.0261%`, `ρ_b=0.8451`, TPI peaks
-0.468/0.330/0.236/0.163 pp).
+**The EBA calibration is now LIVE** — see *RESOLVED* below for the final state
+and verification table. The two sections immediately following record the journey
+(what was measured, and the two structural blockers found and fixed on the way);
+they are kept because the failure modes are instructive, but the *RESOLVED*
+section is what describes the committed model. Setting `EBA_CALIBRATION=False`
+still reproduces the pre-EBA placeholder calibration bit-exactly for regression
+comparison.
 
 ### What is now measured (was assumed or absent)
 
@@ -73,42 +75,61 @@ collateral — if they were, the bank would lever further.
 **Guarded.** `steady_state.assert_gk_well_posed` runs inside `_apply_ss_anchors`,
 on every solved SS in both `steady_state.py` and `depreciation_calibration.py`.
 
-### `omega_K` fixed (2026-07-31): fixed quantity, not fixed share
+### RESOLVED — `omega_K` and the `n_inter` scope; **the EBA calibration is LIVE**
 
-`omega_K` as a fixed share made the passive fund hold `(1-omega_K)*K` always, so
-it mechanically mirrored bank deleveraging — dragging the other ~88% of the
-capital stock down with the bank's book. `dK/dN = theta/omega_K`.
+Two fixes, in order:
 
-**`fund_rule_D/F = 1`** (committed): the fund holds a constant `K_fund`, the bank
-is the marginal holder, `dK/dN = theta`. With `K_fund = (1-omega_K)*K_ss` the
-steady state is **identical** (`lambda_gk_D=+0.9271`, `Omega_D=+4.62`,
-`K_D=10.800` under both rules) — purely a dynamic change. Gain 47.1 → 5.5. At
-`omega_K=1` the rules coincide exactly, so the pre-EBA calibration is untouched.
+1. **`omega_K` as a fixed share** made the passive fund hold `(1-omega_K)*K`
+   always, so it mirrored bank deleveraging: `dK/dN = theta/omega_K` (47.1).
+   New **`fund_rule_D/F = 1`** — fund holds a constant `K_fund`, bank is the
+   marginal holder, `dK/dN = theta` (5.5). Steady state **identical** under both
+   rules; purely dynamic. Helped 17× but did not stabilise alone.
+2. **`n_inter` scope was the real blocker.** EBA CT1 is the capital of the
+   *stress-test sample*; the model's `n_inter` is the net worth of the agent
+   intermediating the *whole* capital stock. New **`BANK_SCOPE = "broad"`**:
+   `n_inter = (Q*K + sovereign)/theta`, so **`omega_K = 1` by construction** and
+   the fund device disappears entirely.
 
-Helps substantially but does not stabilise alone: `b_gov[499]` −2.08e4 → −1.23e3
-at `psi_lambda_B=1` (17×), +398 → +225 at `psi_lambda_B=0`.
+| | CT1 scope | **broad (live)** | pre-EBA placeholder |
+|---|---|---|---|
+| `n_inter_D/F` | 0.408 / 0.175 | **2.138 / 1.627** | 3.0 / 3.0 |
+| `phi_own_D/F` | 2.390 / 2.758 | **0.456 / 0.296** | 0.25 / 0.25 |
+| `omega_K_D/F` | 0.117 / 0.067 | **1.0 / 1.0** | 1.0 |
+| `theta_D/F` | 5.51 / 6.94 (measured) | **5.51 / 6.94** | 4.0 |
 
-### Still blocking: two measured amplifiers remain
+Kept measured: `theta`, the sovereign book, `delta_b` (ladder), `K/Y`. Given up:
+`n_inter` as observed CT1, and `phi_own = 2.39` as a *model* parameter (2.39 is
+concentration *within the stress-tested slice*, not within the whole
+capital-funding sector — only the latter is what the model's `phi_own` means).
+**Load-bearing assumption:** applying the EBA sample's `theta` to the whole
+sector. If non-stress-tested capital funding levers less, `N_broad` is larger and
+`phi_own` smaller. This is now the *only* such assumption left in the bank block.
 
-At `fund_rule=1`, `psi_lambda_B=0`:
+`Delta` returns to **0.2/0.4** (the 0.85 bound was a CT1 artifact; at
+`phi_own=0.456`, `f*theta = 0.661 > 0.367`), the fiscal rule to `phi_lamb=0.15`,
+`mv_rule=0`, and `psi_lambda_B` retunes to **8.5** for the 150bp target.
 
-| bank block | `phi_own` | `b_gov[499]` |
-|---|---|---|
-| pre-EBA (`n=3.0, theta=4.0, omega_K=1`) | 0.25 | **−4.4e−08 stable** |
-| EBA (`n=0.41, theta=5.51`) | 0.25 | +1.85 |
-| EBA | 2.39 (measured) | +5.32e+02 |
+**Verified end-to-end** (`code/main.py`, exit 0):
 
-Thin measured net worth takes `b_gov[499]` from ~1e−8 to 1.85; measured
-concentration takes it 1.85 → 532. Both are *measured*, so neither can be tuned
-away — the model has to give. Routes in `docs/eba_calibration.md` →
-*What this forces*.
+| Check | Result |
+|---|---|
+| over-identifying `K` | `K_D = 10.800`, `K_F = 10.832` (target 10.8) |
+| IC residual | −8.9e−16 (D) / 0.0 (F) at `Delta = 0.2/0.4` |
+| Walras | `ca_res_D = 6.9e−17`; all block residuals < 1e−8 |
+| stability | `b_gov_D[499] = +1.4e−05`, `ρ_b = 0.845` |
+| `n_inter_D[0]` | **−7.227%** ✓ |
+| `Y_D[0]` | **−0.0149%** ✓ — **Y-1 RESOLVED** |
+| `rk_D`, `rk_F` | both exactly 0.010000 — **RK-1 RESOLVED** |
+| peak spread (γ=0) | 0.376pp = **150.4bp**, on target |
+| TPI loading | **4.35 / 4.01 / 3.44** at γ=2/5/10, declining |
 
-**Ruled out** (evidence in `docs/eba_calibration.md`): fiscal feedback (flat in
-`phi_lamb` to 25), the collateral friction (present at `psi_lambda_B=0`),
-`mv_rule`, `Delta` (irrelevant to stability), and the sovereign-risk schedule —
-`def_scale` 0.25 → **0.00** makes it *worse* (−2.1e4 → −1.6e5), so flattening it
-(e.g. a bounded `tanh`) cannot help. `chi1` 0 → 0.5 cuts peak spread
-1.1e7bp → 6.0bp but removes no root.
+The paper's self-extinguishing-premium claim survives on a properly identified
+calibration.
+
+> **Sweep-method caveat.** `psi_spread_D` is derived from `psi_lambda_B` inside
+> `_apply_ss_anchors`, so a `psi_lambda_B` sweep **must re-solve the SS per
+> point**; patching the flag on a solved SS leaves `psi_spread` stale and
+> inverts the apparent sign of the spread response.
 
 ### Secondary results
 

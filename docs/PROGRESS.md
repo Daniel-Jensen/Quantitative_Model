@@ -14,7 +14,71 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
-## 2026-07-31 — fix `omega_K`: capital fund holds a fixed QUANTITY, not a fixed share  [this commit]
+## 2026-07-31 — broad capital-funding-sector scope: the EBA calibration goes LIVE  [this commit]
+
+The last blocker was the **scope of `n_inter`**, not any parameter. EBA CT1 is the
+capital of the *sovereign-exposed stress-test sample*; the model's `n_inter` is
+the net worth of the agent intermediating the **whole capital stock**. Using CT1
+pins `omega_K` tiny and makes the accelerator gain ~`1/n_inter`.
+
+**New `BANK_SCOPE` in `code/calibration.py`** (`"broad"` live, `"ct1"` kept for
+comparison). Under `"broad"` the intermediary is the entire capital-funding
+sector and its net worth follows from the measured leverage and the balance
+sheet, `N = (Q*K + sovereign)/theta`, so **`omega_K = 1` by construction** and the
+passive-fund device disappears entirely.
+
+| | CT1 scope | **broad (live)** | pre-EBA placeholder |
+|---|---|---|---|
+| `n_inter_D/F` | 0.408 / 0.175 | **2.138 / 1.627** | 3.0 / 3.0 |
+| `phi_own_D/F` | 2.390 / 2.758 | **0.456 / 0.296** | 0.25 / 0.25 |
+| `omega_K_D/F` | 0.117 / 0.067 | **1.0 / 1.0** | 1.0 |
+| `theta_D/F` | 5.51 / 6.94 (measured) | **5.51 / 6.94** | 4.0 |
+
+Kept measured: `theta`, the sovereign book, `delta_b` (ladder), `K/Y`. Given up:
+`n_inter` as observed CT1, and `phi_own = 2.39` as a *model* parameter — 2.39 is
+concentration *within the stress-tested slice*, not within the whole
+capital-funding sector, and only the latter is what the model's `phi_own` means.
+**Load-bearing assumption:** applying the EBA sample's `theta` to the whole
+sector. This is now the only such assumption left in the bank block.
+
+Consequences: `Delta` returns to **0.2/0.4** (the 0.85 bound was a CT1 artifact;
+at `phi_own=0.456`, `f*theta = 0.661 > 0.367`), the fiscal rule to
+`phi_lamb=0.15` / `mv_rule=0`, and `psi_lambda_B` retunes to **8.5**.
+
+**Verified end-to-end** (`code/main.py`, exit 0):
+
+| Check | Result |
+|---|---|
+| over-identifying `K` | `K_D = 10.800`, `K_F = 10.832` (target 10.8) |
+| IC residual | −8.9e−16 (D) / 0.0 (F) |
+| Walras | `ca_res_D = 6.9e−17`; all block residuals < 1e−8 |
+| stability | `b_gov_D[499] = +1.4e−05`, `ρ_b = 0.845` |
+| `n_inter_D[0]` | **−7.227%** ✓ |
+| `Y_D[0]` | **−0.0149%** ✓ — **Y-1 RESOLVED** |
+| `rk_D`, `rk_F` | both exactly 0.010000 — **RK-1 RESOLVED** |
+| peak spread (γ=0) | 0.376pp = **150.4bp**, on target |
+| TPI loading | **4.35 / 4.01 / 3.44** at γ=2/5/10, declining |
+
+The paper's self-extinguishing-premium claim survives on a properly identified
+calibration.
+
+`psi_lambda_B = 8.5` is higher than the historical 0.31 / 1.18 / 3.0 because the
+broad scope's `phi_own = 0.456` is well below CT1's 2.39, so more of the default
+loading comes from the friction. The mapping is smooth and monotone with **no
+breakdown region** — 5.4 / 23.1 / 58.6 / 111.0 / 142.5 / 157.8 bp at
+0 / 1 / 3 / 6 / 8 / 9 — so the old "breakdown above ~1.5-2.0" warning (specific to
+CT1-thin net worth) does not apply.
+
+**Method bug found and fixed.** `psi_spread_D` is derived from `psi_lambda_B`
+inside `_apply_ss_anchors`, so a sweep **must re-solve the SS per point**.
+Patching the flag onto an already-solved SS leaves `psi_spread` stale and
+*inverts the apparent sign* of the spread response — an earlier sweep did exactly
+that and reported the spread falling in `psi_lambda_B`. Those numbers are void;
+all figures above come from full per-point re-solves.
+
+---
+
+## 2026-07-31 — fix `omega_K`: capital fund holds a fixed QUANTITY, not a fixed share  [301ffd2]
 
 `omega_K` as a **fixed share** was the defect. The passive fund held
 `(1-omega_K)*K` at all times, so it mechanically *mirrored* bank deleveraging —

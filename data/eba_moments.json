@@ -189,6 +189,22 @@
     "B_supply_D_qgdp": 1.1159812029840688,
     "B_supply_F_qgdp": 0.482894828889535
   },
+  "model_targets_broad": {
+    "n_inter_D": 2.137914330014035,
+    "n_inter_F": 1.6271070113120254,
+    "phi_bD_D_ss": 0.45560769879521823,
+    "phi_bF_F_ss": 0.29639513807396345,
+    "phi_bD_F_ss": 0.007457607889382024,
+    "phi_bF_D_ss": 0.003437036133302237,
+    "theta_D": 5.510697108636639,
+    "theta_F": 6.941400199766871,
+    "omega_K_D": 1.0,
+    "omega_K_F": 1.0,
+    "delta_b_D": 0.07770055706859433,
+    "delta_b_F": 0.056779421657665585,
+    "B_supply_D_qgdp": 1.1159812029840688,
+    "B_supply_F_qgdp": 0.482894828889535
+  },
   "identification": {
     "identified_by_EBA_2011": {
       "n_inter_D/F": "CT1 / own quarterly nominal GDP",

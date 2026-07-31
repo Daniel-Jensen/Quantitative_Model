@@ -12,50 +12,33 @@
   open issues.
 - Read `docs/SPEC.md` for the paper's theoretical framing and research goals
   (merged in from the now-retired `docs/FRAMING_HANDOFF.md`).
-- Read `docs/eba_calibration.md` for the C-1 structural fix (still live) and the
-  EBA-2011 calibration derivation — **historical**: the calibration was reverted
-  to pre-EBA values on 2026-07-30.
+- Read `docs/eba_calibration.md` for the EBA-2011 derivation, the identification
+  ledger, and the three structural fixes of 2026-07-31 (collateral mapping,
+  `omega_K` fund rule, `n_inter` scope). **This is the live calibration.**
 
-> **Current state (2026-07-31).** Calibration is still **pre-EBA**
-> (`psi_lambda_B=3.0`, `n_inter=3.0`, `omega_K=1.0`, `phi_lamb=0.15`, `mv_rule=0`,
-> cross-holdings 0.25) plus EL-1's `recovery_rate=0.30` — now selected by
-> `EBA_CALIBRATION = False` in `code/calibration.py`. Verified bit-exact against
-> the 2026-07-30 values and by a full `main.py` run. Spread 187.2bp ann vs the
-> 150bp target.
+> **Current state (2026-07-31). The EBA calibration is LIVE and verified.**
+> `EBA_CALIBRATION = True`, `BANK_SCOPE = "broad"` in `code/calibration.py`.
 >
-> **The EBA moment set was rebuilt 2026-07-31 and is identified** — maturity
-> ladder → `delta_b`, GK-eligible assets → `theta`, measured EAD → `omega_K`,
-> Acharya–Steffen MTM for amplification (the 2011 adverse scenario is rejected).
-> Flipping `EBA_CALIBRATION = True` turns the whole set on in one line.
+> Measured: `theta` 5.51/6.94 (GK-eligible assets / CT1), `delta_b` 0.0777/0.0568
+> (sovereign maturity ladder repriced at the end-2010 market yield), the sovereign
+> book, `K/Y`. Implied: `n_inter` 2.138/1.627 = `(Q*K + sovereign)/theta`, and
+> `phi_own` 0.456/0.296. `omega_K = 1` — the passive-fund device is gone.
+> Free/tuned: `psi_lambda_B = 8.5` (150bp target), `Delta = 0.2/0.4`,
+> `phi_lamb = 0.15`, `mv_rule = 0`.
 >
-> **Steady state now works; dynamics do not.** Two problems, one solved:
+> Verified end-to-end: `K_D=10.800`/`K_F=10.832` (target 10.8), IC residual
+> −8.9e−16, `ca_res_D=6.9e−17`, `b_gov_D[499]=1.4e−05`, `n_inter_D[0]=−7.227%`,
+> `Y_D[0]=−0.0149%` (**Y-1 resolved**), `rk_D=rk_F=0.010000` (**RK-1 resolved**),
+> peak spread 150.4bp, TPI loading 4.35/4.01/3.44 declining.
 >
-> 1. **SOLVED — collateral mapping.** The GK block needs
->    `f*theta > (1-Delta_own)*phi_own + (1-Delta_cross)*phi_cross`, i.e.
->    `Delta_own > ~0.73`. `Delta=0.2` gave `lambda_gk_D=-0.087`, `Omega_D=-0.301`
->    while the solver converged cleanly. The culprit was `_ic_delta`'s hidden
->    `ratio=Delta_cross/Delta_own=2.0` closure, now removed — `Delta` is free and
->    the IC residual is checked directly. At **0.85/0.90**: `lambda_gk_D=+0.927`
->    (vs pre-EBA +0.923), `Omega_D=+4.62`, `K_D=10.80`.
-> 2. **PARTLY FIXED — dynamic instability.** There are *three* compounding
->    amplifiers. `omega_K` as a fixed share was one: the passive fund held
->    `(1-omega_K)*K` and so mirrored bank deleveraging, giving
->    `dK/dN = theta/omega_K = 47.1`. New **`fund_rule_D/F = 1`** makes the fund
->    hold a constant `K_fund` (bank is marginal holder, `dK/dN = theta = 5.5`),
->    **identical in steady state**, and improves `b_gov[499]` 17×. Still
->    explosive. The two remaining amplifiers are both *measured*: thin net worth
->    (`n_inter` 3.0→0.41 takes `b_gov[499]` ~1e-8 → 1.85) and concentration
->    (`phi_own` 0.25→2.39 takes it 1.85 → 532).
+> Getting here took three fixes, all documented in `docs/eba_calibration.md`:
+> (1) the hidden `ratio=Delta_cross/Delta_own=2.0` closure in
+> `ic_delta_calibration`; (2) `omega_K` as a fixed share (`fund_rule=1` makes the
+> fund a fixed quantity, SS-identical); (3) the `n_inter` scope — CT1 of the
+> stress-test sample is not the whole capital-funding sector.
 >
->    Ruled out with evidence: `phi_lamb` (flat to 25), `psi_lambda_B` (root
->    present at 0), `mv_rule`, `Delta` (irrelevant to stability), and the
->    sovereign-risk schedule — `def_scale` 0.25→**0.00** is *worse*
->    (−2.1e4 → −1.6e5), so flattening it (e.g. a bounded `tanh`) cannot help.
->    `chi1` 0→0.5 cuts peak spread 1.1e7bp→6.0bp but removes no root.
->
-> Read `docs/STATE.md` → *EBA REBUILD* and `docs/eba_calibration.md` →
-> *GK feasibility* / *Dynamic instability* before touching this.
-> `steady_state.assert_gk_well_posed` makes the steady-state failure loud.
+> **Set `BANK_SCOPE="ct1"` to reproduce the CT1 variant**, which is explosive
+> (`b_gov[499] ~ 1e2-1e3`) and needs `Delta_own > 0.73`.
 >
 > **Policy-regime feature runs end-to-end** (Stage A + Stage B-lite + unit tests, all
 > exit 0). Doc-sync is enforced by `.githooks/pre-commit` - enable once per clone:
@@ -64,11 +47,14 @@
 > A6 lottery invariance was fixed 2026-07-31 (ranked post-revelation, checked at both
 > amplifier settings, with a noise margin) — it now genuinely holds.
 >
-> **Open items:** (1) `psi_lambda_B=3.0` gives 187.2bp, outside `run_regimes.py`'s own
-> 120-180bp band - retuning to the 150bp target is unfinished. (2) `delta_b=0.10` still
-> short of the empirical 7yr/6.5yr - porting needs `mv_rule=1` **and** `phi_lamb=0.60`
-> together. (3) `beliefs.json` predates the calibration revert (2026-07-23).
-> (4) EBA calibration to be revisited on a new branch.
+> **Open items:** (1) `diagnostics/regimes/` has NOT been re-run at the new
+> calibration — caches are fingerprinted so they will rebuild, but `PSILAM_BREAKDOWN`
+> (currently 2.5) needs re-deriving for `psi_lambda_B=8.5`, and `run_regimes.py`'s
+> 120-180bp sanity band should now pass (150.4bp). (2) `beliefs.json` dates from
+> 2026-07-23. (3) Figures need regenerating. (4) The `theta`-for-the-whole-sector
+> assumption is the one load-bearing judgement left in the bank block; an ECB BSI
+> cross-check on bank credit to NFCs would test it. (5) S-1 (`writeoff_enabled=0`)
+> still an author decision.
 
 ## Quick start
 

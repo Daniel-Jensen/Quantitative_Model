@@ -349,6 +349,50 @@ def compute_moments(df=None, gdp=None, yld=None) -> dict:
         lad, y0, _, _ = ladders["b_D_D"]
         coupon_sens[f"{cpn:.3f}"] = ladder_modified_duration(lad, y0, cpn)
 
+    # ---- BROAD-SECTOR scope (2026-07-31) -----------------------------------
+    # The CT1 scope below takes n_inter = Core Tier 1 of the EBA stress-test
+    # sample. That is the wrong object for this model: n_inter is the net worth
+    # of the agent intermediating the WHOLE capital stock, whereas CT1 is the
+    # capital of the sovereign-exposed sub-sample. Using CT1 forces a tiny
+    # omega_K (banks fund ~12% of K), and holding K/Y at target then makes the
+    # accelerator gain dK/dN = theta*K/(N*(theta-phi)) blow up ~ 1/n_inter.
+    #
+    # Broad scope instead defines the intermediary as the entire capital-funding
+    # sector and lets its net worth follow from the measured leverage and the
+    # balance sheet:
+    #       N_broad = (Q*K + sovereign_book) / theta
+    # with K = K/Y_annual * annual GDP and theta the MEASURED GK leverage.
+    # Then omega_K = 1 by construction (the sector funds all capital, so the
+    # passive-fund device disappears) and phi_own = sovereign / N_broad.
+    #
+    # What is kept measured: theta (a ratio), the sovereign book (a level), K/Y.
+    # What is given up: n_inter as directly-observed CT1, and phi_own = 2.39 as a
+    # MODEL parameter. 2.39 remains a true statement about the stress-tested
+    # slice; it is concentration *within* that slice, not within the whole
+    # capital-funding sector, and only the latter is what this model's phi_own
+    # means.
+    # KEY ASSUMPTION, flagged in the ledger: applying the EBA sample's theta to
+    # the whole sector assumes non-stress-tested capital funding levers the same
+    # way. If its true leverage is lower, N_broad is larger and phi_own smaller.
+    K_lvl_D, K_lvl_F = K_D, K_F                       # EURm, = K/Y_ann * GDP_ann
+    sov_book_D, sov_book_F = b_D_D + b_F_D, b_F_F + b_D_F
+    N_broad_D = (K_lvl_D + sov_book_D) / theta_D
+    N_broad_F = (K_lvl_F + sov_book_F) / theta_F
+    targets_broad = {
+        "n_inter_D": N_broad_D / qgdp_D,
+        "n_inter_F": N_broad_F / qgdp_F,
+        "phi_bD_D_ss": b_D_D / N_broad_D,
+        "phi_bF_F_ss": b_F_F / N_broad_F,
+        "phi_bD_F_ss": b_D_F / N_broad_F,
+        "phi_bF_D_ss": b_F_D / N_broad_D,
+        "theta_D": theta_D, "theta_F": theta_F,
+        "omega_K_D": 1.0, "omega_K_F": 1.0,       # sector funds all capital
+        "delta_b_D": ladder_stats["b_D_D"]["delta_b_implied"],
+        "delta_b_F": ladder_stats["b_F_F"]["delta_b_implied"],
+        "B_supply_D_qgdp": (b_D_D + b_D_F) / qgdp_D,
+        "B_supply_F_qgdp": (b_F_F + b_F_D) / qgdp_F,
+    }
+
     targets = {
         "n_inter_D": ct1_D / qgdp_D,
         "n_inter_F": ct1_F / qgdp_F,
@@ -417,7 +461,8 @@ def compute_moments(df=None, gdp=None, yld=None) -> dict:
             "omega_K_F_total_book": (corp_F_tot + cre_F_tot) / K_F,
         },
         "coupon_sensitivity_modified_duration_b_D_D": coupon_sens,
-        "model_targets": targets,
+        "model_targets": targets,            # CT1 scope (historical)
+        "model_targets_broad": targets_broad,  # broad capital-funding sector
         "identification": _identification_ledger(),
     }
 
@@ -550,6 +595,10 @@ def main() -> dict:
     fv = moments["mtm"]["fair_valued_share_of_own_book"]
     print(f"  fair-valued share of own book: D {fv['D']:.1%}, F {fv['F']:.1%} "
           f"(rest at amortised cost -- economic, not accounting, loss)")
+
+    print("\n── BROAD-SECTOR scope (the live one) ──")
+    for k, v in moments["model_targets_broad"].items():
+        print(f"  {k:22} {v:12.4f}")
 
     print("\n── still unidentified ──")
     for k in moments["identification"]["still_NOT_identified"]:
