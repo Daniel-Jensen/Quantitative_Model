@@ -217,37 +217,133 @@ With the steady state correct, the **dynamics are still explosive**:
 `b_gov_D[499] ~ 1e2-1e3` against a ~1e-5 target. This is a *separate* problem
 from the collateral mapping, and it is structural.
 
-The measured moments give a financial-accelerator gain
-
-```
-theta * phi_own = 5.51 * 2.39 = 13.17     (placeholder: 4.0 * 0.25 = 1.0)
-```
-
-— a ~13× stronger leverage loop. Diagnosed 2026-07-31; it is **not** the fiscal
-mode and **not** the collateral friction:
+### Ruled out first
 
 | Test | Result |
 |---|---|
-| `psi_lambda_B = 0` (friction fully off) | still explosive, `b_gov[499] = -2038` |
-| `phi_lamb` 0.6 → 25 | **flat**: peak spread ~1.1e7bp at 0.6, 1.5 *and* 25 |
+| `psi_lambda_B = 0` (collateral friction fully off) | still explosive |
+| `phi_lamb` 0.6 → 25 | **flat** — not the fiscal mode |
 | `mv_rule = 1` | does not fix it |
-| `chi1` 0 → 0.5 | peak spread **1.1e7bp → 6.0bp**, `b_gov[499]` −2038 → +70 |
-| `chi1` ∈ [0.2, 5.0] | `b_gov[499]` stays 70–560 — amplitude damped, root not removed |
+| `def_scale` 0.25 → **0.00** (sovereign-risk schedule fully off) | **worse**: `b_gov[499]` −2.1e4 → −1.6e5. The debt→default→price loop is mildly *stabilising* here. Flattening the schedule (e.g. a bounded `tanh`) therefore cannot help; note also that at first order only the local slope `a*b` matters, so a bounded form is observationally equivalent in the linearised IRFs. |
+| `chi1` 0 → 0.5 | peak spread 1.1e7bp → 6.0bp, `b_gov[499]` −2038 → +70 — damps amplitude, root remains (70–560 across [0.2, 5.0]) |
+| `phi_own` 2.39 → 0.25 (concentration off, `omega_K` moved along the balance sheet to hold `K`) | **still explosive**, `b_gov[499] = +132`. Concentration *aggravates* (132 → 398) but does not cause. |
+| `Delta_own` 0.85 vs 0.20 | **irrelevant to stability** — both explosive with the EBA bank block, both stable with the pre-EBA one |
 
-`chi1` (the Auclert intermediary capital adjustment cost, currently **0**) is by
-far the strongest lever and makes the spread response sane again, but no value
-tested removes the unstable root.
+### Root cause: the capital-fund lever, `theta / omega_K`
 
-**Open routes:**
+A 2×2 at `phi_own = 0.25` throughout isolates it:
 
-1. **Damp the accelerator structurally** — `chi1` is the natural home but needs
-   pairing with something else (slower `theta` adjustment, or a leverage rule
-   with inertia).
-2. **Re-scope the bank block** so `phi_own` is not 2.39 — model only the
-   sovereign-exposed sub-book, or let `n_inter` be broader than stress-test CT1.
-   Keeps the mechanism, weakens the "EBA-measured" claim.
-3. **Replace the GK IC** with a constraint tolerating high concentration
-   (value-at-risk / risk-weighted rather than linear divertability).
+| case | bank block | `Delta_own` | `b_gov[499]` |
+|---|---|---|---|
+| A | EBA (`n=0.41, θ=5.51, ω_K=0.19`) | 0.85 | +1.32e+02 |
+| B | EBA | 0.20 | +1.73e+02 |
+| C | pre-EBA (`n=3.0, θ=4.0, ω_K=1.0`) | 0.85 | **−4.4e−08 stable** |
+| D | pre-EBA | 0.20 | **−5.8e−08 stable** |
+
+`K` is pinned by the balance sheet, so
+
+```
+K = (theta*N - bonds) / (omega_K*Q)      =>   dK/dN = theta / omega_K
+```
+
+and holding `K/Y` at its conventional target forces `omega_K = N(theta-phi)/K`,
+hence
+
+```
+dK/dN  =  theta*K / (N*(theta - phi))   ∝  1 / n_inter
+```
+
+**The amplification gain is inversely proportional to bank net worth.** Measured
+CT1 (`n_inter = 0.4075`) is 7.4× thinner than the placeholder (3.0), so the gain
+rises ~7.4×. It tracks every run:
+
+| `theta/omega_K` | `b_gov[499]` |
+|---|---|
+| 4.0 (pre-EBA) | ~1e−08 stable |
+| 28.6 | +1.3e+02 |
+| 31.1 | −1.2e+01 |
+| 36.6 | +6.1e+01 |
+| 47.1 (full EBA) | +4.0e+02 |
+
+Monotone in magnitude. **The gain is `theta/omega_K`, not `theta*phi_own`** — the
+earlier `13.17` diagnosis in this file was wrong and is corrected here.
+
+The 2026-07-22 build flagged this exact mechanism ("fixed `omega_K` levers `K` by
+`1/omega_K ≈ 16–67×` on thin net worth") and then concluded the C-1 fix had
+resolved it. It had not: C-1 fixed the *steady state*, not the dynamic gain.
+
+### The `omega_K` fix (2026-07-31): fixed quantity, not fixed share
+
+`omega_K` as a **fixed share** is the defect. It makes the passive fund hold
+`(1-omega_K)*K` at all times, so the fund mechanically *mirrors* bank
+deleveraging — a 1% fall in the bank's book drags the other ~88% of the capital
+stock down with it. That is the `1/omega_K` lever, and it is an assumption
+nobody would defend if stated out loud: non-bank capital holders do not shrink
+in lockstep with bank equity.
+
+**Fix:** `fund_rule_D/F` in `code/calibration.py`.
+
+| `fund_rule` | fund holds | bank holds | `dK/dN` |
+|---|---|---|---|
+| 0 (legacy) | `(1-omega_K)*K` | `omega_K*K` | `theta/omega_K` |
+| **1 (committed)** | **constant `K_fund`** | `K - K_fund` | **`theta`** |
+
+With `K_fund = (1-omega_K)*K_ss` the two are **identical in steady state** — the
+change is purely dynamic. Verified: `lambda_gk_D=+0.9271`, `Omega_D=+4.62`,
+`K_D=10.800` under *both* rules. Gain falls 47.1 → 5.5. At `omega_K=1` (pre-EBA)
+`K_fund=0` and the two rules coincide exactly, so the placeholder calibration is
+untouched by construction.
+
+**It helps substantially but does not stabilise on its own:**
+
+| `fund_rule` | `psi_lambda_B` | `dK/dN` | `b_gov[499]` |
+|---|---|---|---|
+| 0 | 0.0 | 47.1 | +3.98e+02 |
+| 1 | 0.0 | 5.5 | +2.25e+02 |
+| 0 | 1.0 | 47.1 | −2.08e+04 |
+| 1 | 1.0 | 5.5 | −1.23e+03 (17× better) |
+
+### Three compounding amplifiers
+
+With the fund lever removed (`fund_rule=1`, `psi_lambda_B=0`):
+
+| bank block | `phi_own` | `b_gov[499]` |
+|---|---|---|
+| pre-EBA (`n=3.0, theta=4.0, omega_K=1`) | 0.25 | **−4.4e−08 stable** |
+| EBA (`n=0.41, theta=5.51`) | 0.25 | +1.85 |
+| EBA | 2.39 (measured) | +5.32e+02 |
+| pre-EBA | 2.39 | solver failed to converge |
+
+So the root has **three** contributions, all multiplicative:
+
+1. **the fixed-share fund** — `1/omega_K` ≈ 8.5× (now fixed);
+2. **thin measured net worth** — `n_inter` 3.0 → 0.41 takes `b_gov[499]` from
+   ~1e−8 to ~1.85;
+3. **measured concentration** — `phi_own` 0.25 → 2.39 takes it 1.85 → 532.
+
+(2) and (3) are both *measured* quantities, so neither can simply be tuned away.
+
+### What this forces
+
+The trap is structural. You cannot simultaneously have
+
+1. stress-test **CT1 as `n_inter`**,
+2. a conventional **`K/Y = 2.7`**, and
+3. a **stable** leverage loop —
+
+because (1)+(2) pin `omega_K` small and hence `dK/dN` huge. Ordered by how much
+each concedes:
+
+1. **`n_inter` is the wrong object** (recommended). EBA CT1 is the capital of the
+   *sovereign-exposed stress-test sample*; the model's `n_inter` is the net worth
+   of the agent intermediating the whole capital stock. Use a broader
+   capital-funding-sector net worth and rescale the sovereign book so `phi_own`
+   still matches the measured concentration ratio. Keeps the doom-loop moment —
+   which is scale-free — and drops only the level claim.
+2. **Make the capital fund elastic** rather than a fixed share, so it absorbs
+   rather than amplifies bank deleveraging. Changes the model, not the data.
+3. **Drop `omega_K` (=1)** and accept banks fund all capital — stable, but then
+   measured CT1 is inconsistent with any sensible `K/Y`.
 
 **Committed: `EBA_CALIBRATION = False`** — the pre-EBA calibration, which solves.
 The switch turns the whole measured moment set on in one line, and

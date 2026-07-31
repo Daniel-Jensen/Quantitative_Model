@@ -37,10 +37,21 @@
 >    `ratio=Delta_cross/Delta_own=2.0` closure, now removed — `Delta` is free and
 >    the IC residual is checked directly. At **0.85/0.90**: `lambda_gk_D=+0.927`
 >    (vs pre-EBA +0.923), `Omega_D=+4.62`, `K_D=10.80`.
-> 2. **OPEN — dynamic instability.** `b_gov_D[499] ~ 1e2–1e3`. Amplification is
->    `theta*phi_own = 13.17` vs 1.0 for the placeholder. Not fiscal (flat in
->    `phi_lamb` to 25), not the friction (present at `psi_lambda_B=0`). `chi1`
->    0→0.5 cuts peak spread 1.1e7bp→6.0bp but no value removes the root.
+> 2. **PARTLY FIXED — dynamic instability.** There are *three* compounding
+>    amplifiers. `omega_K` as a fixed share was one: the passive fund held
+>    `(1-omega_K)*K` and so mirrored bank deleveraging, giving
+>    `dK/dN = theta/omega_K = 47.1`. New **`fund_rule_D/F = 1`** makes the fund
+>    hold a constant `K_fund` (bank is marginal holder, `dK/dN = theta = 5.5`),
+>    **identical in steady state**, and improves `b_gov[499]` 17×. Still
+>    explosive. The two remaining amplifiers are both *measured*: thin net worth
+>    (`n_inter` 3.0→0.41 takes `b_gov[499]` ~1e-8 → 1.85) and concentration
+>    (`phi_own` 0.25→2.39 takes it 1.85 → 532).
+>
+>    Ruled out with evidence: `phi_lamb` (flat to 25), `psi_lambda_B` (root
+>    present at 0), `mv_rule`, `Delta` (irrelevant to stability), and the
+>    sovereign-risk schedule — `def_scale` 0.25→**0.00** is *worse*
+>    (−2.1e4 → −1.6e5), so flattening it (e.g. a bounded `tanh`) cannot help.
+>    `chi1` 0→0.5 cuts peak spread 1.1e7bp→6.0bp but removes no root.
 >
 > Read `docs/STATE.md` → *EBA REBUILD* and `docs/eba_calibration.md` →
 > *GK feasibility* / *Dynamic instability* before touching this.

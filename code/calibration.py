@@ -174,6 +174,27 @@ def get_calibration():
         # the same observed balance sheet, and the resulting K is an
         # over-identifying check printed by steady_state.py (expect ~10.8).
         'omega_K_D':    eba_or('omega_K_D', 1.0),  'omega_K_F':    eba_or('omega_K_F', 1.0),
+        # Capital-fund behaviour. THIS IS THE FIX for the EBA dynamic instability.
+        #   0 = FIXED SHARE  (legacy): fund holds (1-omega_K)*K, so it mechanically
+        #       mirrors bank deleveraging and dK/dN = theta/omega_K.
+        #   1 = FIXED QUANTITY: fund holds a constant K_fund, bank is the marginal
+        #       holder, dK/dN = theta.
+        # Identical steady state when K_fund = (1-omega_K)*K_ss; the difference is
+        # purely dynamic. Under fixed share, holding K/Y at its conventional target
+        # forces omega_K = N(theta-phi)/K, hence dK/dN = theta*K/(N*(theta-phi)),
+        # i.e. the accelerator gain is INVERSELY PROPORTIONAL TO BANK NET WORTH.
+        # Measured CT1 is 7.4x thinner than the placeholder, which is what made the
+        # EBA calibration explosive (b_gov[499] ~ 1e2-1e3). Verified: with the
+        # pre-EBA bank block (omega_K=1) the same model is stable at ~1e-8
+        # regardless of concentration or Delta. See docs/eba_calibration.md.
+        # A fixed share is also the harder assumption to defend: it says non-bank
+        # capital holders shrink in lockstep with bank equity, which is the
+        # amplification, not an independent behavioural claim.
+        'fund_rule_D':  1.0,     'fund_rule_F':  1.0,
+        # Fund's fixed capital holding, = (1-omega_K)*K_target with K_target=10.8
+        # (K/Y_annual=2.7). Unused when fund_rule=0. At omega_K=1 the fund is empty.
+        'K_fund_D':     (1.0 - eba_or('omega_K_D', 1.0)) * 10.8,
+        'K_fund_F':     (1.0 - eba_or('omega_K_F', 1.0)) * 10.8,
 
         # ── Bellman nu risk-discount ───────────────────────────────────────────
         'psi_nu_bD_D':  0.0,     'psi_nu_bD_F':  0.0,

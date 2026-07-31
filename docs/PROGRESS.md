@@ -14,7 +14,65 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
-## 2026-07-31 — fix the collateral mapping; EBA steady state now correct, dynamics still explosive  [this commit]
+## 2026-07-31 — fix `omega_K`: capital fund holds a fixed QUANTITY, not a fixed share  [this commit]
+
+`omega_K` as a **fixed share** was the defect. The passive fund held
+`(1-omega_K)*K` at all times, so it mechanically *mirrored* bank deleveraging —
+a 1% fall in the bank's book dragged the other ~88% of the capital stock with
+it. That is the `1/omega_K` lever, and it is an assumption nobody would defend
+stated plainly: non-bank capital holders do not shrink in lockstep with bank
+equity.
+
+**Fix: `fund_rule_D/F`** (`code/calibration.py`, committed at **1**).
+
+| `fund_rule` | fund holds | bank holds | `dK/dN` |
+|---|---|---|---|
+| 0 (legacy) | `(1-omega_K)*K` | `omega_K*K` | `theta/omega_K` |
+| **1** | **constant `K_fund`** | `K - K_fund` | **`theta`** |
+
+With `K_fund = (1-omega_K)*K_ss` the rules are **identical in steady state** —
+the change is purely dynamic. Verified: `lambda_gk_D=+0.9271`, `Omega_D=+4.62`,
+`K_D=10.800` under both. Gain 47.1 → 5.5. At `omega_K=1` (pre-EBA), `K_fund=0`
+and the rules coincide exactly, so the placeholder calibration is untouched by
+construction — confirmed by a full `main.py` run reproducing
+`n_inter_D[0]=-3.0009%`, `Y_D[0]=-0.0261%`, `ρ_b=0.8451`, `b_gov_D[499]=-1.3e-5`,
+IC residual `+8.9e-16`.
+
+Touched four sites per country (`smart_steady`, `intermediation_IC` kappa,
+`capital_fund`, `k_balance_sheet`) plus the `steady_state.py` over-identifying
+print, which is now exact for both countries (`K_D = K_F = 10.800`).
+
+**Helps substantially, does not stabilise alone:** `b_gov[499]` +3.98e2 → +2.25e2
+at `psi_lambda_B=0`, and −2.08e4 → −1.23e3 at `psi_lambda_B=1` (17×).
+
+**Three compounding amplifiers** (at `fund_rule=1`, `psi_lambda_B=0`):
+
+| bank block | `phi_own` | `b_gov[499]` |
+|---|---|---|
+| pre-EBA (`n=3.0, theta=4.0, omega_K=1`) | 0.25 | **−4.4e−08 stable** |
+| EBA (`n=0.41, theta=5.51`) | 0.25 | +1.85 |
+| EBA | 2.39 (measured) | +5.32e+02 |
+| pre-EBA | 2.39 | solver failed to converge |
+
+1. the fixed-share fund (`1/omega_K` ≈ 8.5×) — **now fixed**;
+2. thin measured net worth (`n_inter` 3.0 → 0.41): ~1e−8 → 1.85;
+3. measured concentration (`phi_own` 0.25 → 2.39): 1.85 → 532.
+
+(2) and (3) are both *measured*, so neither can be tuned away. `EBA_CALIBRATION`
+stays **False**.
+
+**Also ruled out this session** (all with evidence in `docs/eba_calibration.md`):
+the sovereign-risk schedule — `def_scale` 0.25 → **0.00** makes it *worse*
+(−2.1e4 → −1.6e5), so flattening it (e.g. a bounded `tanh`) cannot help; note
+also that at first order only the local slope `a*b` matters, so a bounded form is
+observationally equivalent in the linearised IRFs. Separately, measuring
+`B_supply` (2.4 → 1.116) steepened that schedule's local slope ~45% (0.0799 →
+0.1158) as a side effect, since lower debt sits further up the concave curve —
+real, but not the driver.
+
+---
+
+## 2026-07-31 — fix the collateral mapping; EBA steady state now correct, dynamics still explosive  [c6230a2]
 
 Follow-up to the rebuild below. The previous entry concluded the feasible `Delta`
 set was empty. **That was wrong, and the reason is instructive:** the emptiness

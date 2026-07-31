@@ -80,13 +80,20 @@ def deposit_return_F(rdep_F, P_CES_F):
 @simple
 def smart_steady_F(theta_F, Y_F, n_inter_F, rdep_F, alpha_F, delta_F, f_F, N_F,
                    rb_actual_F, rb_actual_D, b_F_F, b_D_F, Q_F, q_b_F, q_b_D,
-                   chi0_F, chi1_F, chi2_F, T0_F, T1_F, def_rate_F, p, omega_K_F):
+                   chi0_F, chi1_F, chi2_F, T0_F, T1_F, def_rate_F, p, omega_K_F,
+                   fund_rule_F, K_fund_F):
     # Bonds are D-good (numeraire) claims; F-bank assets/NW are in F-goods → divide by p.
-    # Bank holds omega_K_F of the capital stock: omega_K·Q·K + bonds/p = theta·N.
-    K_F          = (theta_F * n_inter_F - (q_b_F * b_F_F + q_b_D * b_D_F) / p) / (omega_K_F * Q_F)
+    # Passive capital fund; fund_rule_F selects its behaviour (see smart_steady_D):
+    #   0 = FIXED SHARE  -> K = (theta·N - bonds/p)/(omega_K·Q)
+    #   1 = FIXED QUANTITY -> K = (theta·N - bonds/p)/Q + K_fund
+    # Same SS when K_fund = (1-omega_K)·K_ss; dK/dN is theta/omega_K vs theta.
+    bank_assets_F = theta_F * n_inter_F - (q_b_F * b_F_F + q_b_D * b_D_F) / p
+    K_F          = ((1.0 - fund_rule_F) * bank_assets_F / (omega_K_F * Q_F)
+                    + fund_rule_F * (bank_assets_F / Q_F + K_fund_F))
     phi_bF_F     = q_b_F * b_F_F / (p * n_inter_F)
     phi_bD_F     = q_b_D * b_D_F / (p * n_inter_F)
-    kappa_F      = theta_F - phi_bF_F - phi_bD_F   # = omega_K·Q·K/N (bank capital share)
+    kappa_F      = theta_F - phi_bF_F - phi_bD_F   # = Q·K_bank/N (bank capital share)
+    K_fnd_F      = (1.0 - fund_rule_F) * (1.0 - omega_K_F) * K_F + fund_rule_F * K_fund_F
     rk_F         = alpha_F * Y_F / K_F - delta_F
     arg_F        = -rk_F * K_F / (K_F + chi0_F)
     Phi_F        = (chi1_F / chi2_F) * (arg_F ** 2) ** (chi2_F / 2) * (K_F + chi0_F)
@@ -103,7 +110,7 @@ def smart_steady_F(theta_F, Y_F, n_inter_F, rdep_F, alpha_F, delta_F, f_F, N_F,
     # Total deposits (bank + passive capital fund) = Q·K + bonds/p - N.
     D_supply_F   = Q_F * K_F + (q_b_F * b_F_F + q_b_D * b_D_F) / p - n_inter_F
     # Capital fund rebate (F-goods): spread (rk - rdep) on its (1-omega_K)·Q·K.
-    div_fund_F   = (rk_F - rdep_F) * Q_F * (1.0 - omega_K_F) * K_F
+    div_fund_F   = (rk_F - rdep_F) * Q_F * K_fnd_F
     Z_F          = Y_F / ((K_F ** alpha_F) * (N_F ** (1 - alpha_F)))
     cap_profit_F = Q_F * (K_F - (1 - delta_F) * K_F(-1)) - I_F
     return K_F, rk_F, rn_F, m_F, k_inter_F, I_F, D_supply_F, Z_F, cap_profit_F, Phi_F, T_F, div_fund_F, phi_bF_F, phi_bD_F
@@ -248,8 +255,11 @@ def labor_demand_F(w_F, Y_F, N_F, alpha_F):
 def intermediation_IC_F(nu_K_F, nu_bF_F, nu_bD_F, eta_F,
                         Q_F, K_F, q_b_F, q_b_D, b_F_F, b_D_F, n_inter_F,
                         lambda_gk_F, Delta_bF_F, Delta_bD_F, theta_F, p,
-                        def_rate_F, def_rate_D, psi_lambda_B_F, omega_K_F):
-    kappa_F      = omega_K_F * Q_F * K_F / n_inter_F   # bank holds omega_K of K
+                        def_rate_F, def_rate_D, psi_lambda_B_F, omega_K_F,
+                        fund_rule_F, K_fund_F):
+    K_bank_F     = ((1.0 - fund_rule_F) * omega_K_F * K_F
+                    + fund_rule_F * (K_F - K_fund_F))
+    kappa_F      = Q_F * K_bank_F / n_inter_F          # bank capital / net worth
     phi_bF_F     = q_b_F * b_F_F / (p * n_inter_F)
     phi_bD_F     = q_b_D * b_D_F / (p * n_inter_F)
     # GK multi-asset IC — see intermediation_IC_D for derivation.
@@ -282,10 +292,13 @@ def bank_return_F(theta_F, rk_F, rdep_F, b_F_F, b_D_F, n_inter_F,
 
 
 @simple
-def capital_fund_F(rk_F, rdep_F, Q_F, K_F, omega_K_F):
-    # Passive capital fund holds (1-omega_K)·K funded by deposits; rebates its spread
-    # (rk - rdep) on the lagged capital value to households (F-goods). Zero at omega_K=1.
-    div_fund_F = (rk_F - rdep_F(-1)) * Q_F(-1) * (1.0 - omega_K_F) * K_F(-1)
+def capital_fund_F(rk_F, rdep_F, Q_F, K_F, omega_K_F, fund_rule_F, K_fund_F):
+    # Passive capital fund funded by deposits; rebates its spread (rk - rdep) on the
+    # lagged capital value to households (F-goods). Zero when the fund is empty.
+    # fund_rule_F: 0 = fund holds (1-omega_K)·K, 1 = fund holds a constant K_fund.
+    K_fnd_lag_F = ((1.0 - fund_rule_F) * (1.0 - omega_K_F) * K_F(-1)
+                   + fund_rule_F * K_fund_F)
+    div_fund_F = (rk_F - rdep_F(-1)) * Q_F(-1) * K_fnd_lag_F
     return div_fund_F
 
 @simple
@@ -301,9 +314,11 @@ def intermediation_P1_F(rk_F, rb_actual_F, rb_actual_D, rdep_F,
     return nu_K_res_F, nu_bF_res_F, nu_bD_res_F, eta_res_F
 
 @simple
-def k_balance_sheet_F(Q_F, theta_F, n_inter_F, K_F, b_F_F, b_D_F, q_b_F, q_b_D, p, omega_K_F):
-    # Bank holds omega_K_F of the capital stock: omega_K·Q·K + bonds/p = theta·N.
-    K_res_F = omega_K_F * Q_F * K_F + (q_b_F * b_F_F + q_b_D * b_D_F) / p - theta_F * n_inter_F
+def k_balance_sheet_F(Q_F, theta_F, n_inter_F, K_F, b_F_F, b_D_F, q_b_F, q_b_D, p, omega_K_F,
+                      fund_rule_F, K_fund_F):
+    # Bank capital holding depends on fund_rule_F (see smart_steady_D).
+    K_bank_F = (1.0 - fund_rule_F) * omega_K_F * K_F + fund_rule_F * (K_F - K_fund_F)
+    K_res_F = Q_F * K_bank_F + (q_b_F * b_F_F + q_b_D * b_D_F) / p - theta_F * n_inter_F
     return K_res_F
 
 

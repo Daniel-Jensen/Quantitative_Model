@@ -73,24 +73,42 @@ collateral — if they were, the bank would lever further.
 **Guarded.** `steady_state.assert_gk_well_posed` runs inside `_apply_ss_anchors`,
 on every solved SS in both `steady_state.py` and `depreciation_calibration.py`.
 
-### Still blocking: dynamic instability
+### `omega_K` fixed (2026-07-31): fixed quantity, not fixed share
 
-Steady state is now correct; **dynamics are not**. `b_gov_D[499] ~ 1e2–1e3`
-against a ~1e-5 target. Measured amplification is `theta*phi_own = 13.17` vs
-`4.0*0.25 = 1.0` for the placeholder — a ~13× stronger leverage loop. It is
-neither the fiscal mode nor the collateral friction:
+`omega_K` as a fixed share made the passive fund hold `(1-omega_K)*K` always, so
+it mechanically mirrored bank deleveraging — dragging the other ~88% of the
+capital stock down with the bank's book. `dK/dN = theta/omega_K`.
 
-| Test | Result |
-|---|---|
-| `psi_lambda_B = 0` | still explosive, `b_gov[499] = -2038` |
-| `phi_lamb` 0.6 → 25 | **flat** (peak ~1.1e7bp at 0.6, 1.5 *and* 25) |
-| `mv_rule = 1` | does not fix it |
-| `chi1` 0 → 0.5 | peak spread **1.1e7bp → 6.0bp**, `b_gov[499]` −2038 → +70 |
-| `chi1` ∈ [0.2, 5.0] | `b_gov[499]` stays 70–560 — amplitude damped, root remains |
+**`fund_rule_D/F = 1`** (committed): the fund holds a constant `K_fund`, the bank
+is the marginal holder, `dK/dN = theta`. With `K_fund = (1-omega_K)*K_ss` the
+steady state is **identical** (`lambda_gk_D=+0.9271`, `Omega_D=+4.62`,
+`K_D=10.800` under both rules) — purely a dynamic change. Gain 47.1 → 5.5. At
+`omega_K=1` the rules coincide exactly, so the pre-EBA calibration is untouched.
 
-`chi1` (intermediary adjustment cost, currently 0) is the strongest lever and
-restores a sane spread, but no tested value removes the root. Three open routes
-in `docs/eba_calibration.md` → *Dynamic instability*.
+Helps substantially but does not stabilise alone: `b_gov[499]` −2.08e4 → −1.23e3
+at `psi_lambda_B=1` (17×), +398 → +225 at `psi_lambda_B=0`.
+
+### Still blocking: two measured amplifiers remain
+
+At `fund_rule=1`, `psi_lambda_B=0`:
+
+| bank block | `phi_own` | `b_gov[499]` |
+|---|---|---|
+| pre-EBA (`n=3.0, theta=4.0, omega_K=1`) | 0.25 | **−4.4e−08 stable** |
+| EBA (`n=0.41, theta=5.51`) | 0.25 | +1.85 |
+| EBA | 2.39 (measured) | +5.32e+02 |
+
+Thin measured net worth takes `b_gov[499]` from ~1e−8 to 1.85; measured
+concentration takes it 1.85 → 532. Both are *measured*, so neither can be tuned
+away — the model has to give. Routes in `docs/eba_calibration.md` →
+*What this forces*.
+
+**Ruled out** (evidence in `docs/eba_calibration.md`): fiscal feedback (flat in
+`phi_lamb` to 25), the collateral friction (present at `psi_lambda_B=0`),
+`mv_rule`, `Delta` (irrelevant to stability), and the sovereign-risk schedule —
+`def_scale` 0.25 → **0.00** makes it *worse* (−2.1e4 → −1.6e5), so flattening it
+(e.g. a bounded `tanh`) cannot help. `chi1` 0 → 0.5 cuts peak spread
+1.1e7bp → 6.0bp but removes no root.
 
 ### Secondary results
 

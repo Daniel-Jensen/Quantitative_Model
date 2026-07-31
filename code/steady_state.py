@@ -261,10 +261,13 @@ def solve_steady_state(calibration_start):
     omega_K_D_new = float(calibration_start['omega_K_D'])
     omega_K_F_new = float(calibration_start['omega_K_F'])
 
-    K_implied_D = (float(calibration_start['theta_D']) * n_D
-                   - target_phi_bD_D * n_D - target_phi_bF_D * n_D) / omega_K_D_new
-    K_implied_F = (float(calibration_start['theta_F']) * n_F
-                   - target_phi_bF_F * n_F - target_phi_bD_F * n_F) / omega_K_F_new
+    _fr = float(calibration_start['fund_rule_D'])
+    _bank_D = (float(calibration_start['theta_D']) - target_phi_bD_D - target_phi_bF_D) * n_D
+    _bank_F = (float(calibration_start['theta_F']) - target_phi_bF_F - target_phi_bD_F) * n_F
+    K_implied_D = ((1 - _fr) * _bank_D / omega_K_D_new
+                   + _fr * (_bank_D + float(calibration_start['K_fund_D'])))
+    K_implied_F = ((1 - _fr) * _bank_F / omega_K_F_new
+                   + _fr * (_bank_F + float(calibration_start['K_fund_F'])))
 
     print(f"  D-bank: phi_bD_D = {target_phi_bD_D:.3f}  phi_bF_D = {target_phi_bF_D:.3f}"
           f"  omega_K_D = {omega_K_D_new:.4f}")
