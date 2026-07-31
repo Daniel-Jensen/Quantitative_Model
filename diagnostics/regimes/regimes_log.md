@@ -89,3 +89,59 @@ Stage A (main) complete.
 - A6 (lottery, psi_lambda_B=0): branch peaks {'aggressive': 10.22, 'medium': 10.22, 'passive': 10.22} bp — aggressive<medium<passive ordering survives: NO (reported)
 
 Stage B-lite (main) complete.
+
+
+## Stage A run (MAIN model) — 2026-07-30 17:11:47
+
+## Cache build (main model) — 2026-07-30 17:13:18
+- calibration: psi_lambda_B=3.0, mv_rule=1.0, recovery_rate=0.3, kappa_cb_F=0.929
+- EL_price_D = 0.071743 (main recovery=0.30; NOT the ms-regime 0.102491 anchor)
+- 2026-07-30 17:13:18 solving G_tpi at psi_lambda_B=3.0 ...
+- model-build sanity: G_tpi[cb=0] vs baseline spread_rb max|err| = 0.00e+00 (expect <1e-8)
+- cross-check vs SA-1 probe: d(spread_rb)/d(cb_buy)[0,0] = -2.69964e-02 (probe found -1.9455e-2 → expect match; A_cb<0 = backstop COMPRESSES on main)
+  **MISSING OPTIONAL OUTPUT `G_D`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `ra_D`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `lambda_gk_D`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `GINI_WEALTH`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `GINI_C`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  note: output `div_fund_D` has no Jacobian column for `shock_def_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  note: output `div_fund_D` has no Jacobian column for `cb_buy_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+- 2026-07-30 17:13:41 solving G_tpi at psi_lambda_B=0.0 ...
+  **MISSING OPTIONAL OUTPUT `G_D`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `ra_D`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `lambda_gk_D`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `GINI_WEALTH`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `GINI_C`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  note: output `div_fund_D` has no Jacobian column for `shock_def_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  note: output `div_fund_D` has no Jacobian column for `cb_buy_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+- caches written: ['cache_G_main_psilam3p00.npz', 'cache_G_main_psilam0p00.npz']
+- passive peak spread: 124.0 bp ann (main is calibrated to ~151bp at psi_lambda_B=3.0; investigate if outside 120-180)
+- impact A_cb = d(spread)/d(cb_buy)[0,0] = -2.700e-02 (COMPRESSES (backstop works — SA-1 absent on main))
+
+
+## Stage A run (MAIN model) — 2026-07-30 17:34:09
+
+## Cache build (main model) — 2026-07-30 17:35:39
+- calibration: psi_lambda_B=3.0, mv_rule=0.0, recovery_rate=0.3, kappa_cb_F=0.929
+- EL_price_D = 0.071743 (main recovery=0.30; NOT the ms-regime 0.102491 anchor)
+- 2026-07-30 17:35:39 solving G_tpi at psi_lambda_B=3.0 ...
+- model-build sanity: G_tpi[cb=0] vs baseline spread_rb max|err| = 0.00e+00 (expect <1e-8)
+- cross-check vs SA-1 probe: d(spread_rb)/d(cb_buy)[0,0] = -2.40602e-02 (probe found -1.9455e-2 → expect match; A_cb<0 = backstop COMPRESSES on main)
+  **MISSING OPTIONAL OUTPUT `G_D`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `ra_D`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `lambda_gk_D`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `GINI_WEALTH`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `GINI_C`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  note: output `div_fund_D` has no Jacobian column for `shock_def_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  note: output `div_fund_D` has no Jacobian column for `cb_buy_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+- 2026-07-30 17:36:02 solving G_tpi at psi_lambda_B=0.0 ...
+  **MISSING OPTIONAL OUTPUT `G_D`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `ra_D`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `lambda_gk_D`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `GINI_WEALTH`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `GINI_C`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  note: output `div_fund_D` has no Jacobian column for `shock_def_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  note: output `div_fund_D` has no Jacobian column for `cb_buy_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+- caches written: ['cache_G_main_psilam3p00.npz', 'cache_G_main_psilam0p00.npz']
+- passive peak spread: 187.2 bp ann (main is calibrated to ~151bp at psi_lambda_B=3.0; investigate if outside 120-180)
+- impact A_cb = d(spread)/d(cb_buy)[0,0] = -2.406e-02 (COMPRESSES (backstop works — SA-1 absent on main))

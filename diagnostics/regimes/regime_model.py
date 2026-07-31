@@ -24,7 +24,28 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), "code"))
 LOG = os.path.join(HERE, "regimes_log.md")
 
-PSILAM_MAIN = 1.1793
+def _live_psilam():
+    """psi_lambda_B from the live calibration — this is BOTH the cache key and the
+    provenance anchor, so it must track calibration.py rather than be hardcoded.
+    Was hardcoded 1.1793 (the EBA-era 150bp-target value); after the 2026-07-30
+    pre-EBA revert the live value is 3.0 and a hardcoded anchor silently pointed at
+    a stale cache built under a different model. (code/ is already on sys.path from
+    the module-level insert above.)"""
+    from calibration import get_calibration  # noqa: PLC0415 - dynamic sys.path
+    return float(get_calibration()["psi_lambda_B_D"])
+
+
+PSILAM_MAIN = _live_psilam()
+
+# Linear-approximation-breakdown threshold. CALIBRATION-DEPENDENT: the 1.5 figure
+# previously hardcoded here was derived on the EBA calibration, whose thin bank net
+# worth (n_inter_D=0.408) pulls breakdown early. Under pre-EBA net worth
+# (n_inter_D=3.0) the documented breakdown region is psi_lambda_B ~4-5
+# (docs/eba_calibration.md, quoting the old FRAMING_HANDOFF §8), so 3.0 is inside
+# the documented-safe range for THIS calibration. Empirically corroborated by the
+# 2026-07-30 full-pipeline run at psi_lambda_B=3.0: smooth IRFs, stationary b_gov,
+# monotone TPI gamma-sweep, ~50bp spread. Re-derive this bound if net worth changes.
+PSILAM_BREAKDOWN = 4.0
 
 # Spec §8.1 output set, resolved against main's model. REQUIRED: hard error if absent.
 REQUIRED = ["spread_rb", "rb_D", "rb_F", "q_b_D", "q_b_F", "Y_D", "C_D", "I_D",
@@ -137,9 +158,13 @@ def build_caches(force=False):
     import tpi
 
     cal = get_calibration()
-    assert cal["psi_lambda_B_D"] < 1.5, ("HARD GUARD: psi_lambda_B >= 1.5 — main's "
-                                         "linear-approximation-breakdown region (STATE.md)")
-    assert abs(cal["psi_lambda_B_D"] - PSILAM_MAIN) < 1e-9, f"expected main default {PSILAM_MAIN}"
+    assert cal["psi_lambda_B_D"] < PSILAM_BREAKDOWN, (
+        f"HARD GUARD: psi_lambda_B >= {PSILAM_BREAKDOWN} — linear-approximation-"
+        "breakdown region for this net-worth calibration (see PSILAM_BREAKDOWN note)")
+    # Consistency, not provenance: PSILAM_MAIN is read from the same calibration, so
+    # this only fires if calibration.py changed under a live interpreter session.
+    assert abs(cal["psi_lambda_B_D"] - PSILAM_MAIN) < 1e-9, (
+        f"calibration drifted mid-run: live={cal['psi_lambda_B_D']} vs cache key {PSILAM_MAIN}")
     kappa_cb_F = float(cal["kappa_cb_F"])
 
     ssr = calibrate_depreciation(calibrate_ic_delta(solve_steady_state(cal)))

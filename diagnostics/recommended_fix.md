@@ -111,7 +111,7 @@ steady state, so the SS is **bit-for-bit unchanged** — no recalibration of
    `psi_lambda_B = 3` (baseline doom loop strengthens — you may want to
    recalibrate `psi_lambda_B` *down*, since it is now a pure amplifier) or whether
    `psi_lambda_B` is reduced so the baseline peak spread is unchanged.
-3. **Walras intact:** `audit_artifacts/run_audit.py` — `goods_mkt_F`,
+3. **Walras intact:** `code/main.py` — `goods_mkt_F`,
    `ca_res_D` still within thresholds (the fix moves only a common price, so they
    should be).
 4. **Fiscal stability:** re-map `phi_lamb` — `q_b` now responds to `def_rate`

@@ -23,10 +23,16 @@ nbstripout --install && nbdime config-git --enable
 
 ## Running and testing
 
-**Structural regression test** — run after any equation change; prints max Walras residuals across all shocks (~6 min total):
+**Structural regression test** — the full pipeline is the regression test. Run after any
+equation change and inspect the printed residuals:
 ```bash
-/opt/anaconda3/envs/ssj/bin/python audit_artifacts/run_audit.py
+/opt/anaconda3/envs/ssj/bin/python code/main.py
 ```
+
+> The former `audit_artifacts/` harness (`run_audit.py` + targeted scripts and JSON logs)
+> was removed on 2026-07-30. It carried its own hardcoded copy of the calibration rather
+> than importing `get_calibration()`, so it silently tested a *different* model than
+> `code/main.py` and its results were misleading. Recover from git history if needed.
 
 **Acceptance thresholds** (from `docs/verification_report.md`):
 - `goods_mkt_D` ≤ 1e−14
@@ -34,13 +40,9 @@ nbstripout --install && nbdime config-git --enable
 - `ca_res_D` ≤ 1e−7
 - `deposit_mkt_D/F` ≤ 1e−13
 
-**Targeted audit scripts:**
-```bash
-/opt/anaconda3/envs/ssj/bin/python audit_artifacts/fix_test.py        # W-1/W-2 Walras repair
-/opt/anaconda3/envs/ssj/bin/python audit_artifacts/tpi_test.py        # TPI CB accounting
-/opt/anaconda3/envs/ssj/bin/python audit_artifacts/philamb_test.py    # phi_lamb stability sweep
-/opt/anaconda3/envs/ssj/bin/python audit_artifacts/bankcal_stability_test.py  # low-amplification probe
-```
+**Targeted audit scripts:** removed with `audit_artifacts/` (2026-07-30). The findings they
+produced are recorded in `docs/audit.md` and `docs/STATE.md`; the scripts themselves are in
+git history (last present at `0c99013`).
 
 Each Jacobian solve at current calibration (T=500) takes ~3 min.
 
@@ -69,9 +71,8 @@ The legacy `code/model_v12.ipynb` has been removed; the modular pipeline above (
 
 ### Audit artifacts
 
-- `audit_artifacts/run_audit.py` — full regression pipeline (the canonical post-fix verification tool)
-- `audit_artifacts/*.py` — targeted tests for individual bugs (W-1/W-2, TPI-1, phi_lamb sweep)
-- `audit_artifacts/*.json` — result logs from each audit run
+Removed 2026-07-30 (see *Running and testing*). `code/main.py` is now the only regression
+path; findings live in `docs/audit.md` and `docs/STATE.md`.
 
 ## Key modelling choices
 
@@ -96,9 +97,9 @@ See `docs/STATE.md` for the full calibration table. Key tensions:
 | Issue | Description |
 |-------|-------------|
 | **C-1** | **RESOLVED (2026-07-22).** Was: `Delta_cross=1.45>1`, back-solved divertable fraction exceeds 1, multi-asset IC degenerate. Fixed at its root: `steady_auxilliary_D/F` now solve `lambda_gk` from the multi-asset IC directly; `Delta_bD_D/F=0.2/0.4` are genuine hardcoded inputs, verified to bind exactly. See `docs/eba_calibration.md`. |
-| **S-1** | `writeoff_enabled=0`: default shock produces no realized bank losses. Model is currently a pure risk-premium loop. Enabling writeoff (`writeoff_enabled=1`, `recovery_rate=0.40`) gives the balance-sheet doom loop. Author decision pending — **now coupled to F-1: with the market-value fiscal rule, writeoff must stay OFF (risk-premium framing), else the default response is perverse.** Also coupled to `recovery_rate_D/F` currently being a placeholder (0.00, not the actual Greek PSI ~25-35%) — see `docs/STATE.md` issue EL-1. |
-| **Calibration** | EBA 2011 bank-sovereign concentration (`phi_bD_D_ss=2.39` etc.) and `psi_lambda_B=1.1284` (data-disciplined to the 150bp spread target, 2026-07-22) are now live — see `docs/eba_calibration.md`. `delta_b_D/F=0.10` (2.5yr) is still empirically too short; target is `0.036/0.038` (7yr/6.5yr GR/DE), not yet ported. **`psi_lambda_B` must not be raised above ~1.5-2.0 without re-checking stability — the model enters a linear-approximation-breakdown region there on the current calibration (both the pre-EBA value 2.8 and the original default 3.0 now sit inside it).** |
-| **F-1** | Re-tested 2026-07-22 on the C-1-fixed, EBA-anchored model with a validated (order-selected Prony/eigenvalue) stability estimator — the original energy-ratio-proxy estimate was itself found to be an overfitting artifact partway through. Result: the market-value rule (`mv_rule_D/F`, default 0=par, currently committed at 1) is stable across nearly all of `phi_lamb∈[0.05,0.25]` with empirical long-duration bonds, except a narrow, mild zone around `phi_lamb≈0.15-0.18` — do not reuse the pre-fix "`phi_lamb≈0.10`" plateau claim, it sits inside a range not re-confirmed at the old paper's exact risk-premium parameterization. See `docs/STATE.md` Finding F-1 for all three re-test rounds. |
+| **S-1** | `writeoff_enabled=0`: default shock produces no realized bank losses. Model is a pure risk-premium loop. Author decision pending. `recovery_rate_D/F=0.30` (EL-1, Greek PSI NPV framing) is live but, with writeoff off, acts **only** through `EL_price` — the realized-haircut terms in `bond_return`/`government_ss`/`budget_residual` are all gated by `writeoff_enabled`. Measured 2026-07-30: `EL_price_D=0.0717` vs `psi_spread_D=0.8385`, so the fundamental expected loss is only **10.9%** of the total default loading and the collateral friction is the other 89%. |
+| **Calibration** | **Reverted to pre-EBA values 2026-07-30** (`psi_lambda_B=3.0`, `n_inter=3.0`, `omega_K=1.0`, `phi_lamb=0.15`, `mv_rule=0`, cross-holdings `0.25`), keeping all structural fixes and the EL-1 `recovery_rate=0.30`. The EBA 2011 anchoring (`phi_bD_D_ss=2.39`, `psi_lambda_B=1.1793`) is **no longer live** — `docs/eba_calibration.md` is now historical. Spread response is **187.2bp annualised** per 1pp default shock vs the paper's 150bp target (~25% over). `delta_b=0.10` (2.5yr) is still empirically short; `0.036/0.038` (7yr/6.5yr) requires `mv_rule=1` (see F-1). **The `psi_lambda_B<1.5` breakdown warning was EBA-specific** (thin net worth `n_inter=0.408`); at pre-EBA `n_inter=3.0` the documented breakdown region is ~4-5 and 3.0 runs clean. |
+| **F-1** | `mv_rule_D/F` **committed at 0 (par)**. The near-unit-root zone `phi_lamb≈0.15-0.18` that F-1 identified under `mv_rule=1` is **not mild — it is a hard break**, measured directly 2026-07-30: `mv_rule=1` at the pre-EBA `phi_lamb=0.15` gives `n_inter_D[0]=-1554%`, `Y_D[0]=+0.17%` (perverse sign), `b_gov_D[499]=1.6e-2`. It needs `phi_lamb=0.60` to stay healthy (`n_inter_D[0]=-5.89%`, `Y_D[0]=-0.024%`, `b_gov_D[499]=0.0`). **`mv_rule=1` and `phi_lamb=0.15` are not a usable pair** — porting empirical duration is a two-parameter move. See `docs/STATE.md` Finding F-1. |
 
 ## Typical iteration
 
@@ -106,8 +107,8 @@ See `docs/STATE.md` for the full calibration table. Key tensions:
 2. Re-run the pipeline: `/opt/anaconda3/envs/ssj/bin/python code/main.py` (calibration → steady state → Jacobian → IRFs → TPI).
 3. Inspect residuals: `goods_mkt_D`, `goods_mkt_F`, `ca_res_D`, `deposit_mkt_D/F` — all ≤ 1e−7.
 4. Verify default shock: `n_inter_D[0]` and `Y_D[0]` must both fall (positive = timing bug).
-5. Run `audit_artifacts/run_audit.py` to confirm no regression.
-6. Update the living docs after any calibration or structural change — **STATE.md, PROGRESS.md (changelog entry), HANDOFF.md** (not just CLAUDE.md). A pre-commit hook enforces this on code commits (see `docs/PROCESS.md` → *Doc-sync policy*).
+5. Confirm the IC-δ consistency check and Walras residuals printed by `main.py` are unchanged.
+6. Update the living docs after any calibration or structural change — **STATE.md, PROGRESS.md (changelog entry), HANDOFF.md** (not just CLAUDE.md). Doc-sync policy: every commit touching `code/**` or `*.py` gets a PROGRESS.md entry. (`docs/PROCESS.md` was retired 2026-07-30, superseded by PROGRESS.md; note the pre-commit hook is documented but is **not** currently installed in `.git/hooks`, so this is convention, not enforcement.)
 7. Commit the changed `.py` files, with the doc updates in the same commit.
 
 ## Docs reference
@@ -115,10 +116,9 @@ See `docs/STATE.md` for the full calibration table. Key tensions:
 | File | Contains |
 |------|----------|
 | `docs/STATE.md` | Current calibration table, Walras residuals, open issues, next priorities |
-| `docs/PROGRESS.md` | Changelog — dated development timeline (git history + findings); pre-commit hook requires an entry per code commit |
+| `docs/PROGRESS.md` | Changelog — dated development timeline (git history + findings); one entry per code commit (convention; hook not installed) |
 | `docs/SPEC.md` | Research goals, functional requirements, modelling choices, calibration targets, **and the paper's theoretical framing/narrative** (merged in from the retired `docs/FRAMING_HANDOFF.md`) |
-| `docs/eba_calibration.md` | EBA 2011 parameter→moment map; the C-1 structural fix; `psi_lambda_B` recalibration and its breakdown-region warning |
-| `docs/PROCESS.md` | Workflow, debugging steps, EBA verification assertions |
+| `docs/eba_calibration.md` | **Historical** (calibration reverted 2026-07-30): EBA 2011 parameter→moment map; the C-1 structural fix (still live); `psi_lambda_B` recalibration and its EBA-specific breakdown warning |
 | `docs/HANDOFF.md` | Quick-start, session priorities, important file locations |
 | `docs/audit.md` | Master audit log: all findings ranked by severity, fix history, open hypotheses |
 | `docs/walras_forensics.md` | Analytical derivation of all three Walras leaks and their proofs |

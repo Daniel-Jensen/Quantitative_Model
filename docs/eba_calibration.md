@@ -129,8 +129,9 @@ all `@simple` return statements on one line.
 **Consequence for stability:** this also resolved the "explosive root" reported
 below as intrinsic to the EBA calibration -- see the update note at the top of
 this section. `run_audit.py`'s IC/Walras/sign checks (frozen pre-EBA calibration)
-and `code/main.py`'s live EBA pipeline both confirm the fix; see
-`audit_artifacts/run_audit.py`'s `check()` output for the regression harness.
+and `code/main.py`'s live EBA pipeline both confirmed the fix at the time.
+(`audit_artifacts/` removed 2026-07-30 — that frozen-calibration divergence is
+exactly why; `code/main.py`'s IC-δ consistency check is now the live check.)
 
 *Ruled out:* using EBA **total-asset** leverage as `θ` (GR 16.56, DE 42.62). `θ` multiplies
 only the GK book (capital+sovereign), whereas EBA total assets include low-yield

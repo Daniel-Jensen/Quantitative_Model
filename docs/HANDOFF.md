@@ -12,8 +12,23 @@
   open issues.
 - Read `docs/SPEC.md` for the paper's theoretical framing and research goals
   (merged in from the now-retired `docs/FRAMING_HANDOFF.md`).
-- Read `docs/eba_calibration.md` for the EBA-2011-anchored calibration
-  derivation, the C-1 structural fix, and the `psi_lambda_B` recalibration.
+- Read `docs/eba_calibration.md` for the C-1 structural fix (still live) and the
+  EBA-2011 calibration derivation — **historical**: the calibration was reverted
+  to pre-EBA values on 2026-07-30.
+
+> **Current state (2026-07-30).** Calibration is **pre-EBA** (`psi_lambda_B=3.0`,
+> `n_inter=3.0`, `omega_K=1.0`, `phi_lamb=0.15`, `mv_rule=0`, cross-holdings 0.25),
+> keeping all structural fixes plus EL-1's `recovery_rate=0.30`. Verified clean
+> end-to-end. Spread 187.2bp ann vs 150bp target. See `docs/STATE.md` → *CURRENT
+> CALIBRATION* for the full table.
+>
+> **Open items:** (1) `diagnostics/regimes/` aborts — `gamma_for_compression`
+> requires global monotonicity of `peak(γ)` on `linspace(0,60,61)`; it holds on
+> `[0,25]` but ticks up 1.1bp at γ=30. Targets are at γ≈1.6/5.1, so narrowing `hi`
+> to 25 fixes it. (2) `run_regimes.py:75` hardcodes `"mv_rule=1"` in its provenance
+> string — now false. (3) `psi_lambda_B=3.0` overshoots the 150bp target by ~25%;
+> retuning is unfinished business. (4) `delta_b=0.10` still short of the empirical
+> 7yr/6.5yr — porting it needs `mv_rule=1` **and** `phi_lamb=0.60` together.
 
 ## Quick start
 
@@ -29,10 +44,11 @@ pip install sequence-jacobian numpy scipy matplotlib nbstripout nbdime
 nbstripout --install && nbdime config-git --enable
 ```
 
-Regression test after any equation change (~6 min):
+Regression test after any equation change — the full pipeline is the regression test:
 ```bash
-/opt/anaconda3/envs/ssj/bin/python audit_artifacts/run_audit.py
+/opt/anaconda3/envs/ssj/bin/python code/main.py
 ```
+(`audit_artifacts/` was removed 2026-07-30; it tested a hardcoded calibration, not `get_calibration()`.)
 
 ## Latest session (2026-07-24)
 
@@ -58,7 +74,7 @@ Regression test after any equation change (~6 min):
   `.claude/hooks/require-docs-before-commit.sh`): blocks committing model/code
   changes unless STATE.md, PROGRESS.md, HANDOFF.md are updated in the same commit.
 - **Created `docs/PROGRESS.md`** — a comprehensive changelog reverse-engineered from
-  the 135-commit git history + STATE/audit/EBA docs (`PROCESS.md`'s old "Version
+  the 135-commit git history + STATE/audit/EBA docs (the retired `PROCESS.md`'s old "Version
   history" moved here). PROGRESS is now the hook's required changelog; PROCESS stays
   the (rarely-changing) workflow doc.
 
@@ -145,15 +161,11 @@ consequential for the paper right now:
 | `docs/STATE.md` | Current model status, calibration table, open issues |
 | `docs/SPEC.md` | Research goals, modelling choices, **and paper theoretical framing** |
 | `docs/eba_calibration.md` | EBA parameter→moment map; C-1 fix; `psi_lambda_B` recalibration |
-| `docs/PROCESS.md` | Workflow, debugging, regression test |
 | `docs/audit.md` | Master audit log (ranked findings, fix history) |
 | `docs/verification_report.md` | Post-fix verification with numerical evidence |
 | `docs/bank_cal_review.md` | bank-cal branch analysis; remaining calibration porting roadmap |
 | `docs/walras_forensics.md` | Analytical Walras derivation; all leaks proven |
-| `audit_artifacts/run_audit.py` | Full Walras/sign/C-1 regression pipeline |
-| `audit_artifacts/psilam_moment_sweep_postC1.py` | `psi_lambda_B` moment-matching sweep |
-| `audit_artifacts/philamb_sweep_postC1_fine_v2.py` | Finding F-1 stability re-test (order-selected Prony estimator) |
-| `audit_artifacts/pac_sweep.py` | Finding F-2: ring eigenvalue vs PAC (Prony complex-pair extractor) |
+| ~~`audit_artifacts/*`~~ | Removed 2026-07-30 — regression harness, `psi_lambda_B` sweep, F-1/F-2 estimators. Results retained in `docs/STATE.md`; scripts in git history at `0c99013`. |
 | `code/tpi_plots.py`, `code/irf_plots.py` | Figure-generation scripts (regenerate from `main`) |
 | Overleaf | https://www.overleaf.com/project/698b4f88aeef1d0e1d08cc0c |
 

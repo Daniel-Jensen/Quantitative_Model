@@ -6,9 +6,89 @@ git history (135 commits, first commit 2026-05-14), `docs/STATE.md`,
 `docs/audit.md`, `docs/eba_calibration.md`, and `docs/HANDOFF.md` — the detailed
 derivations live in those docs; this file is the timeline.
 
-Convention: `[hash]` is a commit on `main`; dates are commit dates. A pre-commit
-hook (see `docs/PROCESS.md` → *Doc-sync policy*) requires an entry here for every
-commit that touches model/code (`code/**`, `audit_artifacts/**`, `*.py`).
+Convention: `[hash]` is a commit on `main`; dates are commit dates. Doc-sync
+policy: every commit touching model/code (`code/**`, `*.py`) gets an entry here.
+(The pre-commit hook that was meant to enforce this is documented but not
+installed in `.git/hooks` — treat it as convention.)
+
+---
+
+## 2026-07-30 — revert calibration to pre-EBA; drop audit_artifacts; F-1 hard-break measured  [this commit]
+
+**Calibration reverted to the pre-EBA values** in force at `abcbb6e` (the last commit
+before the EBA work began at `eade414`). Verified parameter-by-parameter against that
+commit: the only additions are `omega_K_D/F=1.0`, which is the structural no-op
+(capital fund empty, `div_fund=0`, so the pre-EBA balance sheet is recovered exactly).
+
+| Parameter | EBA | now |
+|---|---|---|
+| `psi_lambda_B_D/F` | 1.1793 | **3.0** |
+| `n_inter_D/F` | 0.408 / 0.175 | **3.0 / 3.0** |
+| `omega_K_D/F` | 0.0602 / 0.0190 | **1.0 / 1.0** |
+| `B_supply`/`b_gov`/`b_gov_ss` | 1.19 / 0.591 | **2.4** |
+| `phi_lamb_D/F` | 0.60 | **0.15** |
+| `mv_rule_D/F` | 1.0 | **0.0** (par) |
+| `phi_bF_D_ss` / `phi_bD_F_ss` | 0.018 / 0.069 | **0.25 / 0.25** |
+| portfolio targets (`steady_state.py`) | 2.39/0.018/0.069/2.76 | **0.25/0.15/0.15/0.25** |
+
+**All structural fixes retained** — C-1 (multi-asset `lambda_gk`), W-1/W-2/W-3, T-2, A-2,
+TPI-1, the `omega_K` generalisation and the capital-key conduit are untouched. Only
+parameter values moved. `recovery_rate_D/F=0.30` (EL-1) was **kept**, not reverted: 0.00
+asserts a counterfactual 100% loss-given-default.
+
+**Verified end-to-end** (`code/main.py`, exit 0): `n_inter_D[0]=-3.0009%`,
+`Y_D[0]=-0.0261%` (both negative ✓); `b_gov_D[499]=-1.3e-5` (default) / `+7.8e-5` (TFP);
+`rho_b=0.8451`; IC-δ exact at 0.2000/0.4000; `max|ca_res_D|=6.3e-8`,
+`max|goods_mkt_F|=1.1e-9`. TPI peak spread monotone in γ: 0.468→0.330→0.236→0.163 pp.
+
+**Finding F-1 sharpened — the `[0.15,0.18]` zone is a hard break, not a mild one.**
+Measured directly by switching `mv_rule` on the otherwise-pre-EBA calibration:
+
+| `phi_lamb` | `mv_rule` | `n_inter_D[0]` | `Y_D[0]` | `b_gov[499]` | spread |
+|---|---|---|---|---|---|
+| 0.15 | 1 | **-1554.0%** | **+0.170%** ✗ | 1.6e-2 | 124.0bp |
+| 0.60 | 1 | -5.89% | -0.024% ✓ | 0.0 | 219.8bp |
+| 0.15 | 0 | -3.00% | -0.026% ✓ | -1.3e-5 | 187.2bp |
+
+`mv_rule=1` and `phi_lamb=0.15` are **not a usable pair**. Porting empirical duration
+(`delta_b=0.036/0.038`) is therefore a two-parameter move, not one.
+
+**Default-loading decomposition measured.** `EL_price_D=0.0717` vs `psi_spread_D=0.8385`
+(= `lambda_gk*psi_lambda_B/(beta_inter*Omega)` = 1.8031*3.0/(0.9975*6.4670)): the
+fundamental expected loss is only **10.9%** of the total default loading; the GK
+collateral friction is **89%**. Quantifies S-1 — the model is an amplification story,
+not a credit-loss story. Consequence: `recovery_rate` 0.00→0.30 moves the loading by
+3.3% partial / 6.0% in GE (peak spread 199.2→187.2bp ann).
+
+**Units correction:** `spread_rb` is a *quarterly* rate deviation; the 150bp target is
+annualised. Annualise with ×4×1e4 (`BP_ANN` in `run_regimes.py`). At `psi_lambda_B=3.0`
+the model gives **187.2bp ann**, i.e. ~25% *over* target — not under.
+
+**`audit_artifacts/` deleted (30 files).** `run_audit.py` carried its own hardcoded copy
+of the calibration instead of importing `get_calibration()`, so it silently tested a
+different model than `code/main.py` — its `ca_res_D` "regression failure" (1.479e-7 vs
+1e-7) is reproduced exactly by the committed baseline artifact and predates any change
+here. The `ms-regime` branch had already deleted it for the same reason (`2fa1b55`).
+`code/main.py` is now the only regression path. Doc references updated; historical
+provenance citations in finding write-ups left verbatim under a deprecation note.
+
+**`diagnostics/regimes/` — two fixes and one open blocker.** `PSILAM_MAIN` was hardcoded
+to `1.1793` while serving as **both** the guard and the **cache filename key**, so it
+pointed at a stale cache built under a different model; it now reads the live
+calibration. The `psi_lambda_B<1.5` guard was EBA-specific (thin net worth) and is now
+`PSILAM_BREAKDOWN=4.0` for pre-EBA net worth. Open: `gamma_for_compression` scans
+`linspace(0,60,61)` and requires *global* monotonicity; at the current calibration
+`peak(γ)` is monotone on `[0,25]` and ticks up 1.1bp at γ=30 (81% compression,
+saturation), so the run still aborts. Targets sit at γ≈1.6 (25%) and γ≈5.1 (50%) — far
+inside the monotone region; narrowing `hi` to 25 would fix it (bisection only needs
+monotonicity on its bracketing interval). **`run_regimes.py:75` hardcodes `"mv_rule=1"`
+in its JSON provenance string — now false.** Note the regimes feature has *no*
+structural `mv_rule` dependence; `A_cb=-2.406e-2` (compression) holds at `mv_rule=0`, so
+SA-1 does not recur.
+
+**`docs/PROCESS.md` deleted** — superseded by PROGRESS.md at `0c99013`; dangling
+references in CLAUDE.md/HANDOFF.md/PROGRESS.md fixed. The doc-sync pre-commit hook is
+documented but **not installed** in `.git/hooks`.
 
 ---
 

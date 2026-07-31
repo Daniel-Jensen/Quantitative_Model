@@ -28,7 +28,7 @@ Build a tractable two-country general equilibrium model with heterogeneous house
 - `code/equations_global.py` — global goods market, external account, bond clearing, portfolio adjustment costs
 - `code/main.py` — production pipeline: calibration → SS solve → Jacobian → IRFs → TPI experiment (orchestrates `calibration.py`, `steady_state.py`, `full_model.py`, `tpi.py`)
 - `routines/` — auxiliary: grid construction, income Markov chain, Gini calculation
-- `audit_artifacts/` — forensic audit reproduction scripts and result logs (see `docs/audit.md`)
+- ~~`audit_artifacts/`~~ — removed 2026-07-30; findings retained in `docs/audit.md` and `docs/STATE.md`
 - `plots/` — output figures (TPI welfare and spread panels)
 
 ## Research objectives

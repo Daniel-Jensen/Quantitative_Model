@@ -2,6 +2,45 @@
 
 **Branch:** `main` | **Date:** 2026-07-22 | **Status:** EBA-anchored calibration + C-1 structural fix (see below); post-forensic-audit baseline still applies underneath
 
+## CURRENT CALIBRATION (2026-07-30) — supersedes every table below
+
+**The calibration was reverted to its pre-EBA values.** Everything below this section
+describes the EBA-anchored calibration and is now **historical**. Structural fixes
+(C-1, W-1/W-2/W-3, T-2, A-2, TPI-1, `omega_K`, capital-key conduit) are all retained —
+only parameter values moved.
+
+| Parameter | Value | Note |
+|---|---|---|
+| `psi_lambda_B_D/F` | 3.0 | pre-EBA default; gives 187.2bp ann vs 150bp target (~25% over) |
+| `n_inter_D/F` | 3.0 (=0.75×4) | bank net worth, 0.75 of annual GDP |
+| `omega_K_D/F` | 1.0 | capital fund empty (`div_fund=0`) — pre-EBA balance sheet exactly |
+| `phi_lamb_D/F` | 0.15 | minimum stabilising value under the par rule |
+| `mv_rule_D/F` | 0 (par) | see Finding F-1 below — **1 is unusable at `phi_lamb=0.15`** |
+| `recovery_rate_D/F` | 0.30 | EL-1 **retained**; live only via `EL_price` while `writeoff_enabled=0` |
+| `delta_b_D/F` | 0.10 | 2.5yr; empirical 7yr/6.5yr still not ported (needs `mv_rule=1`) |
+| portfolio targets | 0.25/0.15/0.15/0.25 | `steady_state.py`; EBA's 2.39/0.018/0.069/2.76 retired |
+
+**Verified end-to-end** (`code/main.py`, exit 0): `n_inter_D[0]=-3.0009%`,
+`Y_D[0]=-0.0261%`; `b_gov_D[499]=-1.3e-5`; `rho_b=0.8451`; IC-δ exact;
+`max|ca_res_D|=6.3e-8`, `max|goods_mkt_F|=1.1e-9`; TPI monotone in γ.
+
+**Finding F-1 sharpened.** The `phi_lamb∈[0.15,0.18]` zone identified under `mv_rule=1`
+is a **hard break**, not the "narrow, mild zone" described below. Measured directly:
+`mv_rule=1` + `phi_lamb=0.15` → `n_inter_D[0]=-1554%`, `Y_D[0]=+0.170%` (perverse sign),
+`b_gov_D[499]=1.6e-2`. `mv_rule=1` needs `phi_lamb=0.60` (→ `-5.89%` / `-0.024%` / `0.0`).
+
+**Default-loading split.** `EL_price_D=0.0717` vs `psi_spread_D=0.8385` → fundamental
+expected loss is **10.9%** of the default loading, GK collateral friction **89%**.
+
+**Units.** `spread_rb` is a *quarterly* rate deviation; annualise ×4×1e4 for comparison
+with the 150bp target.
+
+> **Note:** `audit_artifacts/` was removed 2026-07-30 — the harness carried its own
+> hardcoded copy of the calibration instead of importing `get_calibration()`, so it
+> silently tested a different model than `code/main.py`. Every `audit_artifacts/*`
+> path cited below is **historical provenance** (what was run at the time), not a
+> live command. Scripts recoverable from git history at `0c99013`.
+
 ## EBA calibration + C-1 fix (2026-07-22) -- current state supersedes the sections below
 
 Everything from here to "What is complete (post-audit)" describes the state as of
