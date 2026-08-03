@@ -150,3 +150,62 @@ def write_results(name, payload):
     with open(path, "w") as fh:
         json.dump(payload, fh, indent=2, default=_json_default, allow_nan=False)
     return path
+
+
+def load_cache(psilam=None):
+    """Load the response-matrix cache for the live calibration."""
+    from regime_model import load_cache as _load, _live_psilam
+    return _load(_live_psilam() if psilam is None else psilam)
+
+
+def cache_outputs(cache):
+    """Names of every output cached with a cb_buy_D column."""
+    return sorted({k.split("__")[0] for k in cache if k.endswith("__cb_buy_D")})
+
+
+def irf_from_cache(cache, cb_path, eps):
+    """Closed-loop IRF: response = M_def @ eps + M_cb @ cb_path.
+
+    Mirrors run_regimes.irf_all so the two agree by construction.
+    """
+    out = {}
+    for name in cache_outputs(cache):
+        out[name] = (cache[f"{name}__shock_def_D"] @ eps
+                     + cache[f"{name}__cb_buy_D"] @ cb_path)
+    out["cb_buy_D"] = np.asarray(cb_path)
+    return out
+
+
+def named_regime_gammas(cache):
+    """passive / medium / aggressive, with gamma SOLVED for peak-spread compression.
+
+    Solved rather than chosen so the regimes keep their meaning across
+    recalibrations, instead of a round number drifting into a different policy
+    stance. Targets are spec section 7: 25% (medium), 50% (aggressive).
+    """
+    from lottery_math import gamma_for_compression
+    A_def = cache["spread_rb__shock_def_D"]
+    A_cb = cache["spread_rb__cb_buy_D"]
+    eps = np.asarray(cache["dShock_def_D"])
+    assert float(A_cb[0, 0]) < 0.0, (
+        f"A_cb[0,0]={float(A_cb[0,0]):+.4e} >= 0: CB purchases WIDEN the spread, so "
+        "compression targeting is infeasible. This is the ms-regime SA-1 pathology, "
+        "which must be absent on main — investigate before reporting anything.")
+    return {
+        "passive": 0.0,
+        "medium": float(gamma_for_compression(A_def, A_cb, eps, target=0.25)),
+        "aggressive": float(gamma_for_compression(A_def, A_cb, eps, target=0.50)),
+    }
+
+
+def regime_irfs(cache):
+    """{regime_name: (gamma, irf_dict)} for the three named regimes."""
+    from lottery_math import closed_loop
+    A_def = cache["spread_rb__shock_def_D"]
+    A_cb = cache["spread_rb__cb_buy_D"]
+    eps = np.asarray(cache["dShock_def_D"])
+    out = {}
+    for name, gamma in named_regime_gammas(cache).items():
+        _spread, cb = closed_loop(A_def, A_cb, eps, gamma)
+        out[name] = (gamma, irf_from_cache(cache, cb, eps))
+    return out

@@ -14,7 +14,51 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
-## 2026-08-03 — `experiments/` package: cache schema v2 (call-time fingerprint)  [this commit]
+## 2026-08-03 — E2: ΔY decomposition against the `market_clearing_D` identity  [this commit]
+
+`experiments/e2_dy_decomposition.py` + `experiments/test_e2_identity.py`, and five
+cache/IRF helpers appended to `experiments/common.py` (`load_cache`,
+`cache_outputs`, `irf_from_cache`, `named_regime_gammas`, `regime_irfs`). The
+named regimes are canonical: γ is **solved** for 0/25/50% peak-spread compression
+(0 / 5.0798 / 12.7260), not chosen as round numbers, so the regimes keep their
+meaning across recalibrations.
+
+**Self-verifying by construction.** The decomposition is the linearised
+`market_clearing_D` identity `dY = P_ss·dC + C_ss·dP + dI + dG + dΦ + dT + dNX`,
+and `goods_mkt_D` is a *targeted* solver residual, so the components must sum to
+`dY` to solver tolerance. Achieved **5.8e−17 / 1.1e−16 / 1.5e−16** against a 1e−7
+assertion that halts rather than warns.
+
+**Finding — the headline output number is the residue of two much larger
+offsetting channels.** Passive → aggressive, `dY[0]` moves +4.87e−04 while
+investment moves +2.16e−03 and net exports −1.85e−03, each ~4× the headline and
+opposite in sign. This confirms `docs/SPEC.md`'s standing caution ("a small
+headline output number can be *only* small because two large channels are netting
+out — and they land on different households") **as a measured property of this
+calibration**, and settles the gate it placed on the trade-channel claim.
+
+**The `Y_D[0] > 0` watch item is answered.** `dY[0]` = −0.0149 / +0.0111 /
++0.0338 % of SS. The proximate driver of the sign flip is **consumption quantity,
+not investment**: at `medium`, investment is still negative on impact and output
+is positive only because consumption outweighs it. Consumption is already positive
+on impact at `passive` with no backstop, so it is not manufactured by the policy
+rule — which argues against pure linear-rule overshoot. But the magnitudes
+(0.01–0.03% of SS) are small differences of much larger terms and should not be
+leaned on. Full table in `docs/STATE.md`.
+
+`Phi_D` and `G_D` are **verified** zero rather than merely uncached: `Phi_D` has
+no Jacobian column (the portfolio adjustment cost is quadratic about its anchor,
+so its level deviation is second-order), and `G_D` is absent from `G_tpi.outputs`
+because government spending is constant. The identity closes *because* both are
+genuinely zero. Cache rebuilt under schema 2 (7m27s); `G_tpi[cb=0]` vs baseline
+`max|err| = 0.00e+00`.
+
+Also noted: `EL_price_D` is **0.056134** at the live calibration, not the `0.0717`
+still quoted in older doc sections and CLAUDE.md — that figure predates the EBA
+`delta_b`/`q_b`. It is the TPI loading's denominator, so it must be re-derived
+wherever quoted, not copied. Not fixed in this commit.
+
+## 2026-08-03 — `experiments/` package: cache schema v2 (call-time fingerprint)
 
 First commit of the new `experiments/` package (branch `experiments`), which will
 produce the paper's standard policy results on top of the regimes cache layer.

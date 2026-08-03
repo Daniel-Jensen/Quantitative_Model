@@ -30,6 +30,68 @@ wrong-but-plausible-number failure mode this package exists to prevent, one laye
 up. `common.write_results` now refuses to serialise `NaN`/`Infinity`
 (`allow_nan=False`) rather than writing a token most JSON parsers reject.
 
+**Cache rebuilt under schema 2 (2026-08-03), 7m27s.** `G_tpi[cb=0]` vs the
+baseline Jacobian `max|err| = 0.00e+00`; `A_cb[0,0] = -1.88891e-02` (backstop
+compresses); `n_inter_D[0] = -3.3804% of SS`, `Y_D[0] = -0.0149% of SS`,
+`b_gov_D[499] = 1.4e-05`, `ρ_b = 0.8451` — all identical to the committed
+`code/main.py` baseline. SS block residuals all `< 1e-8`; SS goods residuals
+`goods_mkt_D = -4.25e-07`, `goods_mkt_F = -4.19e-07`, `ca_res_D = 6.85e-17`,
+matching the baseline run exactly.
+
+> Two outputs are **zero-filled, and verified so rather than assumed**: `Phi_D`
+> has no Jacobian column (the portfolio adjustment cost is quadratic about its
+> anchor, so its level deviation is second-order and vanishes to first order), and
+> `G_D` is absent from `G_tpi.outputs` entirely (government spending is constant).
+> Both are genuinely zero, which is why E2's identity still closes.
+
+> **Stale number, noted not fixed.** `EL_price_D` at the live calibration is
+> **0.056134**, not the `0.0717` quoted in this file's older sections and in
+> CLAUDE.md. 0.0717 was computed at the pre-EBA `delta_b=0.10` and `q_b=0.83`;
+> the live EBA values are `delta_b_D=0.0777006` and `q_b_D=0.968941`, giving
+> `(1-0.30)*0.0777006/0.968941 = 0.056134`. Anywhere `EL_price` is quoted as a
+> denominator (the TPI loading), re-derive it rather than reusing 0.0717.
+
+### E2 — ΔY decomposition (2026-08-03) — **DONE**
+
+`experiments/e2_dy_decomposition.py`. Decomposes the output response against the
+`market_clearing_D` identity `Y_D = P_CES_D·C_D + I_D + G_D + Φ_D + T_D + NX_D`.
+Self-verifying, since `goods_mkt_D` is a targeted residual: **closure achieved at
+5.8e−17 / 1.1e−16 / 1.5e−16** across the three regimes, against a 1e−7 assertion.
+
+Impact (t=0) level deviations, by regime:
+
+| component | passive | medium | aggressive |
+|---|---|---|---|
+| consumption (quantity) | +1.462e−03 | +2.055e−03 | +2.606e−03 |
+| consumption (price) | +1.763e−04 | −3.416e−04 | −7.955e−04 |
+| **investment** | **−1.868e−03** | **−7.025e−04** | **+2.945e−04** |
+| **net exports** | **+7.955e−05** | **−9.005e−04** | **−1.767e−03** |
+| government / portfolio cost / macro-pru tax | 0 | 0 | 0 |
+| **dY[0] total** | **−1.494e−04** | **+1.107e−04** | **+3.377e−04** |
+
+γ = 0 / 5.0798 / 12.7260. `dY[0]` as % of SS: −0.0149 / +0.0111 / +0.0338;
+trough −0.0149 / +0.0065 / +0.0043.
+
+**The watch item is answered, and the answer is the SPEC's warning made
+quantitative.** Going passive → aggressive, the headline `dY[0]` moves by
+**+4.87e−04**, but that is the residue of an investment swing of **+2.16e−03** and
+a net-export swing of **−1.85e−03** — each roughly **4× the headline**, pointing
+opposite ways. Consumption behaves the same way (quantity +1.14e−03 against price
+−0.97e−03). `docs/SPEC.md`'s "a small headline output number can be *only* small
+because two large channels are netting out — and they land on different
+households" is confirmed in-model. **Do not report ΔY as a headline; report this
+decomposition.**
+
+On whether the positive intervening-regime output is linear-rule overshoot: the
+proximate driver is **consumption quantity, not investment**. At `medium`,
+investment is still negative on impact (−7.025e−04) and `dY[0]` is positive only
+because consumption (+2.055e−03) outweighs it and NX. Investment does not turn
+positive on impact until `aggressive`. Consumption is *already* positive on impact
+at `passive` (+1.462e−03) with no backstop at all, so the consumption response is
+not created by the policy rule — which argues against pure overshoot. But the
+magnitudes are 0.01–0.03% of SS, i.e. the small difference of much larger
+offsetting terms, so the headline is not robust and should not be leaned on.
+
 ## EBA REBUILD (2026-07-31) — read this first
 
 The EBA 2011 moment set was rebuilt from scratch to be identified rather than

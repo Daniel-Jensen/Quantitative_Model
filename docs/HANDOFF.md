@@ -18,13 +18,25 @@
 - **Policy experiments:** `experiments/` on branch `experiments` — the paper's
   standard results set (E1 backstop schedule, E2 ΔY decomposition, E3 S-1
   writeoff). Spec: `docs/superpowers/specs/2026-08-01-policy-experiments-design.md`;
-  plan: `docs/superpowers/plans/2026-08-03-policy-experiments.md`. **In progress**
-  — cache schema v2 landed; the cache needs a rebuild
-  (`/opt/anaconda3/envs/ssj/bin/python diagnostics/regimes/regime_model.py --force`)
-  before any experiment will run. `experiments/common.py` was hardened after code
-  review the same day: `calibration_override` now rejects an unrecognised override
-  key instead of silently running a mistyped calibration, and `write_results`
-  refuses to write `NaN`.
+  plan: `docs/superpowers/plans/2026-08-03-policy-experiments.md`. **In progress
+  — cache schema v2 and E2 have landed; E1, E3 and the orchestrator are next.**
+  The schema-2 cache is built (`cache_G_main_v2_*.npz`, 7m27s); rebuild with
+  `/opt/anaconda3/envs/ssj/bin/python diagnostics/regimes/regime_model.py --force`
+  after any calibration change. Run E2 with
+  `/opt/anaconda3/envs/ssj/bin/python experiments/e2_dy_decomposition.py`.
+  `experiments/common.py` was hardened after code review the same day:
+  `calibration_override` now rejects an unrecognised override key instead of
+  silently running a mistyped calibration, and `write_results` refuses to write
+  `NaN`.
+
+  **E2's headline finding, which changes how ΔY should be reported:** the output
+  response is the small residue of an investment channel and a net-export channel
+  each ~4× larger and opposite in sign. Report the decomposition, never the
+  headline ΔY. See `docs/STATE.md` for the table.
+
+  **Careful with `EL_price_D`:** it is **0.056134** at the live calibration, not
+  the `0.0717` still quoted in older doc sections and CLAUDE.md. It is the TPI
+  loading's denominator — re-derive it, don't copy it.
 
 > **Current state (2026-07-31). The EBA calibration is LIVE and verified.**
 > `EBA_CALIBRATION = True`, `BANK_SCOPE = "broad"` in `code/calibration.py`.
