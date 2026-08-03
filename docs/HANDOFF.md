@@ -15,6 +15,13 @@
 - Read `docs/eba_calibration.md` for the EBA-2011 derivation, the identification
   ledger, and the three structural fixes of 2026-07-31 (collateral mapping,
   `omega_K` fund rule, `n_inter` scope). **This is the live calibration.**
+- **Policy experiments:** `experiments/` on branch `experiments` — the paper's
+  standard results set (E1 backstop schedule, E2 ΔY decomposition, E3 S-1
+  writeoff). Spec: `docs/superpowers/specs/2026-08-01-policy-experiments-design.md`;
+  plan: `docs/superpowers/plans/2026-08-03-policy-experiments.md`. **In progress**
+  — cache schema v2 landed; the cache needs a rebuild
+  (`/opt/anaconda3/envs/ssj/bin/python diagnostics/regimes/regime_model.py --force`)
+  before any experiment will run.
 
 > **Current state (2026-07-31). The EBA calibration is LIVE and verified.**
 > `EBA_CALIBRATION = True`, `BANK_SCOPE = "broad"` in `code/calibration.py`.

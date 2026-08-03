@@ -2,6 +2,27 @@
 
 **Branch:** `eba-recalibration` | **Date:** 2026-07-31 | **Status:** **EBA calibration rebuilt, identified, and LIVE** (`EBA_CALIBRATION=True`, `BANK_SCOPE="broad"`). Y-1 and RK-1 resolved; spread on target at 150.4bp; TPI loading declining.
 
+## Policy experiments (`experiments/`) — IN PROGRESS, started 2026-08-03
+
+New `experiments/` package on branch `experiments`, building the paper's standard
+results set on top of `diagnostics/regimes/regime_model.py`'s solve/cache layer.
+`code/main.py` is untouched and remains the regression path. Design spec:
+`docs/superpowers/specs/2026-08-01-policy-experiments-design.md`.
+
+**Cache schema v2 (this commit).** `regime_model.cache_path` computed the
+calibration fingerprint at **import** time. A later experiment (E3) runs the model
+under a calibration override applied at *run* time, so its cache would have been
+written to the baseline filename and silently clobbered it — the same
+stale-cache-passing-every-check failure the fingerprint was introduced to prevent,
+reintroduced one level up. The fingerprint is now computed at call time, stamped
+into the `.npz`, and asserted on load; `CACHE_SCHEMA` is in the filename so an
+output-list change can never be masked by an unchanged calibration. New cached
+outputs: `Phi_D` and `def_rate_D` (`T_D` is OPTIONAL — identically zero at
+`T0=T1=0`, so zero-fill is the correct value, not a hole).
+
+Schema-1 `.npz` files are now unused rather than overwritten; the cache must be
+rebuilt before any experiment runs.
+
 ## EBA REBUILD (2026-07-31) — read this first
 
 The EBA 2011 moment set was rebuilt from scratch to be identified rather than

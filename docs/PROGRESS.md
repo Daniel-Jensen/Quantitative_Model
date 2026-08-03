@@ -14,7 +14,39 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
-## 2026-07-31 — regimes re-run at the broad scope; `PSILAM_BREAKDOWN` re-derived; units bug fixed  [this commit]
+## 2026-08-03 — `experiments/` package: cache schema v2 (call-time fingerprint)  [this commit]
+
+First commit of the new `experiments/` package (branch `experiments`), which will
+produce the paper's standard policy results on top of the regimes cache layer.
+`code/main.py` untouched.
+
+**The fix that had to come first.** `regime_model.cache_path` built its filename
+from `CAL_FINGERPRINT`, computed at module **import**. Experiment E3 needs to solve
+the model under a calibration override applied at run time; with an import-time
+fingerprint its cache would have been written to the baseline filename and silently
+overwritten it. Now computed at call time, stamped into the `.npz` as
+`cal_fingerprint`, and asserted against the live calibration on load, with a clear
+`FileNotFoundError` naming the rebuild command when no cache matches.
+
+`CACHE_SCHEMA = 2` now appears in the filename: the calibration fingerprint alone
+cannot detect a change to the cached *output list*, so without it an old cache would
+reload under an unchanged name missing the new keys — invisibly, since `irf_all`
+discovers outputs by scanning cache keys. Added `Phi_D` and `def_rate_D` to
+`REQUIRED` (`Phi_D` closes the `market_clearing_D` identity for E2; `def_rate_D` is
+the off-path expected-loss leg for E1). `T_D` went to `OPTIONAL` deliberately —
+`T0=T1=0` makes it identically zero, so zero-filling is correct rather than a silent
+hole, and E2's closure assertion catches it if that ever changes.
+
+Also `build_caches` now reads `psi_lambda_B` live rather than from the import-time
+`PSILAM_MAIN` constant, so an override wins there too.
+
+New: `experiments/common.py` (calibration-override context manager, unit helpers,
+provenance stamp, results writer) and `experiments/test_common.py` (6 tests,
+including a regression guard that the override changes the cache filename and does
+not leak out of the context manager). 14/14 tests pass with
+`diagnostics/regimes/test_lottery_math.py`.
+
+## 2026-07-31 — regimes re-run at the broad scope; `PSILAM_BREAKDOWN` re-derived; units bug fixed
 
 Follow-up to the broad-scope commit below: the policy-regime diagnostics had never
 been run at the live calibration, and their hard guard blocked it.
