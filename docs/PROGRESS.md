@@ -14,7 +14,39 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
-## 2026-08-03 — E3: S-1 writeoff. Full writeoff INVERTS Live Claim 1  [this commit]
+## 2026-08-03 — `experiments/` package complete; production regression bit-identical  [this commit]
+
+Consolidation of the E1/E2/E3 work. `CLAUDE.md` gains an `experiments/`
+architecture section, three doc-reference rows, and a rewritten **S-1** row
+carrying E3's numbers — S-1 is no longer an open flag but a quantified decision
+that determines whether the paper's central claim holds.
+
+**`CLAUDE.md`'s `EL_price_D = 0.0717` was stale and is corrected to 0.056134.**
+That figure predates the EBA `delta_b = 0.0777` / `q_b = 0.969`. It is the TPI
+loading's denominator, so the error propagated into every loading figure quoted
+from memory rather than re-derived. E3 made it load-bearing.
+
+**Production regression re-run after all experiment work** (`code/main.py`,
+exit 0, 18m46s): **bit-identical to the pre-work baseline** —
+`goods_mkt_D = -4.2493506589857954e-07`, `ca_res_D = 6.852157730108388e-17`,
+`K_D = 10.800`/`K_F = 10.832`, `n_inter_D[0] = -3.3804%`, `Y_D[0] = -0.0149%`,
+`b_gov_D[499] = 1.4e-05`, loading 4.35/4.01/3.44. `git diff main -- code/` is
+empty. The package reads the production equation files but writes nothing into
+them, so `code/main.py` remains the regression path. Full suite: 31 passed.
+
+**Independent cross-validation of E1.** Two separately written code paths agree:
+`code/main.py` gives loading 4.01 at γ=5, E1 gives 4.00 at γ=5.0798; production
+3.44 at γ=10, E1 3.17 at γ=12.726 (correctly lower). Peak spreads hit the
+compression targets exactly.
+
+**Two items now blocking paper text, both author decisions:**
+1. **S-1** — `zeta_writeoff=1` inverts Live Claim 1 (loading 0.37/0.28, below 1).
+2. **A5-1's third object is misnamed** — the reported
+   `Σ β^t (pd_passive − pd_intervention)` is negative *because* the backstop
+   relaxes austerity, so negative means Greece is better off, the opposite of what
+   "fiscal saving" implies. Flip the sign or rename it before it is quoted.
+
+## 2026-08-03 — E3: S-1 writeoff. Full writeoff INVERTS Live Claim 1
 
 `experiments/e3_writeoff_s1.py`. S-1 resolved into two nested variants, because
 `writeoff_enabled` and `zeta_writeoff` do different things and only the first is

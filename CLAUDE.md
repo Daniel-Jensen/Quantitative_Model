@@ -64,6 +64,34 @@ The model is implemented in the `sequence_jacobian` (SSJ) library. Blocks are de
 
 The legacy `code/model_v12.ipynb` has been removed; the modular pipeline above (added in PR #28) is the source of truth. `docs/equation_reconstruction.md` cites notebook cells 2–21 for historical provenance only.
 
+### Policy experiments (`experiments/`, added 2026-08-03)
+
+The paper's standard results set. **`code/` is deliberately untouched by this package** so
+`code/main.py` stays usable as the regression test.
+
+- `experiments/run_all.py` — runs everything, renders `docs/experiments_results.md`.
+  `--skip-e3` avoids E3's two model re-solves (~11 min); `--render-only` rebuilds the
+  document from results already on disk.
+- `experiments/e1_backstop_schedule.py` — named regimes (γ **solved** for 0/25/50%
+  peak-spread compression), A5-1's three German objects reported separately, loading
+  schedule, welfare labelled secondary.
+- `experiments/e2_dy_decomposition.py` — ΔY against the `market_clearing_D` identity;
+  self-verifying, asserts closure at 1e−7.
+- `experiments/e3_writeoff_s1.py` — the S-1 writeoff variants.
+- `experiments/common.py` — cache access, `calibration_override`, unit helpers, provenance.
+
+It runs on `diagnostics/regimes/regime_model.py`'s cached Jacobian response matrices, which
+are built from the production equation files — **no copy of the model or the calibration
+lives in this package**, which is the failure that made the retired `audit_artifacts/`
+harness silently test a different model for weeks. Rebuild the cache after any calibration
+change: `/opt/anaconda3/envs/ssj/bin/python diagnostics/regimes/regime_model.py --force`.
+
+**Two gotchas worth knowing before extending it.** `calibration_override` patches the
+*module attribute*, so a module-level `from calibration import get_calibration` binds the
+original and silently misses the override — import the module and resolve at use time.
+And percentages must divide by their own SS level (`common.pct_of_ss`): `n_inter_D_ss=2.138`
+and `K_D_ss=10.8` are not ≈1, and a past bug mislabelled exactly those by 2.1× and 10×.
+
 ### Routines
 
 - `routines/grids.py` — deposit and income grids; supports both standard Rouwenhorst Markov chains and GMAR discrete-time process (loaded from `Discretisation/Outputs/`)
@@ -97,7 +125,7 @@ See `docs/STATE.md` for the full calibration table. Key tensions:
 | Issue | Description |
 |-------|-------------|
 | **C-1** | **RESOLVED (2026-07-22).** Was: `Delta_cross=1.45>1`, back-solved divertable fraction exceeds 1, multi-asset IC degenerate. Fixed at its root: `steady_auxilliary_D/F` now solve `lambda_gk` from the multi-asset IC directly; `Delta_bD_D/F=0.2/0.4` are genuine hardcoded inputs, verified to bind exactly. See `docs/eba_calibration.md`. |
-| **S-1** | `writeoff_enabled=0`: default shock produces no realized bank losses. Model is a pure risk-premium loop. Author decision pending. `recovery_rate_D/F=0.30` (EL-1, Greek PSI NPV framing) is live but, with writeoff off, acts **only** through `EL_price` — the realized-haircut terms in `bond_return`/`government_ss`/`budget_residual` are all gated by `writeoff_enabled`. Measured 2026-07-30: `EL_price_D=0.0717` vs `psi_spread_D=0.8385`, so the fundamental expected loss is only **10.9%** of the total default loading and the collateral friction is the other 89%. |
+| **S-1** | `writeoff_enabled=0`: default shock produces no realized bank losses. Model is a pure risk-premium loop. **Author decision — now quantified by E3 (`experiments/e3_writeoff_s1.py`, 2026-08-03), and it is not a robustness detail: it decides whether the paper's central claim holds.** The switch is really two. `writeoff_enabled` alone is strictly SS-neutral and economically negligible (loading 4.00→3.93). But `zeta_writeoff` *also* enters the `EL_price` anchor at `steady_state.py:107-112` **ungated** by `writeoff_enabled`, and turning it to 1 takes `EL_price_D` 0.0561→0.7017 (12.5×), collapsing the TPI loading from 4.00/3.17 to **0.37/0.28 — below 1**, i.e. inverting SPEC Live Claim 1's over-compensation result. See `docs/experiments_results.md`. `recovery_rate_D/F=0.30` (EL-1, Greek PSI NPV framing). **`EL_price_D` is 0.056134 at the live calibration, not the 0.0717 previously recorded here** — that figure predates the EBA `delta_b=0.0777`/`q_b=0.969`. Re-derive it wherever quoted; it is the loading's denominator. |
 | **GK-1** | **RESOLVED (2026-07-31) — collateral mapping.** The GK block is well-posed only if `f*theta > (1-Delta_own)*phi_own + (1-Delta_cross)*phi_cross`. At measured EBA moments `Delta_own=0.2` violated it by −1.26/−1.42, giving **negative** `lambda_gk`/`Omega` while the solver converged with machine-zero residuals (C-1's silent-degeneracy mode). Cause: `_ic_delta`'s hidden `ratio=Delta_cross/Delta_own=2.0` back-solve closure, which capped `Delta_own<=0.5` against a required `>~0.73`. Removed; `Delta` is now free and the IC **residual** is checked directly. `Delta=0.85/0.90` → `lambda_gk_D=+0.927` (pre-EBA: +0.923). Guarded by `steady_state.assert_gk_well_posed` on every solved SS. |
 | **GK-2** | **RESOLVED (2026-07-31) — `n_inter` scope.** Three compounding amplifiers made the CT1-scope EBA calibration explosive. Fixed in order: the hidden `ratio=2.0` closure (GK-1); `omega_K` as a *fixed share* (new `fund_rule=1` → fund holds a fixed quantity, `dK/dN = theta` not `theta/omega_K`, steady state identical); and finally the **scope of `n_inter`** — CT1 is the stress-test sample, not the agent intermediating the whole capital stock. New **`BANK_SCOPE="broad"`**: `n_inter = (Q*K + sovereign)/theta`, `omega_K = 1`, fund device gone. Model is stable and on target: `b_gov_D[499]=1.4e-05`, spread 150.4bp, `Y_D[0]=-0.0149%` (Y-1 resolved), `rk_D=rk_F=0.010000` (RK-1 resolved), TPI loading 4.35/4.01/3.44 declining. |
 | **EBA switch** | `EBA_CALIBRATION` in `code/calibration.py`, default **False** (pre-EBA values, bit-exact, solves). `True` turns on the rebuilt measured moment set; SS is then correct but dynamics are explosive (GK-2). The moment set itself (`code/eba_calibration.py` → `data/eba_moments.json`) is rebuilt, identified, and tested (10/10). |
@@ -131,3 +159,6 @@ See `docs/STATE.md` for the full calibration table. Key tensions:
 | `docs/walras_forensics.md` | Analytical derivation of all three Walras leaks and their proofs |
 | `docs/bank_cal_review.md` | bank-cal branch analysis; calibration porting roadmap |
 | `docs/verification_report.md` | Post-fix numerical verification with residual tables |
+| `docs/experiments_results.md` | **GENERATED — do not hand-edit.** Standard policy results: E1 backstop schedule, E2 ΔY decomposition, E3 S-1 writeoff. Regenerate with `experiments/run_all.py` (`--skip-e3` skips the two model re-solves, `--render-only` rebuilds from results on disk) |
+| `docs/superpowers/specs/2026-08-01-policy-experiments-design.md` | Design spec for the `experiments/` package |
+| `docs/superpowers/plans/2026-08-03-policy-experiments.md` | Implementation plan for the same |

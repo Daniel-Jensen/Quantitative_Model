@@ -2,7 +2,26 @@
 
 **Branch:** `eba-recalibration` | **Date:** 2026-07-31 | **Status:** **EBA calibration rebuilt, identified, and LIVE** (`EBA_CALIBRATION=True`, `BANK_SCOPE="broad"`). Y-1 and RK-1 resolved; spread on target at 150.4bp; TPI loading declining.
 
-## Policy experiments (`experiments/`) — IN PROGRESS, started 2026-08-03
+## Policy experiments (`experiments/`) — **COMPLETE 2026-08-03**
+
+E1, E2 and E3 all land, with the orchestrator writing
+`docs/experiments_results.md`. **Two results change how the paper must be
+written** — E2's ΔY decomposition (report the decomposition, never the headline)
+and E3's writeoff finding (full writeoff inverts Live Claim 1). Two items need an
+author decision before anything is quoted: **S-1** (now quantified) and **A5-1's
+misnamed third object**.
+
+**Production regression re-run after all of it, `code/main.py`, exit 0, 18m46s —
+bit-identical to the pre-work baseline:** `goods_mkt_D = -4.2493506589857954e-07`,
+`ca_res_D = 6.852157730108388e-17`, `K_D = 10.800` / `K_F = 10.832`,
+`n_inter_D[0] = -3.3804%`, `Y_D[0] = -0.0149%`, `b_gov_D[499] = 1.4e-05`, peak
+spread +0.376 pp, loading 4.35/4.01/3.44. `git diff main -- code/` is **empty** —
+the package has no side effects on production, by construction.
+
+Full test suite: **31 passed** (`experiments/` 13, `diagnostics/regimes/` 8,
+`code/test_eba_calibration.py` 10).
+
+### Details, newest first
 
 New `experiments/` package on branch `experiments`, building the paper's standard
 results set on top of `diagnostics/regimes/regime_model.py`'s solve/cache layer.

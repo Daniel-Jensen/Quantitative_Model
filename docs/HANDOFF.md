@@ -18,8 +18,13 @@
 - **Policy experiments:** `experiments/` on branch `experiments` — the paper's
   standard results set (E1 backstop schedule, E2 ΔY decomposition, E3 S-1
   writeoff). Spec: `docs/superpowers/specs/2026-08-01-policy-experiments-design.md`;
-  plan: `docs/superpowers/plans/2026-08-03-policy-experiments.md`. **In progress
-  — E1 and E2 have landed; E3 and the orchestrator are next.**
+  plan: `docs/superpowers/plans/2026-08-03-policy-experiments.md`. **COMPLETE
+  2026-08-03 — E1, E2, E3 and the orchestrator all landed.** Results:
+  `docs/experiments_results.md` (generated). Production regression re-run after
+  all of it and **bit-identical** to the pre-work baseline; `git diff main --
+  code/` is empty. Full suite 31 passed.
+
+  **Two author decisions now block paper text — see the two bold items below.**
   The schema-3 cache is built (`cache_G_main_v3_*.npz`); rebuild with
   `/opt/anaconda3/envs/ssj/bin/python diagnostics/regimes/regime_model.py --force`
   after any calibration change. Run everything with `experiments/run_all.py` (`--skip-e3` to skip the two re-solves, `--render-only` to rebuild the doc). Results land in `docs/experiments_results.md`. Run E2 alone with
