@@ -410,7 +410,7 @@ Expected: all pass (unchanged — `lottery_math.py` was not touched).
 ```bash
 git add experiments/__init__.py experiments/.gitignore experiments/common.py \
         experiments/test_common.py diagnostics/regimes/regime_model.py
-git commit --no-verify -m "Cache schema v2: call-time fingerprint, Phi_D/def_rate_D outputs
+git commit -m "Cache schema v2: call-time fingerprint, Phi_D/def_rate_D outputs
 
 cache_path computed the fingerprint at import, so a calibration override applied
 afterwards (E3) would write to the baseline filename and clobber it. Now computed
@@ -423,10 +423,19 @@ correct rather than a silent hole, and E2's closure assertion catches it anyway.
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```
 
-> `--no-verify` is correct here: the doc-sync hook requires STATE/PROGRESS/HANDOFF
-> in any commit touching `*.py`, but this is mid-feature plumbing with no results
-> yet. **Task 8 updates all three docs before the feature is done** — that is where
-> the obligation is discharged, and it is not optional.
+> **Doc-sync is per-commit, not deferred.** An earlier draft of this plan assumed
+> `--no-verify` would let mid-feature commits skip the doc requirement. It does not:
+> `.claude/hooks/require-docs-before-commit.sh` is a **PreToolUse** gate that
+> pattern-matches the command string and never inspects flags. `--no-verify`
+> suppresses only the git-native twin `.githooks/pre-commit`. CLAUDE.md's "bypass a
+> false positive with `git commit --no-verify`" is accurate for the twin and
+> misleading for the PreToolUse gate.
+>
+> So **every code-touching commit in this plan carries its own updates to
+> `docs/STATE.md`, `docs/PROGRESS.md` and `docs/HANDOFF.md`.** Do not route around
+> the gate — it exists to stop exactly the silent-model-drift class of bug this
+> package is built to avoid. Task 8 is now a consolidation and review pass, not the
+> place where the obligation is first discharged.
 
 ---
 
@@ -767,8 +776,9 @@ Read the printed table and note, for the paper: does `dY[0]` turn positive under
 
 ```bash
 git add experiments/common.py experiments/e2_dy_decomposition.py \
-        experiments/test_e2_identity.py experiments/results/e2_dy_decomposition.json
-git commit --no-verify -m "E2: dY decomposition against the market_clearing_D identity
+        experiments/test_e2_identity.py experiments/results/e2_dy_decomposition.json \
+        docs/STATE.md docs/PROGRESS.md docs/HANDOFF.md
+git commit -m "E2: dY decomposition against the market_clearing_D identity
 
 Self-verifying: goods_mkt_D is a targeted residual (<=1e-14), so the components
 must sum to dY to solver tolerance. Asserts closure at 1e-7 and refuses to report
@@ -1044,8 +1054,9 @@ Cross-check against the known-good production run: `code/main.py` at γ=2/5/10 g
 
 ```bash
 git add experiments/e1_backstop_schedule.py experiments/results/e1_backstop_schedule.json \
-        experiments/figures/fig_e1_loading_schedule.png
-git commit --no-verify -m "E1: backstop schedule at the three named regimes
+        experiments/figures/fig_e1_loading_schedule.png \
+        docs/STATE.md docs/PROGRESS.md docs/HANDOFF.md
+git commit -m "E1: backstop schedule at the three named regimes
 
 Named regimes canonical (gamma solved for 0/25/50% peak-spread compression), with
 the continuous loading schedule as the key figure. A5-1's three German objects are
@@ -1236,8 +1247,9 @@ If E3a's SS-invariance assertion fires, that is a genuine finding about `writeof
 - [ ] **Step 3: Commit**
 
 ```bash
-git add experiments/e3_writeoff_s1.py experiments/results/e3_writeoff_s1.json
-git commit --no-verify -m "E3: S-1 writeoff, split into coupon-only and full variants
+git add experiments/e3_writeoff_s1.py experiments/results/e3_writeoff_s1.json \
+        docs/STATE.md docs/PROGRESS.md docs/HANDOFF.md
+git commit -m "E3: S-1 writeoff, split into coupon-only and full variants
 
 zeta_writeoff enters the EL_price anchor ungated by writeoff_enabled
 (steady_state.py:107-112), so only writeoff_enabled is SS-neutral. E3a asserts
@@ -1407,8 +1419,9 @@ Expected: `Wrote /Users/Adam/.../docs/experiments_results.md`. Open it and confi
 - [ ] **Step 4: Commit**
 
 ```bash
-git add experiments/run_all.py docs/experiments_results.md
-git commit --no-verify -m "Orchestrator + generated results document
+git add experiments/run_all.py docs/experiments_results.md \
+        docs/STATE.md docs/PROGRESS.md docs/HANDOFF.md
+git commit -m "Orchestrator + generated results document
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```
@@ -1455,7 +1468,7 @@ If they disagree by more than ~1%, the two code paths have diverged — stop and
 
 ## Task 8: Documentation sync and final commit
 
-The doc-sync hook (`.claude/hooks/require-docs-before-commit.sh` and `.githooks/pre-commit`) requires `docs/STATE.md`, `docs/PROGRESS.md` and `docs/HANDOFF.md` to be updated in any commit staging `code/**` or `*.py`. Earlier tasks used `--no-verify` for mid-feature plumbing; this task discharges the obligation.
+Every earlier task already committed its own doc updates (the PreToolUse gate leaves no alternative — see Task 1's closing note). This task is the **consolidation pass**: fold the per-task entries into one coherent account, add what only makes sense once all results exist, and update `CLAUDE.md`.
 
 **Files:**
 - Modify: `docs/STATE.md`, `docs/PROGRESS.md`, `docs/HANDOFF.md`, `CLAUDE.md`
@@ -1574,6 +1587,14 @@ Expected: clean tree, and a commit list covering the spec, cache schema, E2, E1,
 ---
 
 ## Notes for the implementer
+
+**Every code commit needs doc updates in the same commit.** `docs/STATE.md`,
+`docs/PROGRESS.md` and `docs/HANDOFF.md` must all be staged alongside any `*.py`
+change, or `.claude/hooks/require-docs-before-commit.sh` denies the commit. It is a
+PreToolUse gate that matches on the command string, so `--no-verify` does **not**
+help — that flag only suppresses the git-native twin. Do not try to route around
+the gate; write the doc entries. Each task's `git add` line above already lists the
+three files.
 
 **Never use bare `python`.** The base Anaconda env has a broken `liblapack` symlink that fails *silently* — you get numbers, they are wrong. Always `/opt/anaconda3/envs/ssj/bin/python`.
 
