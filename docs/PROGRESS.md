@@ -41,10 +41,28 @@ Also `build_caches` now reads `psi_lambda_B` live rather than from the import-ti
 `PSILAM_MAIN` constant, so an override wins there too.
 
 New: `experiments/common.py` (calibration-override context manager, unit helpers,
-provenance stamp, results writer) and `experiments/test_common.py` (6 tests,
-including a regression guard that the override changes the cache filename and does
-not leak out of the context manager). 14/14 tests pass with
-`diagnostics/regimes/test_lottery_math.py`.
+provenance stamp, results writer) and `experiments/test_common.py` (regression
+guards including one that the override changes the cache filename and does not
+leak out of the context manager).
+
+**Hardened after code review (same day).** `calibration_override` now raises
+`KeyError` on an override key not present in the calibration dict — previously a
+typo (e.g. `psi_lambda_b_D` for `psi_lambda_B_D`) would silently add a junk key
+while leaving the real parameter at its default, producing a wrong-but-plausible
+number without any error: exactly the failure mode this whole package exists to
+close off, one level up from the cache-fingerprint fix above. `write_results` now
+serialises numpy arrays/scalars properly (`json.dump(default=float)` raised on any
+multi-element array — the normal shape of an IRF payload) and passes
+`allow_nan=False`, so a `NaN` in a result is a loud `ValueError` at write time
+rather than a token that travels silently into a table and that strict JSON
+parsers reject anyway. Also fixed: the exception-restore test asserted on a
+name bound at import (`from calibration import get_calibration`), which cannot
+observe the module attribute the context manager patches and so passed
+regardless of whether the restore worked — rewritten to assert on
+`calibration.get_calibration` directly, and verified to fail when the `finally:`
+restore is removed. `cache_path`'s `fingerprint` parameter is now actually used by
+`load_cache` instead of being computed and discarded twice. 17/17 tests pass
+(`experiments/` + `diagnostics/regimes/test_lottery_math.py`).
 
 ## 2026-07-31 — regimes re-run at the broad scope; `PSILAM_BREAKDOWN` re-derived; units bug fixed
 

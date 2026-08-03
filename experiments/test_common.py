@@ -1,4 +1,12 @@
-"""Tests for experiments/common.py and the regime_model cache-key contract."""
+"""Tests for experiments/common.py and the regime_model cache-key contract.
+
+The first three tests below (cache_path override/leak, schema version, REQUIRED
+coverage) exercise diagnostics/regimes/regime_model.py rather than common.py — they
+live here, not co-located with regime_model.py, because they are regression guards
+for the common.calibration_override contract that this file is otherwise
+responsible for.
+"""
+import json
 import os
 import sys
 
@@ -44,14 +52,37 @@ def test_required_outputs_cover_the_dy_identity():
 
 
 def test_calibration_override_restores_on_exception():
-    from calibration import get_calibration
+    """The monkeypatch must be undone even when the block raises.
+
+    Assert on the MODULE ATTRIBUTE, not on a name imported beforehand: a local
+    `from calibration import get_calibration` binds the original function object
+    and would pass even if the patch leaked. That is what the first version of
+    this test did, and it guarded nothing.
+    """
+    import calibration
     from common import calibration_override
 
-    original = get_calibration()["writeoff_enabled_D"]
+    before = calibration.get_calibration
     with pytest.raises(RuntimeError):
         with calibration_override(writeoff_enabled_D=1.0):
             raise RuntimeError("boom")
-    assert get_calibration()["writeoff_enabled_D"] == original
+    assert calibration.get_calibration is before, "override leaked after an exception"
+    assert calibration.get_calibration()["writeoff_enabled_D"] == 0.0
+
+
+def test_calibration_override_rejects_unknown_key():
+    """A typo'd override key (e.g. psi_lambda_b_D for psi_lambda_B_D) must be loud.
+
+    Silently adding a junk key and leaving the intended parameter at its default
+    is exactly the "silently ran a different model" failure mode this project has
+    already been burned by (the retired audit_artifacts/ harness).
+    """
+    import calibration
+    from common import calibration_override
+
+    with pytest.raises(KeyError):
+        with calibration_override(psi_lambda_b_D=999.0):
+            calibration.get_calibration()
 
 
 def test_bp_ann_converts_quarterly_rate_to_annual_basis_points():
@@ -65,3 +96,27 @@ def test_pct_of_ss_divides_by_the_steady_state_level():
     from common import pct_of_ss
     out = pct_of_ss(np.array([-0.072270]), 2.138)
     assert out[0] == pytest.approx(-3.380, abs=0.01)
+
+
+def test_write_results_round_trips_a_numpy_array_as_a_list(tmp_path, monkeypatch):
+    """IRF paths are numpy arrays; json.dump(default=float) chokes on those (it
+    only handles length-1 arrays), so write_results needs its own array handling."""
+    import common
+    monkeypatch.setattr(common, "RESULTS_DIR", str(tmp_path))
+
+    path = common.write_results("array_case", {"irf": np.array([1.0, 2.0, 3.0])})
+
+    with open(path) as fh:
+        loaded = json.load(fh)
+    assert loaded["irf"] == [1.0, 2.0, 3.0]
+
+
+def test_write_results_rejects_nan(tmp_path, monkeypatch):
+    """A NaN payload is a modelling failure (or a 0/0), not a value to persist
+    silently as the non-JSON-standard token `NaN`. Must fail loudly here rather
+    than travel into a results table."""
+    import common
+    monkeypatch.setattr(common, "RESULTS_DIR", str(tmp_path))
+
+    with pytest.raises(ValueError):
+        common.write_results("nan_case", {"bad": float("nan")})

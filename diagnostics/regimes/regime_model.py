@@ -280,7 +280,8 @@ def load_cache(psilam):
     up as a missing file. This second check catches the case where a file was
     hand-copied or renamed — it fails loudly instead of returning another model.
     """
-    path = cache_path(psilam)
+    live = _calibration_fingerprint()
+    path = cache_path(psilam, fingerprint=live)
     if not os.path.exists(path):
         raise FileNotFoundError(
             f"No cache at {os.path.basename(path)}. The live calibration has no cache "
@@ -290,7 +291,6 @@ def load_cache(psilam):
     # (cb_flow_D, now excluded); the matrices this module reads are all plain float.
     with np.load(path, allow_pickle=True) as d:
         cache = {k: d[k] for k in d.files if not d[k].dtype == object}
-    live = _calibration_fingerprint()
     stored = str(cache["cal_fingerprint"])
     assert stored == live, (
         f"cache fingerprint {stored} != live calibration {live} — stale or "

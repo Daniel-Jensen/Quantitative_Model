@@ -23,6 +23,13 @@ outputs: `Phi_D` and `def_rate_D` (`T_D` is OPTIONAL — identically zero at
 Schema-1 `.npz` files are now unused rather than overwritten; the cache must be
 rebuilt before any experiment runs.
 
+**Hardened after code review (2026-08-03).** `common.calibration_override` now
+raises `KeyError` on an unrecognised override key instead of silently adding it as
+junk while the intended (typo'd) parameter stays at its default — the same
+wrong-but-plausible-number failure mode this package exists to prevent, one layer
+up. `common.write_results` now refuses to serialise `NaN`/`Infinity`
+(`allow_nan=False`) rather than writing a token most JSON parsers reject.
+
 ## EBA REBUILD (2026-07-31) — read this first
 
 The EBA 2011 moment set was rebuilt from scratch to be identified rather than

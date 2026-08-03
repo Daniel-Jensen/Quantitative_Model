@@ -21,7 +21,10 @@
   plan: `docs/superpowers/plans/2026-08-03-policy-experiments.md`. **In progress**
   — cache schema v2 landed; the cache needs a rebuild
   (`/opt/anaconda3/envs/ssj/bin/python diagnostics/regimes/regime_model.py --force`)
-  before any experiment will run.
+  before any experiment will run. `experiments/common.py` was hardened after code
+  review the same day: `calibration_override` now rejects an unrecognised override
+  key instead of silently running a mistyped calibration, and `write_results`
+  refuses to write `NaN`.
 
 > **Current state (2026-07-31). The EBA calibration is LIVE and verified.**
 > `EBA_CALIBRATION = True`, `BANK_SCOPE = "broad"` in `code/calibration.py`.

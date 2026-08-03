@@ -31,16 +31,31 @@ BP_ANN = 4.0e4
 def calibration_override(**overrides):
     """Run a block with get_calibration() returning a modified dict.
 
-    Every consumer (steady_state, regime_model, ...) calls get_calibration()
-    rather than taking parameters, so patching the module attribute is the
-    minimal-change way to run a variant. regime_model imports the symbol INSIDE
-    its functions, so it picks the patch up at call time.
+    Patches the MODULE ATTRIBUTE calibration.get_calibration. This reaches
+    regime_model.build_caches, _calibration_fingerprint and _live_psilam because
+    each does a function-local `from calibration import get_calibration`, resolved
+    at call time. It then propagates onward through the dict those functions pass
+    to solve_steady_state(cal), which takes the calibration as an argument rather
+    than fetching it.
+
+    FOOTGUN: a module-level `from calibration import get_calibration` binds the
+    original function object at import and will NOT see the override. Any new
+    experiment must either call through one of the functions above or import the
+    module and call calibration.get_calibration() at use time.
     """
     import calibration
     original = calibration.get_calibration
 
     def patched():
         cal = original()
+        unknown = set(overrides) - set(cal)
+        if unknown:
+            raise KeyError(
+                f"calibration_override got unknown key(s): {sorted(unknown)}. "
+                f"A typo here would silently leave the parameter at its default and "
+                f"produce a wrong-but-plausible number — the exact failure mode the "
+                f"retired audit_artifacts/ harness had. Check spelling against "
+                f"code/calibration.py.")
         cal.update(overrides)
         return cal
 
@@ -73,14 +88,31 @@ def provenance():
     from regime_model import CACHE_SCHEMA, _calibration_fingerprint
 
     cal = get_calibration()
+    # This runs after a solve that can take up to 20 minutes, so a missing git
+    # binary (FileNotFoundError/OSError) or any other git failure must degrade to
+    # "unknown" rather than crash and lose the result. stderr is silenced so a
+    # not-a-repo checkout doesn't print "fatal: not a git repository" to the console.
     try:
         sha = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"],
-                                      cwd=ROOT, text=True).strip()
-    except subprocess.CalledProcessError:
+                                      cwd=ROOT, text=True,
+                                      stderr=subprocess.DEVNULL, timeout=10).strip()
+    except (subprocess.SubprocessError, OSError):
         sha = "unknown"
+    # A provenance stamp taken with uncommitted edits is otherwise indistinguishable
+    # from a clean run at the same SHA — a real gap for numbers headed into the
+    # paper. None (not False) on failure: we must not claim "clean" when we could
+    # not check.
+    try:
+        dirty_out = subprocess.check_output(["git", "status", "--porcelain"],
+                                            cwd=ROOT, text=True,
+                                            stderr=subprocess.DEVNULL, timeout=10)
+        git_dirty = bool(dirty_out.strip())
+    except (subprocess.SubprocessError, OSError):
+        git_dirty = None
     return {
         "generated": datetime.datetime.now().isoformat(timespec="seconds"),
         "git_sha": sha,
+        "git_dirty": git_dirty,
         "cal_fingerprint": _calibration_fingerprint(),
         "cache_schema": CACHE_SCHEMA,
         "BANK_SCOPE": BANK_SCOPE,
@@ -95,10 +127,26 @@ def provenance():
     }
 
 
+def _json_default(obj):
+    """numpy -> JSON. Arrays become lists; numpy scalars become Python numbers."""
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if isinstance(obj, np.generic):
+        return obj.item()
+    raise TypeError(f"{type(obj).__name__} is not JSON-serialisable: {obj!r}")
+
+
 def write_results(name, payload):
-    """Persist a machine-readable result so downstream tooling never parses markdown."""
+    """Persist a machine-readable result so downstream tooling never parses markdown.
+
+    allow_nan=False on purpose: a NaN in a results file is either a real modelling
+    failure or a division by an empty denominator, and both should surface here
+    rather than travel silently into a table. Encode a deliberate 'not applicable'
+    as None (JSON null) instead — e.g. loading at the passive regime, where there
+    are no purchases and the expected-loss denominator is zero.
+    """
     os.makedirs(RESULTS_DIR, exist_ok=True)
     path = os.path.join(RESULTS_DIR, f"{name}.json")
     with open(path, "w") as fh:
-        json.dump(payload, fh, indent=2, default=float)
+        json.dump(payload, fh, indent=2, default=_json_default, allow_nan=False)
     return path
