@@ -92,6 +92,14 @@ not created by the policy rule — which argues against pure overshoot. But the
 magnitudes are 0.01–0.03% of SS, i.e. the small difference of much larger
 offsetting terms, so the headline is not robust and should not be leaned on.
 
+### Orchestrator (2026-08-03)
+
+`experiments/run_all.py` → `docs/experiments_results.md` (generated; do not
+hand-edit). `--skip-e3` avoids E3's two re-solves; `--render-only` rebuilds the
+document from results already on disk. Every table carries a live provenance
+stamp including a **working-tree-dirty flag**, so a document produced with
+uncommitted edits cannot be mistaken for a clean run at that SHA.
+
 ### E1 — backstop schedule (2026-08-03) — **DONE**
 
 `experiments/e1_backstop_schedule.py`. Named regimes canonical, γ **solved** for

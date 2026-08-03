@@ -14,7 +14,25 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
-## 2026-08-03 — E1: backstop schedule; cache schema 3 (`delta_b_F`)  [this commit]
+## 2026-08-03 — orchestrator: `run_all.py` → `docs/experiments_results.md`  [this commit]
+
+`experiments/run_all.py` runs every experiment and renders the generated results
+document. E2 runs first because it is self-verifying, so it validates the cache
+before anything else reports numbers off it. `--skip-e3` re-renders without paying
+for E3's two model re-solves; `--render-only` rebuilds the document from results
+already on disk.
+
+Every table carries a provenance stamp read **live** from the calibration —
+including a **working-tree-dirty flag**, so a document generated with uncommitted
+edits can no longer be mistaken for a clean run at that SHA. The stamp exists
+because `run_regimes.py` once shipped a hardcoded "market-value rule" caption while
+actually running the par rule.
+
+The document is generated and carries a do-not-hand-edit warning; it also states
+plainly when an experiment's results are missing rather than rendering a partial
+table silently.
+
+## 2026-08-03 — E1: backstop schedule; cache schema 3 (`delta_b_F`)
 
 `experiments/e1_backstop_schedule.py`. Named regimes canonical, γ **solved** for
 0/25/50% peak-spread compression (0 / 5.0798 / 12.7260). Reports the regime table,

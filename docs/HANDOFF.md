@@ -22,7 +22,7 @@
   — E1 and E2 have landed; E3 and the orchestrator are next.**
   The schema-3 cache is built (`cache_G_main_v3_*.npz`); rebuild with
   `/opt/anaconda3/envs/ssj/bin/python diagnostics/regimes/regime_model.py --force`
-  after any calibration change. Run E2 with
+  after any calibration change. Run everything with `experiments/run_all.py` (`--skip-e3` to skip the two re-solves, `--render-only` to rebuild the doc). Results land in `docs/experiments_results.md`. Run E2 alone with
   `/opt/anaconda3/envs/ssj/bin/python experiments/e2_dy_decomposition.py`.
   `experiments/common.py` was hardened after code review the same day:
   `calibration_override` now rejects an unrecognised override key instead of
