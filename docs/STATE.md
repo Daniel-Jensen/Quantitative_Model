@@ -92,6 +92,62 @@ not created by the policy rule — which argues against pure overshoot. But the
 magnitudes are 0.01–0.03% of SS, i.e. the small difference of much larger
 offsetting terms, so the headline is not robust and should not be leaned on.
 
+### E1 — backstop schedule (2026-08-03) — **DONE**
+
+`experiments/e1_backstop_schedule.py`. Named regimes canonical, γ **solved** for
+0/25/50% peak-spread compression.
+
+| | passive | medium | aggressive |
+|---|---|---|---|
+| γ | 0 | 5.0798 | 12.7260 |
+| peak spread (bp ann) | **150.3** | 112.7 | 75.2 |
+| `Y_D[0]` (% SS) | −0.0149 | +0.0111 | +0.0338 |
+| `C_D[0]` (% SS) | +0.2164 | +0.3040 | +0.3855 |
+| `I_D[0]` (% SS) | −0.7718 | −0.2903 | +0.1217 |
+| `n_inter_D[0]` (% SS) | −3.380 | −2.167 | −1.099 |
+| **loading** | n/a | **4.00** | **3.17** |
+
+**Cross-checks against the independent production pipeline all pass.** `code/main.py`
+gives loading 4.01 at γ=5 (E1's `medium` is γ=5.08 → 4.00) and 3.44 at γ=10 (E1's
+`aggressive` is γ=12.73 → 3.17, correctly below). Peak spreads hit the compression
+targets exactly (150.3 → 112.7 = 25%, → 75.2 = 50%), and `n_inter_D[0]` /
+`Y_D[0]` reproduce this file's own regime table to every printed digit.
+
+**Live Claim 5 (self-extinguishing premium) confirmed on a fine grid.** The
+loading schedule is **monotone decreasing at all 59 finite grid points**, 4.51 at
+γ=0.51 down to 2.07 at γ=30. This is stronger than the three-point evidence
+previously on record.
+
+**A5-1, three separate objects (never summed):**
+
+| regime | exposure PV (% Y) | expected loss PV (% Y) | `pd_D` differential PV |
+|---|---|---|---|
+| medium | 0.4265 | 0.00228 | −0.001541 |
+| aggressive | 1.1062 | 0.00391 | −0.004651 |
+
+> **The third object's sign needs an author decision, and "Greek fiscal saving" is
+> the wrong name for what is computed.** The code reports
+> `Σ β^t (pd_passive − pd_intervention)`, which is **negative** because the
+> backstop lets Greece run a *larger* primary deficit — i.e. it relaxes the
+> required austerity. So a negative number here means Greece is better off, which
+> is the opposite of what "saving" implies. Either flip the sign convention or
+> rename it (e.g. "austerity relief, PV"). **Do not report this number under its
+> current label.** The magnitudes (0.0015 / 0.0047 PV) are unaffected.
+
+`carry_ss_pv` is 1.2e−16 / 3.2e−16 — numerically zero, confirming SS yields are
+equalised and that the `delta_b_F` fix below is correct.
+
+**Welfare (SECONDARY — SPEC says do not lead with it):** `W_D` +0.0399 / +0.0646 /
++0.1056, `W_F` +0.0403 / +0.0189 / −0.0310. Near-exactly zero-sum, as before.
+
+> **Cache schema 3 (2026-08-03).** `delta_b_F_ss` added. E1's `cb_pnl` computes
+> each carry leg's SS yield as `delta_b·(1/q_b_ss − 1)`, and the first draft used
+> `delta_b_D` on **both** legs — but `delta_b_F = 0.056779 ≠ delta_b_D = 0.077701`
+> (the two countries' bank books have different measured maturity ladders). That
+> put the SS spread at −9.2e−04 instead of its true ~1e−17 and would have
+> contaminated `carry_ss_pv`. Caught by an assertion written into `cb_pnl` before
+> the code was first run. Cache rebuilt; E2 re-ran identically.
+
 ## EBA REBUILD (2026-07-31) — read this first
 
 The EBA 2011 moment set was rebuilt from scratch to be identified rather than

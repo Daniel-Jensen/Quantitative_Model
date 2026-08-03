@@ -14,7 +14,44 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
-## 2026-08-03 — E2: ΔY decomposition against the `market_clearing_D` identity  [this commit]
+## 2026-08-03 — E1: backstop schedule; cache schema 3 (`delta_b_F`)  [this commit]
+
+`experiments/e1_backstop_schedule.py`. Named regimes canonical, γ **solved** for
+0/25/50% peak-spread compression (0 / 5.0798 / 12.7260). Reports the regime table,
+A5-1's three German objects separately, the loading schedule, and welfare labelled
+secondary. Figure: `experiments/figures/fig_e1_loading_schedule.png`.
+
+**Every cross-check against the independent `code/main.py` pipeline passes.**
+Loading 4.00 at `medium` (γ=5.08) vs production's 4.01 at γ=5; 3.17 at
+`aggressive` (γ=12.73), correctly below production's 3.44 at γ=10. Peak spreads
+hit the compression targets exactly (150.3 → 112.7 → 75.2 bp). `n_inter_D[0]`
+(−3.380 / −2.167 / −1.099 % SS) and `Y_D[0]` (−0.0149 / +0.0111 / +0.0338)
+reproduce `docs/STATE.md`'s regime table to every printed digit.
+
+**Live Claim 5 confirmed on a fine grid.** The loading schedule is monotone
+decreasing at **all 59 finite grid points**, 4.51 (γ=0.51) → 2.07 (γ=30) —
+stronger evidence for the self-extinguishing premium than the three points
+previously on record.
+
+**Cache schema 3: `delta_b_F_ss` added, and the reason is a bug this caught.**
+`cb_pnl` computes each carry leg's SS yield as `delta_b·(1/q_b_ss − 1)`. The first
+draft used `delta_b_D` on *both* legs, but `delta_b_F = 0.056779 ≠ delta_b_D =
+0.077701` — the two countries' bank books have different measured maturity
+ladders. That put the SS spread at −9.2e−04 rather than its true ~1e−17 and would
+have silently contaminated `carry_ss_pv`. An assertion written into `cb_pnl`
+before the code was ever run caught it. `carry_ss_pv` now comes out 1.2e−16 /
+3.2e−16, i.e. numerically zero as it should be. Cache rebuilt (schema 3); E2
+re-ran with identical γ and `dY` values.
+
+**Open, needs an author decision: A5-1's third object is misnamed.** The code
+reports `Σ β^t (pd_passive − pd_intervention)`, which comes out **negative**
+(−0.0015 medium, −0.0047 aggressive) because the backstop lets Greece run a
+*larger* primary deficit — it relaxes required austerity. A negative number
+therefore means Greece is better off, the opposite of what "Greek fiscal saving"
+implies. Either flip the sign or rename it ("austerity relief, PV"). Magnitudes
+are unaffected; the label must not ship as-is.
+
+## 2026-08-03 — E2: ΔY decomposition against the `market_clearing_D` identity
 
 `experiments/e2_dy_decomposition.py` + `experiments/test_e2_identity.py`, and five
 cache/IRF helpers appended to `experiments/common.py` (`load_cache`,

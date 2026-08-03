@@ -68,7 +68,7 @@ PSILAM_BREAKDOWN = 15.0
 # FILENAME: the calibration fingerprint alone cannot detect a schema change, so
 # without this an old cache would reload under the same name missing the new
 # keys — silently, because irf_all discovers outputs by scanning cache keys.
-CACHE_SCHEMA = 2
+CACHE_SCHEMA = 3
 
 REQUIRED = ["spread_rb", "rb_D", "rb_F", "q_b_D", "q_b_F", "Y_D", "C_D", "I_D",
             "NX_D", "K_D", "n_inter_D", "b_D_D", "b_D_F", "b_gov_D", "U_D", "U_F",
@@ -93,7 +93,12 @@ SS_META  = ["q_b_D_ss:q_b_D", "b_D_D_ss:b_D_D", "b_gov_D_ss:b_gov_D", "Y_D_ss:Y_
             "K_D_ss:K_D", "TAX_D_ss:TAX_D", "P_CES_D_ss:P_CES_D",
             "beta_D:beta_D", "beta_F:beta_F", "EL_price_D:EL_price_D",
             # schema 2: needed by E1's cb_pnl port and E2's identity
-            "delta_b_D_ss:delta_b_D", "q_b_F_ss:q_b_F",
+            # schema 3: delta_b_F is NOT delta_b_D (0.0568 vs 0.0777 — the two
+            # countries' bank books have different measured durations). E1's
+            # cb_pnl computes the SS yield on each leg as delta_b*(1/q_b_ss - 1),
+            # so using D's duration on the F leg puts the SS spread at -9.2e-04
+            # instead of its true -5.0e-08 and silently contaminates carry_ss_pv.
+            "delta_b_D_ss:delta_b_D", "delta_b_F_ss:delta_b_F", "q_b_F_ss:q_b_F",
             "Phi_D_ss:Phi_D"]
 
 

@@ -19,8 +19,8 @@
   standard results set (E1 backstop schedule, E2 ΔY decomposition, E3 S-1
   writeoff). Spec: `docs/superpowers/specs/2026-08-01-policy-experiments-design.md`;
   plan: `docs/superpowers/plans/2026-08-03-policy-experiments.md`. **In progress
-  — cache schema v2 and E2 have landed; E1, E3 and the orchestrator are next.**
-  The schema-2 cache is built (`cache_G_main_v2_*.npz`, 7m27s); rebuild with
+  — E1 and E2 have landed; E3 and the orchestrator are next.**
+  The schema-3 cache is built (`cache_G_main_v3_*.npz`); rebuild with
   `/opt/anaconda3/envs/ssj/bin/python diagnostics/regimes/regime_model.py --force`
   after any calibration change. Run E2 with
   `/opt/anaconda3/envs/ssj/bin/python experiments/e2_dy_decomposition.py`.
@@ -33,6 +33,19 @@
   response is the small residue of an investment channel and a net-export channel
   each ~4× larger and opposite in sign. Report the decomposition, never the
   headline ΔY. See `docs/STATE.md` for the table.
+
+  **E1's headline:** the loading schedule is monotone decreasing at all 59 finite
+  grid points (4.51 → 2.07 over γ=0.5→30), confirming Live Claim 5 on a fine grid.
+  Every cross-check against `code/main.py` passes. Run with
+  `/opt/anaconda3/envs/ssj/bin/python experiments/e1_backstop_schedule.py`.
+
+  **Blocking a paper claim — A5-1's third object is misnamed.** The code reports
+  `Σ β^t (pd_passive − pd_intervention)`, which is **negative** because the
+  backstop lets Greece run a larger primary deficit, i.e. relaxes austerity. So
+  negative = Greece better off, the opposite of what "Greek fiscal saving"
+  implies. **Flip the sign or rename it ("austerity relief, PV") before this
+  number appears anywhere.** Author decision; magnitudes (0.0015 / 0.0047 PV) are
+  unaffected.
 
   **Careful with `EL_price_D`:** it is **0.056134** at the live calibration, not
   the `0.0717` still quoted in older doc sections and CLAUDE.md. It is the TPI
