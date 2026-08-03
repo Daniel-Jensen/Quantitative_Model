@@ -14,7 +14,57 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
-## 2026-08-03 — orchestrator: `run_all.py` → `docs/experiments_results.md`  [this commit]
+## 2026-08-03 — E3: S-1 writeoff. Full writeoff INVERTS Live Claim 1  [this commit]
+
+`experiments/e3_writeoff_s1.py`. S-1 resolved into two nested variants, because
+`writeoff_enabled` and `zeta_writeoff` do different things and only the first is
+steady-state-neutral.
+
+**E3a (coupon-only, `zeta=0`) is negligible**: peak spread 150.3 → 149.1 bp,
+loading 4.00 → 3.93. Measured SS drift exactly **0.000e+00**, confirming
+`writeoff_enabled` is strictly SS-neutral. The coupon is only ~7.8% of the bond,
+so haircutting it alone barely registers.
+
+**E3b (full, `zeta=1`) inverts SPEC Live Claim 1.** `EL_price_D` goes 0.056134 →
+0.701743 (**12.5×**, matching the closed form to 1e−12) and the loading collapses
+from 4.00/3.17 to **0.37/0.28 — below 1**. The CB becomes *under*-compensated,
+receiving ~30% of the actuarially fair expected loss, where the paper's central
+claim is over-compensation. **The "monetary-financing objection fails on the
+model's own terms" argument does not survive `zeta_writeoff = 1`.**
+
+The mechanism is attributable to the denominator alone: premium income barely
+moves (`prem_PV` +9%) while priced expected loss goes ×11.8. It is a repricing of
+the expected loss, not a change in what the CB earns.
+
+`psi_lambda_B = 8.5` also stops hitting its 150 bp anchor under E3b (168.9 bp,
++12.4%). Reported, not re-tuned away.
+
+**Correction to the design spec.** It predicted E3b "moves the steady state via
+`EL_price`". More precisely: `EL_price` changes value 12.5× but **no SS allocation
+moves** (drift 0.000e+00 across eleven quantities) — it multiplies `def_rate`,
+which is 0 at SS, so it is allocation-neutral while still changing the linearised
+bond FOC and hence every dynamic result.
+
+**Unanticipated: under E3b the named-regime construction breaks.** Peak spread
+stops being monotone in γ, so compression targeting has no unique solution. Two
+violations on a 40-point grid over γ∈[0,15]: a trivial one at γ≈0.385 and a large
+spike at γ≈3.46 (144.4 → 166.6 bp), after which the curve resumes falling to
+82.7 bp at γ=15. The isolated spike sits where `I − γ·A_cb` is plausibly
+near-singular, so it reads as a linear-algebra pathology rather than economics —
+but it means compression-targeted regimes are undefined under full writeoff. E3
+therefore evaluates every variant at the **baseline's** γ held fixed, so the model
+changes without the policy also changing.
+
+Two bugs were caught by assertions written before the code was first run. The
+`gamma_for_compression` monotonicity guard surfaced the finding above rather than
+silently bisecting to a meaningless γ. And `expected_EL_price` was initially handed
+a stale calibration because `run()` did `from calibration import get_calibration`
+at the top, binding the original function *before* the override context opened —
+the exact footgun documented in `calibration_override`'s docstring after the
+earlier code review. The closed-form check caught it; the fix is to import the
+module and resolve at use time.
+
+## 2026-08-03 — orchestrator: `run_all.py` → `docs/experiments_results.md`
 
 `experiments/run_all.py` runs every experiment and renders the generated results
 document. E2 runs first because it is self-verifying, so it validates the cache

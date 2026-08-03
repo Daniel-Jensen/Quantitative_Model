@@ -92,6 +92,61 @@ not created by the policy rule — which argues against pure overshoot. But the
 magnitudes are 0.01–0.03% of SS, i.e. the small difference of much larger
 offsetting terms, so the headline is not robust and should not be leaned on.
 
+### E3 — S-1 writeoff (2026-08-03) — **DONE. This one changes a paper claim.**
+
+`experiments/e3_writeoff_s1.py`. Two nested variants, because the two switches do
+different things. All rows evaluated at the **baseline's** γ (0 / 5.0798 /
+12.7260) held fixed, so the model changes without the policy also changing.
+
+| setting | `writeoff_enabled` | `zeta_writeoff` | `EL_price_D` | peak spread @γ=0 | loading (medium) | loading (aggressive) |
+|---|---|---|---|---|---|---|
+| baseline | 0 | 0.0 | 0.056134 | 150.3 bp | 4.00 | 3.17 |
+| **E3a** coupon-only | 1 | 0.0 | 0.056134 | 149.1 bp | 3.93 | 3.13 |
+| **E3b** full | 1 | 1.0 | **0.701743** | **168.9 bp** | **0.37** | **0.28** |
+
+**E3a is economically negligible.** Haircutting the *coupon* alone moves the peak
+spread by −1.2 bp and the loading by −0.04. The coupon is only `delta_b ≈ 7.8%` of
+the bond, so writing it down barely registers. **Its SS drift is exactly
+0.000e+00**, confirming `writeoff_enabled` is strictly steady-state-neutral as
+predicted.
+
+**E3b inverts SPEC Live Claim 1.** The loading falls from 4.00/3.17 to
+**0.37/0.28 — below 1**. Under full writeoff the CB is *under*-compensated,
+receiving roughly 30% of the actuarially fair expected loss, where the paper's
+central claim is over-compensation. **"The monetary-financing objection fails on
+the model's own terms" does not survive `zeta_writeoff = 1`.**
+
+**The mechanism is clean and attributable to the denominator alone.** At `medium`,
+premium income barely moves (`prem_PV` 0.00909 → 0.00988, +9%) while the priced
+expected loss explodes (`EL_PV` 0.00228 → 0.02696, **×11.8**). The inversion is a
+*repricing of the expected loss*, not a change in what the CB earns.
+
+**`psi_lambda_B = 8.5` no longer hits its target.** Peak spread goes 150.3 →
+168.9 bp (+12.4% over the 150 bp anchor) under E3b; E3a stays on target at
+149.1 bp. Reported, **not** re-tuned away — whether to re-tune is a separate
+author decision this result informs.
+
+> **Correction to the design spec's prediction.** The spec said E3b "moves the
+> steady state via `EL_price`". More precisely: `EL_price` (a derived anchor)
+> changes value 12.5×, but **no steady-state allocation moves** — measured SS
+> drift is exactly 0.000e+00 across `q_b`, `Y`, `C`, `I`, `NX`, `n_inter`, `K`,
+> `TAX`, `P_CES`, `b_gov`, `b_D_D`. `EL_price` multiplies `def_rate`, which is 0
+> at SS, so it is SS-neutral in *allocation* while still changing the linearised
+> bond FOC and hence every dynamic result.
+
+**New finding, not anticipated: under E3b the named-regime construction itself
+breaks.** Peak spread stops being monotone in γ, so `gamma_for_compression`'s
+bisection is invalid and "25% / 50% compression" no longer identifies a unique γ.
+Two violations over a 40-point grid on γ ∈ [0,15]: a negligible one at γ≈0.385
+(+0.7 bp) and a **large spike at γ≈3.46 (144.4 → 166.6 bp, +22 bp)**, after which
+the curve resumes falling monotonically to 82.7 bp at γ=15. The isolated spike
+sits where the closed-loop matrix `I − γ·A_cb` is likely near-singular, so treat
+it as a **linear-algebra pathology rather than economics** until confirmed — but
+it does mean compression-targeted regimes cannot be defined under full writeoff.
+
+`A_cb` impact stays negative throughout (−1.889e−02 / −1.894e−02 / −2.158e−02),
+so the backstop still compresses on impact in every setting.
+
 ### Orchestrator (2026-08-03)
 
 `experiments/run_all.py` → `docs/experiments_results.md` (generated; do not

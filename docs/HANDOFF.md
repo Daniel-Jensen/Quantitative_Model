@@ -39,6 +39,14 @@
   Every cross-check against `code/main.py` passes. Run with
   `/opt/anaconda3/envs/ssj/bin/python experiments/e1_backstop_schedule.py`.
 
+  **E3 changes a paper claim — read this before writing the TPI section.**
+  Full writeoff (`writeoff_enabled=1`, `zeta_writeoff=1`) takes `EL_price_D` from
+  0.056134 to 0.701743 (12.5×) and **collapses the loading from 4.00/3.17 to
+  0.37/0.28 — below 1**. The CB becomes *under*-compensated, inverting SPEC Live
+  Claim 1. Coupon-only writeoff (`zeta=0`) is negligible by contrast (loading
+  3.93/3.13). So **S-1 is not a robustness detail — it decides whether the paper's
+  central over-compensation result holds.** Author decision, now with numbers.
+
   **Blocking a paper claim — A5-1's third object is misnamed.** The code reports
   `Σ β^t (pd_passive − pd_intervention)`, which is **negative** because the
   backstop lets Greece run a larger primary deficit, i.e. relaxes austerity. So

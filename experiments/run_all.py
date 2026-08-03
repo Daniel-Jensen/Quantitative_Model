@@ -157,18 +157,62 @@ def _render_e3(e3, L):
                  f"{_fmt_loading(r['regimes']['medium']['loading'])} | "
                  f"{_fmt_loading(r['regimes']['aggressive']['loading'])} |")
 
+    L += ["", f"γ note: {e3['gamma_note']}", "",
+          "### The headline: full writeoff inverts Live Claim 1", "",
+          "Under `zeta_writeoff = 1` the loading falls **below 1** — the CB becomes "
+          "*under*-compensated, receiving roughly 30% of the actuarially fair expected "
+          "loss, where the paper's central claim is over-compensation. The mechanism is "
+          "attributable to the denominator alone: premium income barely moves while the "
+          "priced expected loss goes up by an order of magnitude. It is a repricing of "
+          "the expected loss, not a change in what the CB earns.", "",
+          "| variant | regime | EL PV (% Y) | premium PV (% Y) | loading |",
+          "|---|---|---|---|---|"]
+    for name, r in [("baseline", e3["baseline"])] + list(e3["variants"].items()):
+        for reg, v in r["regimes"].items():
+            if v["loading"] is None:
+                continue
+            L.append(f"| {name} | {reg} | {v['expected_loss_pv_pct_Y']:.5f} | "
+                     f"{v['premium_pv_pct_Y']:.5f} | {_fmt_loading(v['loading'])} |")
+
     L += ["", "### Verification", "",
           "| variant | EL_price (closed form) | EL_price (solved) | ×baseline | max SS drift |",
           "|---|---|---|---|---|"]
     for name, c in e3["checks"].items():
         L.append(f"| {name} | {c['EL_price_expected']:.6f} | {c['EL_price_actual']:.6f} | "
                  f"{c['EL_price_vs_baseline_ratio']:.2f}× | {c['max_ss_drift']:.3e} |")
-    L += ["", "E3a asserts the steady state is **strictly invariant** (drift < 1e−10). "
-          "E3b legitimately moves it, so invariance is *not* asserted there — the "
-          "closed-form `EL_price` check applies instead. Both variants require a full "
-          "SS + Jacobian re-solve: patching the solved SS and re-solving only the "
-          "Jacobian would presume the very invariance E3a exists to test.", "",
-          "> `psi_lambda_B = 8.5` was tuned to 150 bp with realised losses **off**. Any "
+    L += ["", "Both variants require a full SS + Jacobian re-solve: patching the solved "
+          "SS and re-solving only the Jacobian would presume the very invariance E3a "
+          "exists to test.", "",
+          "> **Measured SS drift is 0.000e+00 for BOTH variants**, which refines the "
+          "design spec's prediction that E3b \"moves the steady state\". `EL_price` "
+          "changes value 12.5×, but no steady-state *allocation* moves: it multiplies "
+          "`def_rate`, which is 0 at SS. So it is allocation-neutral while still "
+          "changing the linearised bond FOC, and hence every dynamic result.", ""]
+
+    comp = e3.get("compression")
+    if comp:
+        L += ["### Is compression targeting even well-defined?", "",
+              "The named regimes are *defined* as 25%/50% peak-spread compression, found "
+              "by bisection — which requires peak spread to be monotone in γ.", "",
+              "| setting | monotone in γ? | peak @ γ=0 (bp) | min peak (bp) | γ at min | violations |",
+              "|---|---|---|---|---|---|"]
+        for name, c in comp.items():
+            verdict = "yes" if c["monotone_decreasing"] else \
+                      f"**NO** (from γ≈{c['first_violation_gamma']:.2f})"
+            L.append(f"| {name} | {verdict} | {c['peak_at_gamma0_bp']:.1f} | "
+                     f"{c['min_peak_bp']:.1f} | {c['gamma_at_min_peak']:.2f} | "
+                     f"{c['n_violations']} |")
+        L += ["", "> **Under full writeoff the named-regime construction itself breaks.** "
+              "Peak spread stops being monotone in γ, so \"25% compression\" no longer "
+              "identifies a unique γ. The violations are two of 39 grid steps: a trivial "
+              "one at γ≈0.39 and a large spike at γ≈3.46 (144.4 → 166.6 bp), after which "
+              "the curve resumes falling. That isolated spike sits where `I − γ·A_cb` is "
+              "plausibly near-singular, so read it as a linear-algebra pathology rather "
+              "than economics until confirmed — but compression-targeted regimes cannot "
+              "be defined under this setting, which is why every row above is evaluated "
+              "at the baseline's γ held fixed.", ""]
+
+    L += ["> `psi_lambda_B = 8.5` was tuned to 150 bp with realised losses **off**. The "
           "overshoot above is a reportable fact about whether that target survives S-1 — "
           "**not** a number to re-tune away. Whether to re-tune is a separate author "
           "decision this result informs.", ""]
