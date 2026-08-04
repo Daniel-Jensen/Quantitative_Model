@@ -14,7 +14,40 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
-## 2026-08-03 — `experiments/` package complete; production regression bit-identical  [this commit]
+## 2026-08-04 — S-1 resolved (`writeoff_enabled=0`); first-draft figures and tables  [this commit]
+
+**S-1 resolved by author decision: the paper keeps `writeoff_enabled=0`**, the
+pure risk-premium framing. E3 is retained as an appendix robustness result, and
+its content becomes a stated caveat rather than an open question — the
+over-compensation claim is *conditional on no realised principal writedown*.
+
+`experiments/paper_outputs.py` emits five captioned figures (`experiments/paper/`)
+and three tables (`docs/paper_draft_results.md`): a calibration/identification
+ledger separating measured from targeted from free parameters, a moment-match
+table, and the main results table. Every number is derived live from the solved SS
+or the cached response matrices; only source citations are literal text. Captions
+are baked into each PNG rather than living in the LaTeX, so they survive reuse.
+
+**Corrected: the default-loading split is 3.1% fundamental expected loss / 96.9%
+collateral friction** (`EL_price_D=0.056134`, `psi_spread_D=1.737724`), not the
+10.9%/89% recorded in CLAUDE.md and STATE.md at the pre-EBA calibration. This is
+the quantitative core of the constrained-seller argument and 96.9% is a materially
+stronger version of it.
+
+**New finding — the backstop damps the oscillation, it does not shift the spread
+path down.** Building the transmission figure surfaced that regime differences are
+concentrated at impact: by quarter four the net-worth and investment paths have
+converged, and the spread ordering *reverses* (t=8: passive +0.5bp vs aggressive
++15.5bp; t=12: passive −10.1bp vs aggressive +5.9bp). Passive overshoots downward
+later; intervention decays monotonically. An earlier caption claimed the backstop
+"cushions each link roughly proportionally", which is true only on impact — it was
+corrected rather than shipped.
+
+Figure palette re-validated with the dataviz validator: the project's `#8C1515`
+failed the lightness band and `#002147` failed the chroma floor (reads gray). The
+paper set uses `#1B6CA8 / #A62B22 / #c87941 / #1a6e3a`, all passing.
+
+## 2026-08-03 — `experiments/` package complete; production regression bit-identical
 
 Consolidation of the E1/E2/E3 work. `CLAUDE.md` gains an `experiments/`
 architecture section, three doc-reference rows, and a rewritten **S-1** row

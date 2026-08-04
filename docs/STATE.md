@@ -21,6 +21,45 @@ the package has no side effects on production, by construction.
 Full test suite: **31 passed** (`experiments/` 13, `diagnostics/regimes/` 8,
 `code/test_eba_calibration.py` 10).
 
+### S-1 RESOLVED (2026-08-04): `writeoff_enabled=0` — pure risk-premium framing
+
+Author decision, taken with E3's numbers in hand. The paper commits to the
+risk-premium framing: `def_rate` is a genuine probability, agents price the
+expected loss, the IRF traces the **no-default branch**. Standard
+risk-premium-shock device — *not* "default is impossible", and the paper must say
+so explicitly.
+
+E3 stays as an **appendix robustness result**, and its content is a caveat the
+paper owes the reader: the over-compensation claim is **conditional on no realised
+principal writedown**. With `zeta_writeoff=1` the loading falls to 0.37/0.28,
+below 1. State the conditionality; do not bury it.
+
+### Paper first-draft outputs (2026-08-04)
+
+`experiments/paper_outputs.py` → five captioned figures in `experiments/paper/`
+and three tables in `docs/paper_draft_results.md`. Every number derived live; only
+source citations are literal text.
+
+**Corrected here and in CLAUDE.md: the default-loading split is 3.1% fundamental /
+96.9% collateral friction** (`EL_price_D=0.056134`, `psi_spread_D=1.737724`), not
+the 10.9%/89% recorded at the pre-EBA calibration. This is Live Claim 3's
+quantitative core and 96.9% is a materially stronger version of it.
+
+**New finding from the transmission figure — the backstop does not shift the whole
+spread path down.** Its cushioning is concentrated at impact; by roughly quarter
+four the net-worth and investment paths across regimes have converged, and the
+spread ordering **reverses** (t=8: passive +0.5bp, medium +12.6, aggressive
++15.5; t=12: passive −10.1bp, aggressive +5.9). Passive overshoots downward later
+while intervention decays monotonically. The right description is that the
+backstop damps the *oscillation* — the initial spike and the later undershoot —
+not that it uniformly lowers the spread. Any claim about intervening-regime paths
+beyond the first few quarters must reckon with this.
+
+Figure palette re-validated with the dataviz six-checks validator: the project's
+previous red `#8C1515` **failed** the lightness band and the navy `#002147` failed
+both the band and the chroma floor (it reads gray). The paper set uses
+`#1B6CA8 / #A62B22 / #c87941 / #1a6e3a`, all passing in light mode.
+
 ### Details, newest first
 
 New `experiments/` package on branch `experiments`, building the paper's standard
@@ -449,6 +488,11 @@ is a **hard break**, not the "narrow, mild zone" described below. Measured direc
 
 **Default-loading split.** `EL_price_D=0.0717` vs `psi_spread_D=0.8385` → fundamental
 expected loss is **10.9%** of the default loading, GK collateral friction **89%**.
+
+> **SUPERSEDED 2026-08-04.** Those are pre-EBA numbers. At the live calibration
+> `EL_price_D=0.056134` and `psi_spread_D=1.737724`, so the split is **3.1%
+> fundamental / 96.9% collateral friction** — a materially stronger version of the
+> constrained-seller claim. Do not quote 10.9%/89%.
 
 **Units.** `spread_rb` is a *quarterly* rate deviation; annualise ×4×1e4 for comparison
 with the 150bp target.

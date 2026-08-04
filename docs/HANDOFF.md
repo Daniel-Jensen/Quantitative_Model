@@ -44,7 +44,26 @@
   Every cross-check against `code/main.py` passes. Run with
   `/opt/anaconda3/envs/ssj/bin/python experiments/e1_backstop_schedule.py`.
 
-  **E3 changes a paper claim — read this before writing the TPI section.**
+  **First-draft material is ready.** `experiments/paper_outputs.py` →
+  five captioned figures in `experiments/paper/` + three tables in
+  `docs/paper_draft_results.md` (calibration/identification ledger, moment match,
+  main results). Regenerate with
+  `/opt/anaconda3/envs/ssj/bin/python experiments/paper_outputs.py`.
+
+  **S-1 RESOLVED 2026-08-04: `writeoff_enabled=0` stays** — the pure risk-premium
+  framing. E3 becomes an appendix robustness result and a *stated caveat*: the
+  over-compensation claim is conditional on no realised principal writedown.
+
+  **Default-loading split corrected to 3.1% / 96.9%** (fundamental expected loss /
+  collateral friction). The 10.9% / 89% in older sections is pre-EBA. 96.9% is a
+  stronger version of the constrained-seller claim — use it.
+
+  **New: the backstop damps the oscillation, it does not lower the spread path.**
+  Cushioning is concentrated at impact; by ~q4 the paths converge and the spread
+  ordering reverses (t=8: passive +0.5bp vs aggressive +15.5bp). Do not claim
+  uniform compression over the whole path.
+
+  **E3's numbers, for the appendix — read before writing the TPI section.**
   Full writeoff (`writeoff_enabled=1`, `zeta_writeoff=1`) takes `EL_price_D` from
   0.056134 to 0.701743 (12.5×) and **collapses the loading from 4.00/3.17 to
   0.37/0.28 — below 1**. The CB becomes *under*-compensated, inverting SPEC Live
