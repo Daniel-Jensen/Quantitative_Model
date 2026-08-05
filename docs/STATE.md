@@ -2,7 +2,70 @@
 
 **Branch:** `eba-recalibration` | **Date:** 2026-07-31 | **Status:** **EBA calibration rebuilt, identified, and LIVE** (`EBA_CALIBRATION=True`, `BANK_SCOPE="broad"`). Y-1 and RK-1 resolved; spread on target at 150.4bp; TPI loading declining.
 
-## Nominal rigidities (`add-nkpc`, in progress): Task 8 — blocks seeded into the steady state
+## Nominal rigidities (`add-nkpc`, in progress): Task 9 — 27×27 sticky-price system LIVE, flex-price equivalence gate PASSED
+
+The dynamic model is now sticky-price. `full_model.build_block_list()` carries
+`firm_profit_D/F`, `price_nkpc_D/F`, `terms_of_trade`, `union_inflation`, and
+`build_and_solve` solves **27×27** (was 23×23): `mc_D, pi_D, mc_F, pi_F` added to
+`unknowns_tp`; `nkpc_p_res_D/F, tot_res, union_pi_res` added to `targets_tp`.
+Nothing existing was renamed or dropped; `labor_mkt_res_D/F` is unchanged because
+wages stay flexible.
+
+**Equivalence gate result (a real number, quote it).** As `kappa_p -> inf` the
+NKPC forces `mu_p*mc -> 1` and labour demand collapses to competitive, so the
+27×27 system must reproduce the pre-change 23×23 IRFs. It does, with **textbook
+O(1/kappa_p) convergence**:
+
+| `kappa_p` | worst relative IRF deviation vs pre-change baseline |
+|---|---|
+| 1e4 | `2.925e-03` |
+| **1e5** | **`2.925e-04`** ← gate threshold 1e-3, **PASSED** |
+| 1e6 | `2.925e-05` |
+
+Every one of the 30 IRF series shrinks by a ratio of **exactly 10.00 per decade
+of `kappa_p`**, and the 4 SS levels are bit-identical (`0.000e+00`) at every
+`kappa_p`. This is a *limit*, not an identity — a finite `kappa_p` cannot match
+to machine precision, and the clean 1/kappa_p rate (rather than a stuck floor) is
+the evidence that the blocks are wired correctly. The binding series are
+`irfs_def_D__w_D` (2.925e-04 at 1e5) and `irfs_def_D__N_D` (1.018e-04) — the two
+objects the markup wedge acts on directly. Comparison harness:
+`code/dump_irfs.py`.
+
+**Open item carried into Task 10 — `full_model.solve_jacobian_padded()`.** SSJ
+1.0.0's `Block.solve_jacobian` cannot solve this system as-is.
+`CombinedBlock._jacobian` ends with
+`total_Js[original_outputs & total_Js.outputs, :]` and only visits a block whose
+inputs intersect the shock list, so a target that is a pure function of the
+solver's *own unknowns* never enters H_Z. All four new targets are exactly that
+(no `Z_*`/`shock_def_*` symbol appears anywhere in them), so SSJ returned a
+23-row H_Z against a 27×27 H_U and numpy raised
+`size 11500 is different from 13500`. The new helper restores those rows as
+zeros — **exact, not an approximation**, since dH/dZ at fixed unknowns is
+identically zero when the shock does not appear in the equation — and otherwise
+reproduces `Block.solve_jacobian` line-for-line. `code/tpi.py` routes through it
+too. It prints the padded row names on every solve so the padding can never go
+silent. **Anything else that calls `solve_jacobian` with this 27×27 system will
+hit the same wall**: `diagnostics/regimes/regime_model.py`,
+`diagnostics/solve_configs.py`, `experiments/e4_distribution.py` and the
+`diagnostics/substitution_v2/*` and `psilam_*` sweeps are all still on the raw
+SSJ call. They are untouched and unbroken *only because they have not been
+re-run against the sticky-price system yet* — switch them to
+`solve_jacobian_padded` before rebuilding the regime cache.
+
+**Full-pipeline regression at the flex limit** (`code/main.py`, `kappa_p=1e5`)
+reproduces the pre-change baseline on every monitored number:
+`goods_mkt_D=-4.2493506589857954e-07`, `goods_mkt_F=-4.1914559989475464e-07`,
+`ca_res_D=6.852157730108388e-17`, `All residuals < 1e-8 ✓`,
+`b_gov_D[499]=0.000014`, `ρ_b=0.8451`, `n_inter_D[0]=-3.3804%` of SS,
+`Y_D[0]=-0.0149%` of SS (both negative), TPI `max|ca_res_D| ≤ 7.55e-08`,
+`max|goods_mkt_F| ≤ 2.44e-09`, both TPI sanity checks exactly `0.00e+00`.
+`code/test_nkpc_blocks.py`: 11 passed, 0 failed.
+
+**Next: Task 10** — dial `kappa_p` to the calibrated `0.0871` and record the
+price-stickiness result. That is the first run whose IRFs are *supposed* to
+differ from the baseline.
+
+## Nominal rigidities (`add-nkpc`): Task 8 — blocks seeded into the steady state
 
 `code/steady_state.py`'s `create_model([...])` list (inside `solve_steady_state`)
 gains `firm_profit_D/F`, `price_nkpc_D/F`, `terms_of_trade`, `union_inflation` —

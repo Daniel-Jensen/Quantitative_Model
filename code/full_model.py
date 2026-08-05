@@ -14,6 +14,7 @@ from equations_D import (
     ces_price_D, import_demand_D, deposit_return_D,
     bond_return_D, sdf_D, sdf_banker_ss_D, sdf_banker_D, ghh_composite_D,
     welfare_agg_D, market_clearing_D, hh_extended_D,
+    price_nkpc_D, firm_profit_D,
 )
 from equations_F import (
     capital_adj_F, labor_F, labor_market_F, labor_demand_F,
@@ -25,11 +26,13 @@ from equations_F import (
     ces_price_F, import_demand_F, deposit_return_F,
     bond_return_F, sdf_F, sdf_banker_ss_F, sdf_banker_F, ghh_composite_F,
     welfare_agg_F, market_clearing_F, hh_extended_F,
+    price_nkpc_F, firm_profit_F,
 )
 from equations_global import (
     trade_balance, domestic_bond_clearing,
     portfolio_level_anchors, divert_portfolio_adj, bond_yield,
     global_goods_mkt, external_account_D,
+    terms_of_trade, union_inflation,
 )
 
 
@@ -64,6 +67,7 @@ def build_block_list(financial_solved_D, financial_solved_F, *,
         capital_adj_D, capital_producer_profit_D,
         pick('budget_residual_D', budget_residual_D),
         labor_D, labor_market_D, labor_demand_D, banker_div_res_D,
+        firm_profit_D, price_nkpc_D,
         market_clearing_D, welfare_agg_D,
         # Country F
         deposit_return_F, tax_rule_F, hh_F, ghh_composite_F,
@@ -73,6 +77,7 @@ def build_block_list(financial_solved_D, financial_solved_F, *,
         capital_adj_F, capital_producer_profit_F,
         pick('budget_residual_F', budget_residual_F),
         labor_F, labor_market_F, labor_demand_F, banker_div_res_F,
+        firm_profit_F, price_nkpc_F,
         market_clearing_F, welfare_agg_F,
         # Global
         ces_price_D, import_demand_D, ces_price_F, import_demand_F,
@@ -81,7 +86,58 @@ def build_block_list(financial_solved_D, financial_solved_F, *,
         pick('domestic_bond_clearing', domestic_bond_clearing),
         bond_yield, portfolio_level_anchors, divert_portfolio_adj,
         divert_bond_foc_D, divert_bond_foc_F, global_goods_mkt,
+        terms_of_trade, union_inflation,
     ]
+
+
+def solve_jacobian_padded(model, ss, unknowns, targets, inputs, T,
+                          Js=None, options=None):
+    """SSJ 1.0.0's ``Block.solve_jacobian`` with the missing H_Z rows restored.
+
+    ``CombinedBlock._jacobian`` ends with
+    ``total_Js[original_outputs & total_Js.outputs, :]`` and only visits a block
+    whose inputs intersect the shock list. A target that is a pure function of
+    the solver's *own unknowns* is therefore never reached, and SSJ silently
+    returns an H_Z with fewer rows than H_U — numpy then raises a core-dimension
+    mismatch inside ``np.linalg.solve``.
+
+    Four of the 27 sticky-price targets are exactly that case: ``nkpc_p_res_D/F``
+    (functions of pi and mc), ``tot_res`` (p, pi_D, pi_F) and ``union_pi_res``
+    (pi_D, pi_F) contain no ``Z_*`` or ``shock_def_*`` symbol anywhere. Their
+    H_Z rows are *identically* zero — dH/dZ at fixed unknowns is zero because
+    the shock never appears in the equation — so restoring them as zeros is
+    exact, not an approximation, and the flex-price limit is unaffected.
+
+    Everything else below is SSJ's own algorithm, kept line-for-line in step
+    with ``Block.solve_jacobian`` so the two cannot drift.
+    """
+    from sequence_jacobian import combine
+    from sequence_jacobian.classes.jacobian_dict import JacobianDict
+
+    Js = {} if Js is None else Js
+    options = {} if options is None else options
+
+    inputs   = model.make_ordered_set(inputs)
+    unknowns = model.make_ordered_set(unknowns)
+    targets  = model.make_ordered_set(targets)
+    actual_outputs, unknowns_as_outputs = model.process_outputs(ss, unknowns, None)
+
+    Js = model.partial_jacobians(ss, inputs | unknowns,
+                                 (actual_outputs | targets) - unknowns,
+                                 T, Js, options)
+    H_Z = model.jacobian(ss, inputs, targets, T, Js, options)
+    H_U = model.jacobian(ss, unknowns, targets, T, Js, options)
+
+    missing = [t for t in targets if t not in H_Z.outputs]
+    if missing:
+        print(f"  [H_Z zero-pad] no direct shock loading, rows restored as zero: {missing}")
+        H_Z = JacobianDict({t: H_Z.nesteddict.get(t, {}) for t in targets},
+                           outputs=targets, inputs=inputs, T=T)
+
+    U_Z = JacobianDict.unpack(
+        -np.linalg.solve(H_U.pack(T), H_Z.pack(T)), unknowns, inputs, T)
+    return combine([U_Z, model]).jacobian(
+        ss, inputs, unknowns_as_outputs | actual_outputs, T, Js, options)
 
 
 def build_and_solve(ss_results):
@@ -119,23 +175,29 @@ def build_and_solve(ss_results):
     # ── Full dynamic model ────────────────────────────────────────────────────
     ha_full = sj.create_model(
         build_block_list(financial_solved_D, financial_solved_F),
-        name="Full 2-Country MU HANK — GHH Preferences, Flex Price & Wage, No CB",
+        name="Full 2-Country MU HANK — GHH Preferences, Sticky Price, Flex Wage, No CB",
     )
 
-    # ── 23×23 system ──────────────────────────────────────────────────────────
+    # ── 27×27 system ──────────────────────────────────────────────────────────
+    # +4 vs the flex model: mc and pi per country. mc is pinned by the price
+    # NKPC, pi jointly by the terms-of-trade identity and the union-inflation
+    # normalisation. No targets are renamed or removed -- labor_mkt_res_D/F is
+    # unchanged because wages stay flexible.
     unknowns_tp = [
         'K_D', 'n_inter_D', 'div_D', 'I_D', 'Q_D', 'b_gov_D', 'N_D', 'b_F_D', 'w_D', 'rdep_D',
+        'mc_D', 'pi_D',
         'K_F', 'n_inter_F', 'div_F', 'I_F', 'Q_F', 'b_gov_F', 'N_F', 'b_D_F', 'w_F', 'rdep_F',
+        'mc_F', 'pi_F',
         'p', 'q_b_D', 'q_b_F',
     ]
     targets_tp = [
         'deposit_mkt_D', 'K_res_D', 'n_inter_val_D', 'div_res_D',
         'capital_res_D', 'q_res_D', 'b_gov_res_D', 'b_F_D_res',
-        'labor_mkt_res_D', 'w_res_D',
+        'labor_mkt_res_D', 'w_res_D', 'nkpc_p_res_D',
         'deposit_mkt_F', 'K_res_F', 'n_inter_val_F', 'div_res_F',
         'capital_res_F', 'q_res_F', 'b_gov_res_F', 'b_D_F_res',
-        'labor_mkt_res_F', 'w_res_F',
-        'goods_mkt_D', 'rb_D_res', 'rb_F_res',
+        'labor_mkt_res_F', 'w_res_F', 'nkpc_p_res_F',
+        'goods_mkt_D', 'rb_D_res', 'rb_F_res', 'tot_res', 'union_pi_res',
     ]
     T = 500
 
@@ -148,8 +210,8 @@ def build_and_solve(ss_results):
     # ── Jacobian ──────────────────────────────────────────────────────────────
     exogenous = ['Z_D', 'shock_def_D', 'Z_F', 'shock_def_F']
     print(f"Computing Jacobian G (T={T}, {len(exogenous)} exogenous inputs)...")
-    G = ha_full.solve_jacobian(ss_final, unknowns=unknowns_tp, targets=targets_tp,
-                               inputs=exogenous, T=T)
+    G = solve_jacobian_padded(ha_full, ss_final, unknowns=unknowns_tp,
+                              targets=targets_tp, inputs=exogenous, T=T)
     print("G computed successfully.")
 
     # ── Shocks ────────────────────────────────────────────────────────────────

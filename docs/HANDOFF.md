@@ -59,7 +59,32 @@
   full calibration -> SS -> IC-delta -> depreciation-calibration chain diffed
   against the pre-change baseline — passed byte-for-byte. `code/test_nkpc_blocks.py`
   still 11/11 green. **Task 9 (wire the 27×27 dynamic system and run the
-  `kappa_p=1e4` flex-price equivalence gate) is next.**
+  flex-price equivalence gate) is COMPLETE and the gate PASSED.**
+  `full_model.build_block_list()` now carries `firm_profit_D/F`,
+  `price_nkpc_D/F`, `terms_of_trade`, `union_inflation`, and `build_and_solve`
+  solves 27×27 (`+mc_D, pi_D, mc_F, pi_F` / `+nkpc_p_res_D/F, tot_res,
+  union_pi_res`). The `kappa_p -> inf` limit reproduces the pre-change 23×23
+  IRFs with **textbook O(1/kappa_p) convergence**: worst relative deviation
+  `2.925e-03` at `kappa_p=1e4`, **`2.925e-04` at 1e5** (threshold 1e-3, passed),
+  `2.925e-05` at 1e6 — every one of the 30 IRF series shrinks by exactly 10.00×
+  per decade and the SS levels are bit-identical. Full `code/main.py` at the
+  flex limit reproduces every monitored baseline number including both TPI
+  sanity checks at `0.00e+00`. Comparison harness: `code/dump_irfs.py`.
+  **Gotcha to know before touching anything that solves a Jacobian:** SSJ
+  1.0.0's `Block.solve_jacobian` silently drops target rows with no *direct*
+  dependence on the shock list, and all four new targets are pure functions of
+  the solver's own unknowns — it returned a 23-row H_Z against a 27×27 H_U and
+  numpy raised a dimension mismatch. Use `full_model.solve_jacobian_padded()`
+  instead; it restores those rows as zeros (exact, since dH/dZ at fixed unknowns
+  is identically zero there) and otherwise mirrors SSJ line-for-line.
+  `code/full_model.py` and `code/tpi.py` are converted;
+  `diagnostics/regimes/regime_model.py`, `diagnostics/solve_configs.py`,
+  `experiments/e4_distribution.py` and the `substitution_v2`/`psilam_*` sweeps
+  are **not** — convert them before re-running any of those against the
+  sticky-price system (notably before rebuilding the regime cache).
+  **Task 10 (dial `kappa_p` to the calibrated 0.0871 and record the
+  price-stickiness result) is next** — the first run whose IRFs are *supposed*
+  to differ from the baseline.
 - Working branch: `main`. Production entry point: `code/main.py` (orchestrates
   `calibration.py`, `steady_state.py`, `ic_delta_calibration.py`,
   `depreciation_calibration.py`, `full_model.py`, `tpi.py`, `irf_plots.py`,

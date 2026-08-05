@@ -14,6 +14,57 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-08-05 — 27×27 sticky-price dynamic system; passes the `kappa_p -> inf` equivalence gate (Task 9 of the nominal-rigidities plan)
+
+`full_model.build_block_list()` gains `firm_profit_D/F`, `price_nkpc_D/F`
+(country groups, after `banker_div_res_D/F`) and `terms_of_trade`,
+`union_inflation` (global group), and `build_and_solve`'s solver system goes
+**23×23 → 27×27**: `+mc_D, pi_D, mc_F, pi_F` to `unknowns_tp` and
+`+nkpc_p_res_D/F, tot_res, union_pi_res` to `targets_tp`. No existing unknown or
+target is renamed or dropped — `labor_mkt_res_D/F` is untouched because wages
+stay flexible. Model renamed to "… Sticky Price, Flex Wage, No CB".
+
+**Gate (the point of the task).** With `kappa_p -> inf` the NKPC residual forces
+`mu_p*mc -> 1`, collapsing `labor_demand_D/F` to the competitive
+`w = (1-alpha)Y/N`, so the 27×27 system must reproduce the pre-change 23×23
+IRFs. Baseline IRFs were dumped from `main` with the new `code/dump_irfs.py`
+(15 series × 2 shocks + 4 SS levels) and compared. The deviation is
+**exactly O(1/kappa_p)** — across `kappa_p = 1e4 / 1e5 / 1e6` *every one of the
+30 IRF series* shrinks by a ratio of **10.00** per decade, and the 4 SS levels
+are bit-identical (`0.000e+00`) at every `kappa_p`. Worst relative deviation:
+`2.925e-03` at 1e4, **`2.925e-04` at 1e5** (gate threshold 1e-3, PASSED),
+`2.925e-05` at 1e6. The binding series are `irfs_def_D__w_D` and
+`irfs_def_D__N_D` — the two objects the markup wedge acts on directly, as
+expected. A clean 1/kappa_p limit (rather than a stuck floor) is the evidence
+that the blocks are wired correctly; 1e4 was simply not yet deep enough in.
+
+**SSJ defect found and fixed: `solve_jacobian` silently drops zero H_Z rows.**
+`CombinedBlock._jacobian` returns `total_Js[original_outputs & total_Js.outputs, :]`
+and only visits a block whose inputs intersect the shock list, so a target that
+is a pure function of the solver's *own unknowns* never enters H_Z. All four new
+targets are exactly that (`nkpc_p_res_D/F` in pi and mc; `tot_res` in p, pi_D,
+pi_F; `union_pi_res` in pi_D, pi_F — no `Z_*`/`shock_def_*` symbol anywhere), so
+SSJ 1.0.0 handed a 23-row H_Z to a 27×27 H_U and numpy raised a core-dimension
+mismatch (`size 11500 is different from 13500`). New
+`full_model.solve_jacobian_padded()` restores the missing rows as zeros — which
+is **exact, not an approximation**: dH/dZ at fixed unknowns is identically zero
+because the shock symbols do not appear in those equations. It otherwise
+reproduces `Block.solve_jacobian` line-for-line. `code/tpi.py` calls it too
+(same 27×27 system, same four rows). It prints the padded row names on every
+solve, so the padding can never become silent.
+
+**Full-pipeline regression at the flex limit** (`code/main.py`, `kappa_p=1e5`):
+`goods_mkt_D = -4.2493506589857954e-07`, `goods_mkt_F = -4.1914559989475464e-07`,
+`ca_res_D = 6.852157730108388e-17`, `All residuals < 1e-8 ✓`,
+`irfs_def_D['b_gov_D'][499] = 0.000014`, `ρ_b = 0.8451`,
+`n_inter_D[0] = -3.3804%` of SS, `Y_D[0] = -0.0149%` of SS (both negative —
+doom-loop sign correct), TPI `max|ca_res_D| ≤ 7.55e-08`,
+`max|goods_mkt_F| ≤ 2.44e-09`, and both TPI sanity checks
+(`G_tpi[cb=0]` vs baseline G, and `gamma=0` vs `irfs_def_D`) at
+**exactly `0.00e+00`**. Every one of these reproduces the pre-change baseline.
+`code/test_nkpc_blocks.py`: still 11 passed, 0 failed. Next: Task 10, dial
+`kappa_p` down to the calibrated 0.0871 and record the price-stickiness result.
+
 ## 2026-08-05 — Seed `mc`, `pi`, `profit` and the global residuals into the steady state (Task 8 of the nominal-rigidities plan)
 
 `code/steady_state.py`'s import lists (`equations_D`, `equations_F`,

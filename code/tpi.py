@@ -174,8 +174,9 @@ def run_tpi(model_results):
     # ── Jacobian ──────────────────────────────────────────────────────────────
     exogenous_tpi = ['Z_D', 'shock_def_D', 'Z_F', 'shock_def_F', 'cb_buy_D']
     print(f"Computing G_tpi (T={T}, {len(exogenous_tpi)} exogenous inputs)...")
-    G_tpi = ha_full_tpi.solve_jacobian(
-        ss_tpi, unknowns=unknowns_tp, targets=targets_tp,
+    from full_model import solve_jacobian_padded
+    G_tpi = solve_jacobian_padded(
+        ha_full_tpi, ss_tpi, unknowns=unknowns_tp, targets=targets_tp,
         inputs=exogenous_tpi, T=T,
     )
     print("G_tpi computed.")
