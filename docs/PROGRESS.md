@@ -14,7 +14,309 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
-## 2026-07-31 — regimes re-run at the broad scope; `PSILAM_BREAKDOWN` re-derived; units bug fixed  [this commit]
+## 2026-08-05 — E4 distributional incidence; net-effects and MS-regime figures  [this commit]
+
+Three additions to the first-draft set, at the author's request.
+
+**`fig06_net_effects`** — contributions to ΔY quarter by quarter with the net path
+overlaid. Makes visually what E2 made numerically: the net path is roughly an
+order of magnitude smaller than the components generating it, at every horizon.
+
+**`fig07_ms_regimes`** — the empirical scenario chart. A three-state
+Markov-switching model on peripheral–Bund spreads dates the intervention stance:
+dove through the 1998–2008 convergence era, **hawk across 2010–14**, base
+thereafter; ergodic shares 23/52/25%, durations 105/73/49 months. This is the
+discipline behind the Stage-B beliefs. The pre-1999 stretch is marked on the
+figure as predating the ECB — those regimes are EMU convergence, not a policy
+stance, and the shading would otherwise imply one that could not have existed.
+
+**`fig08_deciles` + `experiments/e4_distribution.py`** — DIST-1 addressed. Adds
+per-bin consumption hetoutputs to the D household block and re-solves the Jacobian.
+**No Gini computed** (author decision; DIST-1 says it is the wrong statistic here).
+
+**The methodological finding, which changed what gets reported.** Binning on
+*wealth* with fixed boundaries yields a per-capita consumption response that is
+overwhelmingly composition rather than behaviour: bottom decile, PV over 40q, the
+consumption term is −41.6 against a mass term of −44.4, netting +2.8. The deposit
+distribution shifts across fixed thresholds and membership churns. Binning on the
+exogenous **income** state instead makes each bin's mass invariant (it is the
+stationary distribution of the exogenous Markov chain), so the measure is purely
+behavioural. Income quintiles are now the reported cut; wealth deciles are kept in
+the tables with the caveat and are deliberately not plotted.
+
+Three SSJ hetoutput constraints were hit and are documented in the module, since
+each fails deep inside the het-block Jacobian with an unhelpful error: the
+function's source must be introspectable (no `exec`, no closure), the return must
+be a bare single line (a parenthesised tuple yields the name `(cdec01_D`), and it
+must carry no trailing comment (which corrupts the last name). `regime_model.
+build_tpi_model_main` gained optional `hh_D`/`hh_F` overrides so the augmented
+block substitutes into the one canonical block list rather than a second copy.
+
+## 2026-08-04 — S-1 resolved (`writeoff_enabled=0`); first-draft figures and tables
+
+**S-1 resolved by author decision: the paper keeps `writeoff_enabled=0`**, the
+pure risk-premium framing. E3 is retained as an appendix robustness result, and
+its content becomes a stated caveat rather than an open question — the
+over-compensation claim is *conditional on no realised principal writedown*.
+
+`experiments/paper_outputs.py` emits five captioned figures (`experiments/paper/`)
+and three tables (`docs/paper_draft_results.md`): a calibration/identification
+ledger separating measured from targeted from free parameters, a moment-match
+table, and the main results table. Every number is derived live from the solved SS
+or the cached response matrices; only source citations are literal text. Captions
+are baked into each PNG rather than living in the LaTeX, so they survive reuse.
+
+**Corrected: the default-loading split is 3.1% fundamental expected loss / 96.9%
+collateral friction** (`EL_price_D=0.056134`, `psi_spread_D=1.737724`), not the
+10.9%/89% recorded in CLAUDE.md and STATE.md at the pre-EBA calibration. This is
+the quantitative core of the constrained-seller argument and 96.9% is a materially
+stronger version of it.
+
+**New finding — the backstop damps the oscillation, it does not shift the spread
+path down.** Building the transmission figure surfaced that regime differences are
+concentrated at impact: by quarter four the net-worth and investment paths have
+converged, and the spread ordering *reverses* (t=8: passive +0.5bp vs aggressive
++15.5bp; t=12: passive −10.1bp vs aggressive +5.9bp). Passive overshoots downward
+later; intervention decays monotonically. An earlier caption claimed the backstop
+"cushions each link roughly proportionally", which is true only on impact — it was
+corrected rather than shipped.
+
+Figure palette re-validated with the dataviz validator: the project's `#8C1515`
+failed the lightness band and `#002147` failed the chroma floor (reads gray). The
+paper set uses `#1B6CA8 / #A62B22 / #c87941 / #1a6e3a`, all passing.
+
+## 2026-08-03 — `experiments/` package complete; production regression bit-identical
+
+Consolidation of the E1/E2/E3 work. `CLAUDE.md` gains an `experiments/`
+architecture section, three doc-reference rows, and a rewritten **S-1** row
+carrying E3's numbers — S-1 is no longer an open flag but a quantified decision
+that determines whether the paper's central claim holds.
+
+**`CLAUDE.md`'s `EL_price_D = 0.0717` was stale and is corrected to 0.056134.**
+That figure predates the EBA `delta_b = 0.0777` / `q_b = 0.969`. It is the TPI
+loading's denominator, so the error propagated into every loading figure quoted
+from memory rather than re-derived. E3 made it load-bearing.
+
+**Production regression re-run after all experiment work** (`code/main.py`,
+exit 0, 18m46s): **bit-identical to the pre-work baseline** —
+`goods_mkt_D = -4.2493506589857954e-07`, `ca_res_D = 6.852157730108388e-17`,
+`K_D = 10.800`/`K_F = 10.832`, `n_inter_D[0] = -3.3804%`, `Y_D[0] = -0.0149%`,
+`b_gov_D[499] = 1.4e-05`, loading 4.35/4.01/3.44. `git diff main -- code/` is
+empty. The package reads the production equation files but writes nothing into
+them, so `code/main.py` remains the regression path. Full suite: 31 passed.
+
+**Independent cross-validation of E1.** Two separately written code paths agree:
+`code/main.py` gives loading 4.01 at γ=5, E1 gives 4.00 at γ=5.0798; production
+3.44 at γ=10, E1 3.17 at γ=12.726 (correctly lower). Peak spreads hit the
+compression targets exactly.
+
+**Two items now blocking paper text, both author decisions:**
+1. **S-1** — `zeta_writeoff=1` inverts Live Claim 1 (loading 0.37/0.28, below 1).
+2. **A5-1's third object is misnamed** — the reported
+   `Σ β^t (pd_passive − pd_intervention)` is negative *because* the backstop
+   relaxes austerity, so negative means Greece is better off, the opposite of what
+   "fiscal saving" implies. Flip the sign or rename it before it is quoted.
+
+## 2026-08-03 — E3: S-1 writeoff. Full writeoff INVERTS Live Claim 1
+
+`experiments/e3_writeoff_s1.py`. S-1 resolved into two nested variants, because
+`writeoff_enabled` and `zeta_writeoff` do different things and only the first is
+steady-state-neutral.
+
+**E3a (coupon-only, `zeta=0`) is negligible**: peak spread 150.3 → 149.1 bp,
+loading 4.00 → 3.93. Measured SS drift exactly **0.000e+00**, confirming
+`writeoff_enabled` is strictly SS-neutral. The coupon is only ~7.8% of the bond,
+so haircutting it alone barely registers.
+
+**E3b (full, `zeta=1`) inverts SPEC Live Claim 1.** `EL_price_D` goes 0.056134 →
+0.701743 (**12.5×**, matching the closed form to 1e−12) and the loading collapses
+from 4.00/3.17 to **0.37/0.28 — below 1**. The CB becomes *under*-compensated,
+receiving ~30% of the actuarially fair expected loss, where the paper's central
+claim is over-compensation. **The "monetary-financing objection fails on the
+model's own terms" argument does not survive `zeta_writeoff = 1`.**
+
+The mechanism is attributable to the denominator alone: premium income barely
+moves (`prem_PV` +9%) while priced expected loss goes ×11.8. It is a repricing of
+the expected loss, not a change in what the CB earns.
+
+`psi_lambda_B = 8.5` also stops hitting its 150 bp anchor under E3b (168.9 bp,
++12.4%). Reported, not re-tuned away.
+
+**Correction to the design spec.** It predicted E3b "moves the steady state via
+`EL_price`". More precisely: `EL_price` changes value 12.5× but **no SS allocation
+moves** (drift 0.000e+00 across eleven quantities) — it multiplies `def_rate`,
+which is 0 at SS, so it is allocation-neutral while still changing the linearised
+bond FOC and hence every dynamic result.
+
+**Unanticipated: under E3b the named-regime construction breaks.** Peak spread
+stops being monotone in γ, so compression targeting has no unique solution. Two
+violations on a 40-point grid over γ∈[0,15]: a trivial one at γ≈0.385 and a large
+spike at γ≈3.46 (144.4 → 166.6 bp), after which the curve resumes falling to
+82.7 bp at γ=15. The isolated spike sits where `I − γ·A_cb` is plausibly
+near-singular, so it reads as a linear-algebra pathology rather than economics —
+but it means compression-targeted regimes are undefined under full writeoff. E3
+therefore evaluates every variant at the **baseline's** γ held fixed, so the model
+changes without the policy also changing.
+
+Two bugs were caught by assertions written before the code was first run. The
+`gamma_for_compression` monotonicity guard surfaced the finding above rather than
+silently bisecting to a meaningless γ. And `expected_EL_price` was initially handed
+a stale calibration because `run()` did `from calibration import get_calibration`
+at the top, binding the original function *before* the override context opened —
+the exact footgun documented in `calibration_override`'s docstring after the
+earlier code review. The closed-form check caught it; the fix is to import the
+module and resolve at use time.
+
+## 2026-08-03 — orchestrator: `run_all.py` → `docs/experiments_results.md`
+
+`experiments/run_all.py` runs every experiment and renders the generated results
+document. E2 runs first because it is self-verifying, so it validates the cache
+before anything else reports numbers off it. `--skip-e3` re-renders without paying
+for E3's two model re-solves; `--render-only` rebuilds the document from results
+already on disk.
+
+Every table carries a provenance stamp read **live** from the calibration —
+including a **working-tree-dirty flag**, so a document generated with uncommitted
+edits can no longer be mistaken for a clean run at that SHA. The stamp exists
+because `run_regimes.py` once shipped a hardcoded "market-value rule" caption while
+actually running the par rule.
+
+The document is generated and carries a do-not-hand-edit warning; it also states
+plainly when an experiment's results are missing rather than rendering a partial
+table silently.
+
+## 2026-08-03 — E1: backstop schedule; cache schema 3 (`delta_b_F`)
+
+`experiments/e1_backstop_schedule.py`. Named regimes canonical, γ **solved** for
+0/25/50% peak-spread compression (0 / 5.0798 / 12.7260). Reports the regime table,
+A5-1's three German objects separately, the loading schedule, and welfare labelled
+secondary. Figure: `experiments/figures/fig_e1_loading_schedule.png`.
+
+**Every cross-check against the independent `code/main.py` pipeline passes.**
+Loading 4.00 at `medium` (γ=5.08) vs production's 4.01 at γ=5; 3.17 at
+`aggressive` (γ=12.73), correctly below production's 3.44 at γ=10. Peak spreads
+hit the compression targets exactly (150.3 → 112.7 → 75.2 bp). `n_inter_D[0]`
+(−3.380 / −2.167 / −1.099 % SS) and `Y_D[0]` (−0.0149 / +0.0111 / +0.0338)
+reproduce `docs/STATE.md`'s regime table to every printed digit.
+
+**Live Claim 5 confirmed on a fine grid.** The loading schedule is monotone
+decreasing at **all 59 finite grid points**, 4.51 (γ=0.51) → 2.07 (γ=30) —
+stronger evidence for the self-extinguishing premium than the three points
+previously on record.
+
+**Cache schema 3: `delta_b_F_ss` added, and the reason is a bug this caught.**
+`cb_pnl` computes each carry leg's SS yield as `delta_b·(1/q_b_ss − 1)`. The first
+draft used `delta_b_D` on *both* legs, but `delta_b_F = 0.056779 ≠ delta_b_D =
+0.077701` — the two countries' bank books have different measured maturity
+ladders. That put the SS spread at −9.2e−04 rather than its true ~1e−17 and would
+have silently contaminated `carry_ss_pv`. An assertion written into `cb_pnl`
+before the code was ever run caught it. `carry_ss_pv` now comes out 1.2e−16 /
+3.2e−16, i.e. numerically zero as it should be. Cache rebuilt (schema 3); E2
+re-ran with identical γ and `dY` values.
+
+**Open, needs an author decision: A5-1's third object is misnamed.** The code
+reports `Σ β^t (pd_passive − pd_intervention)`, which comes out **negative**
+(−0.0015 medium, −0.0047 aggressive) because the backstop lets Greece run a
+*larger* primary deficit — it relaxes required austerity. A negative number
+therefore means Greece is better off, the opposite of what "Greek fiscal saving"
+implies. Either flip the sign or rename it ("austerity relief, PV"). Magnitudes
+are unaffected; the label must not ship as-is.
+
+## 2026-08-03 — E2: ΔY decomposition against the `market_clearing_D` identity
+
+`experiments/e2_dy_decomposition.py` + `experiments/test_e2_identity.py`, and five
+cache/IRF helpers appended to `experiments/common.py` (`load_cache`,
+`cache_outputs`, `irf_from_cache`, `named_regime_gammas`, `regime_irfs`). The
+named regimes are canonical: γ is **solved** for 0/25/50% peak-spread compression
+(0 / 5.0798 / 12.7260), not chosen as round numbers, so the regimes keep their
+meaning across recalibrations.
+
+**Self-verifying by construction.** The decomposition is the linearised
+`market_clearing_D` identity `dY = P_ss·dC + C_ss·dP + dI + dG + dΦ + dT + dNX`,
+and `goods_mkt_D` is a *targeted* solver residual, so the components must sum to
+`dY` to solver tolerance. Achieved **5.8e−17 / 1.1e−16 / 1.5e−16** against a 1e−7
+assertion that halts rather than warns.
+
+**Finding — the headline output number is the residue of two much larger
+offsetting channels.** Passive → aggressive, `dY[0]` moves +4.87e−04 while
+investment moves +2.16e−03 and net exports −1.85e−03, each ~4× the headline and
+opposite in sign. This confirms `docs/SPEC.md`'s standing caution ("a small
+headline output number can be *only* small because two large channels are netting
+out — and they land on different households") **as a measured property of this
+calibration**, and settles the gate it placed on the trade-channel claim.
+
+**The `Y_D[0] > 0` watch item is answered.** `dY[0]` = −0.0149 / +0.0111 /
++0.0338 % of SS. The proximate driver of the sign flip is **consumption quantity,
+not investment**: at `medium`, investment is still negative on impact and output
+is positive only because consumption outweighs it. Consumption is already positive
+on impact at `passive` with no backstop, so it is not manufactured by the policy
+rule — which argues against pure linear-rule overshoot. But the magnitudes
+(0.01–0.03% of SS) are small differences of much larger terms and should not be
+leaned on. Full table in `docs/STATE.md`.
+
+`Phi_D` and `G_D` are **verified** zero rather than merely uncached: `Phi_D` has
+no Jacobian column (the portfolio adjustment cost is quadratic about its anchor,
+so its level deviation is second-order), and `G_D` is absent from `G_tpi.outputs`
+because government spending is constant. The identity closes *because* both are
+genuinely zero. Cache rebuilt under schema 2 (7m27s); `G_tpi[cb=0]` vs baseline
+`max|err| = 0.00e+00`.
+
+Also noted: `EL_price_D` is **0.056134** at the live calibration, not the `0.0717`
+still quoted in older doc sections and CLAUDE.md — that figure predates the EBA
+`delta_b`/`q_b`. It is the TPI loading's denominator, so it must be re-derived
+wherever quoted, not copied. Not fixed in this commit.
+
+## 2026-08-03 — `experiments/` package: cache schema v2 (call-time fingerprint)
+
+First commit of the new `experiments/` package (branch `experiments`), which will
+produce the paper's standard policy results on top of the regimes cache layer.
+`code/main.py` untouched.
+
+**The fix that had to come first.** `regime_model.cache_path` built its filename
+from `CAL_FINGERPRINT`, computed at module **import**. Experiment E3 needs to solve
+the model under a calibration override applied at run time; with an import-time
+fingerprint its cache would have been written to the baseline filename and silently
+overwritten it. Now computed at call time, stamped into the `.npz` as
+`cal_fingerprint`, and asserted against the live calibration on load, with a clear
+`FileNotFoundError` naming the rebuild command when no cache matches.
+
+`CACHE_SCHEMA = 2` now appears in the filename: the calibration fingerprint alone
+cannot detect a change to the cached *output list*, so without it an old cache would
+reload under an unchanged name missing the new keys — invisibly, since `irf_all`
+discovers outputs by scanning cache keys. Added `Phi_D` and `def_rate_D` to
+`REQUIRED` (`Phi_D` closes the `market_clearing_D` identity for E2; `def_rate_D` is
+the off-path expected-loss leg for E1). `T_D` went to `OPTIONAL` deliberately —
+`T0=T1=0` makes it identically zero, so zero-filling is correct rather than a silent
+hole, and E2's closure assertion catches it if that ever changes.
+
+Also `build_caches` now reads `psi_lambda_B` live rather than from the import-time
+`PSILAM_MAIN` constant, so an override wins there too.
+
+New: `experiments/common.py` (calibration-override context manager, unit helpers,
+provenance stamp, results writer) and `experiments/test_common.py` (regression
+guards including one that the override changes the cache filename and does not
+leak out of the context manager).
+
+**Hardened after code review (same day).** `calibration_override` now raises
+`KeyError` on an override key not present in the calibration dict — previously a
+typo (e.g. `psi_lambda_b_D` for `psi_lambda_B_D`) would silently add a junk key
+while leaving the real parameter at its default, producing a wrong-but-plausible
+number without any error: exactly the failure mode this whole package exists to
+close off, one level up from the cache-fingerprint fix above. `write_results` now
+serialises numpy arrays/scalars properly (`json.dump(default=float)` raised on any
+multi-element array — the normal shape of an IRF payload) and passes
+`allow_nan=False`, so a `NaN` in a result is a loud `ValueError` at write time
+rather than a token that travels silently into a table and that strict JSON
+parsers reject anyway. Also fixed: the exception-restore test asserted on a
+name bound at import (`from calibration import get_calibration`), which cannot
+observe the module attribute the context manager patches and so passed
+regardless of whether the restore worked — rewritten to assert on
+`calibration.get_calibration` directly, and verified to fail when the `finally:`
+restore is removed. `cache_path`'s `fingerprint` parameter is now actually used by
+`load_cache` instead of being computed and discarded twice. 17/17 tests pass
+(`experiments/` + `diagnostics/regimes/test_lottery_math.py`).
+
+## 2026-07-31 — regimes re-run at the broad scope; `PSILAM_BREAKDOWN` re-derived; units bug fixed
 
 Follow-up to the broad-scope commit below: the policy-regime diagnostics had never
 been run at the live calibration, and their hard guard blocked it.

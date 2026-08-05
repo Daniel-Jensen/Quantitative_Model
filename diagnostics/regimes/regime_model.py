@@ -64,18 +64,42 @@ PSILAM_MAIN = _live_psilam()
 # empirical backstop — it catches breakdown by measurement, not by threshold.
 PSILAM_BREAKDOWN = 15.0
 
-# Spec §8.1 output set, resolved against main's model. REQUIRED: hard error if absent.
+# Bump whenever REQUIRED / OPTIONAL / SS_META change. It goes in the cache
+# FILENAME: the calibration fingerprint alone cannot detect a schema change, so
+# without this an old cache would reload under the same name missing the new
+# keys — silently, because irf_all discovers outputs by scanning cache keys.
+CACHE_SCHEMA = 3
+
 REQUIRED = ["spread_rb", "rb_D", "rb_F", "q_b_D", "q_b_F", "Y_D", "C_D", "I_D",
             "NX_D", "K_D", "n_inter_D", "b_D_D", "b_D_F", "b_gov_D", "U_D", "U_F",
-            "TAX_D", "P_CES_D"]
+            "TAX_D", "P_CES_D",
+            # Added for the experiments package (schema 2):
+            #   Phi_D, def_rate_D — Phi_D closes the market_clearing_D identity
+            #   for E2; def_rate_D is the off-path expected-loss leg for E1's
+            #   A5-1 reporting (cb_pnl reads it).
+            "Phi_D", "def_rate_D"]
 # OPTIONAL: logged loudly if missing, never silently dropped.
 # (cb_flow_D excluded — it's the CB inter-block conduit flow, unused downstream, and
 #  SSJ returns its cb_buy_D Jacobian as a non-array object; keep the cache clean.)
-OPTIONAL = ["G_D", "ra_D", "lambda_gk_D", "theta_D", "GINI_WEALTH", "GINI_C", "div_fund_D"]
+#
+# T_D is OPTIONAL, not REQUIRED, on purpose: T0=T1=0 so the macroprudential bond
+# tax is identically zero and SSJ may omit it from G.outputs entirely. Zero-filling
+# is the CORRECT value here rather than a silent hole — and E2's closure assertion
+# catches it either way if that ever stops being true.
+OPTIONAL = ["G_D", "ra_D", "lambda_gk_D", "theta_D", "GINI_WEALTH", "GINI_C",
+            "div_fund_D", "T_D"]
 SS_META  = ["q_b_D_ss:q_b_D", "b_D_D_ss:b_D_D", "b_gov_D_ss:b_gov_D", "Y_D_ss:Y_D",
             "C_D_ss:C_D", "I_D_ss:I_D", "NX_D_ss:NX_D", "n_inter_D_ss:n_inter_D",
             "K_D_ss:K_D", "TAX_D_ss:TAX_D", "P_CES_D_ss:P_CES_D",
-            "beta_D:beta_D", "beta_F:beta_F", "EL_price_D:EL_price_D"]
+            "beta_D:beta_D", "beta_F:beta_F", "EL_price_D:EL_price_D",
+            # schema 2: needed by E1's cb_pnl port and E2's identity
+            # schema 3: delta_b_F is NOT delta_b_D (0.0568 vs 0.0777 — the two
+            # countries' bank books have different measured durations). E1's
+            # cb_pnl computes the SS yield on each leg as delta_b*(1/q_b_ss - 1),
+            # so using D's duration on the F leg puts the SS spread at -9.2e-04
+            # instead of its true -5.0e-08 and silently contaminates carry_ss_pv.
+            "delta_b_D_ss:delta_b_D", "delta_b_F_ss:delta_b_F", "q_b_F_ss:q_b_F",
+            "Phi_D_ss:Phi_D"]
 
 
 def log(m=""):
@@ -101,28 +125,47 @@ def _calibration_fingerprint():
     return hashlib.sha256(payload.encode()).hexdigest()[:8]
 
 
+# Kept as a provenance snapshot of the calibration at import. NOT used for cache
+# filenames — see cache_path, which must read the live calibration so a
+# calibration_override (experiments/common.py) mints its own filename instead of
+# clobbering the baseline cache.
 CAL_FINGERPRINT = _calibration_fingerprint()
 
 
-def cache_path(psilam):
+def cache_path(psilam, fingerprint=None):
+    """Cache filename for a given psi_lambda_B at the LIVE calibration.
+
+    The fingerprint is computed at CALL time, not import time. An override applied
+    after this module was imported must produce a different filename.
+    """
+    fp = fingerprint or _calibration_fingerprint()
     tag = f"{psilam:.2f}".replace(".", "p")
-    return os.path.join(HERE, f"cache_G_main_psilam{tag}_cal{CAL_FINGERPRINT}.npz")
+    return os.path.join(HERE, f"cache_G_main_v{CACHE_SCHEMA}_psilam{tag}_cal{fp}.npz")
 
 
-def build_tpi_model_main(tpi, financial_solved_D, financial_solved_F):
+def build_tpi_model_main(tpi, financial_solved_D, financial_solved_F,
+                         hh_D=None, hh_F=None):
     """Assemble main's TPI-extended model — identical block list to code/tpi.py's
     run_tpi (blocks referenced via the tpi module, which imports them all). The
-    two financial_solved blocks are runtime-constructed, passed in."""
+    two financial_solved blocks are runtime-constructed, passed in.
+
+    hh_D / hh_F optionally REPLACE the household blocks with versions carrying
+    extra hetoutputs (experiments/e4_distribution.py adds per-decile consumption).
+    Substituting here rather than assembling a second block list keeps this the
+    single place the model is defined — a second copy is how the retired
+    audit_artifacts/ harness drifted into testing a different model."""
     t = tpi
+    hh_D = t.hh_extended_D if hh_D is None else hh_D
+    hh_F = t.hh_extended_F if hh_F is None else hh_F
     return sj.create_model([
-        t.deposit_return_D, t.tax_rule_D, t.hh_extended_D, t.ghh_composite_D,
+        t.deposit_return_D, t.tax_rule_D, hh_D, t.ghh_composite_D,
         t.sdf_D, t.sdf_banker_D, t.government_default_D, financial_solved_D,
         t.bond_return_D, t.bank_return_D, t.capital_fund_D, t.cap_adj_cost_inter_D, t.macro_pru_tax_D,
         t.intermediation_P2_D, t.intermediation_P3_D, t.k_balance_sheet_D,
         t.capital_adj_D, t.capital_producer_profit_D, t.budget_residual_D_tpi,
         t.labor_D, t.labor_market_D, t.labor_demand_D, t.banker_div_res_D,
         t.market_clearing_D, t.welfare_agg_D,
-        t.deposit_return_F, t.tax_rule_F, t.hh_extended_F, t.ghh_composite_F,
+        t.deposit_return_F, t.tax_rule_F, hh_F, t.ghh_composite_F,
         t.sdf_F, t.sdf_banker_F, t.government_default_F, financial_solved_F,
         t.bond_return_F, t.bank_return_F, t.capital_fund_F, t.cap_adj_cost_inter_F, t.macro_pru_tax_F,
         t.intermediation_P2_F, t.intermediation_P3_F, t.k_balance_sheet_F,
@@ -163,7 +206,8 @@ def _col(G, o, i, T):
 
 
 def _extract(G, ss, T, dshock, psilam):
-    out = {"T": np.array(T), "dShock_def_D": np.asarray(dshock), "psi_lambda_B": np.array(psilam)}
+    out = {"T": np.array(T), "dShock_def_D": np.asarray(dshock), "psi_lambda_B": np.array(psilam),
+           "cal_fingerprint": np.array(_calibration_fingerprint())}
     missing_req = [o for o in REQUIRED if o not in G.outputs]
     if missing_req:
         raise RuntimeError(f"REQUIRED outputs missing from main's G_tpi: {missing_req}. "
@@ -185,7 +229,10 @@ def _extract(G, ss, T, dshock, psilam):
 
 
 def build_caches(force=False):
-    paths = {PSILAM_MAIN: cache_path(PSILAM_MAIN), 0.0: cache_path(0.0)}
+    # Read live, not from the import-time PSILAM_MAIN: under a calibration_override
+    # the two can differ, and the override must win.
+    psilam_live = _live_psilam()
+    paths = {psilam_live: cache_path(psilam_live), 0.0: cache_path(0.0)}
     if not force and all(os.path.exists(p) for p in paths.values()):
         return paths
     from calibration import get_calibration
@@ -199,10 +246,10 @@ def build_caches(force=False):
     assert cal["psi_lambda_B_D"] < PSILAM_BREAKDOWN, (
         f"HARD GUARD: psi_lambda_B >= {PSILAM_BREAKDOWN} — linear-approximation-"
         "breakdown region for this net-worth calibration (see PSILAM_BREAKDOWN note)")
-    # Consistency, not provenance: PSILAM_MAIN is read from the same calibration, so
+    # Consistency, not provenance: psilam_live is read from the same calibration, so
     # this only fires if calibration.py changed under a live interpreter session.
-    assert abs(cal["psi_lambda_B_D"] - PSILAM_MAIN) < 1e-9, (
-        f"calibration drifted mid-run: live={cal['psi_lambda_B_D']} vs cache key {PSILAM_MAIN}")
+    assert abs(cal["psi_lambda_B_D"] - psilam_live) < 1e-9, (
+        f"calibration drifted mid-run: live={cal['psi_lambda_B_D']} vs cache key {psilam_live}")
     kappa_cb_F = float(cal["kappa_cb_F"])
 
     ssr = calibrate_depreciation(calibrate_ic_delta(solve_steady_state(cal)))
@@ -218,7 +265,7 @@ def build_caches(force=False):
     model = build_tpi_model_main(tpi, res["financial_solved_D"], res["financial_solved_F"])
 
     ss28 = _ss_tpi(ss, kappa_cb_F)
-    G28 = _solve_G(model, ss28, unk, tgt, T, f"{PSILAM_MAIN}")
+    G28 = _solve_G(model, ss28, unk, tgt, T, f"{psilam_live}")
     # main's own correctness guard: G_tpi[cb=0] spread must match the baseline Jacobian
     _chk = G28 @ {"Z_D": np.zeros(T), "Z_F": np.zeros(T), "shock_def_D": dshock,
                   "shock_def_F": np.zeros(T), "cb_buy_D": np.zeros(T)}
@@ -228,7 +275,7 @@ def build_caches(force=False):
     _acb0 = float(np.array(G28["spread_rb"]["cb_buy_D"])[0, 0])
     log(f"- cross-check vs SA-1 probe: d(spread_rb)/d(cb_buy)[0,0] = {_acb0:+.5e} "
         f"(probe found -1.9455e-2 → expect match; A_cb<0 = backstop COMPRESSES on main)")
-    np.savez_compressed(paths[PSILAM_MAIN], **_extract(G28, ss28, T, dshock, PSILAM_MAIN))
+    np.savez_compressed(paths[psilam_live], **_extract(G28, ss28, T, dshock, psilam_live))
 
     ss0 = _ss_tpi(ss, kappa_cb_F)
     ss0.toplevel["psi_lambda_B_D"] = 0.0; ss0.toplevel["psi_lambda_B_F"] = 0.0
@@ -241,10 +288,28 @@ def build_caches(force=False):
 
 
 def load_cache(psilam):
+    """Load a cache, asserting it was built under the live calibration.
+
+    cache_path already keys on the live fingerprint, so a mismatch normally shows
+    up as a missing file. This second check catches the case where a file was
+    hand-copied or renamed — it fails loudly instead of returning another model.
+    """
+    live = _calibration_fingerprint()
+    path = cache_path(psilam, fingerprint=live)
+    if not os.path.exists(path):
+        raise FileNotFoundError(
+            f"No cache at {os.path.basename(path)}. The live calibration has no cache "
+            f"built for it — run:  /opt/anaconda3/envs/ssj/bin/python "
+            f"diagnostics/regimes/regime_model.py")
     # allow_pickle for backward-compat with caches that stored a stray object entry
     # (cb_flow_D, now excluded); the matrices this module reads are all plain float.
-    with np.load(cache_path(psilam), allow_pickle=True) as d:
-        return {k: d[k] for k in d.files if not d[k].dtype == object}
+    with np.load(path, allow_pickle=True) as d:
+        cache = {k: d[k] for k in d.files if not d[k].dtype == object}
+    stored = str(cache["cal_fingerprint"])
+    assert stored == live, (
+        f"cache fingerprint {stored} != live calibration {live} — stale or "
+        f"hand-renamed cache; rebuild with regime_model.py --force")
+    return cache
 
 
 if __name__ == "__main__":

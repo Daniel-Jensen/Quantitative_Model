@@ -15,6 +15,89 @@
 - Read `docs/eba_calibration.md` for the EBA-2011 derivation, the identification
   ledger, and the three structural fixes of 2026-07-31 (collateral mapping,
   `omega_K` fund rule, `n_inter` scope). **This is the live calibration.**
+- **Policy experiments:** `experiments/` on branch `experiments` — the paper's
+  standard results set (E1 backstop schedule, E2 ΔY decomposition, E3 S-1
+  writeoff). Spec: `docs/superpowers/specs/2026-08-01-policy-experiments-design.md`;
+  plan: `docs/superpowers/plans/2026-08-03-policy-experiments.md`. **COMPLETE
+  2026-08-03 — E1, E2, E3 and the orchestrator all landed.** Results:
+  `docs/experiments_results.md` (generated). Production regression re-run after
+  all of it and **bit-identical** to the pre-work baseline; `git diff main --
+  code/` is empty. Full suite 31 passed.
+
+  **Two author decisions now block paper text — see the two bold items below.**
+  The schema-3 cache is built (`cache_G_main_v3_*.npz`); rebuild with
+  `/opt/anaconda3/envs/ssj/bin/python diagnostics/regimes/regime_model.py --force`
+  after any calibration change. Run everything with `experiments/run_all.py` (`--skip-e3` to skip the two re-solves, `--render-only` to rebuild the doc). Results land in `docs/experiments_results.md`. Run E2 alone with
+  `/opt/anaconda3/envs/ssj/bin/python experiments/e2_dy_decomposition.py`.
+  `experiments/common.py` was hardened after code review the same day:
+  `calibration_override` now rejects an unrecognised override key instead of
+  silently running a mistyped calibration, and `write_results` refuses to write
+  `NaN`.
+
+  **E2's headline finding, which changes how ΔY should be reported:** the output
+  response is the small residue of an investment channel and a net-export channel
+  each ~4× larger and opposite in sign. Report the decomposition, never the
+  headline ΔY. See `docs/STATE.md` for the table.
+
+  **E1's headline:** the loading schedule is monotone decreasing at all 59 finite
+  grid points (4.51 → 2.07 over γ=0.5→30), confirming Live Claim 5 on a fine grid.
+  Every cross-check against `code/main.py` passes. Run with
+  `/opt/anaconda3/envs/ssj/bin/python experiments/e1_backstop_schedule.py`.
+
+  **First-draft material is ready.** `experiments/paper_outputs.py` →
+  **eight** captioned figures in `experiments/paper/` + **four** tables in
+  `docs/paper_draft_results.md` (calibration/identification ledger, moment match,
+  main results, distributional incidence). Regenerate with
+  `/opt/anaconda3/envs/ssj/bin/python experiments/paper_outputs.py`. The decile /
+  quintile cache is built separately and rarely:
+  `/opt/anaconda3/envs/ssj/bin/python experiments/e4_distribution.py` (~4 min).
+
+  **DIST-1 addressed; no Ginis.** Incidence is reported by **income quintile**,
+  and the binning choice is load-bearing. Income bins have mass invariant to the
+  shock (verified `max|Δmass| ≈ 1e−19`), so the response is purely behavioural.
+  **Wealth** bins do not: masses move 2–3% and the net per-capita number is a
+  residue of two nearly-cancelling terms (bottom decile PV: −41.6 consumption vs
+  −44.4 mass, netting +2.8). Never describe the wealth cut as household behaviour.
+
+  **Incidence result:** the crisis is progressive — PV consumption +0.95% for the
+  lowest income quintile against −0.59% for the highest, monotone in between; the
+  backstop's protection runs the same way (+0.40 vs +0.07). But note every
+  quintile's consumption *rises* on impact: the model's crisis is an investment
+  bust, not a consumption bust, which is counterfactual for Greece 2010–13 and
+  must be confronted in the draft.
+
+  **S-1 RESOLVED 2026-08-04: `writeoff_enabled=0` stays** — the pure risk-premium
+  framing. E3 becomes an appendix robustness result and a *stated caveat*: the
+  over-compensation claim is conditional on no realised principal writedown.
+
+  **Default-loading split corrected to 3.1% / 96.9%** (fundamental expected loss /
+  collateral friction). The 10.9% / 89% in older sections is pre-EBA. 96.9% is a
+  stronger version of the constrained-seller claim — use it.
+
+  **New: the backstop damps the oscillation, it does not lower the spread path.**
+  Cushioning is concentrated at impact; by ~q4 the paths converge and the spread
+  ordering reverses (t=8: passive +0.5bp vs aggressive +15.5bp). Do not claim
+  uniform compression over the whole path.
+
+  **E3's numbers, for the appendix — read before writing the TPI section.**
+  Full writeoff (`writeoff_enabled=1`, `zeta_writeoff=1`) takes `EL_price_D` from
+  0.056134 to 0.701743 (12.5×) and **collapses the loading from 4.00/3.17 to
+  0.37/0.28 — below 1**. The CB becomes *under*-compensated, inverting SPEC Live
+  Claim 1. Coupon-only writeoff (`zeta=0`) is negligible by contrast (loading
+  3.93/3.13). So **S-1 is not a robustness detail — it decides whether the paper's
+  central over-compensation result holds.** Author decision, now with numbers.
+
+  **Blocking a paper claim — A5-1's third object is misnamed.** The code reports
+  `Σ β^t (pd_passive − pd_intervention)`, which is **negative** because the
+  backstop lets Greece run a larger primary deficit, i.e. relaxes austerity. So
+  negative = Greece better off, the opposite of what "Greek fiscal saving"
+  implies. **Flip the sign or rename it ("austerity relief, PV") before this
+  number appears anywhere.** Author decision; magnitudes (0.0015 / 0.0047 PV) are
+  unaffected.
+
+  **Careful with `EL_price_D`:** it is **0.056134** at the live calibration, not
+  the `0.0717` still quoted in older doc sections and CLAUDE.md. It is the TPI
+  loading's denominator — re-derive it, don't copy it.
 
 > **Current state (2026-07-31). The EBA calibration is LIVE and verified.**
 > `EBA_CALIBRATION = True`, `BANK_SCOPE = "broad"` in `code/calibration.py`.

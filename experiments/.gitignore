@@ -1,0 +1,4 @@
+*.npz
+_*.log
+__pycache__/
+cache_e4_deciles.npz

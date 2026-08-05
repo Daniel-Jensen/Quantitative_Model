@@ -446,3 +446,127 @@ Certainty-equivalence decomposition complete.
 - **A6 spread ranking survives at psi_lambda_B=0: YES** (aggressive < medium < passive in peak spread = crisis severity)
 
 Stage A (main) complete.
+
+## Cache build (main model) — 2026-08-03 10:37:57
+- calibration: psi_lambda_B=8.5, mv_rule=0.0, recovery_rate=0.3, kappa_cb_F=0.929
+- EL_price_D = 0.056134 (main recovery=0.30; NOT the ms-regime 0.102491 anchor)
+- 2026-08-03 10:37:57 solving G_tpi at psi_lambda_B=8.5 ...
+- model-build sanity: G_tpi[cb=0] vs baseline spread_rb max|err| = 0.00e+00 (expect <1e-8)
+- cross-check vs SA-1 probe: d(spread_rb)/d(cb_buy)[0,0] = -1.88891e-02 (probe found -1.9455e-2 → expect match; A_cb<0 = backstop COMPRESSES on main)
+  note: output `Phi_D` has no Jacobian column for `shock_def_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  note: output `Phi_D` has no Jacobian column for `cb_buy_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  **MISSING OPTIONAL OUTPUT `G_D`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `ra_D`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `lambda_gk_D`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `GINI_WEALTH`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `GINI_C`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  note: output `div_fund_D` has no Jacobian column for `shock_def_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  note: output `div_fund_D` has no Jacobian column for `cb_buy_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  note: output `T_D` has no Jacobian column for `shock_def_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  note: output `T_D` has no Jacobian column for `cb_buy_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+- 2026-08-03 10:39:30 solving G_tpi at psi_lambda_B=0.0 ...
+  note: output `Phi_D` has no Jacobian column for `shock_def_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  note: output `Phi_D` has no Jacobian column for `cb_buy_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  **MISSING OPTIONAL OUTPUT `G_D`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `ra_D`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `lambda_gk_D`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `GINI_WEALTH`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `GINI_C`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  note: output `div_fund_D` has no Jacobian column for `shock_def_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  note: output `div_fund_D` has no Jacobian column for `cb_buy_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  note: output `T_D` has no Jacobian column for `shock_def_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  note: output `T_D` has no Jacobian column for `cb_buy_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+- caches written: ['cache_G_main_v2_psilam8p50_calde195df2.npz', 'cache_G_main_v2_psilam0p00_calde195df2.npz']
+
+## Cache build (main model) — 2026-08-03 12:05:20
+- calibration: psi_lambda_B=8.5, mv_rule=0.0, recovery_rate=0.3, kappa_cb_F=0.929
+- EL_price_D = 0.056134 (main recovery=0.30; NOT the ms-regime 0.102491 anchor)
+- 2026-08-03 12:05:20 solving G_tpi at psi_lambda_B=8.5 ...
+- model-build sanity: G_tpi[cb=0] vs baseline spread_rb max|err| = 0.00e+00 (expect <1e-8)
+- cross-check vs SA-1 probe: d(spread_rb)/d(cb_buy)[0,0] = -1.88891e-02 (probe found -1.9455e-2 → expect match; A_cb<0 = backstop COMPRESSES on main)
+  note: output `Phi_D` has no Jacobian column for `shock_def_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  note: output `Phi_D` has no Jacobian column for `cb_buy_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  **MISSING OPTIONAL OUTPUT `G_D`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `ra_D`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `lambda_gk_D`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `GINI_WEALTH`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `GINI_C`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  note: output `div_fund_D` has no Jacobian column for `shock_def_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  note: output `div_fund_D` has no Jacobian column for `cb_buy_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  note: output `T_D` has no Jacobian column for `shock_def_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  note: output `T_D` has no Jacobian column for `cb_buy_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+- 2026-08-03 12:06:19 solving G_tpi at psi_lambda_B=0.0 ...
+  note: output `Phi_D` has no Jacobian column for `shock_def_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  note: output `Phi_D` has no Jacobian column for `cb_buy_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  **MISSING OPTIONAL OUTPUT `G_D`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `ra_D`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `lambda_gk_D`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `GINI_WEALTH`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `GINI_C`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  note: output `div_fund_D` has no Jacobian column for `shock_def_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  note: output `div_fund_D` has no Jacobian column for `cb_buy_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  note: output `T_D` has no Jacobian column for `shock_def_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  note: output `T_D` has no Jacobian column for `cb_buy_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+- caches written: ['cache_G_main_v3_psilam8p50_calde195df2.npz', 'cache_G_main_v3_psilam0p00_calde195df2.npz']
+
+## Cache build (main model) — 2026-08-03 12:17:36
+- calibration: psi_lambda_B=8.5, mv_rule=0.0, recovery_rate=0.3, kappa_cb_F=0.929
+- EL_price_D = 0.056134 (main recovery=0.30; NOT the ms-regime 0.102491 anchor)
+- 2026-08-03 12:17:36 solving G_tpi at psi_lambda_B=8.5 ...
+- model-build sanity: G_tpi[cb=0] vs baseline spread_rb max|err| = 0.00e+00 (expect <1e-8)
+- cross-check vs SA-1 probe: d(spread_rb)/d(cb_buy)[0,0] = -1.89365e-02 (probe found -1.9455e-2 → expect match; A_cb<0 = backstop COMPRESSES on main)
+  note: output `Phi_D` has no Jacobian column for `shock_def_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  note: output `Phi_D` has no Jacobian column for `cb_buy_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  **MISSING OPTIONAL OUTPUT `G_D`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `ra_D`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `lambda_gk_D`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `GINI_WEALTH`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `GINI_C`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  note: output `div_fund_D` has no Jacobian column for `shock_def_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  note: output `div_fund_D` has no Jacobian column for `cb_buy_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  note: output `T_D` has no Jacobian column for `shock_def_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  note: output `T_D` has no Jacobian column for `cb_buy_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+- 2026-08-03 12:18:34 solving G_tpi at psi_lambda_B=0.0 ...
+  note: output `Phi_D` has no Jacobian column for `shock_def_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  note: output `Phi_D` has no Jacobian column for `cb_buy_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  **MISSING OPTIONAL OUTPUT `G_D`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `ra_D`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `lambda_gk_D`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `GINI_WEALTH`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `GINI_C`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  note: output `div_fund_D` has no Jacobian column for `shock_def_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  note: output `div_fund_D` has no Jacobian column for `cb_buy_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  note: output `T_D` has no Jacobian column for `shock_def_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  note: output `T_D` has no Jacobian column for `cb_buy_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+- caches written: ['cache_G_main_v3_psilam8p50_cal004630e7.npz', 'cache_G_main_v3_psilam0p00_cal004630e7.npz']
+
+## Cache build (main model) — 2026-08-03 12:23:19
+- calibration: psi_lambda_B=8.5, mv_rule=0.0, recovery_rate=0.3, kappa_cb_F=0.929
+- EL_price_D = 0.701743 (main recovery=0.30; NOT the ms-regime 0.102491 anchor)
+- 2026-08-03 12:23:19 solving G_tpi at psi_lambda_B=8.5 ...
+- model-build sanity: G_tpi[cb=0] vs baseline spread_rb max|err| = 0.00e+00 (expect <1e-8)
+- cross-check vs SA-1 probe: d(spread_rb)/d(cb_buy)[0,0] = -2.15839e-02 (probe found -1.9455e-2 → expect match; A_cb<0 = backstop COMPRESSES on main)
+  note: output `Phi_D` has no Jacobian column for `shock_def_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  note: output `Phi_D` has no Jacobian column for `cb_buy_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  **MISSING OPTIONAL OUTPUT `G_D`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `ra_D`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `lambda_gk_D`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `GINI_WEALTH`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `GINI_C`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  note: output `div_fund_D` has no Jacobian column for `shock_def_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  note: output `div_fund_D` has no Jacobian column for `cb_buy_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  note: output `T_D` has no Jacobian column for `shock_def_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  note: output `T_D` has no Jacobian column for `cb_buy_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+- 2026-08-03 12:24:18 solving G_tpi at psi_lambda_B=0.0 ...
+  note: output `Phi_D` has no Jacobian column for `shock_def_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  note: output `Phi_D` has no Jacobian column for `cb_buy_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  **MISSING OPTIONAL OUTPUT `G_D`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `ra_D`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `lambda_gk_D`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `GINI_WEALTH`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  **MISSING OPTIONAL OUTPUT `GINI_C`** — not in main's G_tpi.outputs; panel zero-filled/omitted WITH a caption note, never silently.
+  note: output `div_fund_D` has no Jacobian column for `shock_def_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  note: output `div_fund_D` has no Jacobian column for `cb_buy_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  note: output `T_D` has no Jacobian column for `shock_def_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+  note: output `T_D` has no Jacobian column for `cb_buy_D` at this calibration -> zero response (filled 0 T x T); economically = o does not respond to i.
+- caches written: ['cache_G_main_v3_psilam8p50_cal3397854d.npz', 'cache_G_main_v3_psilam0p00_cal3397854d.npz']
