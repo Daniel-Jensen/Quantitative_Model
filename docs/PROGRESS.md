@@ -14,7 +14,45 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
-## 2026-08-04 — S-1 resolved (`writeoff_enabled=0`); first-draft figures and tables  [this commit]
+## 2026-08-05 — E4 distributional incidence; net-effects and MS-regime figures  [this commit]
+
+Three additions to the first-draft set, at the author's request.
+
+**`fig06_net_effects`** — contributions to ΔY quarter by quarter with the net path
+overlaid. Makes visually what E2 made numerically: the net path is roughly an
+order of magnitude smaller than the components generating it, at every horizon.
+
+**`fig07_ms_regimes`** — the empirical scenario chart. A three-state
+Markov-switching model on peripheral–Bund spreads dates the intervention stance:
+dove through the 1998–2008 convergence era, **hawk across 2010–14**, base
+thereafter; ergodic shares 23/52/25%, durations 105/73/49 months. This is the
+discipline behind the Stage-B beliefs. The pre-1999 stretch is marked on the
+figure as predating the ECB — those regimes are EMU convergence, not a policy
+stance, and the shading would otherwise imply one that could not have existed.
+
+**`fig08_deciles` + `experiments/e4_distribution.py`** — DIST-1 addressed. Adds
+per-bin consumption hetoutputs to the D household block and re-solves the Jacobian.
+**No Gini computed** (author decision; DIST-1 says it is the wrong statistic here).
+
+**The methodological finding, which changed what gets reported.** Binning on
+*wealth* with fixed boundaries yields a per-capita consumption response that is
+overwhelmingly composition rather than behaviour: bottom decile, PV over 40q, the
+consumption term is −41.6 against a mass term of −44.4, netting +2.8. The deposit
+distribution shifts across fixed thresholds and membership churns. Binning on the
+exogenous **income** state instead makes each bin's mass invariant (it is the
+stationary distribution of the exogenous Markov chain), so the measure is purely
+behavioural. Income quintiles are now the reported cut; wealth deciles are kept in
+the tables with the caveat and are deliberately not plotted.
+
+Three SSJ hetoutput constraints were hit and are documented in the module, since
+each fails deep inside the het-block Jacobian with an unhelpful error: the
+function's source must be introspectable (no `exec`, no closure), the return must
+be a bare single line (a parenthesised tuple yields the name `(cdec01_D`), and it
+must carry no trailing comment (which corrupts the last name). `regime_model.
+build_tpi_model_main` gained optional `hh_D`/`hh_F` overrides so the augmented
+block substitutes into the one canonical block list rather than a second copy.
+
+## 2026-08-04 — S-1 resolved (`writeoff_enabled=0`); first-draft figures and tables
 
 **S-1 resolved by author decision: the paper keeps `writeoff_enabled=0`**, the
 pure risk-premium framing. E3 is retained as an appendix robustness result, and

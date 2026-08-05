@@ -34,6 +34,30 @@ paper owes the reader: the over-compensation claim is **conditional on no realis
 principal writedown**. With `zeta_writeoff=1` the loading falls to 0.37/0.28,
 below 1. State the conditionality; do not bury it.
 
+### E4 — distributional incidence (2026-08-05). DIST-1 addressed; Ginis dropped
+
+`experiments/e4_distribution.py` adds per-bin consumption hetoutputs to the D
+household block and re-solves the Jacobian (~5 min). **No Gini is computed** —
+per DIST-1 it is the wrong statistic for the Greek crisis. Author decision
+2026-08-05: report quantile responses instead.
+
+**A methodological trap, found and avoided — read before adding any other
+distributional cut.** Binning on *wealth* (steady-state deposits) with fixed
+boundaries produces a per-capita consumption response that is **overwhelmingly
+composition, not behaviour**. Measured, bottom decile, PV over 40q: the
+consumption term is **−41.6** and the mass term **−44.4**, netting **+2.8**. The
+whole deposit distribution shifts across fixed thresholds, so bin membership
+churns and the net is a small residue of two large nearly-cancelling terms. The
+arithmetic is exact and the object is well defined, but it must never be described
+as "how poor households responded".
+
+**The fix is to bin on the exogenous income state.** The marginal distribution
+over productivity is the stationary distribution of the exogenous Markov chain, so
+each bin's mass is **invariant** to the shock — households move between states but
+the share in each state does not. The per-capita response is then purely
+behavioural. **Income quintiles are the cut to report**; wealth deciles are
+retained in the tables with the caveat attached and are deliberately not plotted.
+
 ### Paper first-draft outputs (2026-08-04)
 
 `experiments/paper_outputs.py` → five captioned figures in `experiments/paper/`

@@ -45,10 +45,26 @@
   `/opt/anaconda3/envs/ssj/bin/python experiments/e1_backstop_schedule.py`.
 
   **First-draft material is ready.** `experiments/paper_outputs.py` →
-  five captioned figures in `experiments/paper/` + three tables in
+  **eight** captioned figures in `experiments/paper/` + **four** tables in
   `docs/paper_draft_results.md` (calibration/identification ledger, moment match,
-  main results). Regenerate with
-  `/opt/anaconda3/envs/ssj/bin/python experiments/paper_outputs.py`.
+  main results, distributional incidence). Regenerate with
+  `/opt/anaconda3/envs/ssj/bin/python experiments/paper_outputs.py`. The decile /
+  quintile cache is built separately and rarely:
+  `/opt/anaconda3/envs/ssj/bin/python experiments/e4_distribution.py` (~4 min).
+
+  **DIST-1 addressed; no Ginis.** Incidence is reported by **income quintile**,
+  and the binning choice is load-bearing. Income bins have mass invariant to the
+  shock (verified `max|Δmass| ≈ 1e−19`), so the response is purely behavioural.
+  **Wealth** bins do not: masses move 2–3% and the net per-capita number is a
+  residue of two nearly-cancelling terms (bottom decile PV: −41.6 consumption vs
+  −44.4 mass, netting +2.8). Never describe the wealth cut as household behaviour.
+
+  **Incidence result:** the crisis is progressive — PV consumption +0.95% for the
+  lowest income quintile against −0.59% for the highest, monotone in between; the
+  backstop's protection runs the same way (+0.40 vs +0.07). But note every
+  quintile's consumption *rises* on impact: the model's crisis is an investment
+  bust, not a consumption bust, which is counterfactual for Greece 2010–13 and
+  must be confronted in the draft.
 
   **S-1 RESOLVED 2026-08-04: `writeoff_enabled=0` stays** — the pure risk-premium
   framing. E3 becomes an appendix robustness result and a *stated caveat*: the

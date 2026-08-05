@@ -12,6 +12,9 @@ LaTeX travels separately from the image and is lost the moment the file is reuse
   fig03_dy_decomposition    why the headline output number must not be led with
   fig04_spread_decomposition  the wedge is nearly all of the default loading
   fig05_incidence           Germany's side: exposure rises while compensation falls
+  fig06_net_effects         the net path against the components that generate it
+  fig07_ms_regimes          empirical regime dating (the discipline behind the beliefs)
+  fig08_deciles             distributional incidence by income quintile
 
 Palette validated with the dataviz six-checks validator (light mode, categorical):
 lightness band, chroma floor, CVD separation, normal-vision floor, contrast. The
@@ -64,6 +67,25 @@ CAPTIONS = {
         "investment recovers against a net-export deterioration, each roughly four times "
         "the headline and opposite in sign (panel B) — so a near-zero ΔY reflects "
         "reallocation across very different households, not a small shock or a weak policy.",
+    "fig06_net_effects":
+        "Contributions to the output response quarter by quarter: the crisis is an "
+        "investment collapse partly offset by consumption and a small net-export cushion, "
+        "and the backstop works by shrinking the investment hole rather than by lifting "
+        "output uniformly — the net path (black) is at every horizon far smaller than the "
+        "components that generate it.",
+    "fig07_ms_regimes":
+        "A three-state Markov-switching model on peripheral–Bund spreads dates the ECB's "
+        "intervention stance and disciplines the model's three backstop regimes — the "
+        "high-spread 'hawk' state covers 2010–14 and the ergodic shares (23%/52%/25%) are "
+        "what the regime-uncertainty beliefs are set to — though the pre-1999 stretch "
+        "predates the ECB and reflects EMU convergence, not any policy stance.",
+    "fig08_deciles":
+        "Consumption rises for every income quintile on impact — the investment collapse "
+        "releases resources — then troughs around quarter five, and the trough is roughly "
+        "three times deeper for the top quintile (−0.11%) than the bottom (−0.04%); "
+        "discounted over 40 quarters the crisis is progressive in incidence, costing the "
+        "highest-income quintile 0.59% of its consumption while the lowest gains 0.95%, "
+        "and the backstop's protection is monotone in the same direction.",
     "fig04_spread_decomposition":
         "Only 3% of the sovereign default loading is fundamental expected loss; the other "
         "97% is the collateral-friction wedge charged by a constrained intermediary, which "
@@ -219,6 +241,205 @@ def fig03_dy_decomposition(cache, regimes):
     save(fig, "fig03_dy_decomposition")
 
 
+def fig06_net_effects(cache, regimes, n_q=16):
+    """Contributions to dY_t, quarter by quarter, with the net path overlaid.
+
+    Stacked bars are accumulated separately above and below zero — matplotlib's
+    stackplot cannot represent mixed-sign contributions, and letting it try
+    silently misplaces every segment once a component crosses zero.
+    """
+    ss = {"P_CES_D_ss": float(cache["P_CES_D_ss"]), "C_D_ss": float(cache["C_D_ss"])}
+    parts = [("investment", "investment", "#1a6e3a"),
+             ("net_exports", "net exports", "#1B6CA8"),
+             ("consumption_quantity", "consumption (quantity)", "#c87941"),
+             ("consumption_price", "consumption (price)", "#A62B22")]
+    q = np.arange(n_q)
+
+    fig, axes = plt.subplots(1, 3, figsize=(14.5, 4.2), sharey=True)
+    for ax, (name, (_g, irf)) in zip(axes, regimes.items()):
+        comps, _r = decompose_dY(irf, ss)
+        pos = np.zeros(n_q)
+        neg = np.zeros(n_q)
+        for key, label, colour in parts:
+            v = np.asarray(comps[key])[:n_q] * 1e3
+            up, dn = np.clip(v, 0, None), np.clip(v, None, 0)
+            ax.bar(q, up, bottom=pos, width=0.78, color=colour, label=label, zorder=3)
+            ax.bar(q, dn, bottom=neg, width=0.78, color=colour, zorder=3)
+            pos += up
+            neg += dn
+        ax.plot(q, np.asarray(irf["Y_D"])[:n_q] * 1e3, color=INK, lw=2,
+                marker="o", ms=3.5, label="net ΔY", zorder=5)
+        _style(ax)
+        ax.set_xlabel("quarters", fontsize=9, color=MUTED)
+        ax.set_title(REGIME_LABEL[name], fontsize=10, color=INK, pad=8)
+    axes[0].set_ylabel("contribution to ΔY (×10⁻³, D-goods)", fontsize=9, color=MUTED)
+    axes[0].legend(frameon=False, fontsize=8, labelcolor=INK, loc="upper right", ncol=1)
+    fig.suptitle("Net decomposition of the output response, quarter by quarter",
+                 fontsize=11, color=INK, y=1.03)
+    fig.tight_layout()
+    save(fig, "fig06_net_effects")
+
+
+def fig07_ms_regimes():
+    """Empirical regime dating — the discipline behind the model's three stances."""
+    npz = os.path.join(ROOT, "Empirics", "outputs", "ms_regime_COMPOSITE.npz")
+    d = np.load(npz, allow_pickle=True)
+    dates = np.array([np.datetime64(s) for s in d["dates"]])
+    y, probs, erg, dur = d["y"], d["probs"], d["ergodic"], d["durations"]
+
+    # Order the estimated states by mean spread so the labels are not an artifact of
+    # the estimator's arbitrary state numbering: low spread = dove (the ECB is
+    # intervening), high spread = hawk (it is not).
+    order = np.argsort(d["means"])
+    lab = ["dove (intervening)", "base", "hawk (passive)"]
+    col = [GREEN, ORANGE, RED]
+
+    fig, axes = plt.subplots(2, 1, figsize=(12, 6.2), sharex=True,
+                             gridspec_kw={"height_ratios": [1.35, 1]})
+
+    ax = axes[0]
+    modal = np.argmax(probs[:, order], axis=1)
+    for k in range(3):
+        ax.fill_between(dates, 0, y.max() * 1.08, where=(modal == k),
+                        color=col[k], alpha=0.13, step="mid", lw=0)
+    ax.plot(dates, y, color=INK, lw=1.3)
+    # The sample opens in 1995 but the ECB did not exist until 1999, so the
+    # "intervention stance" reading of the early regimes is anachronistic — that
+    # stretch is EMU convergence, not policy. Mark it rather than let the shading
+    # imply an ECB stance that could not have existed.
+    ecb = np.datetime64("1999-01-01")
+    ax.axvline(ecb, color=INK, lw=1.0, ls=(0, (3, 2)))
+    ax.text(ecb, y.max() * 1.02, "  ECB founded", fontsize=7.5, color=INK,
+            va="top", ha="left")
+    ax.set_ylim(0, y.max() * 1.08)
+    _style(ax)
+    ax.yaxis.grid(False)
+    ax.set_ylabel("peripheral − Bund 10y (pp)", fontsize=9, color=MUTED)
+    ax.set_title("Peripheral–Bund spread, shaded by modal intervention-stance regime",
+                 fontsize=10, color=INK, pad=8)
+    for k in range(3):
+        ax.plot([], [], color=col[k], lw=6, alpha=0.35, label=lab[k])
+    ax.legend(frameon=False, fontsize=8, labelcolor=INK, ncol=3, loc="upper left")
+
+    ax = axes[1]
+    ax.stackplot(dates, *[probs[:, order[k]] for k in range(3)],
+                 colors=col, alpha=0.85, labels=lab, lw=0)
+    ax.set_ylim(0, 1)
+    _style(ax)
+    ax.yaxis.grid(False)
+    ax.set_ylabel("smoothed probability", fontsize=9, color=MUTED)
+    ax.set_title(
+        "Smoothed regime probabilities  ·  ergodic shares "
+        + " / ".join(f"{erg[order[k]] * 100:.0f}%" for k in range(3))
+        + "  ·  expected durations "
+        + " / ".join(f"{dur[order[k]]:.0f}m" for k in range(3)),
+        fontsize=9.5, color=INK, pad=8)
+
+    fig.tight_layout()
+    save(fig, "fig07_ms_regimes")
+
+
+def fig08_deciles():
+    """Consumption incidence by steady-state INCOME quintile.
+
+    Per-capita consumption in bin k is (mass-weighted consumption) / (bin mass), so
+    its first-order percentage response is the difference of the two percentage
+    responses. Reporting only the numerator would attribute pure composition drift
+    to household behaviour.
+
+    Income quintiles are plotted, NOT wealth deciles. The mass in an income bin is
+    the stationary distribution of the exogenous Markov chain and does not move, so
+    this measure is purely behavioural. The wealth-decile analogue is dominated by
+    membership churn across fixed deposit thresholds (bottom decile: -41.6
+    consumption against -44.4 mass, netting +2.8) and is reported in the tables with
+    that caveat rather than plotted, where it would read as a behavioural result.
+    """
+    from e4_distribution import CACHE, N_QNT
+    from lottery_math import closed_loop
+
+    if not os.path.exists(CACHE):
+        raise FileNotFoundError(
+            f"{CACHE} missing — run: /opt/anaconda3/envs/ssj/bin/python "
+            f"experiments/e4_distribution.py")
+    d = np.load(CACHE, allow_pickle=True)
+    eps = np.asarray(d["dShock_def_D"])
+    A_def, A_cb = d["spread_rb__shock_def_D"], d["spread_rb__cb_buy_D"]
+    mass_ss, c_ss = d["qnt_mass_ss"], d["qnt_c_ss"]
+
+    # gamma solved on THIS cache, so the regimes mean the same thing they do
+    # everywhere else in the paper (0/25/50% peak-spread compression).
+    from lottery_math import gamma_for_compression
+    gam = {"passive": 0.0,
+           "medium": float(gamma_for_compression(A_def, A_cb, eps, target=0.25)),
+           "aggressive": float(gamma_for_compression(A_def, A_cb, eps, target=0.50))}
+
+    H, beta = 40, float(d["beta_D_ss"])
+    disc = beta ** np.arange(H)
+
+    def path(k, cb):
+        """Per-capita consumption in income bin k, % of its own SS, over H quarters."""
+        # UPPERCASE: SSJ exposes a het block's outputs under the uppercased name
+        # (c_D -> C_D), and that is what the cache keys on.
+        ck = (d[f"CQNT{k + 1}_D__shock_def_D"] @ eps
+              + d[f"CQNT{k + 1}_D__cb_buy_D"] @ cb)[:H]
+        mk = (d[f"MQNT{k + 1}_D__shock_def_D"] @ eps
+              + d[f"MQNT{k + 1}_D__cb_buy_D"] @ cb)[:H]
+        return 100.0 * (ck / c_ss[k] - mk / mass_ss[k])
+
+    paths, pv = {}, {}
+    for name, g in gam.items():
+        _sp, cb = closed_loop(A_def, A_cb, eps, g)
+        paths[name] = np.array([path(k, cb) for k in range(N_QNT)])
+        pv[name] = (paths[name] * disc).sum(axis=1)
+
+    x = np.arange(1, N_QNT + 1)
+    # Income quintiles are ORDINAL, so this is a sequential ramp — one hue, light to
+    # dark — not the categorical palette. Mixing categorical hues across an ordered
+    # variable implies distinctions that are not there and loses the ordering.
+    qcol = ["#BBD6EA", "#8CBAD9", "#5C9EC8", "#3782B7", "#12507E"]
+    fig, axes = plt.subplots(1, 3, figsize=(15, 4.3))
+
+    ax = axes[0]
+    for k in range(N_QNT):
+        ax.plot(np.arange(H), paths["passive"][k], lw=2, color=qcol[k],
+                label=f"Q{k + 1}" + (" (lowest)" if k == 0 else
+                                     " (highest)" if k == N_QNT - 1 else ""))
+    _style(ax)
+    ax.set_xlabel("quarters", fontsize=9, color=MUTED)
+    ax.set_ylabel("consumption (% of own SS)", fontsize=9, color=MUTED)
+    ax.set_title("A. No backstop, by income quintile", fontsize=10, color=INK, pad=8)
+    ax.legend(frameon=False, fontsize=8, labelcolor=INK, ncol=2)
+
+    # Discounted PV — the summary incidence measure. An impact-only snapshot is
+    # misleading here, because every quintile's consumption RISES on impact (the
+    # investment collapse releases resources) and only later turns.
+    ax = axes[1]
+    for name in gam:
+        ax.plot(x, pv[name], marker="o", ms=6, lw=2, color=REGIME_COLOR[name],
+                label=REGIME_LABEL[name])
+    _style(ax)
+    ax.set_xticks(x)
+    ax.set_xlabel("steady-state income quintile (1 = lowest)", fontsize=9, color=MUTED)
+    ax.set_ylabel("PV of consumption response (% of own SS)", fontsize=9, color=MUTED)
+    ax.set_title("B. Incidence, discounted over 40q", fontsize=10, color=INK, pad=8)
+    ax.legend(frameon=False, fontsize=8.5, labelcolor=INK)
+
+    ax = axes[2]
+    gains = pv["aggressive"] - pv["passive"]
+    ax.bar(x, gains, width=0.6, color=[GREEN if v >= 0 else RED for v in gains], zorder=3)
+    _style(ax)
+    ax.set_xticks(x)
+    ax.set_xlabel("steady-state income quintile (1 = lowest)", fontsize=9, color=MUTED)
+    ax.set_ylabel("PV difference vs passive", fontsize=9, color=MUTED)
+    ax.set_title("C. Who the backstop protects", fontsize=10, color=INK, pad=8)
+
+    fig.suptitle("Distributional incidence by steady-state income quintile",
+                 fontsize=11, color=INK, y=1.03)
+    fig.tight_layout()
+    save(fig, "fig08_deciles")
+    return paths, pv, gam
+
+
 def fig04_spread_decomposition(cache, ss_tl):
     el, ps = float(ss_tl["EL_price_D"]), float(ss_tl["psi_spread_D"])
     total = el + ps
@@ -320,7 +541,7 @@ def _solved_ss():
     return getattr(ss, "toplevel", ss)
 
 
-def tables(cache, payload, ss_tl, el, ps):
+def tables(cache, payload, ss_tl, el, ps, dist=None):
     """Markdown tables for the draft. Every value read live; only citations are literal."""
     g = lambda k: float(ss_tl[k])
     p = provenance()
@@ -399,6 +620,28 @@ def tables(cache, payload, ss_tl, el, ps):
         f"Default loading decomposition: `EL_price = {el:.6f}`, `psi_spread = {ps:.6f}` → "
         f"fundamental expected loss is **{100 * el / (el + ps):.1f}%** of the total and the "
         f"collateral-friction wedge is **{100 * ps / (el + ps):.1f}%**.", "",
+        "## Table 4 — Distributional incidence, by income quintile", "",
+        "PV of the consumption response over 40 quarters, % of each quintile's own "
+        "steady-state consumption. Bins are cut on the **exogenous income state**, whose "
+        "marginal distribution is the stationary distribution of the Markov chain and is "
+        "therefore invariant to the shock — verified numerically at `max|Δmass| ≈ 1e−19`. "
+        "The per-capita response is consequently *purely behavioural*.", "",
+        "| income quintile | passive | medium | aggressive | backstop gain |",
+        "|---|---|---|---|---|",
+    ]
+    if dist is not None:
+        pvq = dist["pv"]
+        for k in range(len(pvq["passive"])):
+            L.append(f"| Q{k + 1}{' (lowest)' if k == 0 else ' (highest)' if k == len(pvq['passive']) - 1 else ''} "
+                     f"| {pvq['passive'][k]:+.4f} | {pvq['medium'][k]:+.4f} | "
+                     f"{pvq['aggressive'][k]:+.4f} | {pvq['aggressive'][k] - pvq['passive'][k]:+.4f} |")
+    L += ["", "> **Do not run this cut on wealth.** Binning on steady-state deposits with "
+          "fixed boundaries makes the per-capita number overwhelmingly *composition*: the "
+          "deposit distribution shifts across the thresholds, bin masses move by 2–3e−3 "
+          "(2–3% of bin mass), and the net is a small residue of two large nearly-"
+          "cancelling terms — bottom decile, PV: −41.6 consumption against −44.4 mass, "
+          "netting +2.8. The arithmetic is exact and the object is well defined, but it "
+          "must not be described as how poor households behaved.", "",
         "## Figures", "",
     ]
     for name in sorted(CAPTIONS):
@@ -421,12 +664,16 @@ def main():
     fig03_dy_decomposition(cache, regimes)
     el, ps = fig04_spread_decomposition(cache, ss_tl)
     fig05_incidence(cache, payload, gammas)
+    fig06_net_effects(cache, regimes)
+    fig07_ms_regimes()
+    _paths, _pv, _gam = fig08_deciles()
+    dist = {"pv": _pv}
 
     # Coverage: captions and emitted figures must match exactly.
     emitted = {f[:-4] for f in os.listdir(PAPER_DIR) if f.endswith(".png")}
     assert emitted == set(CAPTIONS), (emitted - set(CAPTIONS), set(CAPTIONS) - emitted)
 
-    doc = tables(cache, payload, ss_tl, el, ps)
+    doc = tables(cache, payload, ss_tl, el, ps, dist=dist)
     print(f"Figures  -> {PAPER_DIR}  ({len(emitted)}, captions baked in)")
     print(f"Tables   -> {doc}")
 
