@@ -38,14 +38,32 @@ function's *source code* looking for the last `return` line. So every `@simple`
 function must have a literal `return a, b` statement, and blocks cannot be defined
 inside `python -c` strings (`inspect.getsource` fails). Define them in real files.
 
-**Acceptance thresholds** (from `docs/verification_report.md`), unchanged by this work:
+**Acceptance thresholds — use the MEASURED baseline below, not CLAUDE.md's list.**
 
-| Residual | Threshold |
-|---|---|
-| `goods_mkt_D` | ≤ 1e−14 |
-| `goods_mkt_F` | ≤ 1e−7 |
-| `ca_res_D` | ≤ 1e−7 |
-| `deposit_mkt_D/F` | ≤ 1e−13 |
+CLAUDE.md quotes `goods_mkt_D ≤ 1e−14`. That refers to the *dynamic* solve, where
+`goods_mkt_D` is an explicit entry in `targets_tp` and so is driven to Newton
+tolerance — it is never printed on its own. What `main.py` *does* print under
+`SS goods residuals:` are the **steady-state** residuals, which sit around 4e−7.
+Do not mistake one for the other and report a false failure.
+
+These are the actual values from a verified run of the pre-change model on
+`add-nkpc` at commit `f3711bd` (Task 1, 2026-08-05). Every later task compares
+against these:
+
+| Printed line | Baseline value | Rule |
+|---|---|---|
+| `SS goods residuals: goods_mkt_D` | `-4.2493506589857954e-07` | must not degrade by an order of magnitude |
+| `SS goods residuals: goods_mkt_F` | `-4.1914559989475464e-07` | same |
+| `SS goods residuals: ca_res_D` | `6.852157730108388e-17` | same |
+| Block residual table verdict | `All residuals < 1e-8  ✓` | must still print `✓` |
+| `IC_D: θ − θ_tgt` | `1.776357e-15` | OK |
+| `irfs_Z_D['b_gov_D'][499]` | `-0.001701` | stability |
+| `irfs_def_D['b_gov_D'][499]` | `0.000014` | stability |
+| `ρ_b (partial-eq.)` | `0.8451` | target < 0.95 |
+| `n_inter_D[0]` on default shock | `-3.3804%` of SS | **must stay negative** |
+| `Y_D[0]` on default shock | `-0.0149%` of SS | **must stay negative** |
+| TPI `max|ca_res_D|` across γ | ≤ `7.55e-08` | ≤ 1e−7 |
+| TPI `max|goods_mkt_F|` across γ | ≤ `2.44e-09` | ≤ 1e−7 |
 
 **Sign checks:** on the default shock, `n_inter_D[0]` and `Y_D[0]` must both be
 negative. Positive means a timing bug.
