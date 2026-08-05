@@ -256,6 +256,12 @@ def firm_profit_F(Y_F, alpha_F, mu_p_F, mc_F):
     return profit_F
 
 
+@simple
+def price_nkpc_F(pi_F, mc_F, mu_p_F, kappa_p_F, beta_F):
+    # See price_nkpc_D.
+    nkpc_p_res_F = pi_F - beta_F * pi_F(+1) - kappa_p_F * (mu_p_F * mc_F - 1.0)
+    return nkpc_p_res_F
+
 
 
 @simple

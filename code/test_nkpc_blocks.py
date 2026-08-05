@@ -60,3 +60,58 @@ def test_firm_profit_F_matches_D():
         'mu_p_F': args['mu_p'], 'mc_F': args['mc'],
     })
     assert d['profit_D'] == pytest.approx(f['profit_F'], rel=1e-15)
+
+
+# ── Price Phillips curve ──────────────────────────────────────────────────────
+
+def test_price_nkpc_is_zero_at_steady_state():
+    from equations_D import price_nkpc_D
+    mu_p = 1.20
+    ss = price_nkpc_D.steady_state({
+        'pi_D': 0.0, 'mc_D': 1.0 / mu_p, 'mu_p_D': mu_p,
+        'kappa_p_D': 0.0871, 'beta_D': 0.985,
+    })
+    assert ss['nkpc_p_res_D'] == pytest.approx(0.0, abs=1e-15)
+
+
+def test_price_nkpc_flex_limit_forces_mc_to_one_over_mu_p():
+    """As kappa_p -> inf the residual/kappa_p -> -(mu_p*mc - 1), so setting the
+    residual to zero drives mu_p*mc -> 1, which is the competitive condition."""
+    from equations_D import price_nkpc_D
+    mu_p = 1.20
+    base = {'pi_D': 0.0, 'mu_p_D': mu_p, 'beta_D': 0.985}
+    off_mc = 0.79                       # != 1/mu_p = 0.8333...
+    for kappa in (1e2, 1e4, 1e6):
+        ss = price_nkpc_D.steady_state({**base, 'mc_D': off_mc, 'kappa_p_D': kappa})
+        implied_gap = -ss['nkpc_p_res_D'] / kappa
+        assert implied_gap == pytest.approx(mu_p * off_mc - 1.0, rel=1e-12)
+
+
+def test_price_nkpc_gap_linearises_to_mc_hat():
+    """d(mu_p*mc - 1)/d(mc/mc_ss) evaluated at mc_ss = 1/mu_p equals 1 for ANY
+    mu_p -- which is why mu_p is a free normalisation to first order."""
+    from equations_D import price_nkpc_D
+    for mu_p in (1.05, 1.20, 1.50):
+        mc_ss = 1.0 / mu_p
+        h = 1e-7
+        base = {'pi_D': 0.0, 'mu_p_D': mu_p, 'kappa_p_D': 1.0, 'beta_D': 0.985}
+        up = price_nkpc_D.steady_state({**base, 'mc_D': mc_ss * (1 + h)})
+        dn = price_nkpc_D.steady_state({**base, 'mc_D': mc_ss * (1 - h)})
+        # residual = -kappa*(gap), kappa = 1 -> d(gap)/d(mc_hat) = -d(res)/d(mc_hat)
+        d_gap = -(up['nkpc_p_res_D'] - dn['nkpc_p_res_D']) / (2 * h)
+        assert d_gap == pytest.approx(1.0, rel=1e-6)
+
+
+def test_price_nkpc_F_matches_D():
+    from equations_D import price_nkpc_D
+    from equations_F import price_nkpc_F
+    args = dict(pi=0.001, mc=0.79, mu_p=1.20, kappa=0.0871, beta=0.985)
+    d = price_nkpc_D.steady_state({
+        'pi_D': args['pi'], 'mc_D': args['mc'], 'mu_p_D': args['mu_p'],
+        'kappa_p_D': args['kappa'], 'beta_D': args['beta'],
+    })
+    f = price_nkpc_F.steady_state({
+        'pi_F': args['pi'], 'mc_F': args['mc'], 'mu_p_F': args['mu_p'],
+        'kappa_p_F': args['kappa'], 'beta_F': args['beta'],
+    })
+    assert d['nkpc_p_res_D'] == pytest.approx(f['nkpc_p_res_F'], rel=1e-15)

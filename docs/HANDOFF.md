@@ -9,8 +9,13 @@
   to the pre-refactor `main.py` output.** **Task 2 (`firm_profit_D/F`, the
   markup-rent block distributed proportional to `e`) is complete** —
   `code/test_nkpc_blocks.py` 2/3 green, the factor-exhaustion test intentionally
-  red until Task 4 wires `mu_p/mc` into `labor_demand_D/F`. Task 3
-  (`price_nkpc_D/F`) is next.
+  red until Task 4 wires `mu_p/mc` into `labor_demand_D/F`. **Task 3
+  (`price_nkpc_D/F`, the Rotemberg Phillips curves in PPI inflation, appended
+  after `firm_profit_D/F`) is complete** — `code/test_nkpc_blocks.py` now 6/7
+  green (the 4 new `price_nkpc` tests plus the 2 `firm_profit` tests from
+  Task 2), the same factor-exhaustion test still intentionally red. Task 4
+  (wire `mu_p`/`mc` into `labor_demand_D/F` so the markup wedge actually bites)
+  is next.
 - Working branch: `main`. Production entry point: `code/main.py` (orchestrates
   `calibration.py`, `steady_state.py`, `ic_delta_calibration.py`,
   `depreciation_calibration.py`, `full_model.py`, `tpi.py`, `irf_plots.py`,

@@ -316,6 +316,26 @@ def firm_profit_D(Y_D, alpha_D, mu_p_D, mc_D):
 
 
 @simple
+def price_nkpc_D(pi_D, mc_D, mu_p_D, kappa_p_D, beta_D):
+    # Rotemberg NK Phillips curve in D producer-price inflation.
+    #
+    # The gap is a RATIO (mu_p*mc - 1), so it is unit-free and linearises to
+    # exactly mc_hat for any mu_p -- published Calvo slopes are directly usable
+    # for kappa_p with no SS rescaling, and mu_p is a free normalisation to
+    # first order under the subsidy neutralisation.
+    #
+    # Subsidy-neutralised: mc_ss = 1/mu_p, so the gap and pi are both exactly
+    # zero at the current SS and the SS is bit-identical to the flex model.
+    # kappa_p -> inf recovers flexible prices (mu_p*mc = 1).
+    #
+    # Discounted at constant beta rather than SDF_D: since pi_ss = 0 the SDF
+    # deviation multiplies a zero, so the two are identical to first order and
+    # the model is solved by linearised solve_jacobian.
+    nkpc_p_res_D = pi_D - beta_D * pi_D(+1) - kappa_p_D * (mu_p_D * mc_D - 1.0)
+    return nkpc_p_res_D
+
+
+@simple
 def intermediation_IC_D(nu_K_D, nu_bD_D, nu_bF_D, eta_D,
                         Q_D, K_D, q_b_D, q_b_F, b_D_D, b_F_D, n_inter_D,
                         lambda_gk_D, Delta_bD_D, Delta_bF_D, theta_D,

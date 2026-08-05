@@ -14,6 +14,26 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-08-05 — `price_nkpc_D/F` Rotemberg Phillips curves (Task 3 of the nominal-rigidities plan)
+
+New blocks `price_nkpc_D`/`price_nkpc_F`: `pi = beta*pi(+1) + kappa_p*(mu_p*mc - 1)`,
+appended after `firm_profit_D/F`. The gap is written as the ratio `mu_p*mc - 1`
+rather than a level difference, so it is unit-free and linearises to exactly
+`mc_hat` for any `mu_p` — published Calvo slopes are directly usable for
+`kappa_p` with no SS rescaling, and `mu_p` is a free normalisation to first
+order. Subsidy-neutralised: `mc_ss = 1/mu_p` makes the gap and `pi_ss` both
+exactly zero at the current steady state, so the SS stays bit-identical to the
+flex-price model. Discounted at constant `beta_D/F` rather than the SDF: since
+`pi_ss = 0`, the SDF deviation multiplies a zero, so the two are identical to
+first order under linearised `solve_jacobian`. `kappa_p -> inf` recovers
+flexible prices (`mu_p*mc = 1`) — the equivalence gate used later in the plan.
+`code/test_nkpc_blocks.py`: 4 new tests, all green
+(`test_price_nkpc_is_zero_at_steady_state`,
+`test_price_nkpc_flex_limit_forces_mc_to_one_over_mu_p`,
+`test_price_nkpc_gap_linearises_to_mc_hat`, `test_price_nkpc_F_matches_D`); full
+file now 6 passed / 1 known-red (`test_firm_profit_restores_factor_exhaustion_off_steady_state`,
+untouched, goes green in Task 4).
+
 ## 2026-08-05 — `firm_profit_D/F` routes the markup rent (Task 2 of the nominal-rigidities plan)
 
 Once labour demand pays `mu_p*mc*(1-alpha)*Y` (Task 4) instead of the flexible-

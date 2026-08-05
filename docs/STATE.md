@@ -13,7 +13,7 @@ factory, with the TPI layer supplying its four `_tpi` swaps
 (no-op). Done ahead of Task 1 of `docs/superpowers/plans/2026-08-05-nominal-rigidities.md`,
 which adds six new blocks and would otherwise need editing in three places.
 
-## Nominal rigidities (`add-nkpc`, in progress): Task 2 — markup rent
+## Nominal rigidities (`add-nkpc`, in progress): Task 3 — price Phillips curve
 
 `firm_profit_D`/`firm_profit_F` (appended after `labor_demand_D/F` in
 `equations_D.py`/`equations_F.py`) now exist: `profit = (1 - mu_p*mc)*(1-alpha)*Y`,
@@ -21,9 +21,20 @@ the residual left over once labour demand pays `mu_p*mc*(1-alpha)*Y` (Task 4,
 not yet done) while capital keeps earning `alpha*Y` unchanged. Distributed to
 households in proportion to productivity `e`, not lump-sum — this is what lets
 `labor_market_D/F` stay untouched. Zero at SS (`mu_p*mc=1`), so current SS is
-bit-identical. `code/test_nkpc_blocks.py` added; 2/3 tests green, the
-factor-exhaustion test is intentionally red pending Task 4's `labor_demand_D/F`
-change.
+bit-identical.
+
+`price_nkpc_D`/`price_nkpc_F` (appended after `firm_profit_D/F`) add the
+Rotemberg curves themselves: `pi = beta*pi(+1) + kappa_p*(mu_p*mc - 1)`. The
+gap is the ratio `mu_p*mc - 1`, not a level difference — unit-free, and
+linearises to exactly `mc_hat` for any `mu_p`, so published Calvo slopes map
+straight onto `kappa_p` with no SS rescaling. Subsidy-neutralised
+(`mc_ss = 1/mu_p`) so `pi_ss = 0` and the steady state is still bit-identical
+to the flex-price model. Discounted at constant `beta_D/F`, not the SDF —
+immaterial to first order since `pi_ss = 0`. `kappa_p -> inf` recovers
+flexible prices (`mu_p*mc = 1`), the equivalence gate for later tasks.
+`code/test_nkpc_blocks.py`: 6/7 tests green (all 2 `firm_profit` + all 4
+`price_nkpc` tests), the factor-exhaustion test still intentionally red
+pending Task 4's `labor_demand_D/F` change.
 
 ## Policy experiments (`experiments/`) — **COMPLETE 2026-08-03**
 
