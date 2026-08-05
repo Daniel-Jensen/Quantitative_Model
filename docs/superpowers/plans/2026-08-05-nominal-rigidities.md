@@ -302,6 +302,44 @@ No-op. Verified main.py output is byte-identical before and after."
 
 ---
 
+## SSJ library defect found in Task 9 — read before touching any Jacobian solve
+
+**SSJ 1.0.0 cannot solve this system with stock `Block.solve_jacobian`.**
+
+`CombinedBlock._jacobian` (`blocks/combined_block.py:104-119`) seeds
+`total_Js = JacobianDict.identity(inputs)` from the *shock* list, visits a block
+only `if (inputs & block.inputs) and (outputs & block.outputs)`, and returns
+`total_Js[original_outputs & total_Js.outputs, :]`. A target reachable from no
+shock is therefore silently dropped from H_Z. `Block.solve_jacobian`
+(`blocks/block.py:260`) then calls `np.linalg.solve(H_U, H_Z.pack(T))` with
+mismatched shapes:
+
+```
+ValueError: solve: Input operand 1 has a mismatch in its core dimension 0,
+with gufunc signature (m,m),(m,n)->(m,n) (size 11500 is different from 13500)
+```
+
+`11500 = 23*500`, `13500 = 27*500`. All four new targets are pure functions of
+the solver's own unknowns — `nkpc_p_res_D/F` (pi, mc), `tot_res` (p, pi_D, pi_F),
+`union_pi_res` (pi_D, pi_F) — and contain no `Z_*` or `shock_def_*` symbol.
+
+**Fix: `full_model.solve_jacobian_padded()`**, added in Task 9. It restores the
+missing rows as zeros, which is **exact, not an approximation**: `dH/dZ` at fixed
+unknowns is identically zero when the shock never appears in the equation. It
+mirrors `Block.solve_jacobian` line-for-line and prints the padded row names on
+every solve, so it cannot go silent.
+
+**A 25x25 rewrite does NOT avoid this — do not attempt it.** Solving `tot_res`
+and `union_pi_res` analytically for `pi_D`, `pi_F` (which has an exact closed
+form, `pi_D = (1-g)/(g + omega/(1-omega))` with `g = p/p(-1)`) would make them
+block outputs and drop the system to 25x25. But `nkpc_p_res_D` would still depend
+only on `pi_D` — now a function of `p`, still an unknown — and `mc_D`, another
+unknown. The gate at `combined_block.py:115` tests against the *shock* set, so
+the two NKPC targets would still be dropped, giving 23 H_Z rows against a 25x25
+H_U. Same defect, smaller numbers, at the cost of rewriting committed work.
+
+**Every Jacobian call site must use the padded helper.** Task 9b converts them.
+
 ## Phase 1 — Price rigidity (deposits still real)
 
 ### Task 2: Markup rent — `firm_profit_{D,F}`
@@ -1205,6 +1243,70 @@ git commit -m "feat: 27x27 sticky-price system; passes the kappa_p -> inf equiva
 ```
 
 ---
+
+### Task 9b: Convert every Jacobian call site to the padded solver
+
+Task 9 converted `full_model.py` and `tpi.py`. **Seven call sites still use stock
+`solve_jacobian` and will die with the core-dimension mismatch the moment they
+see the sticky-price system.** They are not broken yet only because they have not
+been re-run.
+
+Two of them block later tasks outright:
+- `diagnostics/regimes/regime_model.py:177` — Task 15's cache rebuild, and hence
+  **all of E1–E4**, runs off this.
+- `experiments/e4_distribution.py:255` — E4's quintile incidence.
+
+The rest are diagnostics off the plan's critical path but must not be left as
+landmines: `diagnostics/solve_configs.py:176`,
+`diagnostics/psilam_moment_sweep.py:76`,
+`diagnostics/psilam_breakdown_sweep.py:83`,
+`diagnostics/substitution_v2/solve_v2.py:106`,
+`diagnostics/substitution_v2/exp_psilam0.py:64`.
+
+- [ ] **Step 1: Convert each call site**
+
+In each file, replace `<model>.solve_jacobian(ss, unknowns=..., targets=...,
+inputs=..., T=...)` with:
+
+```python
+from full_model import solve_jacobian_padded
+G = solve_jacobian_padded(<model>, ss, <unknowns>, <targets>, <inputs>, T)
+```
+
+Preserve each site's own variable names and any extra keyword arguments it
+passes. Note `solve_jacobian_padded` takes `unknowns`, `targets`, `inputs`, `T`
+positionally after `model` and `ss`.
+
+- [ ] **Step 2: Verify none remain**
+
+```bash
+grep -rn "\.solve_jacobian(" --include="*.py" code experiments diagnostics \
+  | grep -v solve_jacobian_padded
+```
+
+Expected: **no output**.
+
+- [ ] **Step 3: Smoke-test the two on the critical path**
+
+```bash
+/opt/anaconda3/envs/ssj/bin/python -c "
+import sys
+sys.path.insert(0,'code'); sys.path.insert(0,'diagnostics/regimes'); sys.path.insert(0,'experiments')
+import regime_model, e4_distribution
+print('regime_model and e4_distribution import cleanly')
+"
+```
+
+- [ ] **Step 4: Commit** (all three docs staged, as always)
+
+```bash
+git add code experiments diagnostics docs/STATE.md docs/PROGRESS.md docs/HANDOFF.md
+git commit -m "fix: route every Jacobian call site through solve_jacobian_padded
+
+SSJ 1.0.0 drops H_Z rows for targets reachable from no shock. Seven call sites
+would have hit the core-dimension mismatch on first contact with the 27x27
+system; regime_model.py blocks the E1-E4 cache rebuild."
+```
 
 ### Task 10: Dial `kappa_p` to 0.0871 and record the price-stickiness result
 
