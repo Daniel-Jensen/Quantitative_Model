@@ -155,28 +155,13 @@ def build_tpi_model_main(tpi, financial_solved_D, financial_solved_F,
     single place the model is defined — a second copy is how the retired
     audit_artifacts/ harness drifted into testing a different model."""
     t = tpi
-    hh_D = t.hh_extended_D if hh_D is None else hh_D
-    hh_F = t.hh_extended_F if hh_F is None else hh_F
-    return sj.create_model([
-        t.deposit_return_D, t.tax_rule_D, hh_D, t.ghh_composite_D,
-        t.sdf_D, t.sdf_banker_D, t.government_default_D, financial_solved_D,
-        t.bond_return_D, t.bank_return_D, t.capital_fund_D, t.cap_adj_cost_inter_D, t.macro_pru_tax_D,
-        t.intermediation_P2_D, t.intermediation_P3_D, t.k_balance_sheet_D,
-        t.capital_adj_D, t.capital_producer_profit_D, t.budget_residual_D_tpi,
-        t.labor_D, t.labor_market_D, t.labor_demand_D, t.banker_div_res_D,
-        t.market_clearing_D, t.welfare_agg_D,
-        t.deposit_return_F, t.tax_rule_F, hh_F, t.ghh_composite_F,
-        t.sdf_F, t.sdf_banker_F, t.government_default_F, financial_solved_F,
-        t.bond_return_F, t.bank_return_F, t.capital_fund_F, t.cap_adj_cost_inter_F, t.macro_pru_tax_F,
-        t.intermediation_P2_F, t.intermediation_P3_F, t.k_balance_sheet_F,
-        t.capital_adj_F, t.capital_producer_profit_F, t.budget_residual_F_tpi,
-        t.labor_F, t.labor_market_F, t.labor_demand_F, t.banker_div_res_F,
-        t.market_clearing_F, t.welfare_agg_F,
-        t.ces_price_D, t.import_demand_D, t.ces_price_F, t.import_demand_F,
-        t.trade_balance, t.external_account_D_tpi, t.domestic_bond_clearing_tpi,
-        t.bond_yield, t.portfolio_level_anchors, t.divert_portfolio_adj,
-        t.divert_bond_foc_D, t.divert_bond_foc_F, t.global_goods_mkt,
-    ], name="Full 2-Country MU HANK — TPI Extension (regimes cache, main)")
+    from full_model import build_block_list
+    return sj.create_model(
+        build_block_list(financial_solved_D, financial_solved_F,
+                         hh_D=hh_D, hh_F=hh_F,
+                         overrides=t.tpi_overrides()),
+        name="Full 2-Country MU HANK — TPI Extension (regimes cache, main)",
+    )
 
 
 def _ss_tpi(ss_final, kappa_cb_F):

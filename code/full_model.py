@@ -13,7 +13,7 @@ from equations_D import (
     tax_rule_D, capital_producer_profit_D, budget_residual_D,
     ces_price_D, import_demand_D, deposit_return_D,
     bond_return_D, sdf_D, sdf_banker_ss_D, sdf_banker_D, ghh_composite_D,
-    welfare_agg_D, market_clearing_D,
+    welfare_agg_D, market_clearing_D, hh_extended_D,
 )
 from equations_F import (
     capital_adj_F, labor_F, labor_market_F, labor_demand_F,
@@ -24,13 +24,64 @@ from equations_F import (
     tax_rule_F, capital_producer_profit_F, budget_residual_F,
     ces_price_F, import_demand_F, deposit_return_F,
     bond_return_F, sdf_F, sdf_banker_ss_F, sdf_banker_F, ghh_composite_F,
-    welfare_agg_F, market_clearing_F,
+    welfare_agg_F, market_clearing_F, hh_extended_F,
 )
 from equations_global import (
     trade_balance, domestic_bond_clearing,
     portfolio_level_anchors, divert_portfolio_adj, bond_yield,
     global_goods_mkt, external_account_D,
 )
+
+
+def build_block_list(financial_solved_D, financial_solved_F, *,
+                     hh_D=None, hh_F=None, overrides=None):
+    """The single definition of the model's block list.
+
+    Every consumer (full_model, tpi, diagnostics/regimes) calls this. A second
+    copy of the list is how the retired audit_artifacts/ harness drifted into
+    silently testing a different model — see CLAUDE.md.
+
+    financial_solved_D/F : the runtime-constructed GK solved blocks.
+    hh_D/hh_F            : optionally REPLACE the household blocks with versions
+                           carrying extra hetoutputs (experiments/e4_distribution
+                           adds per-decile consumption).
+    overrides            : {name: block} used by the TPI layer to swap in its
+                           _tpi variants without keeping a second list.
+    """
+    o = overrides or {}
+    hh_D = hh_extended_D if hh_D is None else hh_D
+    hh_F = hh_extended_F if hh_F is None else hh_F
+
+    def pick(name, default):
+        return o.get(name, default)
+
+    return [
+        # Country D
+        deposit_return_D, tax_rule_D, hh_D, ghh_composite_D,
+        sdf_D, sdf_banker_D, government_default_D, financial_solved_D,
+        bond_return_D, bank_return_D, capital_fund_D, cap_adj_cost_inter_D, macro_pru_tax_D,
+        intermediation_P2_D, intermediation_P3_D, k_balance_sheet_D,
+        capital_adj_D, capital_producer_profit_D,
+        pick('budget_residual_D', budget_residual_D),
+        labor_D, labor_market_D, labor_demand_D, banker_div_res_D,
+        market_clearing_D, welfare_agg_D,
+        # Country F
+        deposit_return_F, tax_rule_F, hh_F, ghh_composite_F,
+        sdf_F, sdf_banker_F, government_default_F, financial_solved_F,
+        bond_return_F, bank_return_F, capital_fund_F, cap_adj_cost_inter_F, macro_pru_tax_F,
+        intermediation_P2_F, intermediation_P3_F, k_balance_sheet_F,
+        capital_adj_F, capital_producer_profit_F,
+        pick('budget_residual_F', budget_residual_F),
+        labor_F, labor_market_F, labor_demand_F, banker_div_res_F,
+        market_clearing_F, welfare_agg_F,
+        # Global
+        ces_price_D, import_demand_D, ces_price_F, import_demand_F,
+        trade_balance,
+        pick('external_account_D', external_account_D),
+        pick('domestic_bond_clearing', domestic_bond_clearing),
+        bond_yield, portfolio_level_anchors, divert_portfolio_adj,
+        divert_bond_foc_D, divert_bond_foc_F, global_goods_mkt,
+    ]
 
 
 def build_and_solve(ss_results):
@@ -66,29 +117,10 @@ def build_and_solve(ss_results):
     )
 
     # ── Full dynamic model ────────────────────────────────────────────────────
-    ha_full = sj.create_model([
-        # Country D
-        deposit_return_D, tax_rule_D, hh_extended_D, ghh_composite_D,
-        sdf_D, sdf_banker_D, government_default_D, financial_solved_D,
-        bond_return_D, bank_return_D, capital_fund_D, cap_adj_cost_inter_D, macro_pru_tax_D,
-        intermediation_P2_D, intermediation_P3_D, k_balance_sheet_D,
-        capital_adj_D, capital_producer_profit_D, budget_residual_D,
-        labor_D, labor_market_D, labor_demand_D, banker_div_res_D,
-        market_clearing_D, welfare_agg_D,
-        # Country F
-        deposit_return_F, tax_rule_F, hh_extended_F, ghh_composite_F,
-        sdf_F, sdf_banker_F, government_default_F, financial_solved_F,
-        bond_return_F, bank_return_F, capital_fund_F, cap_adj_cost_inter_F, macro_pru_tax_F,
-        intermediation_P2_F, intermediation_P3_F, k_balance_sheet_F,
-        capital_adj_F, capital_producer_profit_F, budget_residual_F,
-        labor_F, labor_market_F, labor_demand_F, banker_div_res_F,
-        market_clearing_F, welfare_agg_F,
-        # Global
-        ces_price_D, import_demand_D, ces_price_F, import_demand_F,
-        trade_balance, external_account_D, domestic_bond_clearing,
-        bond_yield, portfolio_level_anchors, divert_portfolio_adj,
-        divert_bond_foc_D, divert_bond_foc_F, global_goods_mkt,
-    ], name="Full 2-Country MU HANK — GHH Preferences, Flex Price & Wage, No CB")
+    ha_full = sj.create_model(
+        build_block_list(financial_solved_D, financial_solved_F),
+        name="Full 2-Country MU HANK — GHH Preferences, Flex Price & Wage, No CB",
+    )
 
     # ── 23×23 system ──────────────────────────────────────────────────────────
     unknowns_tp = [
@@ -172,7 +204,3 @@ def build_and_solve(ss_results):
         'irfs_def_D':        irfs_def_D,
     }
 
-
-# Needed by full_model.py and tpi.py: import the hh_extended blocks
-from equations_D import hh_extended_D  # noqa: F401 (re-export for tpi.py)
-from equations_F import hh_extended_F  # noqa: F401

@@ -14,6 +14,19 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-08-05 — Consolidate the block list into `build_block_list()` (Task 1 of the nominal-rigidities plan)
+
+Extracted `build_block_list()` in `full_model.py`; `tpi.py` and
+`diagnostics/regimes/regime_model.py` now share it instead of each hardcoding
+their own copy of the `create_model` block list (`tpi.py` supplies its four
+`_tpi` swaps via a new `tpi_overrides()` helper; `regime_model.py`'s
+`build_tpi_model_main` now just calls the shared factory). Pure no-op, done
+ahead of `docs/superpowers/plans/2026-08-05-nominal-rigidities.md`'s six new
+blocks so there is one place to edit instead of three. **Verified main.py
+output byte-identical before and after** (8172 bytes, empty diff on both runs'
+full stdout, including the `b_gov_D` stability block and both default-shock
+sign checks).
+
 ## 2026-08-05 — E4 distributional incidence; net-effects and MS-regime figures  [this commit]
 
 Three additions to the first-draft set, at the author's request.

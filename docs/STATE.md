@@ -2,6 +2,17 @@
 
 **Branch:** `eba-recalibration` | **Date:** 2026-07-31 | **Status:** **EBA calibration rebuilt, identified, and LIVE** (`EBA_CALIBRATION=True`, `BANK_SCOPE="broad"`). Y-1 and RK-1 resolved; spread on target at 150.4bp; TPI loading declining.
 
+## Model plumbing (2026-08-05): single block-list definition
+
+The model's block list now has **one definition**, `full_model.build_block_list()`.
+`code/tpi.py` and `diagnostics/regimes/regime_model.py` previously each hardcoded
+their own copy of the `sj.create_model([...])` list; both now call the shared
+factory, with the TPI layer supplying its four `_tpi` swaps
+(`budget_residual_D/F`, `external_account_D`, `domestic_bond_clearing`) via
+`tpi.tpi_overrides()`. Verified bit-identical `main.py` output before/after
+(no-op). Done ahead of Task 1 of `docs/superpowers/plans/2026-08-05-nominal-rigidities.md`,
+which adds six new blocks and would otherwise need editing in three places.
+
 ## Policy experiments (`experiments/`) — **COMPLETE 2026-08-03**
 
 E1, E2 and E3 all land, with the orchestrator writing

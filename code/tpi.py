@@ -101,6 +101,16 @@ def external_account_D_tpi(NX_D, q_b_D, q_b_F, b_F_D, b_D_F, rb_actual_F, rb_act
     return nfa_D, ca_res_D
 
 
+def tpi_overrides():
+    """The four blocks the TPI layer swaps into the shared block list."""
+    return {
+        'budget_residual_D':     budget_residual_D_tpi,
+        'budget_residual_F':     budget_residual_F_tpi,
+        'external_account_D':    external_account_D_tpi,
+        'domestic_bond_clearing': domestic_bond_clearing_tpi,
+    }
+
+
 def compute_tpi_irfs(G_tpi, shock_def, gamma_tpi, T):
     _has_spread = 'spread_rb' in G_tpi.outputs
     if _has_spread:
@@ -142,26 +152,12 @@ def run_tpi(model_results):
     irfs_def_D         = model_results['irfs_def_D']
 
     # ── Build TPI model ───────────────────────────────────────────────────────
-    ha_full_tpi = sj.create_model([
-        deposit_return_D, tax_rule_D, hh_extended_D, ghh_composite_D,
-        sdf_D, sdf_banker_D, government_default_D, financial_solved_D,
-        bond_return_D, bank_return_D, capital_fund_D, cap_adj_cost_inter_D, macro_pru_tax_D,
-        intermediation_P2_D, intermediation_P3_D, k_balance_sheet_D,
-        capital_adj_D, capital_producer_profit_D, budget_residual_D_tpi,
-        labor_D, labor_market_D, labor_demand_D, banker_div_res_D,
-        market_clearing_D, welfare_agg_D,
-        deposit_return_F, tax_rule_F, hh_extended_F, ghh_composite_F,
-        sdf_F, sdf_banker_F, government_default_F, financial_solved_F,
-        bond_return_F, bank_return_F, capital_fund_F, cap_adj_cost_inter_F, macro_pru_tax_F,
-        intermediation_P2_F, intermediation_P3_F, k_balance_sheet_F,
-        capital_adj_F, capital_producer_profit_F, budget_residual_F_tpi,
-        labor_F, labor_market_F, labor_demand_F, banker_div_res_F,
-        market_clearing_F, welfare_agg_F,
-        ces_price_D, import_demand_D, ces_price_F, import_demand_F,
-        trade_balance, external_account_D_tpi, domestic_bond_clearing_tpi,
-        bond_yield, portfolio_level_anchors, divert_portfolio_adj,
-        divert_bond_foc_D, divert_bond_foc_F, global_goods_mkt,
-    ], name="Full 2-Country MU HANK — TPI Extension")
+    from full_model import build_block_list
+    ha_full_tpi = sj.create_model(
+        build_block_list(financial_solved_D, financial_solved_F,
+                         overrides=tpi_overrides()),
+        name="Full 2-Country MU HANK — TPI Extension",
+    )
 
     ss_tpi = copy.deepcopy(ss_final)
     ss_tpi.toplevel['cb_buy_D'] = 0.0

@@ -2,6 +2,11 @@
 
 ## Where to start
 
+- **Nominal-rigidities plan in progress on `add-nkpc`**
+  (`docs/superpowers/plans/2026-08-05-nominal-rigidities.md`). **Task 1 (extract
+  a single `build_block_list()` shared by `full_model.py`, `tpi.py`, and
+  `diagnostics/regimes/regime_model.py`) is complete and verified bit-identical
+  to the pre-refactor `main.py` output.** Task 2 (`firm_profit_D/F`) is next.
 - Working branch: `main`. Production entry point: `code/main.py` (orchestrates
   `calibration.py`, `steady_state.py`, `ic_delta_calibration.py`,
   `depreciation_calibration.py`, `full_model.py`, `tpi.py`, `irf_plots.py`,
