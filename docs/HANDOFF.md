@@ -34,9 +34,17 @@
   to `O(dlog_p)` against the exact nonlinear `tot_res`, so it was replaced with
   an exact net-rate-split assertion (`pi_F - pi_D == dlog_p`, `share_D ==
   1-omega`) that's robust to any `omega_pi_D` rather than tuned to a specific
-  `dlog_p`. Block implementations were correct as specified throughout. Task 6
-  (route the markup rent into `income_D/F`)
-  is next.
+  `dlog_p`. Block implementations were correct as specified throughout. **Task 6
+  (route the markup rent into `income_D/F`) is complete** — `income_D/F` now
+  take `profit_D/F` as an argument and add `profit*e` to household labour
+  income; since `income_D/F` are hetinputs, this alone wires `profit_D/F` into
+  `hh_extended_D/F.inputs`. Verified `w*N*e + profit*e = (1-alpha)*Y*e` exactly
+  (max abs diff 2.2e-16), so the markup wedge still affects only the firm's
+  hiring decision, never household income, and `labor_market_D/F` needed no
+  change. Zero at SS, so the steady state is still bit-identical.
+  `code/test_nkpc_blocks.py` unchanged at 11/11 green (pure arithmetic on an
+  already-tested block, no new tests). **Task 7 (calibrate `mu_p`, `kappa_p`,
+  `omega_pi_D`) is next.**
 - Working branch: `main`. Production entry point: `code/main.py` (orchestrates
   `calibration.py`, `steady_state.py`, `ic_delta_calibration.py`,
   `depreciation_calibration.py`, `full_model.py`, `tpi.py`, `irf_plots.py`,

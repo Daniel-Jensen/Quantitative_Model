@@ -13,6 +13,21 @@ factory, with the TPI layer supplying its four `_tpi` swaps
 (no-op). Done ahead of Task 1 of `docs/superpowers/plans/2026-08-05-nominal-rigidities.md`,
 which adds six new blocks and would otherwise need editing in three places.
 
+## Nominal rigidities (`add-nkpc`, in progress): Task 6 — markup rent reaches households
+
+`income_D`/`income_F` now add `profit_D*e_grid_D`/`profit_F*e_grid_F` to the
+household's labour income (alongside `div`/`div_fund`), distributed in
+proportion to productivity `e` rather than lump-sum. Because `w*N*e +
+profit*e = mu_p*mc*(1-alpha)*Y*e + (1-mu_p*mc)*(1-alpha)*Y*e =
+(1-alpha)*Y*e` exactly, household labour-plus-profit income is identical to
+the flex-price model — the markup wedge (Task 4) bites only on the firm's
+hiring decision, never on household income — so `labor_market_D/F` (labour
+supply) stays valid and untouched. Zero at SS (`mu_p*mc=1`), so the steady
+state is still bit-identical. `income_D/F` are hetinputs, not `@simple`
+blocks, so adding `profit_D/F` to the function signature was sufficient to
+wire them into `hh_extended_D/F.inputs`. `code/test_nkpc_blocks.py`: 11
+passed, 0 failed (unchanged — no new tests needed for this task).
+
 ## Nominal rigidities (`add-nkpc`, in progress): Task 5 — global closure, no policy rate
 
 `firm_profit_D`/`firm_profit_F` (appended after `labor_demand_D/F` in

@@ -14,6 +14,25 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-08-05 — Markup rent routed into household income (Task 6 of the nominal-rigidities plan)
+
+`income_D`/`income_F` (`equations_D.py`/`equations_F.py`) now take `profit_D`/
+`profit_F` as an argument and add `profit*e` to the household's labour income
+before the tax-and-transfer schedule, alongside the existing `div`/`div_fund`
+terms. Since `income_D/F` are hetinputs (not `@simple` blocks), adding the
+parameter to the function signature is sufficient to wire `profit_D/F` into
+`hh_extended_D/F.inputs` — verified directly. Combined with Task 4's wage bill
+`w*N*e = mu_p*mc*(1-alpha)*Y*e` and Task 2's `profit*e =
+(1-mu_p*mc)*(1-alpha)*Y*e`, labour-plus-profit income per unit of `e` is
+exactly `(1-alpha)*Y*e`, identical to the flex-price model to machine
+precision (checked directly on `firm_profit_D`, max abs diff 2.2e-16) — so the
+markup wedge affects only the firm's hiring decision, never household income,
+and `labor_market_D/F` needs no change. Zero at SS (`mu_p*mc=1` -> `profit=0`
+exactly), so the steady state stays bit-identical.
+`code/test_nkpc_blocks.py`: still 11 passed / 0 failed (no new tests — this
+task is pure arithmetic on an already-tested block). Next: Task 7, calibrate
+`mu_p`/`kappa_p`/`omega_pi_D`.
+
 ## 2026-08-05 — `terms_of_trade` + `union_inflation` close the nominal side, no policy rate (Task 5 of the nominal-rigidities plan)
 
 Two new blocks appended to `code/equations_global.py` after `bond_yield`.

@@ -61,9 +61,13 @@ def make_grids_D(Depmax_D, nDep_D, nZ_D, rho_z_D, sigma_z_D):
     return dep_D_grid, e_grid_D, Pi_D
 
 
-def income_D(e_grid_D, w_D, N_D, div_D, div_fund_D, tau_D, lamb_D, P_CES_D, T_ls_D):
+def income_D(e_grid_D, w_D, N_D, div_D, div_fund_D, profit_D, tau_D, lamb_D, P_CES_D, T_ls_D):
     # div_fund_D: rebate from the passive capital fund (zero when omega_K_D=1).
-    y_pre_D  = (w_D * N_D * e_grid_D + div_D + div_fund_D) / P_CES_D
+    # profit_D: markup rent, distributed in proportion to productivity e (see
+    # firm_profit_D). w_D*N_D*e + profit_D*e = (1-alpha)*Y_D*e exactly, so
+    # household income is identical to the flex model and the markup wedge acts
+    # only on the firm's hiring decision. Zero at SS.
+    y_pre_D  = (w_D * N_D * e_grid_D + profit_D * e_grid_D + div_D + div_fund_D) / P_CES_D
     z_D      = lamb_D * (y_pre_D ** (1 - tau_D)) - T_ls_D
     t_paid_D = y_pre_D - z_D
     return z_D, t_paid_D

@@ -57,9 +57,9 @@ def make_grids_F(Depmax_F, nDep_F, nZ_F, rho_z_F, sigma_z_F):
 
     return dep_F_grid, e_grid_F, Pi_F
 
-def income_F(e_grid_F, w_F, N_F, div_F, div_fund_F, tau_F, lamb_F, P_CES_F, T_ls_F):
-    # div_fund_F: rebate from the passive capital fund (zero when omega_K_F=1).
-    y_pre_F  = (w_F * N_F * e_grid_F + div_F + div_fund_F) / P_CES_F
+def income_F(e_grid_F, w_F, N_F, div_F, div_fund_F, profit_F, tau_F, lamb_F, P_CES_F, T_ls_F):
+    # See income_D. profit_F is the markup rent, distributed on e; zero at SS.
+    y_pre_F  = (w_F * N_F * e_grid_F + profit_F * e_grid_F + div_F + div_fund_F) / P_CES_F
     z_F      = lamb_F * (y_pre_F ** (1 - tau_F)) - T_ls_F
     t_paid_F = y_pre_F - z_F
     return z_F, t_paid_F
