@@ -13,7 +13,7 @@ factory, with the TPI layer supplying its four `_tpi` swaps
 (no-op). Done ahead of Task 1 of `docs/superpowers/plans/2026-08-05-nominal-rigidities.md`,
 which adds six new blocks and would otherwise need editing in three places.
 
-## Nominal rigidities (`add-nkpc`, in progress): Task 4 — markup wedge in labour demand
+## Nominal rigidities (`add-nkpc`, in progress): Task 5 — global closure, no policy rate
 
 `firm_profit_D`/`firm_profit_F` (appended after `labor_demand_D/F` in
 `equations_D.py`/`equations_F.py`) now exist: `profit = (1 - mu_p*mc)*(1-alpha)*Y`,
@@ -44,8 +44,32 @@ at `mc_ss=1/mu_p` collapses the condition identically to the old one).
 `labor_market_D/F` (labour supply) deliberately untouched, per the routing
 argument above. `code/test_nkpc_blocks.py`: 8/8 tests green (2 `firm_profit`
 + 4 `price_nkpc` + `test_labor_demand_collapses_to_competitive_at_ss_markup`,
-which turns the previously-red factor-exhaustion test green). Next: Task 5,
-`terms_of_trade` + `union_inflation` global blocks.
+which turns the previously-red factor-exhaustion test green).
+
+**Task 5 (`terms_of_trade` + `union_inflation`, appended to
+`equations_global.py` after `bond_yield`) closes the nominal side with no
+policy rate anywhere in the model.** `terms_of_trade` turns the identity
+`p/p(-1) = (1+pi_F)/(1+pi_D)` (fixed nominal exchange rate in a monetary union,
+so terms-of-trade movement *is* the inflation differential) into a residual on
+`p`, an unknown that already exists (`goods_mkt_D`'s target). `union_inflation`
+supplies the missing level normalisation — `omega_pi_D*pi_D +
+(1-omega_pi_D)*pi_F = 0`, the `phi_pi -> inf` limit of an ECB Taylor rule on
+union-wide PPI inflation, stated as an abstraction and not a modelled rule; no
+Fisher relation is needed since no financial contract in the model carries a
+policy rate. Solved together: `pi_D = -(1-omega_pi_D)*dlog p`, `pi_F =
+omega_pi_D*dlog p`. At the capital-key `omega_pi_D = 0.071`, **93% of any
+terms-of-trade move is Greek PPI deflation, 7% German inflation** — the
+2010-12 internal-devaluation pattern; GDP weights would give ~0.5/0.5
+(counterfactual) since the model normalises `Y_D_ss ~ Y_F_ss ~ 1`. Both
+residuals zero at SS (`p/p(-1)=1`, `pi_D=pi_F=0`). `code/test_nkpc_blocks.py`:
+11/11 green. One test-authoring bug found and fixed in review: the added
+`test_closure_puts_93pct_of_tot_move_into_D_deflation` originally used
+`dlog_p=1e-4`, but the first-order closed-form pi's only satisfy the *exact*
+nonlinear `tot_res` to ~4e-5 relative at that scale (an O(dlog_p^2) truncation
+gap) — short of the test's own `rel=1e-6`. Narrowed to `dlog_p=1e-6`, verified
+numerically to clear the tolerance with margin; `terms_of_trade`/
+`union_inflation` themselves were unaffected. Next: Task 6, route the markup
+rent into `income_D/F`.
 
 ## Policy experiments (`experiments/`) — **COMPLETE 2026-08-03**
 

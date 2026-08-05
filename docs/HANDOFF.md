@@ -20,8 +20,19 @@
   `test_labor_demand_collapses_to_competitive_at_ss_markup`,
   `code/test_nkpc_blocks.py` is 8/8. Employment is no longer purely
   supply-determined; SS is unchanged since `mu_p*mc=1` at `mc_ss=1/mu_p`.
-  `labor_market_D/F` (labour supply) untouched, as designed. Task 5
-  (`terms_of_trade` + `union_inflation` global blocks) is next.
+  `labor_market_D/F` (labour supply) untouched, as designed. **Task 5
+  (`terms_of_trade` + `union_inflation` global blocks, appended to
+  `equations_global.py` after `bond_yield`) is complete** — the nominal side is
+  now closed with no policy rate anywhere in the model: the fixed-exchange-rate
+  identity `p/p(-1)=(1+pi_F)/(1+pi_D)` pins the inflation differential off `p`
+  (already an unknown), and `union_inflation` (`omega_pi_D*pi_D +
+  (1-omega_pi_D)*pi_F = 0`, the ECB's `phi_pi -> inf` union-PPI-stabilisation
+  limit) pins the level. At `omega_pi_D=0.071` this is a 93/7 D-deflation/
+  F-inflation split — the internal-devaluation pattern. `code/test_nkpc_blocks.py`
+  now 11/11 green; one test-authoring bug (`dlog_p` too large for its own
+  `rel=1e-6` tolerance) found and fixed during review, block implementations
+  were correct as specified. Task 6 (route the markup rent into `income_D/F`)
+  is next.
 - Working branch: `main`. Production entry point: `code/main.py` (orchestrates
   `calibration.py`, `steady_state.py`, `ic_delta_calibration.py`,
   `depreciation_calibration.py`, `full_model.py`, `tpi.py`, `irf_plots.py`,

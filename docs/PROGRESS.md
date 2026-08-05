@@ -14,6 +14,33 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-08-05 — `terms_of_trade` + `union_inflation` close the nominal side, no policy rate (Task 5 of the nominal-rigidities plan)
+
+Two new blocks appended to `code/equations_global.py` after `bond_yield`.
+`terms_of_trade` turns `p/p(-1) = (1+pi_F)/(1+pi_D)` into a residual on `p` —
+in a monetary union the nominal exchange rate is fixed at 1, so terms-of-trade
+movement *is* the inflation differential, and `p` is already an unknown
+(`goods_mkt_D`'s target), so this pins `pi_D - pi_F` off existing plumbing.
+`union_inflation` supplies the missing level normalisation:
+`omega_pi_D*pi_D + (1-omega_pi_D)*pi_F = 0`, the ECB stabilising union-wide PPI
+inflation at zero — the `phi_pi -> inf` limit of a Taylor rule, stated
+explicitly as an abstraction rather than a modelled policy rule, since no
+financial contract in this model carries a policy rate (no Fisher relation
+needed). Solving the two together: `pi_D = -(1-omega_pi_D)*dlog p`, `pi_F =
+omega_pi_D*dlog p`. At the renormalised two-country capital key
+`omega_pi_D = 0.071`, 93% of any terms-of-trade adjustment lands as Greek PPI
+deflation and 7% as German inflation — the 2010-12 internal-devaluation
+pattern; GDP weights would counterfactually split it ~50/50 since the model
+normalises `Y_D_ss ~ Y_F_ss ~ 1`. Both residuals zero at SS. Caught and fixed a
+bug in the test itself during review: `test_closure_puts_93pct_of_tot_move_into_D_deflation`
+as originally specified used `dlog_p=1e-4`, but the closed-form pi's are only a
+first-order approximation to the exact nonlinear `tot_res`, and at that scale
+the O(dlog_p^2) truncation gap is ~4e-5 relative — short of the test's own
+`rel=1e-6`. Narrowed to `dlog_p=1e-6` (verified numerically to clear tolerance
+with margin); the block implementations were correct throughout, only the
+test's chosen magnitude was wrong. `code/test_nkpc_blocks.py`: 3 new tests,
+full file now 11 passed / 0 failed.
+
 ## 2026-08-05 — Markup wedge `mu_p*mc` in `labor_demand_D/F` (Task 4 of the nominal-rigidities plan)
 
 `labor_demand_D/F` now solve `w = mu_p*mc*(1-alpha)*Y/N` instead of the
