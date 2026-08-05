@@ -13,9 +13,15 @@
   (`price_nkpc_D/F`, the Rotemberg Phillips curves in PPI inflation, appended
   after `firm_profit_D/F`) is complete** — `code/test_nkpc_blocks.py` now 6/7
   green (the 4 new `price_nkpc` tests plus the 2 `firm_profit` tests from
-  Task 2), the same factor-exhaustion test still intentionally red. Task 4
-  (wire `mu_p`/`mc` into `labor_demand_D/F` so the markup wedge actually bites)
-  is next.
+  Task 2), the same factor-exhaustion test still intentionally red. **Task 4
+  (wire `mu_p*mc` into `labor_demand_D/F` so the markup wedge actually bites) is
+  complete** — `labor_demand_D/F` now solve `w = mu_p*mc*(1-alpha)*Y/N`; this
+  turns the previously-red factor-exhaustion test green and, with the new
+  `test_labor_demand_collapses_to_competitive_at_ss_markup`,
+  `code/test_nkpc_blocks.py` is 8/8. Employment is no longer purely
+  supply-determined; SS is unchanged since `mu_p*mc=1` at `mc_ss=1/mu_p`.
+  `labor_market_D/F` (labour supply) untouched, as designed. Task 5
+  (`terms_of_trade` + `union_inflation` global blocks) is next.
 - Working branch: `main`. Production entry point: `code/main.py` (orchestrates
   `calibration.py`, `steady_state.py`, `ic_delta_calibration.py`,
   `depreciation_calibration.py`, `full_model.py`, `tpi.py`, `irf_plots.py`,

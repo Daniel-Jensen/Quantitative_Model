@@ -14,6 +14,25 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-08-05 — Markup wedge `mu_p*mc` in `labor_demand_D/F` (Task 4 of the nominal-rigidities plan)
+
+`labor_demand_D/F` now solve `w = mu_p*mc*(1-alpha)*Y/N` instead of the
+competitive `w = (1-alpha)*Y/N`, closing the loop with Task 2's `firm_profit_D/F`
+and Task 3's `price_nkpc_D/F`. This is the payoff of the nominal-rigidities work:
+employment was previously pinned by `Z`, `K`, and `P_CES` alone — combining the
+flex labour-supply and old competitive labour-demand conditions eliminates `Y`
+entirely and leaves nothing for aggregate demand to act on. With the wedge, a
+fall in `mc` shifts labour demand in, so `N` and `Y` move together. SS is
+unchanged bit-for-bit: at `mc_ss = 1/mu_p` the wedge is exactly 1 and the
+condition collapses identically to the old competitive one (the production
+subsidy `tau_s = 1 - 1/mu_p` argument from Task 3). `labor_market_D/F` (labour
+supply) is deliberately untouched — the markup rent is routed by `firm_profit_D/F`
+in proportion to productivity type `e`, not hours, so the marginal wage facing
+the household is still `w`. `code/test_nkpc_blocks.py`: 1 new test
+(`test_labor_demand_collapses_to_competitive_at_ss_markup`), turns the
+previously-red `test_firm_profit_restores_factor_exhaustion_off_steady_state`
+green; full file now 8 passed / 0 failed.
+
 ## 2026-08-05 — `price_nkpc_D/F` Rotemberg Phillips curves (Task 3 of the nominal-rigidities plan)
 
 New blocks `price_nkpc_D`/`price_nkpc_F`: `pi = beta*pi(+1) + kappa_p*(mu_p*mc - 1)`,

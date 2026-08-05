@@ -290,8 +290,15 @@ def labor_market_D(w_D, N_D, vphi_D, frisch_D, P_CES_D):
 
 
 @simple
-def labor_demand_D(w_D, Y_D, N_D, alpha_D):
-    w_res_D = w_D - (1 - alpha_D) * Y_D / N_D
+def labor_demand_D(w_D, Y_D, N_D, alpha_D, mu_p_D, mc_D):
+    # Firm FOC with a price markup: w = mu_p*mc*(1-alpha)*Y/N.
+    # The mu_p factor IS the production subsidy tau_s = 1 - 1/mu_p: at the SS
+    # markup mc = 1/mu_p this collapses to the competitive w = (1-alpha)Y/N
+    # identically, so the steady state is unchanged. Off SS the wedge shifts
+    # labour demand, which is what makes N -- and hence output -- respond to
+    # demand rather than being pinned by Z, K and P_CES alone.
+    # The rent (1 - mu_p*mc)(1-alpha)Y is routed by firm_profit_D.
+    w_res_D = w_D - mu_p_D * mc_D * (1 - alpha_D) * Y_D / N_D
     return w_res_D
 
 

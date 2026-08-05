@@ -115,3 +115,16 @@ def test_price_nkpc_F_matches_D():
         'kappa_p_F': args['kappa'], 'beta_F': args['beta'],
     })
     assert d['nkpc_p_res_D'] == pytest.approx(f['nkpc_p_res_F'], rel=1e-15)
+
+
+def test_labor_demand_collapses_to_competitive_at_ss_markup():
+    """At mc = 1/mu_p the condition must be exactly w = (1-alpha)Y/N, which is
+    what makes the steady state bit-identical to the flex model."""
+    from equations_D import labor_demand_D
+    mu_p, Y, N, alpha = 1.20, 1.03, 0.81, 0.33
+    w_competitive = (1 - alpha) * Y / N
+    ss = labor_demand_D.steady_state({
+        'w_D': w_competitive, 'Y_D': Y, 'N_D': N, 'alpha_D': alpha,
+        'mu_p_D': mu_p, 'mc_D': 1.0 / mu_p,
+    })
+    assert ss['w_res_D'] == pytest.approx(0.0, abs=1e-15)

@@ -243,9 +243,9 @@ def labor_market_F(w_F, N_F, vphi_F, frisch_F, P_CES_F):
 
 
 @simple
-def labor_demand_F(w_F, Y_F, N_F, alpha_F):
-    # Firm FOC: w = (1−α)·Y/N. Pins the wage in ha_full (drop labor_mkt_res_F there).
-    w_res_F = w_F - (1 - alpha_F) * Y_F / N_F
+def labor_demand_F(w_F, Y_F, N_F, alpha_F, mu_p_F, mc_F):
+    # See labor_demand_D. Pins the wage in ha_full (drop labor_mkt_res_F there).
+    w_res_F = w_F - mu_p_F * mc_F * (1 - alpha_F) * Y_F / N_F
     return w_res_F
 
 

@@ -13,12 +13,12 @@ factory, with the TPI layer supplying its four `_tpi` swaps
 (no-op). Done ahead of Task 1 of `docs/superpowers/plans/2026-08-05-nominal-rigidities.md`,
 which adds six new blocks and would otherwise need editing in three places.
 
-## Nominal rigidities (`add-nkpc`, in progress): Task 3 — price Phillips curve
+## Nominal rigidities (`add-nkpc`, in progress): Task 4 — markup wedge in labour demand
 
 `firm_profit_D`/`firm_profit_F` (appended after `labor_demand_D/F` in
 `equations_D.py`/`equations_F.py`) now exist: `profit = (1 - mu_p*mc)*(1-alpha)*Y`,
-the residual left over once labour demand pays `mu_p*mc*(1-alpha)*Y` (Task 4,
-not yet done) while capital keeps earning `alpha*Y` unchanged. Distributed to
+the residual left over once labour demand pays `mu_p*mc*(1-alpha)*Y` (Task 4)
+while capital keeps earning `alpha*Y` unchanged. Distributed to
 households in proportion to productivity `e`, not lump-sum — this is what lets
 `labor_market_D/F` stay untouched. Zero at SS (`mu_p*mc=1`), so current SS is
 bit-identical.
@@ -32,9 +32,20 @@ straight onto `kappa_p` with no SS rescaling. Subsidy-neutralised
 to the flex-price model. Discounted at constant `beta_D/F`, not the SDF —
 immaterial to first order since `pi_ss = 0`. `kappa_p -> inf` recovers
 flexible prices (`mu_p*mc = 1`), the equivalence gate for later tasks.
-`code/test_nkpc_blocks.py`: 6/7 tests green (all 2 `firm_profit` + all 4
-`price_nkpc` tests), the factor-exhaustion test still intentionally red
-pending Task 4's `labor_demand_D/F` change.
+
+`labor_demand_D`/`labor_demand_F` now solve `w = mu_p*mc*(1-alpha)*Y/N` in
+place of the competitive `w = (1-alpha)*Y/N`. Employment is no longer purely
+supply-determined: previously, combining flex labour supply
+(`w/P_CES = vphi*N^(1/frisch)`) with the old competitive demand condition
+eliminated `Y` entirely, leaving `N` pinned by `Z`, `K`, `P_CES` alone — nothing
+about aggregate demand entered. With the wedge, a change in `mc` shifts labour
+demand, so `N` and `Y` move together. SS is unchanged bit-for-bit (`mu_p*mc=1`
+at `mc_ss=1/mu_p` collapses the condition identically to the old one).
+`labor_market_D/F` (labour supply) deliberately untouched, per the routing
+argument above. `code/test_nkpc_blocks.py`: 8/8 tests green (2 `firm_profit`
++ 4 `price_nkpc` + `test_labor_demand_collapses_to_competitive_at_ss_markup`,
+which turns the previously-red factor-exhaustion test green). Next: Task 5,
+`terms_of_trade` + `union_inflation` global blocks.
 
 ## Policy experiments (`experiments/`) — **COMPLETE 2026-08-03**
 
