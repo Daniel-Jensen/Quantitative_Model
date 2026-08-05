@@ -249,6 +249,13 @@ def labor_demand_F(w_F, Y_F, N_F, alpha_F):
     return w_res_F
 
 
+@simple
+def firm_profit_F(Y_F, alpha_F, mu_p_F, mc_F):
+    # See firm_profit_D.
+    profit_F = (1.0 - mu_p_F * mc_F) * (1.0 - alpha_F) * Y_F
+    return profit_F
+
+
 
 
 @simple

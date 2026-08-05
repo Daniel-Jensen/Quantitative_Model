@@ -13,6 +13,18 @@ factory, with the TPI layer supplying its four `_tpi` swaps
 (no-op). Done ahead of Task 1 of `docs/superpowers/plans/2026-08-05-nominal-rigidities.md`,
 which adds six new blocks and would otherwise need editing in three places.
 
+## Nominal rigidities (`add-nkpc`, in progress): Task 2 — markup rent
+
+`firm_profit_D`/`firm_profit_F` (appended after `labor_demand_D/F` in
+`equations_D.py`/`equations_F.py`) now exist: `profit = (1 - mu_p*mc)*(1-alpha)*Y`,
+the residual left over once labour demand pays `mu_p*mc*(1-alpha)*Y` (Task 4,
+not yet done) while capital keeps earning `alpha*Y` unchanged. Distributed to
+households in proportion to productivity `e`, not lump-sum — this is what lets
+`labor_market_D/F` stay untouched. Zero at SS (`mu_p*mc=1`), so current SS is
+bit-identical. `code/test_nkpc_blocks.py` added; 2/3 tests green, the
+factor-exhaustion test is intentionally red pending Task 4's `labor_demand_D/F`
+change.
+
 ## Policy experiments (`experiments/`) — **COMPLETE 2026-08-03**
 
 E1, E2 and E3 all land, with the orchestrator writing

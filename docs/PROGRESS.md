@@ -14,6 +14,20 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-08-05 — `firm_profit_D/F` routes the markup rent (Task 2 of the nominal-rigidities plan)
+
+Once labour demand pays `mu_p*mc*(1-alpha)*Y` (Task 4) instead of the flexible-
+price `(1-alpha)*Y/N`, capital's unchanged `alpha*Y` no longer sums with the wage
+bill to exhaust output whenever `mu_p*mc != 1` — a Walras leak of the W-1/W-2
+class if left unrouted. `firm_profit_D`/`firm_profit_F` compute that residual,
+`profit = (1 - mu_p*mc)*(1-alpha)*Y`, zero at SS since `mu_p*mc = 1` there. It is
+distributed to households in proportion to productivity `e`, not lump-sum, so
+that `labor_market_D/F` needs no change (see block docstring). New
+`code/test_nkpc_blocks.py`: 2/3 green now
+(`test_firm_profit_is_zero_at_steady_state`, `test_firm_profit_F_matches_D`);
+`test_firm_profit_restores_factor_exhaustion_off_steady_state` is intentionally
+red until Task 4 wires `mu_p_D/F`, `mc_D/F` into `labor_demand_D/F`.
+
 ## 2026-08-05 — Consolidate the block list into `build_block_list()` (Task 1 of the nominal-rigidities plan)
 
 Extracted `build_block_list()` in `full_model.py`; `tpi.py` and

@@ -6,7 +6,11 @@
   (`docs/superpowers/plans/2026-08-05-nominal-rigidities.md`). **Task 1 (extract
   a single `build_block_list()` shared by `full_model.py`, `tpi.py`, and
   `diagnostics/regimes/regime_model.py`) is complete and verified bit-identical
-  to the pre-refactor `main.py` output.** Task 2 (`firm_profit_D/F`) is next.
+  to the pre-refactor `main.py` output.** **Task 2 (`firm_profit_D/F`, the
+  markup-rent block distributed proportional to `e`) is complete** —
+  `code/test_nkpc_blocks.py` 2/3 green, the factor-exhaustion test intentionally
+  red until Task 4 wires `mu_p/mc` into `labor_demand_D/F`. Task 3
+  (`price_nkpc_D/F`) is next.
 - Working branch: `main`. Production entry point: `code/main.py` (orchestrates
   `calibration.py`, `steady_state.py`, `ic_delta_calibration.py`,
   `depreciation_calibration.py`, `full_model.py`, `tpi.py`, `irf_plots.py`,

@@ -295,6 +295,25 @@ def labor_demand_D(w_D, Y_D, N_D, alpha_D):
     return w_res_D
 
 
+@simple
+def firm_profit_D(Y_D, alpha_D, mu_p_D, mc_D):
+    # Markup rent. With sticky prices labour demand pays mu_p*mc*(1-alpha)*Y
+    # while capital still earns alpha*Y (capital_adj_D is unchanged), so off SS
+    # factor payments do not exhaust output. profit_D is that residual; leaving
+    # it unrouted is a Walras leak of the W-1/W-2 class.
+    #
+    # Distributed to households in proportion to productivity e (Auclert-Rognlie-
+    # Straub), NOT lump-sum: markups are countercyclical, so a lump-sum rebate
+    # would raise household income exactly when output falls. On the e rule,
+    # w*N*e + profit*e = (1-alpha)*Y*e -- identical to the flex model -- so the
+    # wedge affects the firm's hiring decision only, and because the share
+    # depends on type rather than hours the marginal wage is still w_D and
+    # labor_market_D is unchanged.
+    #
+    # Zero at SS, where mu_p*mc = 1.
+    profit_D = (1.0 - mu_p_D * mc_D) * (1.0 - alpha_D) * Y_D
+    return profit_D
+
 
 @simple
 def intermediation_IC_D(nu_K_D, nu_bD_D, nu_bF_D, eta_D,
