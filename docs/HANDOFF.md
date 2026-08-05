@@ -44,7 +44,13 @@
   change. Zero at SS, so the steady state is still bit-identical.
   `code/test_nkpc_blocks.py` unchanged at 11/11 green (pure arithmetic on an
   already-tested block, no new tests). **Task 7 (calibrate `mu_p`, `kappa_p`,
-  `omega_pi_D`) is next.**
+  `omega_pi_D`) is complete** — `code/calibration.py` gains
+  `mu_p_D/F=1.20`, `kappa_p_D/F=0.0871` (Calvo `theta_p=0.75`, `beta=0.985`),
+  `pi_D/F=0.0`, `omega_pi_D=0.071`; `mc_D/F` (dead placeholder `1.0` since
+  before Task 2) retargeted, not duplicated, to `1.0/mu_p=0.8333`. Verified
+  `mu_p*mc==1`, no duplicate dict keys, `kappa_p` formula matches to 5e-5.
+  `code/test_nkpc_blocks.py` still 11/11 green. **Task 8 (seed `mc`, `pi`,
+  `profit` into the steady state) is next.**
 - Working branch: `main`. Production entry point: `code/main.py` (orchestrates
   `calibration.py`, `steady_state.py`, `ic_delta_calibration.py`,
   `depreciation_calibration.py`, `full_model.py`, `tpi.py`, `irf_plots.py`,

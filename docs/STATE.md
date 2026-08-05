@@ -13,6 +13,29 @@ factory, with the TPI layer supplying its four `_tpi` swaps
 (no-op). Done ahead of Task 1 of `docs/superpowers/plans/2026-08-05-nominal-rigidities.md`,
 which adds six new blocks and would otherwise need editing in three places.
 
+## Nominal rigidities (`add-nkpc`, in progress): Task 7 — calibration parameters
+
+`code/calibration.py` gains the parameters Tasks 2–6 already reference:
+`mu_p_D/F = 1.20` (gross price markup, `epsilon_p = 6`; free to first order
+under subsidy neutralisation, so the level needs no defending yet),
+`kappa_p_D/F = 0.0871` (Rotemberg slope from Calvo `theta_p = 0.75` at
+`beta = 0.985`, i.e. `(1-theta)(1-beta*theta)/theta`; matches Bi-Foerster-Traum's
+implied 0.0846 to within 3%, consistent with the ~4-quarter euro-area IPN
+median price duration), `pi_D/F = 0.0` (SS PPI inflation, exact), and
+`omega_pi_D = 0.071` (union-inflation weight on D = 1 − the renormalised
+two-country capital key, BuBa 26.1 / BoG 2.0 — deliberately *not* model GDP
+weights, which would split the terms-of-trade move ~50/50 and erase the
+93/7 internal-devaluation pattern Task 5 derived). **`mc_D`/`mc_F` retargeted**
+from a dead placeholder `1.0` (nothing read them before Task 2) to
+`1.0/mu_p = 0.8333`, the subsidy-neutralised SS real marginal cost that makes
+labour demand collapse to the competitive `w=(1-alpha)Y/N` and keeps the SS
+bit-identical to flex-price. Verified: `mu_p_D*mc_D == 1` and `mu_p_F*mc_F
+== 1` exactly; no duplicate dict keys (checked by AST walk, given `mc_D/F`
+already existed); `kappa_p` arithmetic reproduces 0.0871 to 5e-5.
+`code/test_nkpc_blocks.py`: still 11 passed, 0 failed (calibration values
+only, no new tests). Next: Task 8, seed `mc`, `pi`, `profit` into the steady
+state.
+
 ## Nominal rigidities (`add-nkpc`, in progress): Task 6 — markup rent reaches households
 
 `income_D`/`income_F` now add `profit_D*e_grid_D`/`profit_F*e_grid_F` to the

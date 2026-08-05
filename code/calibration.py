@@ -278,10 +278,37 @@ def get_calibration():
         'psi_bF_D':     0.5,     'psi_bD_F':     0.5,
 
         # ── Wage Markups ──────────────────────────────────────────────────────
+        # Unchanged: wages are flexible. mu_w = 1 is the SS-neutralising device
+        # in labor_ss_D/F; there is no wage Phillips curve.
         'mu_w_D':       1.0,     'mu_w_F':       1.0,
 
-        # ── SS Real Variables ─────────────────────────────────────────────────
-        'mc_D':         1.0,     'mc_F':         1.0,
+        # ── Price Rigidity (Rotemberg) ────────────────────────────────────────
+        # mu_p: gross price markup, epsilon_p = 6. FREE TO FIRST ORDER under the
+        #   subsidy neutralisation -- the gap (mu_p*mc - 1) linearises to mc_hat
+        #   for any mu_p -- so this needs no defending unless live markups are
+        #   ever adopted.
+        # mc: SS real marginal cost = 1/mu_p. The production subsidy
+        #   tau_s = 1 - 1/mu_p makes labour demand collapse to the competitive
+        #   w = (1-alpha)Y/N at this value, so the SS is bit-identical to flex.
+        # kappa_p: Calvo theta_p = 0.75 at beta = 0.985, slope
+        #   (1-theta)(1-beta*theta)/theta = 0.0871. Euro-area IPN median price
+        #   duration ~4 quarters (Alvarez et al. 2006; Dhyne et al. 2006).
+        #   Agrees with Bi-Foerster-Traum's implied 0.0846 to within 3%.
+        # pi: SS producer-price inflation, exactly zero.
+        'mu_p_D':       1.20,    'mu_p_F':       1.20,
+        'mc_D':    1.0 / 1.20,   'mc_F':    1.0 / 1.20,
+        'kappa_p_D':    0.0871,  'kappa_p_F':    0.0871,
+        'pi_D':         0.0,     'pi_F':         0.0,
+
+        # omega_pi_D: weight on D in the union producer-price aggregate that the
+        # ECB is assumed to stabilise. = 1 - kappa_cb_F, the renormalised
+        # two-country capital key (BuBa 26.1 / BoG 2.0 of the euro-area key).
+        # DO NOT use model GDP weights: the model normalises Y_D_ss ~ Y_F_ss ~ 1,
+        # so they would give ~0.5 and split the terms-of-trade adjustment evenly
+        # between Greek deflation and German inflation -- counterfactual for
+        # 2010-12. Load-bearing twice over once deposits are nominal, since it
+        # scales pi_D and hence the Fisher revaluation on bank balance sheets.
+        'omega_pi_D':   0.071,
 
         # ── Idiosyncratic Income Process (Rouwenhorst) ────────────────────────
         'rho_z_D':  0.90,    'rho_z_F':  0.90,

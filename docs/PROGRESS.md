@@ -14,6 +14,21 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-08-05 — Calibration parameters for price rigidity (Task 7 of the nominal-rigidities plan)
+
+`code/calibration.py`'s "Wage Markups"/"SS Real Variables" section gains
+`mu_p_D/F = 1.20`, `kappa_p_D/F = 0.0871` (Calvo `theta_p=0.75` at
+`beta=0.985`, matching Bi-Foerster-Traum's 0.0846 to within 3%), `pi_D/F =
+0.0`, and `omega_pi_D = 0.071` (the renormalised two-country capital key,
+already load-bearing per Task 5's 93/7 split). `mc_D`/`mc_F` — dead entries at
+`1.0` since before Task 2, now live inputs to `price_nkpc_D/F` and
+`labor_demand_D/F` — are retargeted (not duplicated) to `1.0/mu_p`, the
+subsidy-neutralised value the SS-bit-identity arguments of Tasks 2–6 all
+assumed. Verified by direct check: `mu_p*mc == 1` in both countries, no
+duplicate dict keys (AST walk), and the `kappa_p` formula reproduces 0.0871
+to 5e-5. `code/test_nkpc_blocks.py`: still 11 passed, 0 failed. Next: Task 8,
+seed `mc`, `pi`, `profit` into the steady state.
+
 ## 2026-08-05 — Markup rent routed into household income (Task 6 of the nominal-rigidities plan)
 
 `income_D`/`income_F` (`equations_D.py`/`equations_F.py`) now take `profit_D`/
