@@ -50,12 +50,30 @@ inside `python -c` strings (`inspect.getsource` fails). Define them in real file
 **Sign checks:** on the default shock, `n_inter_D[0]` and `Y_D[0]` must both be
 negative. Positive means a timing bug.
 
-**Doc hooks are enforced.** `.claude/hooks/require-docs-before-commit.sh` and
-`.githooks/pre-commit` block any commit that stages `code/**` or any `*.py`
-unless `docs/STATE.md`, `docs/PROGRESS.md` and `docs/HANDOFF.md` are also staged.
-Task 16 does the real doc write-up; for intermediate code commits, add a one-line
-changelog entry to `docs/PROGRESS.md` and stage it with the code. Do **not** use
-`--no-verify`.
+**Doc hooks are enforced — all three docs, every code commit.**
+`.claude/hooks/require-docs-before-commit.sh` (verified) and its git-native twin
+`.githooks/pre-commit` (active: `core.hooksPath` is set to `.githooks`) deny any
+commit that stages `code/**` or any `*.py` unless **all three** of
+`docs/STATE.md`, `docs/PROGRESS.md` and `docs/HANDOFF.md` are staged in the same
+commit. Staging only `PROGRESS.md` is not enough.
+
+So before each code commit, add a line to each of the three:
+
+- `docs/PROGRESS.md` — a changelog bullet for this specific commit.
+- `docs/STATE.md` — the current state after this commit (one line is fine for
+  intermediate steps; Task 16 writes the real tables).
+- `docs/HANDOFF.md` — where the work now stands, so an interrupted session can
+  resume.
+
+The `git add` lines in this plan already list all three. Do **not** use
+`--no-verify`; the gate is deliberate project policy.
+
+**Long-running commands must run in the background.** `code/main.py` takes about
+8–12 minutes (several T=500 Jacobian solves at ~3 min each) and
+`diagnostics/regimes/regime_model.py --force` takes longer. Both exceed the Bash
+tool's 10-minute maximum timeout. Run them with `run_in_background: true` and poll
+the output rather than blocking, or they will be killed mid-solve and you will
+mistake a timeout for a model failure.
 
 ---
 
@@ -258,7 +276,7 @@ Add to `docs/PROGRESS.md` under a new dated heading:
 `- Extracted build_block_list() in full_model.py; tpi.py and regime_model.py now share it. Verified bit-identical main.py output.`
 
 ```bash
-git add code/full_model.py code/tpi.py diagnostics/regimes/regime_model.py docs/PROGRESS.md
+git add code/full_model.py code/tpi.py diagnostics/regimes/regime_model.py docs/STATE.md docs/PROGRESS.md docs/HANDOFF.md
 git commit -m "refactor: single build_block_list() shared by full_model, tpi, regimes
 
 No-op. Verified main.py output is byte-identical before and after."
@@ -418,7 +436,7 @@ Expected: `test_firm_profit_is_zero_at_steady_state` and
 - [ ] **Step 5: Commit**
 
 ```bash
-git add code/equations_D.py code/equations_F.py code/test_nkpc_blocks.py docs/PROGRESS.md
+git add code/equations_D.py code/equations_F.py code/test_nkpc_blocks.py docs/STATE.md docs/PROGRESS.md docs/HANDOFF.md
 git commit -m "feat: firm_profit_D/F routes the markup rent proportional to e"
 ```
 
@@ -549,7 +567,7 @@ Expected: 4 passed.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add code/equations_D.py code/equations_F.py code/test_nkpc_blocks.py docs/PROGRESS.md
+git add code/equations_D.py code/equations_F.py code/test_nkpc_blocks.py docs/STATE.md docs/PROGRESS.md docs/HANDOFF.md
 git commit -m "feat: price_nkpc_D/F Rotemberg Phillips curves in PPI inflation"
 ```
 
@@ -627,7 +645,7 @@ Expected: all tests pass, including
 - [ ] **Step 5: Commit**
 
 ```bash
-git add code/equations_D.py code/equations_F.py code/test_nkpc_blocks.py docs/PROGRESS.md
+git add code/equations_D.py code/equations_F.py code/test_nkpc_blocks.py docs/STATE.md docs/PROGRESS.md docs/HANDOFF.md
 git commit -m "feat: markup wedge mu_p*mc in labor_demand_D/F"
 ```
 
@@ -742,7 +760,7 @@ Expected: all pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add code/equations_global.py code/test_nkpc_blocks.py docs/PROGRESS.md
+git add code/equations_global.py code/test_nkpc_blocks.py docs/STATE.md docs/PROGRESS.md docs/HANDOFF.md
 git commit -m "feat: terms_of_trade and union_inflation close the nominal side"
 ```
 
@@ -798,7 +816,7 @@ Expected: `profit_D wired into hh_extended_D`.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add code/equations_D.py code/equations_F.py docs/PROGRESS.md
+git add code/equations_D.py code/equations_F.py docs/STATE.md docs/PROGRESS.md docs/HANDOFF.md
 git commit -m "feat: markup rent enters household income proportional to e"
 ```
 
@@ -872,7 +890,7 @@ Expected: all nine printed, then `mu_p*mc == 1 in both countries`.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add code/calibration.py docs/PROGRESS.md
+git add code/calibration.py docs/STATE.md docs/PROGRESS.md docs/HANDOFF.md
 git commit -m "feat: mu_p, kappa_p, omega_pi_D calibration; mc retargeted to 1/mu_p"
 ```
 
@@ -941,7 +959,7 @@ calibration table. **They must not have moved.**
 - [ ] **Step 4: Commit**
 
 ```bash
-git add code/steady_state.py docs/PROGRESS.md
+git add code/steady_state.py docs/STATE.md docs/PROGRESS.md docs/HANDOFF.md
 git commit -m "feat: seed mc, pi, profit and the global residuals into the SS solve"
 ```
 
@@ -1164,7 +1182,7 @@ Expected: `goods_mkt_D` ≤ 1e−14, `goods_mkt_F` and `ca_res_D` ≤ 1e−7,
 - [ ] **Step 9: Commit**
 
 ```bash
-git add code/full_model.py code/dump_irfs.py docs/PROGRESS.md
+git add code/full_model.py code/dump_irfs.py docs/STATE.md docs/PROGRESS.md docs/HANDOFF.md
 git commit -m "feat: 27x27 sticky-price system; passes the kappa_p -> inf equivalence gate"
 ```
 
@@ -1395,7 +1413,7 @@ Expected: all pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add code/equations_D.py code/equations_F.py code/test_nkpc_blocks.py docs/PROGRESS.md
+git add code/equations_D.py code/equations_F.py code/test_nkpc_blocks.py docs/STATE.md docs/PROGRESS.md docs/HANDOFF.md
 git commit -m "feat: nominal deposit contracts; ex-ante and ex-post real rates"
 ```
 
@@ -1510,7 +1528,7 @@ Expected: all tests pass, then `F blocks wired to rdep_expost_F`.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add code/equations_D.py code/equations_F.py code/test_nkpc_blocks.py docs/PROGRESS.md
+git add code/equations_D.py code/equations_F.py code/test_nkpc_blocks.py docs/STATE.md docs/PROGRESS.md docs/HANDOFF.md
 git commit -m "feat: bank_return and capital_fund pay the ex-post real deposit rate"
 ```
 
@@ -1616,7 +1634,7 @@ printed `Y_D` / `C_D` / `I_D` comparison; it is the Fisher-channel result.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add code/calibration.py code/steady_state.py code/full_model.py docs/PROGRESS.md
+git add code/calibration.py code/steady_state.py code/full_model.py docs/STATE.md docs/PROGRESS.md docs/HANDOFF.md
 git commit -m "feat: nominal deposits wired; Fisher channel deepens the net-worth loss"
 ```
 
@@ -1724,7 +1742,7 @@ the Fisher channel turns out to dominate.
 - [ ] **Step 6: Commit the tuned calibration**
 
 ```bash
-git add code/calibration.py docs/PROGRESS.md
+git add code/calibration.py docs/STATE.md docs/PROGRESS.md docs/HANDOFF.md
 git commit -m "calib: re-tune psi_lambda_B to the 150bp spread moment under sticky prices"
 ```
 
