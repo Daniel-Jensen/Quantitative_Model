@@ -16,8 +16,12 @@ The rigidities must deliver three things:
 
 1. **Demand-determined output** — a sovereign-risk shock contracts activity
    through demand, not only through the bank/supply side.
-2. **Damped labour-side overshoot** — flexible wages let `N` jump too much at
-   impact because the household wealth effect passes straight into labour supply.
+2. **Damped labour-side response** — flexible wages let `N` track the real wage
+   one-for-one off the labour-supply curve. Sticky wages push adjustment off the
+   wage and onto hours. **Note this is *not* a wealth-effect story:** under GHH
+   there is no wealth effect on labour supply at all (marginal utility cancels —
+   `code/equations_D.py:236`), so the `add-nkwpc` branch's stated motive does not
+   apply to this model. See *Relationship to the `add-nkwpc` branch*.
 3. **Distributional incidence** — sticky wages shift adjustment from wages onto
    hours, changing who bears the shock across the E4 income quintiles.
 
@@ -217,10 +221,18 @@ solved betas.
 
 | Parameter | Value | Basis |
 |---|---|---|
-| `mu_p_D/F` | 1.20 | `epsilon_p = 6`, standard |
+| `mu_p_D/F` | 1.20 | `epsilon_p = 6`, standard. **Free to first order** — see below |
 | `kappa_p_D/F` | 0.0871 | Calvo `theta_p = 0.75`, `(1-theta)(1-beta*theta)/theta`. Euro-area IPN median price duration ~4 quarters (Alvarez et al. 2006; Dhyne et al. 2006) |
 | `kappa_w_D/F` | 0.0038 | `theta_w = 0.75`, `epsilon_w = 11`, `phi = 1/frisch = 2`: `(1-theta)(1-beta*theta)/(theta*(1+epsilon_w*phi))` |
 | `omega_pi_D` | 0.071 | `1 - kappa_cb_F`, the already-documented renormalised capital key (BuBa 26.1 / BoG 2.0 of the euro-area key) |
+
+### `mu_p` does not matter to first order
+
+Under subsidy-neutralisation the gap `mu_p*mc - 1` linearises to exactly `mc_hat`
+irrespective of `mu_p` (since `mu_p * mc_ss = 1`), and labour demand's steady
+state is `w = (1-alpha)Y/N` either way. So `mu_p` is a free normalisation in this
+build and needs no defending. It becomes a genuine calibration choice only if the
+live-markup / profit-income follow-on is taken up.
 
 ### Do not use model GDP weights for `omega_pi_D`
 
@@ -229,6 +241,18 @@ The model normalises `Y_D_ss ~ Y_F_ss ~ 1`, so GDP weights would give
 one-for-one — the opposite of 2010-12. The capital key (~0.071, and ~0.076 on
 actual 2011 GR/DE nominal GDP) is the correct weight and is already in the
 codebase with a citation.
+
+Working the closure through makes the stake concrete. Combining the two global
+equations gives `pi_D = -(1 - omega_pi_D) * dlog p` and
+`pi_F = omega_pi_D * dlog p`. At `omega_pi_D = 0.071`, **93% of any
+terms-of-trade adjustment appears as D (Greek) producer-price deflation and 7% as
+F (German) inflation** — the 2010-12 internal-devaluation pattern. At 0.5 it
+splits evenly, which is counterfactual for GR/DE.
+
+Bi, Foerster and Traum (2026) use 0.5/0.5, but for Italy/Germany as two
+comparably-sized blocs, and inside a *Taylor rule* where the weight sets a policy
+response rather than allocating a given differential. Report the choice and note
+the 0.5 alternative; do not adopt it.
 
 ## Rollout
 
@@ -304,6 +328,57 @@ absent. Live markups (`mu_p ~ 1.2`) would put pure profits at ~17% of output as 
 new, highly concentrated household income stream — which would change E4 incidence
 on its own. Deferred to a follow-on spec.
 
+## Benchmark: Bi, Foerster and Traum (2026)
+
+*"Asset Purchases in a Monetary Union With Default and Liquidity Risks", FRBSF
+Working Paper 2025-10, https://doi.org/10.24148/wp2025-10.* The closest published
+analogue to this model: two-country monetary union, Gertler-Karadi
+intermediaries, endogenous sovereign default, cross-border sovereign holdings,
+targeted ECB asset purchases — calibrated to Italy/Germany 2012 rather than
+Greece/Germany 2010-12.
+
+| | Bi-Foerster-Traum | This spec |
+|---|---|---|
+| Price rigidity | Rotemberg, exact nonlinear (their eq. 2.14) | Rotemberg, linear-equivalent |
+| Wage rigidity | **none** — flexible, `chi*L^sigma_l = U_c*w` (A.9) | wage NKPC, both countries |
+| SS markup | **live**, `theta^c = 11` -> `mc_ss = 10/11` | subsidy-neutralised, SS bit-identical |
+| Firm profits | routed to representative household | absent (neutralised) |
+| Nominal anchor | Taylor rule, `phi_pi=1.6, phi_y=0.07, phi_r=0.85` | union-inflation normalisation, no rate |
+| Union weights | 0.5 / 0.5 | `omega_pi_D = 0.071` |
+| ToT identity | `rer_t/rer_{t-1} = pi*_t/pi_t` (A.80), CPI form | same relation, PPI form |
+| Financial contracts | nominal (deposits, debt, net worth all deflated) | real |
+| Solution | 2nd-order perturbation (endogenous regime switching) | 1st-order SSJ |
+
+**The price slope agrees.** Their `psi` maps to a Calvo-equivalent slope
+`(1-xi)(1-beta*xi)/xi = 0.0846` at `xi_p = 0.75, beta = 0.995`. This spec's
+`kappa_p = 0.0871` at `beta = 0.985` is the same number to within 3%; the gap is
+entirely the discount factor. No change required.
+
+**The wage slope has no benchmark in this model class.** They have no wage curve.
+Note also that `kappa_w`'s flatness is driven substantially by the *preference*
+parameter, not by any wage-rigidity estimate: the `(1 + epsilon_w/frisch)`
+denominator is 23 at `frisch = 0.5` versus 12 at their `sigma_l = 1`. This is why
+the slope sweep is load-bearing rather than cosmetic.
+
+**They never report a flexible-price counterfactual.** Their Table 1 decomposes
+over the liquidity-risk channel, the fiscal-limit shift, and the debt change —
+never over price stickiness. The `kappa -> inf` gate in this spec produces exactly
+that counterfactual as a by-product, so it is reportable output, not merely a
+regression test.
+
+**Their nominal side does little propagation work, and that is a live risk here.**
+Inflation moves +/-0.1% while investment moves 9% and output 0.6% (their Figure
+3); Tables 2 and 3 show inflation entries of 0.00-0.02 against investment at 0.53.
+Their Section 4.1 mechanism narrative treats inflation as an *outcome* of the
+relative-price move, never as a channel. What drives their output contraction is
+the **loan-in-advance constraint** (`eta^I = 0.65/0.75` of investment must be
+debt-financed, their eq. 2.10) — a real financial friction this model does not
+have. Against their `-0.6%` output impact, this model's `Y_D[0] = -0.0149%` is two
+orders of magnitude smaller, and a Phillips curve is unlikely to close that gap.
+A Sims-Wu working-capital constraint is the natural candidate if the sticky build
+leaves `Y_D[0]` implausibly small; it is **out of scope here** and would need its
+own design pass.
+
 ## Relationship to the `add-nkwpc` branch
 
 `add-nkwpc` (commit `2377f79`, off `08e1010`, pre-reorganisation) is a single
@@ -318,3 +393,11 @@ list and has no `kappa_w` calibration. It is a **template, not code to port**:
   `labor_market_D`, neither of which contains `UCE`.
 - It uses `w_D` where the existing labour condition uses `w_D / P_CES_D`, dropping
   the CES bundle deflator.
+- **Its stated motivation is wrong for this model.** The comment says sticky wages
+  stop "the household wealth effect" translating into `N`. GHH preferences have no
+  wealth effect on labour supply by construction — that is the point of GHH, and
+  both `labor_market_D` and `labor_ss_D` show marginal utility cancelling out of
+  the intratemporal condition. What sticky wages actually buy here is that
+  adjustment moves off the real wage and onto hours, which is what the
+  distributional goal needs (hours are rationed proportional to `e`), but the
+  channel must be described correctly in the paper.
