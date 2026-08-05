@@ -29,9 +29,13 @@
   (1-omega_pi_D)*pi_F = 0`, the ECB's `phi_pi -> inf` union-PPI-stabilisation
   limit) pins the level. At `omega_pi_D=0.071` this is a 93/7 D-deflation/
   F-inflation split — the internal-devaluation pattern. `code/test_nkpc_blocks.py`
-  now 11/11 green; one test-authoring bug (`dlog_p` too large for its own
-  `rel=1e-6` tolerance) found and fixed during review, block implementations
-  were correct as specified. Task 6 (route the markup rent into `income_D/F`)
+  now 11/11 green; one test-authoring bug found and fixed during review — the
+  93/7 test originally asserted the first-order log identity, which only holds
+  to `O(dlog_p)` against the exact nonlinear `tot_res`, so it was replaced with
+  an exact net-rate-split assertion (`pi_F - pi_D == dlog_p`, `share_D ==
+  1-omega`) that's robust to any `omega_pi_D` rather than tuned to a specific
+  `dlog_p`. Block implementations were correct as specified throughout. Task 6
+  (route the markup rent into `income_D/F`)
   is next.
 - Working branch: `main`. Production entry point: `code/main.py` (orchestrates
   `calibration.py`, `steady_state.py`, `ic_delta_calibration.py`,

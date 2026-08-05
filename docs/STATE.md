@@ -63,13 +63,19 @@ terms-of-trade move is Greek PPI deflation, 7% German inflation** — the
 (counterfactual) since the model normalises `Y_D_ss ~ Y_F_ss ~ 1`. Both
 residuals zero at SS (`p/p(-1)=1`, `pi_D=pi_F=0`). `code/test_nkpc_blocks.py`:
 11/11 green. One test-authoring bug found and fixed in review: the added
-`test_closure_puts_93pct_of_tot_move_into_D_deflation` originally used
-`dlog_p=1e-4`, but the first-order closed-form pi's only satisfy the *exact*
-nonlinear `tot_res` to ~4e-5 relative at that scale (an O(dlog_p^2) truncation
-gap) — short of the test's own `rel=1e-6`. Narrowed to `dlog_p=1e-6`, verified
-numerically to clear the tolerance with margin; `terms_of_trade`/
-`union_inflation` themselves were unaffected. Next: Task 6, route the markup
-rent into `income_D/F`.
+`test_closure_puts_93pct_of_tot_move_into_D_deflation` originally asserted
+`log((1+pi_F)/(1+pi_D)) == dlog_p`, which only holds to first order — the
+closed-form pi's are a linear approximation to the *exact* nonlinear
+`tot_res`, and the O(dlog_p^2) truncation gap is `0.429*dlog_p` in relative
+terms (derived: the gap is `-dlog_p*(pi_F+pi_D)/2`, and `pi_F+pi_D =
+(2*omega-1)*dlog_p = -0.858*dlog_p` at `omega=0.071`), which swamped the
+test's own `rel=1e-6` at `dlog_p=1e-4`. Fixed by asserting on the net rates
+instead — `pi_F - pi_D == dlog_p` and `share_D = |pi_D|/(|pi_D|+|pi_F|) ==
+1-omega` — both exact arithmetic with no linearisation, so the test is
+robust to any `omega_pi_D` (a parameter swept later in this plan) rather than
+tuned to dodge a truncation error. `terms_of_trade`/`union_inflation`
+themselves were correct throughout; only the test needed fixing. Next: Task 6,
+route the markup rent into `income_D/F`.
 
 ## Policy experiments (`experiments/`) — **COMPLETE 2026-08-03**
 

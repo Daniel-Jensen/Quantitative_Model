@@ -33,13 +33,19 @@ deflation and 7% as German inflation — the 2010-12 internal-devaluation
 pattern; GDP weights would counterfactually split it ~50/50 since the model
 normalises `Y_D_ss ~ Y_F_ss ~ 1`. Both residuals zero at SS. Caught and fixed a
 bug in the test itself during review: `test_closure_puts_93pct_of_tot_move_into_D_deflation`
-as originally specified used `dlog_p=1e-4`, but the closed-form pi's are only a
-first-order approximation to the exact nonlinear `tot_res`, and at that scale
-the O(dlog_p^2) truncation gap is ~4e-5 relative — short of the test's own
-`rel=1e-6`. Narrowed to `dlog_p=1e-6` (verified numerically to clear tolerance
-with margin); the block implementations were correct throughout, only the
-test's chosen magnitude was wrong. `code/test_nkpc_blocks.py`: 3 new tests,
-full file now 11 passed / 0 failed.
+as originally specified asserted `log((1+pi_F)/(1+pi_D)) == dlog_p`, which
+holds only to first order — the closed-form pi's are a linear approximation
+to the exact nonlinear `tot_res`, and the O(dlog_p^2) truncation is
+`0.429*dlog_p` in relative terms (the gap is `-dlog_p*(pi_F+pi_D)/2`, and
+`pi_F+pi_D = (2*omega-1)*dlog_p = -0.858*dlog_p` at `omega=0.071`), which
+swamped the test's own `rel=1e-6` at `dlog_p=1e-4`. An initial fix narrowing
+`dlog_p` to 1e-6 worked numerically but only bought a 2.3x margin and would
+silently break once `omega_pi_D` — swept later in this plan — moved. Replaced
+instead with an assertion on the net-rate split (`pi_F - pi_D == dlog_p`,
+`share_D = |pi_D|/(|pi_D|+|pi_F|) == 1-omega`), which is exact arithmetic with
+no linearisation and is robust to any `omega_pi_D`. The block implementations
+were correct throughout; only the test needed fixing.
+`code/test_nkpc_blocks.py`: 3 new tests, full file now 11 passed / 0 failed.
 
 ## 2026-08-05 — Markup wedge `mu_p*mc` in `labor_demand_D/F` (Task 4 of the nominal-rigidities plan)
 
