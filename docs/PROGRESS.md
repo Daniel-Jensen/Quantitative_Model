@@ -14,6 +14,25 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-08-05 — Seed `mc`, `pi`, `profit` and the global residuals into the steady state (Task 8 of the nominal-rigidities plan)
+
+`code/steady_state.py`'s import lists (`equations_D`, `equations_F`,
+`equations_global`) and the `sj.create_model([...])` list inside
+`solve_steady_state` gain `firm_profit_D/F`, `price_nkpc_D/F`,
+`terms_of_trade`, `union_inflation` — the six blocks Tasks 2, 3 and 5 added to
+the dynamic model but that the SS solve never carried. `labor_demand_D/F`
+stays deliberately excluded (SS still uses `labor_ss_D/F`), so Task 4's markup
+wedge cannot reach the SS solve. Every new object is zero by construction at
+this calibration (`mu_p*mc_ss=1` -> `profit_ss=0`; `pi_ss=0` -> `nkpc_p_res=0`;
+`p/p(-1)=1=(1+pi_F)/(1+pi_D)` -> `tot_res=0`; `union_pi_res=0` trivially) —
+verified directly, all six residuals `0.000000e+00`. Gate: the full
+calibration -> SS -> IC-delta -> depreciation-calibration chain reproduces the
+pre-change baseline byte-for-byte (portfolio shares, betas, p, IC residuals,
+delta, rk, final betas, rb/rdep/q_b, `goods_mkt_D/F`, `ca_res_D` all
+identical) — GATE PASSED. `code/test_nkpc_blocks.py`: still 11 passed, 0
+failed. Next: Task 9, wire the 27×27 dynamic system and run the
+`kappa_p=1e4` flex-price equivalence gate.
+
 ## 2026-08-05 — Calibration parameters for price rigidity (Task 7 of the nominal-rigidities plan)
 
 `code/calibration.py`'s "Wage Markups"/"SS Real Variables" section gains

@@ -50,7 +50,16 @@
   before Task 2) retargeted, not duplicated, to `1.0/mu_p=0.8333`. Verified
   `mu_p*mc==1`, no duplicate dict keys, `kappa_p` formula matches to 5e-5.
   `code/test_nkpc_blocks.py` still 11/11 green. **Task 8 (seed `mc`, `pi`,
-  `profit` into the steady state) is next.**
+  `profit` and the global residuals into the steady state) is complete** —
+  `code/steady_state.py`'s import lists and its `create_model([...])` list now
+  carry `firm_profit_D/F`, `price_nkpc_D/F`, `terms_of_trade`,
+  `union_inflation`; `labor_demand_D/F` deliberately still excluded (SS uses
+  `labor_ss_D/F`). All six new SS residuals (`profit_D/F`, `nkpc_p_res_D/F`,
+  `tot_res`, `union_pi_res`) verified exactly `0.000000e+00`, and the gate —
+  full calibration -> SS -> IC-delta -> depreciation-calibration chain diffed
+  against the pre-change baseline — passed byte-for-byte. `code/test_nkpc_blocks.py`
+  still 11/11 green. **Task 9 (wire the 27×27 dynamic system and run the
+  `kappa_p=1e4` flex-price equivalence gate) is next.**
 - Working branch: `main`. Production entry point: `code/main.py` (orchestrates
   `calibration.py`, `steady_state.py`, `ic_delta_calibration.py`,
   `depreciation_calibration.py`, `full_model.py`, `tpi.py`, `irf_plots.py`,

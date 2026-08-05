@@ -2,6 +2,25 @@
 
 **Branch:** `eba-recalibration` | **Date:** 2026-07-31 | **Status:** **EBA calibration rebuilt, identified, and LIVE** (`EBA_CALIBRATION=True`, `BANK_SCOPE="broad"`). Y-1 and RK-1 resolved; spread on target at 150.4bp; TPI loading declining.
 
+## Nominal rigidities (`add-nkpc`, in progress): Task 8 — blocks seeded into the steady state
+
+`code/steady_state.py`'s `create_model([...])` list (inside `solve_steady_state`)
+gains `firm_profit_D/F`, `price_nkpc_D/F`, `terms_of_trade`, `union_inflation` —
+the same blocks Tasks 2, 3 and 5 added to the dynamic model, now also carried
+through the SS solve (they were previously absent from `steady_state.py`'s
+import lists and block list, so `mc`, `pi`, `profit`, `tot_res`, `union_pi_res`
+were computed dynamically but not at SS). `labor_demand_D/F` deliberately
+stays out of the SS block list (SS still uses `labor_ss_D/F`), so Task 4's
+markup wedge in labour demand cannot touch the SS solve. Verified: `profit_D`,
+`profit_F`, `nkpc_p_res_D`, `nkpc_p_res_F`, `tot_res`, `union_pi_res` are all
+exactly `0.000000e+00` at the solved SS, and the full initial-SS→IC-delta→
+depreciation-calibration chain reproduces the pre-change baseline byte-for-byte
+(portfolio shares, betas, p, IC residuals, delta, rk, final betas, rb/rdep/q_b,
+goods_mkt_D/F, ca_res_D all identical). `code/test_nkpc_blocks.py`: still 11
+passed, 0 failed. Next: Task 9, wire the 27×27 dynamic system and run the
+`kappa_p = 1e4` (near-rigid-price) equivalence gate against the flex-price
+Jacobian.
+
 ## Model plumbing (2026-08-05): single block-list definition
 
 The model's block list now has **one definition**, `full_model.build_block_list()`.
