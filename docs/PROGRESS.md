@@ -14,6 +14,34 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-08-06 — Task 9b: convert all remaining Jacobian call sites to `solve_jacobian_padded`
+
+Task 9 (previous entry) found and fixed the SSJ 1.0.0 defect where
+`CombinedBlock._jacobian` drops H_Z rows for targets reachable from no shock —
+`nkpc_p_res_D/F`, `tot_res`, `union_pi_res` contain no `Z_*`/`shock_def_*`
+symbol, so raw `Block.solve_jacobian` returns a 23-row H_Z against the 27×27
+system's H_U and `np.linalg.solve` dies with a core-dimension mismatch
+(`size 11500 is different from 13500`). `full_model.py` and `tpi.py` were
+converted at the time; seven other call sites were left as known landmines.
+All seven are now converted to `full_model.solve_jacobian_padded`:
+`diagnostics/regimes/regime_model.py:177`, `experiments/e4_distribution.py:255`,
+`diagnostics/solve_configs.py:176`, `diagnostics/psilam_moment_sweep.py:76`,
+`diagnostics/psilam_breakdown_sweep.py:83`,
+`diagnostics/substitution_v2/solve_v2.py:106`,
+`diagnostics/substitution_v2/exp_psilam0.py:64`. Each import is added locally
+inside the enclosing function, alongside that function's existing
+`from full_model import build_and_solve`, matching the file's own convention.
+No call site passed an argument `solve_jacobian_padded` doesn't accept.
+`grep -rn "\.solve_jacobian(" --include="*.py" code experiments diagnostics |
+grep -v solve_jacobian_padded` is now empty — no remaining raw SSJ call
+anywhere in the repo. `code/test_nkpc_blocks.py` still 11/11 (these are
+Jacobian call sites, not block definitions, so the tests were never expected
+to move). This unblocks `experiments/run_all.py`'s E1-E4 regeneration, which
+runs off `diagnostics/regimes/regime_model.py`'s cached Jacobians; the cache
+itself has not yet been rebuilt against the 27×27 system.
+
+---
+
 ## 2026-08-05 — 27×27 sticky-price dynamic system; passes the `kappa_p -> inf` equivalence gate (Task 9 of the nominal-rigidities plan)
 
 `full_model.build_block_list()` gains `firm_profit_D/F`, `price_nkpc_D/F`

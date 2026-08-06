@@ -101,7 +101,7 @@ def main():
     from steady_state import solve_steady_state
     from ic_delta_calibration import calibrate_ic_delta
     from depreciation_calibration import calibrate_depreciation
-    from full_model import build_and_solve
+    from full_model import build_and_solve, solve_jacobian_padded
 
     # ---- Steps 1-4: calibration -> SS -> ic_delta -> depreciation (once) ----
     logts("Step 1: get_calibration()")
@@ -173,8 +173,8 @@ def main():
         ["psi_lambda_B_D", "psi_lambda_B_F", "psi_spread_D", "psi_spread_F"]))
 
     exogenous = ["Z_D", "shock_def_D", "Z_F", "shock_def_F"]
-    G0 = ha_full.solve_jacobian(
-        ss0, unknowns=unknowns_tp, targets=targets_tp, inputs=exogenous, T=T)
+    G0 = solve_jacobian_padded(
+        ha_full, ss0, unknowns_tp, targets_tp, exogenous, T)
     logts("G0 computed.")
 
     zero = np.zeros(T)

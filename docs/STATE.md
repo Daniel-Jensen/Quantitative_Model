@@ -44,13 +44,26 @@ zeros — **exact, not an approximation**, since dH/dZ at fixed unknowns is
 identically zero when the shock does not appear in the equation — and otherwise
 reproduces `Block.solve_jacobian` line-for-line. `code/tpi.py` routes through it
 too. It prints the padded row names on every solve so the padding can never go
-silent. **Anything else that calls `solve_jacobian` with this 27×27 system will
-hit the same wall**: `diagnostics/regimes/regime_model.py`,
-`diagnostics/solve_configs.py`, `experiments/e4_distribution.py` and the
-`diagnostics/substitution_v2/*` and `psilam_*` sweeps are all still on the raw
-SSJ call. They are untouched and unbroken *only because they have not been
-re-run against the sticky-price system yet* — switch them to
-`solve_jacobian_padded` before rebuilding the regime cache.
+silent.
+
+**Task 9b (2026-08-06) — every Jacobian call site now routes through it.**
+The seven remaining raw `Block.solve_jacobian` calls
+(`diagnostics/regimes/regime_model.py:177`, `experiments/e4_distribution.py:255`,
+`diagnostics/solve_configs.py:176`, `diagnostics/psilam_moment_sweep.py:76`,
+`diagnostics/psilam_breakdown_sweep.py:83`,
+`diagnostics/substitution_v2/solve_v2.py:106`,
+`diagnostics/substitution_v2/exp_psilam0.py:64`) were converted to
+`full_model.solve_jacobian_padded`, imported locally per-function (matching
+each file's existing local-import style). `grep -rn "\.solve_jacobian("
+--include="*.py" code experiments diagnostics | grep -v solve_jacobian_padded`
+now returns nothing — no call site in the repo can hit the 23-vs-27 H_Z/H_U
+shape mismatch (`size 11500 is different from 13500`) any more.
+`code/test_nkpc_blocks.py` unaffected, still 11/11. The two call sites on the
+critical path for `experiments/run_all.py` — `regime_model.py` (the E1-E4
+Jacobian cache) and `e4_distribution.py` (quintile incidence) — are now safe to
+re-run against the sticky-price system; the regime cache itself has not yet
+been rebuilt (`diagnostics/regimes/regime_model.py --force`), that's for
+whoever next needs fresh E1-E4 numbers.
 
 **Full-pipeline regression at the flex limit** (`code/main.py`, `kappa_p=1e5`)
 reproduces the pre-change baseline on every monitored number:

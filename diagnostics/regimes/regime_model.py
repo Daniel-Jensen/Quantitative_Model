@@ -174,8 +174,9 @@ def _ss_tpi(ss_final, kappa_cb_F):
 
 def _solve_G(model, ss_tpi, unk, tgt, T, label):
     log(f"- {datetime.datetime.now():%Y-%m-%d %H:%M:%S} solving G_tpi at psi_lambda_B={label} ...")
-    return model.solve_jacobian(ss_tpi, unknowns=unk, targets=tgt,
-                                inputs=["Z_D", "shock_def_D", "Z_F", "shock_def_F", "cb_buy_D"], T=T)
+    from full_model import solve_jacobian_padded
+    return solve_jacobian_padded(model, ss_tpi, unk, tgt,
+                                 ["Z_D", "shock_def_D", "Z_F", "shock_def_F", "cb_buy_D"], T)
 
 
 def _col(G, o, i, T):

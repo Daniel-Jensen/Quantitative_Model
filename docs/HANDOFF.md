@@ -82,6 +82,24 @@
   `experiments/e4_distribution.py` and the `substitution_v2`/`psilam_*` sweeps
   are **not** — convert them before re-running any of those against the
   sticky-price system (notably before rebuilding the regime cache).
+  **Task 9b (convert the remaining seven `Block.solve_jacobian` call sites to
+  `solve_jacobian_padded`) is COMPLETE.** All seven —
+  `diagnostics/regimes/regime_model.py:177`, `experiments/e4_distribution.py:255`,
+  `diagnostics/solve_configs.py:176`, `diagnostics/psilam_moment_sweep.py:76`,
+  `diagnostics/psilam_breakdown_sweep.py:83`,
+  `diagnostics/substitution_v2/solve_v2.py:106`,
+  `diagnostics/substitution_v2/exp_psilam0.py:64` — now route through
+  `full_model.solve_jacobian_padded`, imported locally inside each function
+  alongside its existing `from full_model import build_and_solve`, matching
+  each file's own local-import convention. No call site passed an argument
+  `solve_jacobian_padded` doesn't accept (no `outputs=`/`H_U_factored=`
+  anywhere), so no special-casing was needed. `grep -rn "\.solve_jacobian("
+  --include="*.py" code experiments diagnostics | grep -v solve_jacobian_padded`
+  is now empty. `code/test_nkpc_blocks.py` still 11/11 green (unaffected —
+  these are Jacobian call sites, not block definitions). The regime cache
+  itself has **not** been rebuilt yet (that's a `--force` run of
+  `diagnostics/regimes/regime_model.py`, left for whoever next needs fresh E1-E4
+  numbers off the 27×27 system).
   **Task 10 (dial `kappa_p` to the calibrated 0.0871 and record the
   price-stickiness result) is next** — the first run whose IRFs are *supposed*
   to differ from the baseline.
