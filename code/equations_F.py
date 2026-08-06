@@ -226,12 +226,40 @@ def bond_return_F(def_rate_F, recovery_rate_F, q_b_F, delta_b_F, zeta_writeoff_F
 # ── Off-steady-state blocks ───────────────────────────────────────────────────
 
 @simple
-def capital_adj_F(K_F, Q_F, I_F, Z_F, N_F, alpha_F, delta_F, gamma0_F, gamma1_F, ksi_F):
-    iota_F        = I_F / K_F(-1)
+def capital_adj_F(K_F, Q_F, I_F, Z_F, N_F, alpha_F, delta_F, gamma0_F, gamma1_F,
+                  ksi_F, omega_I_F, beta_F):
+    # Exactly symmetric to capital_adj_D — see there for the full rationale.
+    # Investment-flow adjustment cost S(I/I(-1)) = (omega_I/2)(I/I(-1) - 1)^2,
+    # with S(1) = S'(1) = 0 so it is EXACTLY steady-state neutral.
+    # No terms-of-trade conversion enters here: F's capital, investment and Q
+    # are all denominated in F goods (the p(-1)/p conversion of W-2 applies to
+    # the F bank's D-bond book, in bank_return_F, not to this block).
+    g_F      = I_F / I_F(-1)
+    g_p1     = I_F(+1) / I_F
+    S_F      = (omega_I_F / 2.0) * (g_F - 1.0) ** 2
+    Sp_F     = omega_I_F * (g_F - 1.0)
+    S_p1     = (omega_I_F / 2.0) * (g_p1 - 1.0) ** 2
+    Sp_p1    = omega_I_F * (g_p1 - 1.0)
+
+    I_eff_F  = (1.0 - S_F) * I_F
+    iota_F   = I_eff_F / K_F(-1)
     # W-1 (author convention): mpk of current K_t — see capital_adj_D
-    mpk_F         = alpha_F * Z_F * K_F ** (alpha_F - 1) * N_F ** (1 - alpha_F)
-    rk_F          = (mpk_F + (1 - delta_F) * Q_F) / Q_F(-1) - 1
-    q_res_F       = Q_F - 1 / (gamma0_F * (1 - ksi_F) * iota_F ** (-ksi_F))
+    mpk_F    = alpha_F * Z_F * K_F ** (alpha_F - 1) * N_F ** (1 - alpha_F)
+    rk_F     = (mpk_F + (1 - delta_F) * Q_F) / Q_F(-1) - 1
+
+    # Marginal capital per unit of EFFECTIVE investment, this period and next.
+    mpi_F    = gamma0_F * (1 - ksi_F) * iota_F ** (-ksi_F)
+    iota_p1  = ((1.0 - S_p1) * I_F(+1)) / K_F
+    mpi_p1   = gamma0_F * (1 - ksi_F) * iota_p1 ** (-ksi_F)
+
+    # Investment FOC. At SS S = S' = 0 and this is Q*mpi - 1 = 0, i.e. the old
+    # q_res_F = Q - 1/mpi. Same root, so the SS is untouched. Discounted at
+    # constant beta_F, not SDF_F — first-order exact because S'(1) = 0, and
+    # required to keep the DAG acyclic. See capital_adj_D.
+    q_res_F  = (Q_F * mpi_F * ((1.0 - S_F) - Sp_F * g_F)
+                + beta_F * Q_F(+1) * mpi_p1 * Sp_p1 * g_p1 ** 2
+                - 1.0)
+
     capital_res_F = K_F - (1 - delta_F) * K_F(-1) - (gamma0_F * iota_F ** (1 - ksi_F) + gamma1_F) * K_F(-1)
     return iota_F, mpk_F, rk_F, q_res_F, capital_res_F
 

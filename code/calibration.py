@@ -80,6 +80,12 @@ def get_calibration():
         'delta_D':      0.025,   'delta_F':      0.025,
         'ksi_D':        0.50,    'ksi_F':        0.50,
 
+        # Investment-flow adjustment cost S(I/I(-1)) = (omega_I/2)(I/I(-1)-1)^2.
+        # S(1) = S'(1) = 0, so exactly SS-neutral; omega_I = 0 reproduces the
+        # model without it. Bi-Foerster-Traum use 2. Left at 0 pending the
+        # path-shape comparison.
+        'omega_I_D':        0.0,    'omega_I_F':        0.0,
+
         # ── Long-term bonds ───────────────────────────────────────────────────
         # EBA REBUILD (2026-07-31): delta_b is now MEASURED, from the sovereign
         # maturity ladder (EBA worksheet 5, MATURITY_CODE 125..155) repriced at

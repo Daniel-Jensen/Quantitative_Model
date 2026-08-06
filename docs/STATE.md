@@ -2,6 +2,69 @@
 
 **Branch:** `add-nkpc` | **Date:** 2026-08-06 | **Status:** **Sticky prices with nominal deposit contracts are the baseline.** 27×27 solver system; `psi_lambda_B` re-tuned to 7.85 to hold the 150bp spread moment; E1–E4 regenerated on the new model. EBA calibration remains LIVE (`EBA_CALIBRATION=True`, `BANK_SCOPE="broad"`).
 
+## Open issue I-1: output is negative for only ONE quarter (2026-08-06)
+
+**The symptom.** On the default shock `Y_D` = −0.5064, −0.0026, **+0.0929**, +0.0829, +0.0548,
++0.0309, … — one quarter of contraction, then a positive hump. Bi–Foerster–Traum keep output
+negative for ~20 quarters. `I_D` = −1.0114, −0.2671, then a sustained boom peaking **+0.3324
+at q5**, and `n_inter_D` rebounds to **+3.72% by q4**. The paper cannot claim a persistent
+sovereign-risk contraction on this path.
+
+**Two hypotheses tested, both rejected.**
+
+1. **Intermediary capital adjustment cost `chi1`** (earlier diagnostic). Raising it makes the
+   impact trough *deeper* AND the rebound *larger* — penalising capital **growth** shifts the
+   burden from investment onto consumption. `chi1` stays at 0. Do not revisit.
+2. **Investment-flow adjustment cost `omega_I`** (2026-08-06, this entry). Now **implemented
+   and live in the equations**, `S(I/I(-1)) = (omega_I/2)(I/I(-1)-1)^2` in `capital_adj_D/F`,
+   but **calibrated to 0**. It smooths investment as designed and still fails to produce
+   persistence — see the sweep below.
+
+**`omega_I` sweep on the default shock.** Steady state **bit-identical at every value**
+(`K_D = 10.8000000000`, `beta_D = 0.999534992056`), as the `S(1) = S'(1) = 0` construction
+guarantees.
+
+| `omega_I` | `Y_D[0]` % | `Y_D` trough % | contiguous neg. quarters | cum. `Y_D` (40q) | `I_D[0]` % | `I_D` peak boom % | peak spread |
+|---|---|---|---|---|---|---|---|
+| **0 (live)** | −0.5064 | −0.5064 | 2 | −0.0492 | −1.0114 | +0.3324 | 150.1 bp |
+| 2 (BFT value) | −0.0287 | −0.0483 | 3 | **+0.2097** | −0.3786 | +0.2573 | 163.7 bp |
+| 5 | **+0.0486** | −0.0078 | **0** | +0.3001 | −0.2201 | +0.2082 | 167.2 bp |
+| 10 | **+0.0854** | −0.0015 | **0** | +0.3697 | −0.1290 | +0.1748 | 168.4 bp |
+
+The friction works — impact investment drop falls monotonically −1.01 → −0.13, q5 boom +0.33
+→ +0.17 — but it **shrinks the contraction toward zero instead of lengthening it**.
+`omega_I = 2` buys exactly one extra negative quarter for an impact trough 18× shallower and a
+cumulative 40-quarter `Y` response that flips **positive**. At `omega_I >= 5`, `Y_D[0]` is
+positive, which trips the sign check in CLAUDE.md *Typical iteration* step 4.
+
+**Why both failed the same way.** `C_D[0]` moves +0.5103 → +0.1092 → +0.2276 across
+`omega_I` = 0, 2, 10. Sluggish investment relaxes the household budget rather than destroying
+resources, so consumption absorbs whatever investment does not. Both candidate frictions
+merely **reallocate the impact between `I` and `C`**; neither deepens or extends the aggregate
+contraction. **Conclusion: the persistence problem is not a missing investment friction.** The
+`n_inter_D` rebound to +3.6% by q5 — which is *larger*, not smaller, at every positive
+`omega_I` — is the more likely engine and is where the next hypothesis should go.
+
+**Author decision pending:** keep `omega_I = 0` (current) or adopt a positive value. Adopting
+one also requires re-tuning `psi_lambda_B`, since peak spread drifts 150.1 → 163–168 bp off the
+150 bp target.
+
+### `omega_I` implementation notes
+
+- `capital_adj_D/F` take `omega_I_D/F` and **`beta_D/F`, not `SDF_D/F`**. Two reasons, and the
+  first makes the second free: `S'(1) = 0`, so the intertemporal term multiplies a factor that
+  is zero at SS and only `SDF_ss = beta` survives linearisation — **first-order exact**, the
+  same argument `price_nkpc_D/F` already uses for `pi_ss = 0`. And it is *required*: taking
+  `SDF_D` makes SSJ's topological sort fail with `hh_D -> capital_fund_D -> capital_adj_D ->
+  sdf_D -> ghh_composite_D -> hh_D`. A test asserts `SDF_*` is not an input.
+- `q_res` was rewritten from `Q - 1/mpi` to `Q*mpi*[...] + beta*[...] - 1`. Same root; the two
+  differ by the factor `mpi`, an exact constant row scaling of the target at first order, so
+  `-H_U^{-1}H_Z` and hence the whole linearised solution is invariant.
+- **Equivalence gate:** `omega_I = 0` reproduces the pre-change model to **1.08e-13** worst
+  relative deviation over all 45 `dump_irfs.py` arrays. Reference regenerated at `231327c`
+  immediately before the edit — the older `/tmp/nkpc_irfs_nominal.npz` is **stale** (predates
+  the `psi_lambda_B` 8.5 → 7.85 re-tune, differs by 1.56) and must not be used.
+
 ## Nominal rigidities (`add-nkpc`) — COMPLETE (Tasks 1–16, 2026-08-05/06)
 
 The model went from flexible prices with real deposit contracts to **sticky prices with

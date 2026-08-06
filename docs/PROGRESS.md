@@ -14,6 +14,80 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-08-06 — Investment-flow adjustment cost `S(I/I(-1))`, added inactive at `omega_I = 0` (`add-nkpc`)
+
+**Problem.** On the default shock output falls for exactly **one quarter** and then turns
+positive: `Y_D` = −0.5064, −0.0026, **+0.0929**, +0.0829, +0.0548, … The comparable published
+model (Bi–Foerster–Traum) keeps output negative for ~20 quarters. Investment is the driver —
+`I_D` = −1.0114, −0.2671, then a sustained **boom** peaking +0.3324 at q5 that drags `Y` up
+with it. The diagnosis: the model had **no adjustment cost on the flow of investment**.
+Nothing penalised `I/I(-1)`; the only capital friction was the Q-based cost on the `I/K`
+ratio, which lets investment jump down and snap straight back.
+
+**What was added.** `capital_adj_D/F` now carry `S(x) = (omega_I/2)(x-1)^2` with `x = I/I(-1)`.
+Effective investment is `I_eff = (1-S)*I` and the installation technology runs on `I_eff`, so
+the investment FOC becomes
+
+```
+1 = Q*mpi*[(1-S) - S'*(I/I(-1))] + beta*Q(+1)*mpi(+1)*S'(+1)*(I(+1)/I)^2
+```
+
+with `mpi = gamma0*(1-ksi)*iota^(-ksi)`. New calibration entry `omega_I_D/F`, **committed at
+0.0**, so the committed model is provably unchanged.
+
+**Why it is exactly SS-neutral.** `S(1) = S'(1) = 0`. At the steady state the FOC collapses to
+`Q*mpi = 1`, which is the old `q_res = Q - 1/mpi` — the *same root*. The two forms differ by
+the factor `mpi`, and since the old residual is zero at SS, `dr = mpi_ss * dr̃` exactly: a
+constant row scaling of the target system, which `-H_U^{-1} H_Z` is invariant to. So the
+linearised solution is invariant too, not merely the steady state.
+
+**Discounted at `beta`, not the SDF — and this is not an approximation.** `S'(1) = 0` means
+the intertemporal term multiplies a factor that is *zero at SS*, so linearising it uses only
+`SDF_ss = beta`; the SDF's own deviation contributes nothing to first order. This is the
+identical argument `price_nkpc_D/F` already uses (`pi_ss = 0` there). It is also **required**:
+taking `SDF_D` makes SSJ's topological sort fail outright with
+`hh_D -> capital_fund_D -> capital_adj_D -> sdf_D -> ghh_composite_D -> hh_D`. Locked by an
+assertion in `test_flow_adjustment_cost_vanishes_at_steady_state` that `SDF_*` is **not** an
+input and `beta_*` is.
+
+**Equivalence gate.** `omega_I = 0` reproduces the pre-change model to **1.08e-13** worst
+relative deviation across all 45 dumped arrays (`dump_irfs.py` run at `231327c` immediately
+before the edit). Note the older `/tmp/nkpc_irfs_nominal.npz` is **stale** — it predates the
+`psi_lambda_B` 8.5 → 7.85 re-tune and differs by 1.56; do not use it as a reference.
+
+**Sweep — the hypothesis is NOT supported.** SS bit-identical at every value
+(`K_D = 10.8000000000`, `beta_D = 0.999534992056`), confirming SS-neutrality.
+
+| `omega_I` | `Y_D[0]` % | `Y_D` trough % | contiguous neg. quarters | cum. `Y_D` (40q) | `I_D[0]` % | `I_D` peak boom % | peak spread |
+|---|---|---|---|---|---|---|---|
+| **0** | −0.5064 | −0.5064 | 2 | −0.0492 | −1.0114 | +0.3324 | 150.1 bp |
+| 2 | −0.0287 | −0.0483 | 3 | **+0.2097** | −0.3786 | +0.2573 | 163.7 bp |
+| 5 | **+0.0486** | −0.0078 | **0** | +0.3001 | −0.2201 | +0.2082 | 167.2 bp |
+| 10 | **+0.0854** | −0.0015 | **0** | +0.3697 | −0.1290 | +0.1748 | 168.4 bp |
+
+The cost does smooth investment — the impact drop shrinks monotonically from −1.01 to −0.13
+and the q5 boom from +0.33 to +0.17 — but it **does not convert the V into a sustained U**.
+It shrinks the whole contraction toward zero. `omega_I = 2` buys one extra negative quarter
+(3 vs 2) at the price of an impact trough **18× shallower** and a cumulative 40-quarter `Y`
+response that flips **positive**. At `omega_I >= 5` `Y_D[0]` itself goes positive, tripping
+the sign check in CLAUDE.md's *Typical iteration* step 4.
+
+**Mechanism, and why it echoes the `chi1` result.** Making investment sluggish frees the
+household budget rather than the economy's resources: `C_D[0]` moves from −0.5103 (at 0) to
++0.1092 (at 2) to +0.2276 (at 10). This is the *same failure mode* as the earlier rejected
+`chi1` diagnostic — penalising a capital/investment margin just shifts the burden between `I`
+and `C` instead of deepening the aggregate contraction. The persistence problem is therefore
+**not** a missing investment friction, and the next hypothesis should look elsewhere (the
+`n_inter` rebound at +3.6% by q5 is the more likely engine).
+
+**Left at `omega_I = 0`** pending an author decision. Peak spread drifting 150.1 → 163–168 bp
+off the 150 bp target is a second reason not to adopt a positive value without re-tuning
+`psi_lambda_B`.
+
+Tests: `code/test_nkpc_blocks.py` **19 passed**; full suite **50 passed**.
+
+---
+
 ## 2026-08-06 — Paper figure captions derive from results (`add-nkpc`, Task 17)
 
 **Why.** `experiments/paper_outputs.py` carried a module-level `CAPTIONS` dict of literal

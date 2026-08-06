@@ -282,14 +282,54 @@ def bond_return_D(def_rate_D, recovery_rate_D, q_b_D, delta_b_D, zeta_writeoff_D
 # ── OFF STEADY STATE EQUATIONS ─── #############################################################################################
 
 @simple
-def capital_adj_D(K_D, Q_D, I_D, Z_D, N_D, alpha_D, delta_D, gamma0_D, gamma1_D, ksi_D):
-    iota_D        = I_D / K_D(-1)
+def capital_adj_D(K_D, Q_D, I_D, Z_D, N_D, alpha_D, delta_D, gamma0_D, gamma1_D,
+                  ksi_D, omega_I_D, beta_D):
+    # Investment-flow adjustment cost S(I/I(-1)) = (omega_I/2)(I/I(-1) - 1)^2.
+    # S(1) = S'(1) = 0, so this is EXACTLY steady-state neutral and omega_I = 0
+    # reproduces the previous model identically.
+    #
+    # Motivation: without it, investment drops on impact and snaps straight back
+    # into a boom that drags output positive from q2. Penalising the CHANGE in
+    # investment turns that V into a slow U. This is the standard device
+    # (Bi-Foerster-Traum use omega_I = 2); the pre-existing chi1 cost penalises
+    # capital GROWTH instead and was measured to make the spike worse.
+    g_D      = I_D / I_D(-1)
+    g_p1     = I_D(+1) / I_D
+    S_D      = (omega_I_D / 2.0) * (g_D - 1.0) ** 2
+    Sp_D     = omega_I_D * (g_D - 1.0)
+    S_p1     = (omega_I_D / 2.0) * (g_p1 - 1.0) ** 2
+    Sp_p1    = omega_I_D * (g_p1 - 1.0)
+
+    I_eff_D  = (1.0 - S_D) * I_D
+    iota_D   = I_eff_D / K_D(-1)
     # W-1 (author convention): mpk is the marginal product of current K_t,
     # consistent with labor_D. Banks receive mpk on their K(-1) holdings via rk;
     # the product of newly installed capital goes to the capital producer.
-    mpk_D         = alpha_D * Z_D * K_D ** (alpha_D - 1) * N_D ** (1 - alpha_D)
-    rk_D          = (mpk_D + (1 - delta_D) * Q_D) / Q_D(-1) - 1
-    q_res_D       = Q_D - 1 / (gamma0_D * (1 - ksi_D) * iota_D ** (-ksi_D))
+    mpk_D    = alpha_D * Z_D * K_D ** (alpha_D - 1) * N_D ** (1 - alpha_D)
+    rk_D     = (mpk_D + (1 - delta_D) * Q_D) / Q_D(-1) - 1
+
+    # Marginal capital per unit of EFFECTIVE investment, this period and next.
+    mpi_D    = gamma0_D * (1 - ksi_D) * iota_D ** (-ksi_D)
+    iota_p1  = ((1.0 - S_p1) * I_D(+1)) / K_D
+    mpi_p1   = gamma0_D * (1 - ksi_D) * iota_p1 ** (-ksi_D)
+
+    # Investment FOC. At SS S = S' = 0 and this is Q*mpi - 1 = 0, i.e. today's
+    # q_res_D = Q - 1/mpi. Same root, so the SS is untouched. (The two forms
+    # differ by the factor mpi, an exact constant row scaling of the target at
+    # first order, so the linearised solution is invariant as well.)
+    #
+    # Discounted at constant beta rather than SDF_D, exactly as price_nkpc_D
+    # does and for the same two reasons. (i) It is first-order EXACT here:
+    # S'(1) = 0, so the SDF multiplies a term that is zero at SS, and only
+    # SDF_ss = beta survives linearisation -- the model is solved by linearised
+    # solve_jacobian. (ii) SDF_D is an output of sdf_D <- ghh_composite_D <-
+    # hh_D, and hh_D reads capital_fund_D which reads this block, so taking
+    # SDF_D here makes SSJ's topological sort fail with a cyclic dependency
+    # hh_D -> capital_fund_D -> capital_adj_D -> sdf_D -> ghh_composite_D.
+    q_res_D  = (Q_D * mpi_D * ((1.0 - S_D) - Sp_D * g_D)
+                + beta_D * Q_D(+1) * mpi_p1 * Sp_p1 * g_p1 ** 2
+                - 1.0)
+
     capital_res_D = K_D - (1 - delta_D) * K_D(-1) - (gamma0_D * iota_D ** (1 - ksi_D) + gamma1_D) * K_D(-1)
     return iota_D, mpk_D, rk_D, q_res_D, capital_res_D
 

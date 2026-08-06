@@ -2,6 +2,34 @@
 
 ## Where to start
 
+- **OPEN, and the top priority: `Y_D` is negative for only ONE quarter (issue I-1).**
+  See `docs/STATE.md` → *Open issue I-1*. On the default shock `Y_D` = −0.5064,
+  −0.0026, **+0.0929**, … then a positive hump; Bi–Foerster–Traum stay negative
+  ~20 quarters. **Two frictions have now been tested and both rejected — do not
+  re-test either.**
+  1. `chi1` (intermediary capital adjustment cost): raising it makes both the
+     trough *and* the rebound bigger. Stays 0.
+  2. `omega_I` (investment-flow cost `S(I/I(-1))`, added 2026-08-06): the block
+     is **live in `capital_adj_D/F` but calibrated to 0**. Sweeping 0/2/5/10
+     shrinks the contraction toward zero rather than lengthening it — at
+     `omega_I >= 5`, `Y_D[0]` goes **positive**. Full table in STATE.md.
+
+  Both fail identically: they reallocate the impact between `I` and `C`
+  (`C_D[0]` goes −0.51 → +0.23 as `omega_I` rises) without deepening the
+  aggregate contraction. **The persistence problem is not a missing investment
+  friction.** The `n_inter_D` rebound to **+3.6% by q5** — which gets *larger*,
+  not smaller, at every positive `omega_I` — is the more promising next
+  hypothesis. Start there, not on another capital-adjustment parameter.
+
+  If a positive `omega_I` is ever adopted, `psi_lambda_B` must be re-tuned:
+  peak spread drifts 150.1 → 163–168 bp off the 150 bp target.
+
+- **Regenerating the `omega_I = 0` equivalence reference.** `/tmp/nkpc_irfs_nominal.npz`
+  is **stale** (predates the `psi_lambda_B` 8.5 → 7.85 re-tune; differs by 1.56).
+  Regenerate with `/opt/anaconda3/envs/ssj/bin/python code/dump_irfs.py OUT.npz`
+  *before* making a change, and compare after. The current change passes at
+  1.08e-13 over all 45 arrays.
+
 - **The model is sticky-price with nominal deposit contracts.** The `add-nkpc`
   workstream (`docs/superpowers/plans/2026-08-05-nominal-rigidities.md`) is
   **COMPLETE** — Tasks 1–16, all committed, all results regenerated. Read

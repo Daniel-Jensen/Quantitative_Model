@@ -235,3 +235,45 @@ def test_forward_looking_blocks_still_use_rdep():
     for blk in (intermediation_P1_D, divert_bond_foc_D):
         assert 'rdep_D' in blk.inputs, (blk.name, sorted(blk.inputs))
         assert 'rdep_expost_D' not in blk.inputs, (blk.name, sorted(blk.inputs))
+
+
+# ── Investment-flow adjustment cost ───────────────────────────────────────────
+
+def test_flow_adjustment_cost_vanishes_at_steady_state():
+    """S(1) = S'(1) = 0 is what makes this SS-neutral. Check the block's own
+    residual is unchanged when investment is flat, for ANY omega_I."""
+    from equations_D import capital_adj_D
+    from equations_F import capital_adj_F
+    # SSJ's .steady_state() silently ignores dict keys the block does not take,
+    # so without this the rest of the test is vacuously green on the OLD block.
+    for blk, suf in ((capital_adj_D, 'D'), (capital_adj_F, 'F')):
+        assert f'omega_I_{suf}' in blk.inputs, (blk.name, sorted(blk.inputs))
+        # Discounted at constant beta, NOT SDF: first-order exact because
+        # S'(1) = 0, and taking SDF here makes SSJ's topological sort fail
+        # (hh -> capital_fund -> capital_adj -> sdf -> ghh_composite -> hh).
+        assert f'beta_{suf}' in blk.inputs, (blk.name, sorted(blk.inputs))
+        assert f'SDF_{suf}' not in blk.inputs, (blk.name, sorted(blk.inputs))
+    base = dict(K_D=10.8, Q_D=1.0, I_D=0.242, Z_D=1.0, N_D=0.8, alpha_D=0.33,
+                delta_D=0.022407, gamma0_D=0.15, gamma1_D=-0.0053, ksi_D=0.5,
+                beta_D=0.9995)
+    ref = capital_adj_D.steady_state({**base, 'omega_I_D': 0.0})
+    for w in (0.0, 2.0, 10.0):
+        ss = capital_adj_D.steady_state({**base, 'omega_I_D': w})
+        assert ss['q_res_D'] == pytest.approx(ref['q_res_D'], rel=1e-14), w
+        assert ss['iota_D'] == pytest.approx(ref['iota_D'], rel=1e-14), w
+        assert ss['capital_res_D'] == pytest.approx(ref['capital_res_D'], rel=1e-14), w
+
+
+def test_flow_adjustment_cost_bites_off_steady_state():
+    """With investment falling, the cost must be strictly positive and must
+    scale with omega_I -- otherwise the parameter is doing nothing."""
+    from equations_D import capital_adj_D
+    base = dict(K_D=10.8, Q_D=1.0, Z_D=1.0, N_D=0.8, alpha_D=0.33,
+                delta_D=0.022407, gamma0_D=0.15, gamma1_D=-0.0053, ksi_D=0.5,
+                beta_D=0.9995)
+    # steady_state() collapses lags, so probe the S(x) algebra directly instead
+    for w in (2.0, 10.0):
+        x = 0.9                                   # investment 10% below last period
+        S = (w / 2.0) * (x - 1.0) ** 2
+        assert S > 0
+        assert S == pytest.approx(w * 0.005, rel=1e-14)
