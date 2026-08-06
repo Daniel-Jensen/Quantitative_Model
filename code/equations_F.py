@@ -57,9 +57,9 @@ def make_grids_F(Depmax_F, nDep_F, nZ_F, rho_z_F, sigma_z_F):
 
     return dep_F_grid, e_grid_F, Pi_F
 
-def income_F(e_grid_F, w_F, N_F, div_F, div_fund_F, tau_F, lamb_F, P_CES_F, T_ls_F):
-    # div_fund_F: rebate from the passive capital fund (zero when omega_K_F=1).
-    y_pre_F  = (w_F * N_F * e_grid_F + div_F + div_fund_F) / P_CES_F
+def income_F(e_grid_F, w_F, N_F, div_F, div_fund_F, profit_F, tau_F, lamb_F, P_CES_F, T_ls_F):
+    # See income_D. profit_F is the markup rent, distributed on e; zero at SS.
+    y_pre_F  = (w_F * N_F * e_grid_F + profit_F * e_grid_F + div_F + div_fund_F) / P_CES_F
     z_F      = lamb_F * (y_pre_F ** (1 - tau_F)) - T_ls_F
     t_paid_F = y_pre_F - z_F
     return z_F, t_paid_F
@@ -67,11 +67,17 @@ def income_F(e_grid_F, w_F, N_F, div_F, div_fund_F, tau_F, lamb_F, P_CES_F, T_ls
 hh_extended_F = hh_F.add_hetinputs([make_grids_F, income_F])
 
 @simple
-def deposit_return_F(rdep_F, P_CES_F):
-    # Bundle-real gross deposit return: corrects for P_CES revaluation between t-1 and t.
-    # T-2 fix: rate paid at t was locked at t-1 — see deposit_return_D.
-    # At SS P_CES_F(-1)/P_CES_F = 1, so Rgross_F = 1 + rdep_F identically.
-    Rgross_F = (1 + rdep_F(-1)) * P_CES_F(-1) / P_CES_F
+def deposit_rates_F(i_dep_F, pi_F):
+    # See deposit_rates_D.
+    rdep_F        = (1 + i_dep_F) / (1 + pi_F(+1)) - 1
+    rdep_expost_F = (1 + i_dep_F(-1)) / (1 + pi_F) - 1
+    return rdep_F, rdep_expost_F
+
+
+@simple
+def deposit_return_F(i_dep_F, P_CES_F, pi_F):
+    # See deposit_return_D. Nominal contract; T-2 timing preserved.
+    Rgross_F = (1 + i_dep_F(-1)) * P_CES_F(-1) / P_CES_F / (1 + pi_F)
     return Rgross_F
 
 
@@ -220,12 +226,40 @@ def bond_return_F(def_rate_F, recovery_rate_F, q_b_F, delta_b_F, zeta_writeoff_F
 # ── Off-steady-state blocks ───────────────────────────────────────────────────
 
 @simple
-def capital_adj_F(K_F, Q_F, I_F, Z_F, N_F, alpha_F, delta_F, gamma0_F, gamma1_F, ksi_F):
-    iota_F        = I_F / K_F(-1)
+def capital_adj_F(K_F, Q_F, I_F, Z_F, N_F, alpha_F, delta_F, gamma0_F, gamma1_F,
+                  ksi_F, omega_I_F, beta_F):
+    # Exactly symmetric to capital_adj_D — see there for the full rationale.
+    # Investment-flow adjustment cost S(I/I(-1)) = (omega_I/2)(I/I(-1) - 1)^2,
+    # with S(1) = S'(1) = 0 so it is EXACTLY steady-state neutral.
+    # No terms-of-trade conversion enters here: F's capital, investment and Q
+    # are all denominated in F goods (the p(-1)/p conversion of W-2 applies to
+    # the F bank's D-bond book, in bank_return_F, not to this block).
+    g_F      = I_F / I_F(-1)
+    g_p1     = I_F(+1) / I_F
+    S_F      = (omega_I_F / 2.0) * (g_F - 1.0) ** 2
+    Sp_F     = omega_I_F * (g_F - 1.0)
+    S_p1     = (omega_I_F / 2.0) * (g_p1 - 1.0) ** 2
+    Sp_p1    = omega_I_F * (g_p1 - 1.0)
+
+    I_eff_F  = (1.0 - S_F) * I_F
+    iota_F   = I_eff_F / K_F(-1)
     # W-1 (author convention): mpk of current K_t — see capital_adj_D
-    mpk_F         = alpha_F * Z_F * K_F ** (alpha_F - 1) * N_F ** (1 - alpha_F)
-    rk_F          = (mpk_F + (1 - delta_F) * Q_F) / Q_F(-1) - 1
-    q_res_F       = Q_F - 1 / (gamma0_F * (1 - ksi_F) * iota_F ** (-ksi_F))
+    mpk_F    = alpha_F * Z_F * K_F ** (alpha_F - 1) * N_F ** (1 - alpha_F)
+    rk_F     = (mpk_F + (1 - delta_F) * Q_F) / Q_F(-1) - 1
+
+    # Marginal capital per unit of EFFECTIVE investment, this period and next.
+    mpi_F    = gamma0_F * (1 - ksi_F) * iota_F ** (-ksi_F)
+    iota_p1  = ((1.0 - S_p1) * I_F(+1)) / K_F
+    mpi_p1   = gamma0_F * (1 - ksi_F) * iota_p1 ** (-ksi_F)
+
+    # Investment FOC. At SS S = S' = 0 and this is Q*mpi - 1 = 0, i.e. the old
+    # q_res_F = Q - 1/mpi. Same root, so the SS is untouched. Discounted at
+    # constant beta_F, not SDF_F — first-order exact because S'(1) = 0, and
+    # required to keep the DAG acyclic. See capital_adj_D.
+    q_res_F  = (Q_F * mpi_F * ((1.0 - S_F) - Sp_F * g_F)
+                + beta_F * Q_F(+1) * mpi_p1 * Sp_p1 * g_p1 ** 2
+                - 1.0)
+
     capital_res_F = K_F - (1 - delta_F) * K_F(-1) - (gamma0_F * iota_F ** (1 - ksi_F) + gamma1_F) * K_F(-1)
     return iota_F, mpk_F, rk_F, q_res_F, capital_res_F
 
@@ -243,11 +277,24 @@ def labor_market_F(w_F, N_F, vphi_F, frisch_F, P_CES_F):
 
 
 @simple
-def labor_demand_F(w_F, Y_F, N_F, alpha_F):
-    # Firm FOC: w = (1−α)·Y/N. Pins the wage in ha_full (drop labor_mkt_res_F there).
-    w_res_F = w_F - (1 - alpha_F) * Y_F / N_F
+def labor_demand_F(w_F, Y_F, N_F, alpha_F, mu_p_F, mc_F):
+    # See labor_demand_D. Pins the wage in ha_full (drop labor_mkt_res_F there).
+    w_res_F = w_F - mu_p_F * mc_F * (1 - alpha_F) * Y_F / N_F
     return w_res_F
 
+
+@simple
+def firm_profit_F(Y_F, alpha_F, mu_p_F, mc_F):
+    # See firm_profit_D.
+    profit_F = (1.0 - mu_p_F * mc_F) * (1.0 - alpha_F) * Y_F
+    return profit_F
+
+
+@simple
+def price_nkpc_F(pi_F, mc_F, mu_p_F, kappa_p_F, beta_F):
+    # See price_nkpc_D.
+    nkpc_p_res_F = pi_F - beta_F * pi_F(+1) - kappa_p_F * (mu_p_F * mc_F - 1.0)
+    return nkpc_p_res_F
 
 
 
@@ -273,7 +320,7 @@ def intermediation_IC_F(nu_K_F, nu_bF_F, nu_bD_F, eta_F,
     return ic_res_F
 
 @simple
-def bank_return_F(theta_F, rk_F, rdep_F, b_F_F, b_D_F, n_inter_F,
+def bank_return_F(theta_F, rk_F, rdep_expost_F, b_F_F, b_D_F, n_inter_F,
                   rb_actual_F, rb_actual_D, q_b_F, q_b_D, p):
     phi_bF_lag_F = q_b_F(-1) * b_F_F(-1) / (p(-1) * n_inter_F(-1))
     phi_bD_lag_F = q_b_D(-1) * b_D_F(-1) / (p(-1) * n_inter_F(-1))
@@ -284,21 +331,26 @@ def bank_return_F(theta_F, rk_F, rdep_F, b_F_F, b_D_F, n_inter_F,
     rb_F_fg = (1 + rb_actual_F) * p(-1) / p - 1
     rb_D_fg = (1 + rb_actual_D) * p(-1) / p - 1
     # T-2 fix: funding cost on the t-1 balance sheet is the rate locked at t-1.
-    rn_F = (kappa_lag_F  * (rk_F    - rdep_F(-1))
-            + phi_bF_lag_F * (rb_F_fg - rdep_F(-1))
-            + phi_bD_lag_F * (rb_D_fg - rdep_F(-1))
-            + rdep_F(-1))
+    # Under nominal deposits that realised real cost is rdep_expost_F, which
+    # already carries the (-1) timing internally and contains the inflation
+    # surprise -- the Fisher revaluation on the bank's nominal liabilities.
+    rn_F = (kappa_lag_F  * (rk_F    - rdep_expost_F)
+            + phi_bF_lag_F * (rb_F_fg - rdep_expost_F)
+            + phi_bD_lag_F * (rb_D_fg - rdep_expost_F)
+            + rdep_expost_F)
     return rn_F
 
 
 @simple
-def capital_fund_F(rk_F, rdep_F, Q_F, K_F, omega_K_F, fund_rule_F, K_fund_F):
-    # Passive capital fund funded by deposits; rebates its spread (rk - rdep) on the
-    # lagged capital value to households (F-goods). Zero when the fund is empty.
+def capital_fund_F(rk_F, rdep_expost_F, Q_F, K_F, omega_K_F, fund_rule_F, K_fund_F):
+    # Passive capital fund funded by deposits; rebates its spread on the lagged
+    # capital value to households (F-goods). Same predetermined-rate timing as
+    # bank_return_F (T-2); rdep_expost_F is the realised real funding cost under
+    # nominal deposits. Zero when the fund is empty.
     # fund_rule_F: 0 = fund holds (1-omega_K)·K, 1 = fund holds a constant K_fund.
     K_fnd_lag_F = ((1.0 - fund_rule_F) * (1.0 - omega_K_F) * K_F(-1)
                    + fund_rule_F * K_fund_F)
-    div_fund_F = (rk_F - rdep_F(-1)) * Q_F(-1) * K_fnd_lag_F
+    div_fund_F = (rk_F - rdep_expost_F) * Q_F(-1) * K_fnd_lag_F
     return div_fund_F
 
 @simple

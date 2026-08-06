@@ -45,6 +45,33 @@ def bond_yield(q_b_D, q_b_F, delta_b_D, delta_b_F):
 
 
 @simple
+def terms_of_trade(p, pi_D, pi_F):
+    # p = P_F/P_D in euro producer prices. In a monetary union the nominal
+    # exchange rate is fixed at 1, so terms-of-trade movement IS the inflation
+    # differential. This pins pi_D - pi_F off an unknown that already exists.
+    # Zero at SS: p/p(-1) = 1 and pi_D = pi_F = 0.
+    tot_res = p / p(-1) - (1.0 + pi_F) / (1.0 + pi_D)
+    return tot_res
+
+
+@simple
+def union_inflation(pi_D, pi_F, omega_pi_D):
+    # The ECB stabilises union-wide producer-price inflation -- the phi_pi -> inf
+    # limit of a Taylor rule, stated as an abstraction and NOT a modelled rule.
+    # Financial contracts carry no policy rate, so no Fisher relation is needed
+    # to close the nominal side.
+    #
+    # With terms_of_trade this gives pi_D = -(1 - omega_pi_D)*dlog p. At the
+    # capital-key omega_pi_D = 0.071, 93% of any terms-of-trade adjustment is D
+    # producer-price deflation and 7% is F inflation -- the 2010-12 internal-
+    # devaluation pattern. Do NOT use model GDP weights: the model normalises
+    # Y_D_ss ~ Y_F_ss ~ 1, so those would give ~0.5 and split it evenly.
+    pi_U         = omega_pi_D * pi_D + (1.0 - omega_pi_D) * pi_F
+    union_pi_res = pi_U
+    return pi_U, union_pi_res
+
+
+@simple
 def portfolio_level_anchors(b_F_D_anchor, b_D_F_anchor):
     b_F_D_ss = b_F_D_anchor
     b_D_F_ss = b_D_F_anchor

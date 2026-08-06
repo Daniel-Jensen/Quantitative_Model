@@ -1,8 +1,677 @@
 # Project State
 
-**Branch:** `eba-recalibration` | **Date:** 2026-07-31 | **Status:** **EBA calibration rebuilt, identified, and LIVE** (`EBA_CALIBRATION=True`, `BANK_SCOPE="broad"`). Y-1 and RK-1 resolved; spread on target at 150.4bp; TPI loading declining.
+**Branch:** `add-nkpc` | **Date:** 2026-08-06 | **Status:** **Sticky prices with nominal deposit contracts are the baseline.** 27×27 solver system; `rho_def` promoted to the calibration and disciplined at **0.9408** by the repo's own Markov-switching estimate; `psi_lambda_B` re-tuned to **2.92** to hold the 150bp spread moment. EBA calibration remains LIVE (`EBA_CALIBRATION=True`, `BANK_SCOPE="broad"`). **E1–E4 and the paper artefacts are now STALE** — they were regenerated against `psi_lambda_B = 7.85` / `rho_def = 0.80`.
+
+## `rho_def` disciplined by the MS regime estimate — 2026-08-06
+
+**What changed.** The sovereign-risk shock's persistence was **hardcoded at `rho_def = 0.80`
+in `code/full_model.py`** (alongside `rho_Z_D = 0.8`), i.e. buried in the solve driver rather
+than stated as a calibration choice. Both are now calibration entries
+(`code/calibration.py`, section *Shock processes*), read via
+`calibration_start.get(..., 0.8)` so an older calibration dict still runs. `rho_Z` is
+**deliberately left at 0.80** — the estimate below speaks to sovereign spreads only.
+
+### The estimate that disciplines it
+
+`Empirics/outputs/ms_regime_GRC.npz` — a three-state Markov-switching fit to **monthly**
+Greek–Bund spreads, 348 observations, 1997-06 to 2026-06:
+
+| state | mean spread (pp) | monthly persistence `P[i,i]` | expected duration (months) | ergodic share |
+|---|---|---|---|---|
+| calm | 0.380 | 0.98734 | 79.0 | 0.362 |
+| stress | 2.054 | 0.97572 | 41.2 | 0.392 |
+| **crisis** | **9.632** | **0.9798499** | **49.6** | 0.245 |
+
+The crisis state is the object the model's default shock represents. Its monthly persistence
+is `0.9798499312312894`, so the quarterly equivalent is
+
+```
+0.9798499312312894 ** 3 = 0.9407596880708793  ->  rho_def = 0.9408
+```
+
+with an implied quarterly duration of `1/(1−0.9408) = 16.9 quarters`. The realised Greek
+episode ran **2010-04 to 2017-12 = 92 months**, which is longer still.
+
+**What the old value implied.** `rho_def = 0.80` inverts to a monthly persistence of
+`0.80^(1/3) = 0.9283` and an expected duration of **13.95 months** — a 14-month crisis. That
+is roughly a quarter of what the repo's own estimation says, and it was the **binding
+constraint on how long the contraction lasted**, not crisis size: a prior sweep holding peak
+spread pinned at 150bp moved cumulative 40-quarter `Y` from −0.049 (`rho=0.80`) to −0.784
+(0.90), −2.021 (0.95) and −2.485 (0.98), with the spread staying above half-peak until q3 /
+q6 / q10 / q15 respectively.
+
+### Re-tuning `psi_lambda_B`
+
+A more persistent shock raises the peak spread for a given amplification, so holding the
+150bp GR–DE peak-spread moment required re-bisecting the one amplification dial. **Every row
+below is a full pipeline re-solve** at `rho_def = 0.9408`:
+
+| `psi_lambda_B` | peak spread (bp ann.) | note |
+|---|---|---|
+| 7.85 | **470.62** | old value at the new persistence — 3.1× the target |
+| 2.73 | 139.60 | |
+| 2.8909 | 148.50 | |
+| 2.9181 | 149.99 | |
+| **2.92** | **150.09** | **ADOPTED** (0.09bp from target) |
+
+Sanity anchor: the same harness at `psi_lambda_B = 7.85, rho_def = 0.80` reproduces
+**150.14 bp**, `Y_D[0] = −0.5064`, `C_D[0] = −0.5103`, `I_D[0] = −1.0114`,
+`n_inter_D[0] = −4.2962`, `b_gov_D[499] = 4.63e−05` — bit-for-bit the recorded baseline.
+
+**METHOD WARNING — do not sweep this dial by patching the steady state.** The obvious
+shortcut is to patch `psi_lambda_B_D/F` and `psi_spread_D/F` onto an already-solved SS and
+re-solve only the Jacobian, on the grounds that the SS is `psi_lambda_B`-neutral. **The SS
+premise is true** (`goods_mkt_D = −4.2493506589857954e−07`, `K_D = 10.800000000000002`,
+`beta_D = 0.9995349920563089` are bit-identical at every `psi_lambda_B` tested) **and the
+conclusion is still wrong.** The shortcut reproduces the baseline exactly at the *unpatched*
+value but drifts off it: it predicted 150.33bp at `psi_lambda_B = 2.73` where the real
+pipeline gives **139.60** — a 7% error, always in the same direction, because only the
+`divert_bond_foc_D` `psi_spread` loading picks the patch up and the `intermediation_IC_D`
+`Delta_bD_eff = Delta_bD_D + psi_lambda_B_D·def_rate_D(+1)` collateral channel does not. The
+first bisection run here was thrown away for exactly this reason. **Re-solve the pipeline per
+point** — it is only ~2 minutes each.
+
+### PAPER-LEVEL CONSEQUENCE — the default-loading split moves
+
+Total default loading per unit of default probability is `EL_price_D + psi_spread_D` from the
+bond-pricing FOC. `EL_price_D` does not depend on `psi_lambda_B`; `psi_spread_D =
+lambda_gk_D · psi_lambda_B_D / (beta_inter_D · Omega_D)` is **linear** in it.
+
+| | `psi_lambda_B = 7.85` | `psi_lambda_B = 2.92` |
+|---|---|---|
+| `EL_price_D` (fundamental) | 0.056134 | 0.056134 |
+| `psi_spread_D` (collateral friction) | 1.604839 | **0.596959** |
+| total loading | 1.660973 | **0.653093** |
+| **fundamental share** | **3.38%** | **8.60%** |
+| **friction share** | **96.62%** | **91.40%** |
+| friction : fundamental | 28.59 : 1 | **10.63 : 1** |
+
+**The constrained-seller claim survives but is quantitatively weaker.** The paper has been
+using 3.4% / 96.6% as a *strong* version of the claim that the Greek spread was overwhelmingly
+a constrained-seller phenomenon rather than a fundamental default-risk phenomenon. At
+~11:1 rather than ~29:1 the claim is still decisive in direction — the friction is an order of
+magnitude larger than the fundamental — but "essentially all of it" is no longer defensible;
+"roughly nine tenths of it" is. **`experiments/paper_outputs.py`'s `fig04_spread_decomposition`
+prose must be re-derived again** (it was last re-derived to 3.4% / 96.6% in Task 17).
+
+Note this is the *honest* direction for the move: the amplification dial was doing less work
+because the persistence, previously understated, is now carrying part of the load.
+
+### Impulse response — the persistence problem is largely fixed
+
+Both columns hit the same 150bp peak-spread moment, so this is like-for-like.
+
+| | baseline (`psi=7.85`, `rho_def=0.80`) | **new (`psi=2.92`, `rho_def=0.9408`)** |
+|---|---|---|
+| peak spread (bp ann.) | 150.14 | **150.09** |
+| `Y_D[0]` (% SS) | −0.5064 | **−0.7502** |
+| `C_D[0]` (% SS) | −0.5103 | **−0.7014** |
+| `I_D[0]` (% SS) | −1.0114 | **−1.7107** |
+| `n_inter_D[0]` (% SS) | −4.2962 | **−6.2710** |
+| cumulative `Y_D`, 40q | −0.0492 | **−2.5420** (51.7×) |
+| cumulative `Y_D`, 20q | — | −1.4818 |
+| negative-`Y` quarters in first 40 | 5 | **37** |
+| spread ≥ half-peak until | q3 | **q11** |
+| `b_gov_D[499]` (default shock) | 4.63e−05 | **2.04e−05** |
+
+First 12 quarters, % of own SS:
+
+| q | `Y_D` | `C_D` | `I_D` | `n_inter_D` | spread (bp) |
+|---|---|---|---|---|---|
+| 0 | −0.7502 | −0.7014 | −1.7107 | −6.2710 | 150.09 |
+| 1 | −0.1337 | +0.1311 | −1.0465 | −2.7050 | 144.26 |
+| 2 | +0.0115 | +0.2748 | −0.6915 | −0.3823 | 138.13 |
+| 3 | +0.0264 | +0.2426 | −0.4857 | +1.0918 | 131.31 |
+| 4 | +0.0111 | +0.1805 | −0.3611 | +1.9968 | 124.06 |
+| 5 | −0.0068 | +0.1257 | −0.2843 | +2.5242 | 116.67 |
+| 6 | −0.0211 | +0.0843 | −0.2369 | +2.8034 | 109.40 |
+| 7 | −0.0313 | +0.0545 | −0.2079 | +2.9212 | 102.38 |
+| 8 | −0.0382 | +0.0334 | −0.1903 | +2.9353 | 95.71 |
+| 9 | −0.0429 | +0.0183 | −0.1798 | +2.8844 | 89.44 |
+| 10 | −0.0460 | +0.0074 | −0.1735 | +2.7937 | 83.58 |
+| 11 | −0.0481 | −0.0005 | −0.1697 | +2.6801 | 78.12 |
+
+And the tail: `Y_D` = −0.0517 (q15), −0.0528 (q19), −0.0533 (q23), −0.0534 (q27), −0.0532
+(q31), −0.0527 (q35), −0.0520 (q39). **`I_D` is negative at every one of the first 40
+quarters** (−1.71 → −0.099).
+
+**Signs (Step 4c) all survive:** `n_inter_D[0] = −6.2710`, `Y_D[0] = −0.7502`,
+`C_D[0] = −0.7014`, `I_D[0] = −1.7107` — all negative. The consumption sign flip, the headline
+result of the `add-nkpc` workstream, is intact and roughly 37% larger.
+
+### Honest reading of what this does and does not fix
+
+- **Fixed:** cumulative output loss, which was the real complaint. −0.049 → −2.542 over 40
+  quarters; output is negative in **37 of the first 40 quarters**; the spread stays above
+  half-peak to q11 instead of q3.
+- **NOT fixed:** the shape at the short end. `Y_D` still turns *marginally* positive at
+  q2–q4 (+0.0115, +0.0264, +0.0111 — three quarters, all under +0.03% of SS) before going
+  negative again from q5 and staying there. So it is a shallow, long, persistently negative
+  path with a small early blip, not a monotone Bi–Foerster–Traum bust. **Issue I-1 is
+  substantially, not completely, resolved** — and note the fix was *neither* of the two
+  capital-adjustment frictions I-1 tested and rejected. `chi1` and `omega_I` stay at 0.
+- `n_inter_D` still rebounds to positive (+1.09 by q3, peaking +2.94 at q8). That rebound is
+  now *larger*, not smaller, and remains the most promising next hypothesis if a deeper
+  persistent bust is wanted.
+
+### Stability verdict — PASSES, and moves *away* from the unstable region
+
+Full `code/main.py`:
+
+- Steady state **bit-identical**: `goods_mkt_D = -4.2493506589857954e-07`,
+  `goods_mkt_F = -4.1914559989475464e-07`, `ca_res_D = 6.852157730108388e-17`,
+  `IC_D: θ − θ_tgt = 1.776357e-15`. `All residuals < 1e-8  ✓`
+- `b_gov_D[499]` on the default shock **fell** 4.63e−05 → **2.04e−05**; on the TFP shock
+  1.48e−06. A more persistent shock was the genuine stability risk here and it did not
+  materialise, because the re-tune moves `psi_lambda_B` *down*, away from the documented
+  high-`psi_lambda_B` breakdown region rather than toward it.
+- `ρ_b (partial-eq.) = 0.8451` (target < 0.95), unchanged.
+- No `assert_gk_well_posed` failure.
+- All four TPI gammas converge: `max|ca_res_D|` ≤ 6.39e−08, `max|goods_mkt_F|` ≤ 1.73e−09,
+  both inside 1e−07. `G_tpi[cb=0]` vs baseline `G` = 0.00e+00; γ=0 vs `irfs_def_D` = 0.00e+00.
+- Sign check at γ=0: `n_inter_D[0] = −1.341e−01`, `Y_D[0] = −7.502e−03`, both negative.
+
+### TPI loading schedule — still monotone decreasing, still above 1
+
+The regime cache was **not** rebuilt (it would have to precede `experiments/run_all.py`, and
+that is a ~45-minute chain on top of this change), so these are the loadings `code/main.py`
+itself prints, not E1's solved named regimes:
+
+| γ | peak spread (pp) | peak exposure | EL PV | prem PV | **loading** |
+|---|---|---|---|---|---|
+| 0 | +0.375 | 0.000% | 0.0000% | 0.0000% | n/a |
+| 2 | +0.311 | 0.602% | 0.0036% | 0.0200% | **5.55** |
+| 5 | +0.243 | 1.176% | 0.0074% | 0.0396% | **5.37** |
+| 10 | +0.177 | 1.715% | 0.0112% | 0.0574% | **5.13** |
+
+**Live Claim 5 (self-extinguishing premium) and Live Claim 1 (over-compensation, loading > 1)
+both survive** — 5.55 → 5.37 → 5.13 is monotone decreasing and comfortably above 1. Note the
+loading *rose* relative to the old schedule even though `psi_spread/EL_price` fell from 28.6
+to 10.6: the theoretical small-γ limit `1 + psi_spread/EL_price` is now 11.6 rather than
+29.6, but the realised loading is dominated by the shock's persistence, which lengthens the
+premium stream the ECB collects relative to the expected loss it bears. Welfare moves the
+same way as before (`ΔW_D` = +0.0209 / +0.1005 / +0.3562; `ΔW_F` = −0.0323 / −0.1041 /
+−0.2673).
+
+**STALE ARTEFACTS — must be regenerated before any paper output is trusted.** In order:
+`diagnostics/regimes/regime_model.py --force`, then `experiments/run_all.py`, then
+`experiments/e4_distribution.py` and `experiments/paper_outputs.py`. Every number in
+`docs/experiments_results.md`, `docs/paper_draft_results.md` and the eight tracked
+`experiments/paper/fig0*.png` currently reflects `psi_lambda_B = 7.85` / `rho_def = 0.80`.
+
+## Open issue I-1: output is negative for only ONE quarter (2026-08-06)
+
+> **UPDATE 2026-08-06 — substantially resolved by `rho_def = 0.9408`, see the section above.**
+> Output is now negative in 37 of the first 40 quarters and cumulative 40-quarter `Y` is
+> −2.5420 rather than −0.0492. The residual defect is a small positive blip at q2–q4 (all
+> under +0.03% of SS). The diagnosis below — that the problem was *not* a missing investment
+> friction — was correct: the fix was the shock process, not the capital block. `chi1` and
+> `omega_I` stay at 0. Everything below is retained as the record of the two rejected
+> hypotheses; **do not re-test either.**
+
+**The symptom.** On the default shock `Y_D` = −0.5064, −0.0026, **+0.0929**, +0.0829, +0.0548,
++0.0309, … — one quarter of contraction, then a positive hump. Bi–Foerster–Traum keep output
+negative for ~20 quarters. `I_D` = −1.0114, −0.2671, then a sustained boom peaking **+0.3324
+at q5**, and `n_inter_D` rebounds to **+3.72% by q4**. The paper cannot claim a persistent
+sovereign-risk contraction on this path.
+
+**Two hypotheses tested, both rejected.**
+
+1. **Intermediary capital adjustment cost `chi1`** (earlier diagnostic). Raising it makes the
+   impact trough *deeper* AND the rebound *larger* — penalising capital **growth** shifts the
+   burden from investment onto consumption. `chi1` stays at 0. Do not revisit.
+2. **Investment-flow adjustment cost `omega_I`** (2026-08-06, this entry). Now **implemented
+   and live in the equations**, `S(I/I(-1)) = (omega_I/2)(I/I(-1)-1)^2` in `capital_adj_D/F`,
+   but **calibrated to 0**. It smooths investment as designed and still fails to produce
+   persistence — see the sweep below.
+
+**`omega_I` sweep on the default shock.** Steady state **bit-identical at every value**
+(`K_D = 10.8000000000`, `beta_D = 0.999534992056`), as the `S(1) = S'(1) = 0` construction
+guarantees.
+
+| `omega_I` | `Y_D[0]` % | `Y_D` trough % | contiguous neg. quarters | cum. `Y_D` (40q) | `I_D[0]` % | `I_D` peak boom % | peak spread |
+|---|---|---|---|---|---|---|---|
+| **0 (live)** | −0.5064 | −0.5064 | 2 | −0.0492 | −1.0114 | +0.3324 | 150.1 bp |
+| 2 (BFT value) | −0.0287 | −0.0483 | 3 | **+0.2097** | −0.3786 | +0.2573 | 163.7 bp |
+| 5 | **+0.0486** | −0.0078 | **0** | +0.3001 | −0.2201 | +0.2082 | 167.2 bp |
+| 10 | **+0.0854** | −0.0015 | **0** | +0.3697 | −0.1290 | +0.1748 | 168.4 bp |
+
+The friction works — impact investment drop falls monotonically −1.01 → −0.13, q5 boom +0.33
+→ +0.17 — but it **shrinks the contraction toward zero instead of lengthening it**.
+`omega_I = 2` buys exactly one extra negative quarter for an impact trough 18× shallower and a
+cumulative 40-quarter `Y` response that flips **positive**. At `omega_I >= 5`, `Y_D[0]` is
+positive, which trips the sign check in CLAUDE.md *Typical iteration* step 4.
+
+**Why both failed the same way.** `C_D[0]` moves +0.5103 → +0.1092 → +0.2276 across
+`omega_I` = 0, 2, 10. Sluggish investment relaxes the household budget rather than destroying
+resources, so consumption absorbs whatever investment does not. Both candidate frictions
+merely **reallocate the impact between `I` and `C`**; neither deepens or extends the aggregate
+contraction. **Conclusion: the persistence problem is not a missing investment friction.** The
+`n_inter_D` rebound to +3.6% by q5 — which is *larger*, not smaller, at every positive
+`omega_I` — is the more likely engine and is where the next hypothesis should go.
+
+**Author decision pending:** keep `omega_I = 0` (current) or adopt a positive value. Adopting
+one also requires re-tuning `psi_lambda_B`, since peak spread drifts 150.1 → 163–168 bp off the
+150 bp target.
+
+### `omega_I` implementation notes
+
+- `capital_adj_D/F` take `omega_I_D/F` and **`beta_D/F`, not `SDF_D/F`**. Two reasons, and the
+  first makes the second free: `S'(1) = 0`, so the intertemporal term multiplies a factor that
+  is zero at SS and only `SDF_ss = beta` survives linearisation — **first-order exact**, the
+  same argument `price_nkpc_D/F` already uses for `pi_ss = 0`. And it is *required*: taking
+  `SDF_D` makes SSJ's topological sort fail with `hh_D -> capital_fund_D -> capital_adj_D ->
+  sdf_D -> ghh_composite_D -> hh_D`. A test asserts `SDF_*` is not an input.
+- `q_res` was rewritten from `Q - 1/mpi` to `Q*mpi*[...] + beta*[...] - 1`. Same root; the two
+  differ by the factor `mpi`, an exact constant row scaling of the target at first order, so
+  `-H_U^{-1}H_Z` and hence the whole linearised solution is invariant.
+- **Equivalence gate:** `omega_I = 0` reproduces the pre-change model to **1.08e-13** worst
+  relative deviation over all 45 `dump_irfs.py` arrays. Reference regenerated at `231327c`
+  immediately before the edit — the older `/tmp/nkpc_irfs_nominal.npz` is **stale** (predates
+  the `psi_lambda_B` 8.5 → 7.85 re-tune, differs by 1.56) and must not be used.
+
+## Regeneration on the MS-disciplined shock (2026-08-06) — Live Claim 5 WEAKENED
+
+Cache, E1-E4 and all paper figures rebuilt at `rho_def = 0.9408`, `psi_lambda_B = 2.92`.
+E2 closes at 1.1e-16 against its 1e-7 assertion. `fig07_ms_regimes` correctly
+unchanged (estimated from market data, model-independent).
+
+### The loading schedule — read this before quoting Live Claim 5
+
+| | before (`rho`=0.80, `psi`=7.85) | after (`rho`=0.9408, `psi`=2.92) |
+|---|---|---|
+| schedule over γ ∈ [0.51, 30] | 4.43 -> **1.49** | 5.65 -> **4.59** |
+| decline | **−66%** | **−19%** |
+| monotone decreasing | YES | YES |
+| minimum | **1.49** | **4.59** |
+
+**Live Claim 1 (over-compensation, loading > 1) is STRONGER** — the floor rises
+from 1.49 to 4.59, so it no longer depends on where on the schedule you look.
+
+**Live Claim 5 (self-extinguishing premium) is MATERIALLY WEAKER.** The claim
+worked because loading fell *toward 1*: intervene hard enough and the ECB earns
+roughly the actuarially fair expected loss. It now bottoms at 4.6x. Monotonicity
+survives, the economic punchline does not in its present form. A longer crisis
+accumulates premium over more quarters than expected loss, so the ratio stays
+high even under heavy intervention. **Do not write "self-extinguishing" without
+re-deriving what the 19% decline supports.**
+
+### E1 regime table
+
+| regime | γ | peak spread bp | `Y_D[0]` | `C_D[0]` | `I_D[0]` | `n_inter_D[0]` | loading |
+|---|---|---|---|---|---|---|---|
+| passive | 0 | 150.1 | −0.7502 | −0.7014 | −1.7107 | −6.271 | n/a |
+| medium | 3.1033 | 112.6 | +0.1834 | +0.7441 | −0.8688 | −2.922 | 5.48 |
+| aggressive | 8.9732 | 75.0 | +1.1336 | +2.2400 | −0.0508 | +0.469 | 5.17 |
+
+Investment is now negative even under the aggressive backstop (−0.0508, was
++0.3977), and the aggressive-backstop net-worth boom is milder (+0.469, was
++0.924) while its consumption effect is larger (+2.24, was +1.51).
+
+## Nominal rigidities (`add-nkpc`) — COMPLETE (Tasks 1–16, 2026-08-05/06)
+
+The model went from flexible prices with real deposit contracts to **sticky prices with
+nominal deposit contracts**, and every downstream result was regenerated. This one section
+replaces the sixteen per-task sections that previously accumulated here; the per-task detail
+is in `docs/PROGRESS.md` and in the commits.
+
+### What the model now is
+
+**Sticky prices.** Rotemberg price Phillips curves `pi = beta*pi(+1) + kappa_p*(mu_p*mc - 1)`
+in both countries (`price_nkpc_D/F`). The gap is written as the *ratio* `mu_p*mc - 1`, not a
+level difference, so it is unit-free and linearises to exactly `mc_hat` for any `mu_p` —
+published Calvo slopes map straight onto `kappa_p` with no SS rescaling, and `mu_p` is a free
+normalisation to first order. Discounted at constant `beta_D/F` rather than the SDF, which is
+immaterial to first order because `pi_ss = 0`.
+
+**Markup wedge in labour demand.** `labor_demand_D/F` now solve `w = mu_p*mc*(1-alpha)*Y/N`
+in place of the competitive `w = (1-alpha)*Y/N`. This is the point of the whole exercise:
+previously, flexible labour supply combined with competitive labour demand eliminated `Y`
+entirely and left `N` pinned by `Z`, `K` and `P_CES` alone, with **nothing for aggregate
+demand to act on**. With the wedge, a move in `mc` shifts labour demand, so `N` and `Y` move
+together. **Wages stay flexible** — `labor_market_D/F` is untouched.
+
+**Markup rent.** `firm_profit_D/F` compute `profit = (1 - mu_p*mc)*(1-alpha)*Y`, the residual
+left over once labour is paid `mu_p*mc*(1-alpha)*Y` while capital keeps `alpha*Y`. Left
+unrouted this would be a Walras leak of the W-1/W-2 class. It is distributed to households
+**in proportion to productivity `e`**, not lump-sum, through `income_D/F` — which makes
+labour-plus-profit income per unit of `e` exactly `(1-alpha)*Y*e`, identical to the
+flex-price model (max abs diff 2.2e-16). So the markup wedge bites only on the firm's hiring
+decision, never on household income, and `labor_market_D/F` needs no change.
+
+**Nominal closure with no policy rate.** `terms_of_trade` (global) turns the monetary-union
+identity `p/p(-1) = (1+pi_F)/(1+pi_D)` into a residual on `p`, an unknown that already
+existed: the nominal exchange rate is fixed at 1, so terms-of-trade movement *is* the
+inflation differential, and this pins `pi_D − pi_F` off existing plumbing. `union_inflation`
+supplies the missing level normalisation, `omega_pi_D*pi_D + (1-omega_pi_D)*pi_F = 0` — the
+`phi_pi -> inf` limit of an ECB Taylor rule on union-wide PPI inflation, stated explicitly as
+an abstraction rather than a modelled policy rule. **No financial contract in this model
+carries a policy rate**, so no Fisher relation is needed to close it. Solved together:
+`pi_D = -(1-omega_pi_D)*dlog p`, `pi_F = omega_pi_D*dlog p`. At the renormalised capital-key
+`omega_pi_D = 0.071`, **93% of any terms-of-trade adjustment is Greek PPI deflation and 7% is
+German inflation** — the 2010–12 internal-devaluation pattern. GDP weights would split it
+~50/50 (counterfactual), because the model normalises `Y_D_ss ~ Y_F_ss ~ 1`.
+
+**Nominal deposits.** `deposit_rates_D/F` take the nominal rate `i_dep_D/F` (now the solver
+unknown) and `pi_D/F`, and return two objects: `rdep_D/F`, which **keeps its name and its
+ex-ante meaning** (the real rate for t → t+1, locked at t), and `rdep_expost_D/F`, the
+realised real rate `(1+i_dep(-1))/(1+pi) - 1` that carries the inflation surprise. Because
+`rdep` kept its name, `intermediation_P1_D/F`, `divert_bond_foc_D/F` and
+`divert_portfolio_adj` were **untouched** and remain correctly ex-ante (verified by
+introspecting `.inputs`). `bank_return_D/F` and `capital_fund_D/F` consume `rdep_expost_D/F`
+— that is the Fisher channel. T-2 is not reopened: `deposit_return_D/F` still locks the rate
+at `i_dep(-1)`; only the deflator (`P_CES`, `pi`) is period-t. Note `rdep_expost` carries its
+own `(-1)` internally, so writing `rdep_expost_D(-1)` would double-lag it.
+
+**Sovereign bonds stay real.** A deliberate asymmetry, not an oversight: banks are nominal
+debtors on deposits and real creditors on the sovereign book, which maximises their Fisher
+exposure. **This must be stated as a modelling choice in the paper**, not left implicit.
+Nominal sovereign bonds are a candidate follow-on.
+
+**Solver system: 23×23 → 27×27.** `unknowns_tp` gains `mc_D, pi_D, mc_F, pi_F` and swaps
+`rdep_D/F → i_dep_D/F`; `targets_tp` gains `nkpc_p_res_D/F, tot_res, union_pi_res`. Nothing
+existing was renamed or dropped. The block list has one definition,
+`full_model.build_block_list()`, shared by `full_model.py`, `tpi.py` (which supplies its four
+`_tpi` swaps via `tpi.tpi_overrides()`) and `diagnostics/regimes/regime_model.py`.
+
+**The steady state is bit-identical to pre-change.** Markups are subsidy-neutralised
+(`mc_ss = 1/mu_p`, so `mu_p*mc = 1` and `profit_ss = 0`) and `pi_ss = 0`, so every new object
+is exactly `0.000000e+00` at SS. The monitored numbers are unchanged through every task:
+`goods_mkt_D = -4.2493506589857954e-07`, `goods_mkt_F = -4.1914559989475464e-07`,
+`ca_res_D = 6.852157730108388e-17`, `IC_D: θ − θ_tgt = 1.776357e-15`, `ρ_b = 0.8451`,
+all residuals `< 1e-8 ✓`. At `pi = 0` the three deposit rates collapse exactly:
+`i_dep_D = rdep_D = rdep_expost_D = 0.000000000000`.
+
+### Calibration added and changed
+
+| parameter | value | source / rationale |
+|---|---|---|
+| `mu_p_D/F` | 1.20 | gross price markup, `epsilon_p = 6`. Free to first order under the subsidy neutralisation, so the level needs no defending. |
+| `mc_D/F` | `1/1.20 = 0.8333` | subsidy-neutralised SS real marginal cost (`tau_s = 1 − 1/mu_p`). Retargeted from a dead placeholder `1.0`; this is what keeps the SS bit-identical. |
+| `kappa_p_D/F` | 0.0871 | Rotemberg slope from Calvo `theta_p = 0.75` at `beta = 0.985`, i.e. `(1−θ)(1−βθ)/θ`. Agrees with Bi-Foerster-Traum's implied 0.0846 to within 3%; consistent with the ~4-quarter euro-area IPN median price duration. |
+| `pi_D/F` | 0.0 | SS PPI inflation, exact. |
+| `omega_pi_D` | 0.071 | 1 − the renormalised two-country ECB capital key (BuBa 26.1 / BoG 2.0). **Deliberately not GDP weights**, which would erase the 93/7 internal-devaluation split. |
+| `i_dep_D/F` | 0.000 | renamed from `rdep_D/F`; `rdep_D/F` is now a solved output, not a calibration input. |
+| **`psi_lambda_B_D/F`** | **7.85** (was 8.5) | **re-tuned.** Sticky prices + the Fisher channel pushed peak spread to 162.0bp at 8.5, an 8% overshoot of the paper's 150bp moment. Re-bisected: 8.5 → 162.14bp, 7.0 → 136.21bp, 7.8 → 149.16bp, **7.85 → 150.14bp (adopted, within 1bp)**. `b_gov_D[499]` stayed in the ~1e−5..1e−4 band throughout — lowering the dial moves *away* from the high-`psi_lambda_B` breakdown region, not toward it. `EBA_CALIBRATION` branch only; the pre-EBA `else 3.0` branch is untouched. |
+
+### Headline results
+
+Impact response to the 1pp default shock, % of own SS level. Both columns hit the same
+150bp peak-spread moment, so this is **like-for-like**.
+
+| | flex, real deposits (`psi_lambda_B=8.5`) | sticky + nominal, re-tuned (7.85) |
+|---|---|---|
+| peak spread (bp ann) | 150.4 | 150.0 |
+| `Y_D[0]` | −0.0149 | **−0.5064** |
+| `C_D[0]` | **+0.2164** | **−0.5103** |
+| `I_D[0]` | −0.7718 | −1.0114 |
+| `n_inter_D[0]` | −3.3804 | −4.2962 |
+
+Decomposed into the two structural changes (Tasks 10 and 13, both measured at
+`psi_lambda_B = 8.5` so the dial is held fixed):
+
+| step | `Y_D[0]` | `C_D[0]` | `I_D[0]` | `n_inter_D[0]` |
+|---|---|---|---|---|
+| flex, real deposits | −0.0149 | **+0.2164** | −0.7718 | −3.3804 |
+| + price stickiness (deposits still real) | −0.4923 | **−0.4904** | −0.9907 | −4.0140 |
+| + nominal deposits | −0.5449 | −0.5499 | −1.0849 | −4.6155 |
+| + `psi_lambda_B` 8.5 → 7.85 (back on 150bp) | −0.5064 | −0.5103 | −1.0114 | −4.2962 |
+
+- **Price stickiness alone flips `C_D[0]`** and takes `Y_D[0]` 33× larger. The extra output
+  decline is **not** an investment story (`I_D` moved 1.28×, `Y_D` 33×) — it is the markup
+  wedge shifting labour demand directly, which is the mechanism the design intended.
+- **Nominal deposits are the Fisher channel and the signature is correct**: the amplification
+  lands hardest on bank net worth (−0.60pp, ~15% deeper, ~11× larger than the effect on
+  output) and only reaches output through the intermediary. Had the ex-post/ex-ante
+  substitution been backwards, `n_inter_D[0]` would have gone *less* negative.
+- `Y_D[0] = −0.49%` (stickiness alone) sits against Bi-Foerster-Traum (FRBSF WP 2025-10) at
+  −0.6%. The pre-change model was two orders of magnitude below that. Price stickiness closes
+  the gap **without** their Sims-Wu loan-in-advance constraint.
+
+**`kappa_p` sweep — monotone, stable, and the sign flip is not knife-edge:**
+
+| `kappa_p` | `Y_D[0]` | `C_D[0]` | `I_D[0]` | `n_inter_D[0]` | `b_gov_D[499]` |
+|---|---|---|---|---|---|
+| 0.03 (stickier) | −0.7280 | −0.8401 | −1.0987 | −4.3244 | 1.50e−05 |
+| **0.0871** (calibrated) | **−0.4923** | **−0.4904** | −0.9907 | −4.0140 | 1.4e−05 |
+| 0.2 (more flexible) | −0.3105 | −0.2211 | −0.9077 | −3.7736 | 1.42e−05 |
+| flex limit | −0.0149 | +0.2164 | −0.7718 | −3.3804 | 1.4e−05 |
+
+`C_D[0]` is negative across the whole sticky range and positive only in the flexible limit.
+
+### CAVEAT — this is a one-quarter spike, not a downturn. Do not drop it.
+
+First 8 quarters, % of SS:
+
+```
+Y_D sticky, real dep   : -0.4923 +0.0083 +0.1006 +0.0881 +0.0580 +0.0329 +0.0161 +0.0063
+Y_D sticky, nominal dep: -0.5449 -0.0011 +0.1021 +0.0912 +0.0604 +0.0342 +0.0165 +0.0061
+C_D sticky, real dep   : -0.4904 +0.1141 +0.1553 +0.0790 +0.0046 -0.0440 -0.0685 -0.0761
+C_D sticky, nominal dep: -0.5499 +0.1144 +0.1676 +0.0903 +0.0124 -0.0395 -0.0665 -0.0758
+C_D flex               : +0.2164 +0.0702 -0.0161 -0.0624 -0.0829 -0.0873 -0.0822 -0.0721
+```
+
+Output and consumption are both **positive from quarter 1**, and flexible-price consumption
+is in fact *more* persistently negative from quarter 2 on. Nominal deposits deepen the impact
+quarter (`C_D[1]` is essentially unmoved, +0.1141 → +0.1144 — the entire Fisher effect is an
+impact-quarter effect) but do **not** lengthen the recession. Bi-Foerster-Traum's output stays
+negative for ~20 quarters.
+
+**The honest claim is that the model fixes the impact quarter, not that it resolves the
+investment-bust counterfactual.** Do not write "resolves the investment-bust counterfactual"
+without this qualification.
+
+### The SSJ defect and `solve_jacobian_padded()` — a hard requirement
+
+SSJ 1.0.0's `CombinedBlock._jacobian` seeds from the shock list and ends with
+`total_Js[original_outputs & total_Js.outputs, :]`, only visiting a block whose inputs
+intersect that list. A target that is a **pure function of the solver's own unknowns**
+therefore never enters H_Z and is silently dropped. All four new targets are exactly that (no
+`Z_*`/`shock_def_*` symbol appears anywhere in `nkpc_p_res_D/F`, `tot_res`, `union_pi_res`),
+so SSJ returned a 23-row H_Z against a 27×27 H_U and `Block.solve_jacobian` handed mismatched
+shapes to `np.linalg.solve` (`size 11500 is different from 13500`).
+
+**Fix: `full_model.solve_jacobian_padded()`**, which restores the missing rows as zeros. This
+is **exact, not an approximation** — `dH/dZ` at fixed unknowns is identically zero when the
+shock symbol never appears in the equation. It otherwise reproduces `Block.solve_jacobian`
+line-for-line and prints the padded row names on every solve, so the padding can never go
+silent.
+
+**Every Jacobian call site in the repo routes through it** (converted in Task 9b:
+`code/full_model.py`, `code/tpi.py`, `diagnostics/regimes/regime_model.py`,
+`experiments/e4_distribution.py`, `diagnostics/solve_configs.py`,
+`diagnostics/psilam_moment_sweep.py`, `diagnostics/psilam_breakdown_sweep.py`,
+`diagnostics/substitution_v2/solve_v2.py`, `diagnostics/substitution_v2/exp_psilam0.py`).
+The invariant to keep:
+
+```bash
+grep -rn "\.solve_jacobian(" --include="*.py" code experiments diagnostics | grep -v solve_jacobian_padded
+```
+
+must stay **empty**. A 25×25 rewrite (folding the four targets into existing equations) was
+considered and rejected: it would hit the identical defect with smaller numbers.
+
+### Flex-price equivalence gate (the wiring check)
+
+As `kappa_p -> inf` the NKPC forces `mu_p*mc -> 1` and labour demand collapses to
+competitive, so the 27×27 system must reproduce the pre-change 23×23 IRFs. It does, with
+textbook O(1/`kappa_p`) convergence — worst relative IRF deviation `2.925e-03` at 1e4,
+**`2.925e-04` at 1e5** (gate threshold 1e-3, **PASSED**), `2.925e-05` at 1e6. Every one of
+the 30 IRF series shrinks by a ratio of exactly 10.00 per decade and the 4 SS levels are
+bit-identical at every `kappa_p`. The binding series are `w_D` and `N_D`, the two objects the
+markup wedge acts on directly. A clean 1/`kappa_p` rate rather than a stuck floor is the
+evidence that the blocks are wired correctly. Comparison harness: `code/dump_irfs.py`.
+
+### E1–E4 regenerated (Task 15)
+
+**Ordering is load-bearing.** `diagnostics/regimes/regime_model.py --force` must run
+**before** `experiments/run_all.py`: the experiments never re-solve the model, they read
+cached Jacobian response matrices, so the reverse order silently re-reports the old model's
+numbers. New caches are tagged `psilam7p85_cal685f7838` (the old set was `psilam8p50` under
+`calde195df2`/`cal004630e7`/`cal3397854d`); every provenance stamp in
+`docs/experiments_results.md` now reads `calibration 685f7838 · psi_lambda_B=7.85`, which is
+the check that the fresh cache was the one consumed.
+
+**E1 — backstop schedule** (old = flex at `psi_lambda_B=8.5`, new = sticky+nominal at 7.85):
+
+| | passive | medium | aggressive |
+|---|---|---|---|
+| γ — old | 0 | 5.0798 | 12.7260 |
+| **γ — new** | **0** | **3.2515** | **9.0163** |
+| peak spread (bp ann) — old | 150.3 | 112.7 | 75.2 |
+| **peak spread (bp ann) — new** | **150.1** | **112.6** | **75.1** |
+| `Y_D[0]` (% SS) — old | −0.0149 | +0.0111 | +0.0338 |
+| **`Y_D[0]` (% SS) — new** | **−0.5064** | **+0.2008** | **+0.8721** |
+| `C_D[0]` (% SS) — old | +0.2164 | +0.3040 | +0.3855 |
+| **`C_D[0]` (% SS) — new** | **−0.5103** | **+0.5285** | **+1.5143** |
+| `I_D[0]` (% SS) — old | −0.7718 | −0.2903 | +0.1217 |
+| **`I_D[0]` (% SS) — new** | **−1.0114** | **−0.2934** | **+0.3977** |
+| `n_inter_D[0]` (% SS) — old | −3.380 | −2.167 | −1.099 |
+| **`n_inter_D[0]` (% SS) — new** | **−4.296** | **−1.649** | **+0.924** |
+| loading — old | n/a | 4.00 | 3.17 |
+| **loading — new** | **n/a** | **3.82** | **2.90** |
+
+The peak-spread row is nearly unchanged **by construction** — the regimes are *defined* as
+0/25/50% compression and γ is solved to hit that. The informative move is that the same
+compression now costs a **smaller** γ (3.25 vs 5.08; 9.02 vs 12.73): the backstop is more
+powerful per unit under sticky prices.
+
+- **Live Claim 5 (self-extinguishing premium) SURVIVES.** The loading is monotone decreasing
+  in γ, **4.43 → 1.49** across the full schedule (59 finite grid points over γ ∈ [0.51,
+  30.00]), reported monotone by E1's own check.
+- **Live Claim 1 (over-compensation, loading > 1) SURVIVES.** 3.82 / 2.90 at the named
+  regimes, and above 1 at every grid point. The level is slightly below the flex-price
+  schedule; the *shape* is the claim, not the level.
+
+**E2 — closure held.** The `market_clearing_D` identity closes at `max|residual|` =
+3.53e−17 / 1.09e−16 / 2.22e−16 against the 1e−07 assertion. **No Rotemberg resource cost
+leaked into the resource constraint**, which is what makes this check meaningful.
+
+**E2's headline-vs-channels finding REVERSES, and `docs/SPEC.md`'s caution was restated
+accordingly.** Under flex prices, `dY[0]` moved +4.9e−04 passive → aggressive while
+investment moved +2.2e−03 and net exports −1.9e−03: the headline was a small residue of
+channels ~4× its size. Under sticky prices `dY[0]` moves **+1.38e−02** while investment moves
++3.41e−03 and net exports −2.92e−03 — the largest single channel is now **0.25×** the
+headline, not 4×. "Report the decomposition, not the headline ΔY" still stands, but the
+*reason* is now that the channels **cancel and land on different households**, not that the
+headline is the smaller object. This is arguably an improvement: output is no longer a
+numerically fragile residue of nearly-cancelling terms.
+
+**E3 — S-1 under sticky prices: the inversion is now only partial.**
+
+| setting | `EL_price_D` | peak spread, passive | loading (medium) | loading (aggressive) |
+|---|---|---|---|---|
+| baseline | 0.056134 | 150.1 | 3.82 | 2.90 |
+| `writeoff_enabled=1` | 0.056134 | 149.4 | 3.77 | 2.87 |
+| `+ zeta_writeoff=1` | 0.701743 | 252.3 | **2.46** | **0.26** |
+
+`writeoff_enabled=1` alone remains negligible and SS-neutral (max SS drift 0.000e+00),
+confirming the S-1 decision. Under full writeoff the loading no longer falls below 1
+*everywhere* — **medium holds at 2.46; only aggressive inverts, at 0.26**, where the
+flex-price model had both below 1 (0.37/0.28). **The appendix robustness claim must be
+narrowed:** full writeoff inverts Live Claim 1 only at aggressive intervention, not across
+the schedule. Peak spread remains non-monotone in γ under this setting, so the named-regime
+construction still breaks there and all rows are evaluated at the baseline's γ.
+
+**E4 and paper artefacts.** `experiments/cache_e4_deciles.npz` was stale (predating the whole
+sticky-price workstream) and **E4 is not wired into `run_all.py`** — `e4_distribution.py` is
+a separate entry point feeding `paper_outputs.py`. Both were rebuilt, re-emitting all 8
+tracked `experiments/paper/fig0*.png` and `docs/paper_draft_results.md`. Anyone regenerating
+E1–E3 and assuming E4 came along will ship paper artefacts built on the old model.
+
+### NEW WATCH ITEM — the aggressive backstop now produces an impact boom
+
+`n_inter_D[0]` is **positive (+0.924)** under the aggressive regime, where it was −1.099
+under flex prices. Together with `Y_D[0] = +0.8721` and `C_D[0] = +1.5143`, the aggressive
+backstop produces an impact **boom** in the crisis country rather than merely cushioning the
+bust. **Flag this prominently — a referee will press on it.** At `γ_aggressive = 9.02` this
+may still be linear-rule overshoot (the same suspicion that attached to the old
+`γ_aggressive = 12.7`), but it is now much larger and reaches bank net worth, not just
+output.
+
+The pre-existing watch item — `Y_D[0]` positive under both intervening regimes — **survives
+and is an order of magnitude larger** (+0.0111/+0.0338 → +0.2008/+0.8721). What has changed
+favourably is the **passive** column: `C_D[0]` flips +0.2164 → −0.5103, so the backstop now
+moves consumption *across zero* rather than raising an already-positive number.
+
+### Generated-document hazard found in Task 15
+
+`experiments/run_all.py` carried two prose captions with flex-price numbers baked in as
+string literals. E3's `psi_lambda_B = 8.5` was merely stale; E2's "each roughly 4× the
+headline" was **asserting the opposite of the table printed directly above it**. Both now
+compute from `provenance`/`components_impact`, and the E2 caption selects its own leading
+sentence from the data. A partial prose-vs-table check now exists in `paper_outputs.main()`
+(see below), but **`run_all.py` still has no such assertion** — that part of the gap is open.
+
+### Generated-document hazard — **RESOLVED (Task 17, 2026-08-06)**
+
+The same hazard was live in `experiments/paper_outputs.py`, whose module-level `CAPTIONS`
+dict hardcoded flexible-price prose that was baked into the eight tracked
+`experiments/paper/fig0*.png` and into `docs/paper_draft_results.md`. Task 15 regenerated the
+*figures and tables* but never the caption strings, so the generated document contradicted
+itself. What it said, and what the data actually says:
+
+| caption | said | derived value now |
+|---|---|---|
+| `fig08_deciles` | "the lowest gains 0.95%… highest 0.59%" | Table 4 in the same file: Q1 **+0.4250**, Q5 **−0.9073** |
+| `fig08_deciles` | "Consumption rises for every income quintile on impact" | it **falls** ~0.51% in every quintile; the min over 40q is the impact quarter, not quarter five |
+| `fig02_loading_schedule` | "4.5× … 2.1×" | **4.43 → 1.49** over γ ∈ [0.51, 30], monotone, above 1 throughout |
+| `fig03_dy_decomposition` | "each roughly four times the headline" | **inverted** — consumption carries **0.99×** the headline, investment **+0.25×**, NX **−0.21×** |
+| `fig01_transmission` | "cuts bank net worth 3.4%… investment (−0.77% on impact)" | **−4.296%** and **−1.0114%** |
+| `fig04_spread_decomposition` | "3% / 97%" | re-derived at `psi_lambda_B = 7.85`: **3.4% / 96.6%** |
+| `fig06_net_effects` | net path "at every horizon far smaller than the components" | **false in the impact quarter** — passive `ΔY[0] = −5.06` exceeds every component; the claim holds in **14 of the first 16** quarters |
+| `fig05_incidence`, `fig07_ms_regimes` | checked, directionally sound | `fig05` now carries endpoints (exposure 0 → 0.92% of quarterly `Y_D`, loading 4.43× → 1.49×); `fig07` is estimated from `Empirics/outputs/ms_regime_COMPOSITE.npz` and is genuinely **model-independent** — ergodic shares 22.9/52.4/24.7 → 23/52/25, hawk span 2010-09…2014-02, both now read from the npz |
+
+**The fix is structural, not a substitution.** `CAPTIONS` is now an empty dict filled at run
+time: `save(fig, name, caption)` takes the caption as an argument, and each figure builds it
+from the same arrays it just plotted. Directional words are *selected* from the data too —
+`_monotone`, `_first_quarter` and sign tests decide whether a caption says "falls
+monotonically" or "does NOT fall", "reverses by quarter 5" or "never reverses", "a residue of
+larger offsetting channels" or "the largest object in the decomposition". A sign flip now
+rewrites the sentence instead of lying inside it.
+
+**`fig04`'s re-derivation.** Total default loading per unit of default probability is
+`EL_price_D + psi_spread_D` from the bond-pricing FOC (`code/equations_D.py:566`).
+`EL_price_D = (1 − recovery) · delta_b / q_b = 0.70 · 0.0777006 / 0.968941 = 0.056134`, which
+does not move with `psi_lambda_B`. `psi_spread_D = lambda_gk_D · psi_lambda_B_D /
+(beta_inter_D · Omega_D)` (`code/steady_state.py:104`) is **linear** in `psi_lambda_B`, so the
+8.5 → 7.85 re-tune took it 1.737724 → **1.604839**. Split: 0.056134 / 1.660973 = **3.4%**
+fundamental, **96.6%** friction (was 3.1% / 96.9% at 8.5). The figure's own title already
+printed both terms live; only the caption prose was stale.
+
+`paper_outputs.main()` now also asserts that fig01's caption and Table 3 quote the same
+impact net worth by their two independent routes (the cache directly vs `e1.run()`'s
+payload), which is the first check anywhere that rendered prose agrees with a rendered table.
+Table 4 and fig08's caption share the same `pv` object, so they agree by construction.
+
+### Test entry points
+
+```bash
+/opt/anaconda3/envs/ssj/bin/python -m pytest code/test_nkpc_blocks.py -v          # 17 tests, ~1s
+/opt/anaconda3/envs/ssj/bin/python -m pytest code/test_nkpc_blocks.py code/test_eba_calibration.py experiments/ -v   # 40 passed
+```
+
+### Open follow-ons
+
+1. **Nominal sovereign bonds.** Currently real by design (see above). Making them nominal
+   would give the sovereign an inflation-erosion channel and change the sign of the bank's
+   net Fisher exposure.
+2. **Sims-Wu loan-in-advance constraint.** Bi-Foerster-Traum's device for persistence. The
+   one-quarter-spike caveat is the symptom it would address.
+3. **`experiments/paper_outputs.py`'s `CAPTIONS` are stale and in two places inverted** — see
+   the table above. Blocking: the eight tracked paper figures currently carry flex-price
+   prose baked into the image files.
+4. **A test that rendered prose agrees with rendered tables**, in `run_all.py` and in
+   `paper_outputs.py`. Both have now shipped self-contradicting generated documents.
+5. **The aggressive-backstop impact boom** (watch item above) needs a diagnosis before the
+   intervening-regime paths are reported.
 
 ## Policy experiments (`experiments/`) — **COMPLETE 2026-08-03**
+
+> **HISTORICAL from here down.** Every number below this line was measured on the
+> **flexible-price, real-deposit** model at `psi_lambda_B = 8.5`. The live results are in
+> the `add-nkpc` section at the top of this file and in `docs/experiments_results.md`.
+> The *design* and *method* notes below are still current; the *numbers* are not.
 
 E1, E2 and E3 all land, with the orchestrator writing
 `docs/experiments_results.md`. **Two results change how the paper must be
@@ -68,6 +737,15 @@ source citations are literal text.
 96.9% collateral friction** (`EL_price_D=0.056134`, `psi_spread_D=1.737724`), not
 the 10.9%/89% recorded at the pre-EBA calibration. This is Live Claim 3's
 quantitative core and 96.9% is a materially stronger version of it.
+
+> **SUPERSEDED 2026-08-06 (Task 17): the live split is 3.4% / 96.6%.** The
+> `psi_spread_D=1.737724` above is at `psi_lambda_B=8.5`; the sticky-price re-tune to
+> 7.85 moves it to 1.604839 (`psi_spread` is linear in `psi_lambda_B`, `EL_price` is
+> not a function of it at all). The "Generated-document hazard" section above carries
+> the derivation. The qualitative claim is unaffected.
+
+> The "every number derived live" claim was true of the tables and **false of the
+> captions**, which were literal prose until Task 17. See the hazard section above.
 
 **New finding from the transmission figure — the backstop does not shift the whole
 spread path down.** Its cushioning is concentrated at impact; by roughly quarter
@@ -293,7 +971,10 @@ equalised and that the `delta_b_F` fix below is correct.
 > contaminated `carry_ss_pv`. Caught by an assertion written into `cb_pnl` before
 > the code was first run. Cache rebuilt; E2 re-ran identically.
 
-## EBA REBUILD (2026-07-31) — read this first
+## EBA REBUILD (2026-07-31) — the live calibration's derivation (dynamics superseded)
+
+*The parameter → moment map below is live. The IRF and TPI numbers in it are flex-price
+and are superseded by the `add-nkpc` section at the top of this file.*
 
 The EBA 2011 moment set was rebuilt from scratch to be identified rather than
 back-solved (`code/eba_calibration.py`, `data/eba_moments.json`,
@@ -483,7 +1164,11 @@ backstop.
 
 ## Historical (2026-07-22 onward) — superseded by the section above
 
-## CURRENT CALIBRATION (2026-07-30) — supersedes every table below
+## CALIBRATION AS OF 2026-07-30 — HISTORICAL, supersedes every table below it only
+
+> **Not current.** This section records the brief pre-EBA revert. `EBA_CALIBRATION = True`
+> and `BANK_SCOPE = "broad"` have been live since 2026-07-31, and `psi_lambda_B = 7.85`
+> since 2026-08-06. See the `add-nkpc` and EBA REBUILD sections above.
 
 **The calibration was reverted to its pre-EBA values.** Everything below this section
 describes the EBA-anchored calibration and is now **historical**. Structural fixes
@@ -513,10 +1198,13 @@ is a **hard break**, not the "narrow, mild zone" described below. Measured direc
 **Default-loading split.** `EL_price_D=0.0717` vs `psi_spread_D=0.8385` → fundamental
 expected loss is **10.9%** of the default loading, GK collateral friction **89%**.
 
-> **SUPERSEDED 2026-08-04.** Those are pre-EBA numbers. At the live calibration
-> `EL_price_D=0.056134` and `psi_spread_D=1.737724`, so the split is **3.1%
-> fundamental / 96.9% collateral friction** — a materially stronger version of the
-> constrained-seller claim. Do not quote 10.9%/89%.
+> **SUPERSEDED 2026-08-04, revised 2026-08-06.** Those are pre-EBA numbers. At the
+> live calibration `EL_price_D=0.056134` and `psi_spread_D=1.604839`
+> (`psi_lambda_B=7.85` after the sticky-price re-tune; it was 1.737724 at 8.5, and
+> `psi_spread` is linear in `psi_lambda_B`), so the split is **3.4% fundamental /
+> 96.6% collateral friction** — a materially stronger version of the
+> constrained-seller claim. Do not quote 10.9%/89%, and re-derive rather than
+> re-quote whenever `psi_lambda_B` moves.
 
 **Units.** `spread_rb` is a *quarterly* rate deviation; annualise ×4×1e4 for comparison
 with the 150bp target.

@@ -46,7 +46,7 @@ def main():
     from steady_state import solve_steady_state
     from ic_delta_calibration import calibrate_ic_delta
     from depreciation_calibration import calibrate_depreciation
-    from full_model import build_and_solve
+    from full_model import build_and_solve, solve_jacobian_padded
 
     log(f"\n## Step 0 — solve — {ts()}")
     cal = get_calibration()
@@ -103,7 +103,7 @@ def main():
         ssg.toplevel["EL_price_F"]     = el_price
         log(f"- {ts()} solving [{tag}] psi_lambda_B={PSILAM}, psi_spread={psi_spread_28:.6f}, "
             f"EL_price={el_price:.6f}")
-        G = ha.solve_jacobian(ssg, unknowns=unk, targets=tgt, inputs=inputs, T=T)
+        G = solve_jacobian_padded(ha, ssg, unk, tgt, inputs, T)
         irf = G @ {"Z_D": zero, "Z_F": zero, "shock_def_D": dshock, "shock_def_F": zero}
         d = irf_to_dict(irf)
         np.savez(os.path.join(HERE, f"irfs_2p8_{tag}.npz"), **d)

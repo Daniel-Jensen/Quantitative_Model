@@ -67,7 +67,11 @@ def get_calibration():
         'eis_D':        0.5,     'eis_F':        0.5,
 
         # ── Rates & Asset Prices ──────────────────────────────────────────────
-        'rdep_D':       0.000,   'rdep_F':       0.000,
+        # Nominal deposit rate. Deposits are nominal euro contracts; the derived
+        # real rates rdep_D/F (ex-ante) and rdep_expost_D/F (realised) come from
+        # deposit_rates_D/F. At SS pi = 0, so rdep = i_dep and the SS is
+        # unchanged from the real-deposit calibration.
+        'i_dep_D':      0.000,   'i_dep_F':      0.000,
         'q_b_D':        0.83,    'q_b_F':        0.83,
         'Q_D':          1.0,     'Q_F':          1.0,
 
@@ -75,6 +79,12 @@ def get_calibration():
         'alpha_D':      0.35,    'alpha_F':      0.35,
         'delta_D':      0.025,   'delta_F':      0.025,
         'ksi_D':        0.50,    'ksi_F':        0.50,
+
+        # Investment-flow adjustment cost S(I/I(-1)) = (omega_I/2)(I/I(-1)-1)^2.
+        # S(1) = S'(1) = 0, so exactly SS-neutral; omega_I = 0 reproduces the
+        # model without it. Bi-Foerster-Traum use 2. Left at 0 pending the
+        # path-shape comparison.
+        'omega_I_D':        0.0,    'omega_I_F':        0.0,
 
         # ── Long-term bonds ───────────────────────────────────────────────────
         # EBA REBUILD (2026-07-31): delta_b is now MEASURED, from the sovereign
@@ -146,8 +156,50 @@ def get_calibration():
         # _apply_ss_anchors, so a sweep MUST re-solve the SS per point. Patching
         # the flag on an already-solved SS leaves psi_spread stale and inverts the
         # apparent sign of the spread response.
-        'psi_lambda_B_D': 8.5 if EBA_CALIBRATION else 3.0,
-        'psi_lambda_B_F': 8.5 if EBA_CALIBRATION else 3.0,
+        #
+        # RETUNED 2026-08-06 (Task 14, add-nkpc): sticky prices (NKPC blocks) and
+        # nominal (non-state-contingent) deposit contracts both raise spread
+        # transmission, moving the old 8.5 -> 162.0 bp (was 150.4 bp pre-change,
+        # ~8% over target). Re-bisected against the same 150bp GR-DE peak-spread
+        # moment on a 1pp default shock, holding everything else fixed:
+        #   psi_lambda_B = 8.5  -> peak spread 0.4053 pp -> 162.14 bp
+        #   psi_lambda_B = 7.0  -> peak spread 0.3405 pp -> 136.21 bp
+        #   psi_lambda_B = 7.8  -> peak spread 0.3729 pp -> 149.16 bp
+        #   psi_lambda_B = 7.85 -> peak spread 0.3753 pp -> 150.14 bp  <- was adopted
+        # b_gov_D[499] stayed in ~1e-5..1e-4 across the whole bracket (no
+        # instability); n_inter_D[0] and Y_D[0] both negative throughout
+        # (correct doom-loop sign). See docs/STATE.md for the full record.
+        #
+        # RETUNED AGAIN 2026-08-06 (rho_def 0.80 -> 0.9408, see "Shock processes"
+        # below). A more persistent sovereign-risk shock raises the peak spread
+        # for a given amplification: at psi_lambda_B = 7.85 the peak went
+        # 150.14 -> 470.62 bp. Re-bisected against the same 150bp moment,
+        # rho_def = 0.9408 throughout, FULL pipeline re-solve at every point:
+        #   psi_lambda_B = 7.850 -> 470.62 bp
+        #   psi_lambda_B = 2.730 -> 139.60 bp
+        #   psi_lambda_B = 2.8909 -> 148.50 bp
+        #   psi_lambda_B = 2.9181 -> 149.99 bp
+        #   psi_lambda_B = 2.92  -> ADOPTED  (rounded; slope ~55bp per unit,
+        #                            so 2.9181 -> 2.92 is ~+0.1bp)
+        # METHOD WARNING, learned the hard way here: you CANNOT sweep this dial
+        # by patching psi_lambda_B_D/F and psi_spread_D/F onto an already-solved
+        # SS and re-solving only the Jacobian. The SS really is psi-neutral
+        # (goods_mkt_D is bit-identical at every psi), but that shortcut still
+        # gave 150.33bp at psi=2.73 where the real pipeline gives 139.60 -- a
+        # 7% error, all in the same direction, because only the divert_bond_foc
+        # psi_spread channel picks the patch up and not the intermediation_IC
+        # Delta_b_eff collateral channel. Re-solve the pipeline per point.
+        # b_gov_D[499] FELL 4.63e-05 -> 2.04e-05 across the re-tune, i.e. the
+        # move is away from the high-psi_lambda_B breakdown region, not toward
+        # it. All four impact signs stay negative (Y, C, I, n_inter).
+        # PAPER CONSEQUENCE: psi_spread_D is linear in this dial, so it drops
+        # 1.604839 -> ~0.5970 and the default-loading split moves from
+        # 3.4% fundamental / 96.6% collateral friction to ~8.6% / ~91.4% --
+        # a friction:fundamental ratio of ~10.6:1, down from ~28.6:1. The
+        # constrained-seller claim survives but is quantitatively weaker, and
+        # the paper's fig04 prose must be re-derived. See docs/STATE.md.
+        'psi_lambda_B_D': 2.92 if EBA_CALIBRATION else 3.0,
+        'psi_lambda_B_F': 2.92 if EBA_CALIBRATION else 3.0,
         # Bank net worth = Core Tier 1 / own quarterly nominal GDP.
         # GR 22,778/55,898 = 0.4075; DE 114,317/653,815 = 0.1748.
         'n_inter_D':    eba_or('n_inter_D', 0.75*4),  'n_inter_F':    eba_or('n_inter_F', 0.75*4),
@@ -247,6 +299,29 @@ def get_calibration():
         'zeta_writeoff_D':  0.0,    'zeta_writeoff_F':  0.0,
         'writeoff_enabled_D': 0.0,  'writeoff_enabled_F': 0.0,
 
+        # ── Shock processes ───────────────────────────────────────────────────
+        # Promoted out of code/full_model.py (was hardcoded at lines 217-221)
+        # on 2026-08-06 so the persistence of the crisis is a calibration
+        # decision with a source, not a magic number in the solve driver.
+        #
+        # rho_def: quarterly persistence of the sovereign-risk shock. Disciplined
+        # by the repo's own Markov-switching estimation rather than chosen:
+        # Empirics/outputs/ms_regime_GRC.npz fits three states to MONTHLY
+        # Greek-Bund spreads (348 obs, 1997-06..2026-06); the crisis state
+        # (mean 9.63pp) has monthly persistence 0.9798, i.e. an expected
+        # duration of 50 months, and the realised episode ran 2010-04 to
+        # 2017-12 (92 months). Quarterly equivalent: 0.9798^3 = 0.9408. The
+        # previous hardcoded 0.80 implied a 14-month crisis and was the binding
+        # constraint on how long the contraction lasted -- cumulative Y over 40q
+        # goes -0.049 (rho=0.80) -> -0.784 (0.90) -> -2.021 (0.95) holding peak
+        # spread fixed at 150bp, so this is persistence, not crisis size. See
+        # docs/STATE.md.
+        #
+        # rho_Z is the TFP shock and is deliberately LEFT at 0.80 -- the MS
+        # estimate speaks to sovereign spreads only.
+        'rho_def_D':    0.9408,  'rho_def_F':    0.9408,
+        'rho_Z_D':      0.80,    'rho_Z_F':      0.80,
+
         # ── ECB balance sheet (TPI conduit) ───────────────────────────────────
         # Capital-key split of the CB's D-bond programme cash flows between the
         # two treasuries. kappa_cb_F = F share of the two-country renormalised
@@ -278,10 +353,37 @@ def get_calibration():
         'psi_bF_D':     0.5,     'psi_bD_F':     0.5,
 
         # ── Wage Markups ──────────────────────────────────────────────────────
+        # Unchanged: wages are flexible. mu_w = 1 is the SS-neutralising device
+        # in labor_ss_D/F; there is no wage Phillips curve.
         'mu_w_D':       1.0,     'mu_w_F':       1.0,
 
-        # ── SS Real Variables ─────────────────────────────────────────────────
-        'mc_D':         1.0,     'mc_F':         1.0,
+        # ── Price Rigidity (Rotemberg) ────────────────────────────────────────
+        # mu_p: gross price markup, epsilon_p = 6. FREE TO FIRST ORDER under the
+        #   subsidy neutralisation -- the gap (mu_p*mc - 1) linearises to mc_hat
+        #   for any mu_p -- so this needs no defending unless live markups are
+        #   ever adopted.
+        # mc: SS real marginal cost = 1/mu_p. The production subsidy
+        #   tau_s = 1 - 1/mu_p makes labour demand collapse to the competitive
+        #   w = (1-alpha)Y/N at this value, so the SS is bit-identical to flex.
+        # kappa_p: Calvo theta_p = 0.75 at beta = 0.985, slope
+        #   (1-theta)(1-beta*theta)/theta = 0.0871. Euro-area IPN median price
+        #   duration ~4 quarters (Alvarez et al. 2006; Dhyne et al. 2006).
+        #   Agrees with Bi-Foerster-Traum's implied 0.0846 to within 3%.
+        # pi: SS producer-price inflation, exactly zero.
+        'mu_p_D':       1.20,    'mu_p_F':       1.20,
+        'mc_D':    1.0 / 1.20,   'mc_F':    1.0 / 1.20,
+        'kappa_p_D':    0.0871,  'kappa_p_F':    0.0871,
+        'pi_D':         0.0,     'pi_F':         0.0,
+
+        # omega_pi_D: weight on D in the union producer-price aggregate that the
+        # ECB is assumed to stabilise. = 1 - kappa_cb_F, the renormalised
+        # two-country capital key (BuBa 26.1 / BoG 2.0 of the euro-area key).
+        # DO NOT use model GDP weights: the model normalises Y_D_ss ~ Y_F_ss ~ 1,
+        # so they would give ~0.5 and split the terms-of-trade adjustment evenly
+        # between Greek deflation and German inflation -- counterfactual for
+        # 2010-12. Load-bearing twice over once deposits are nominal, since it
+        # scales pi_D and hence the Fisher revaluation on bank balance sheets.
+        'omega_pi_D':   0.071,
 
         # ── Idiosyncratic Income Process (Rouwenhorst) ────────────────────────
         'rho_z_D':  0.90,    'rho_z_F':  0.90,

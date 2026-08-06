@@ -8,19 +8,22 @@ from equations_D import (
     smart_steady_D, market_clearing_D, steady_auxilliary_D,
     banker_div_D, sdf_D, sdf_ss_D, sdf_banker_ss_D, government_ss_D, labor_ss_D,
     government_default_D, bond_price_ss_D, bond_return_D,
-    ces_price_D, import_demand_D, deposit_return_D,
+    ces_price_D, import_demand_D, deposit_rates_D, deposit_return_D,
+    firm_profit_D, price_nkpc_D,
 )
 from equations_F import (
     hh_init_F, hh_F, make_grids_F, income_F, hh_extended_F,
     smart_steady_F, market_clearing_F, steady_auxilliary_F,
     banker_div_F, sdf_F, sdf_ss_F, sdf_banker_ss_F, government_ss_F, labor_ss_F,
     government_default_F, bond_price_ss_F, bond_return_F,
-    ces_price_F, import_demand_F, deposit_return_F,
+    ces_price_F, import_demand_F, deposit_rates_F, deposit_return_F,
+    firm_profit_F, price_nkpc_F,
 )
 from equations_global import (
     trade_balance, domestic_bond_clearing,
     portfolio_level_anchors, portfolio_adj_cost, bond_yield,
     global_goods_mkt, external_account_D,
+    terms_of_trade, union_inflation,
 )
 # NB: import the MODULE, not the flag. `from calibration import EBA_CALIBRATION`
 # binds the value at import time, so a sweep that flips the switch afterwards
@@ -154,13 +157,15 @@ def solve_steady_state(calibration_start):
         sdf_ss_D, sdf_banker_ss_D, government_default_D, bond_price_ss_D, bond_return_D,
         sdf_ss_F, sdf_banker_ss_F, government_default_F, bond_price_ss_F, bond_return_F,
         hh_extended_D, smart_steady_D, market_clearing_D, steady_auxilliary_D,
-        banker_div_D, government_ss_D, labor_ss_D,
+        banker_div_D, government_ss_D, labor_ss_D, firm_profit_D, price_nkpc_D,
         hh_extended_F, smart_steady_F, market_clearing_F, steady_auxilliary_F,
-        banker_div_F, government_ss_F, labor_ss_F,
+        banker_div_F, government_ss_F, labor_ss_F, firm_profit_F, price_nkpc_F,
         ces_price_D, import_demand_D, ces_price_F, import_demand_F,
+        deposit_rates_D, deposit_rates_F,
         deposit_return_D, deposit_return_F,
         bond_yield,
         trade_balance, external_account_D, global_goods_mkt,
+        terms_of_trade, union_inflation,
     ], name='MU HA Model 2 Country')
 
     unknowns_ss = {'beta_D': 0.9850, 'beta_F': 0.9850, 'p': 0.99}

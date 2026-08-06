@@ -124,12 +124,31 @@ def _render_e2(e2, L):
     L.append("| **dY[0] total** | " + " | ".join(
         f"**{e2['regimes'][r]['dY_path'][0]:+.3e}**" for r in e2["regimes"]) + " |")
 
-    L += ["", "> **The headline output number is the residue of two much larger "
-          "offsetting channels.** Passive → aggressive, `dY[0]` moves by ~+4.9e−04 while "
-          "investment moves ~+2.2e−03 and net exports ~−1.9e−03 — each roughly 4× the "
-          "headline and opposite in sign. This confirms `docs/SPEC.md`'s standing caution "
-          "as a measured property of this calibration. **Report the decomposition, not "
-          "the headline ΔY.**", "",
+    # Computed live, never hardcoded. This caption asserted "+4.9e-04 / +2.2e-03 /
+    # -1.9e-03, each roughly 4x the headline" until 2026-08-06 — flex-price numbers that
+    # outlived the sticky-price re-tune. Under sticky prices the ordering REVERSES (the
+    # headline becomes the larger object), so a hardcoded caption here does not merely go
+    # stale, it states the opposite of what the table above it shows.
+    _names = list(e2["regimes"])
+    _lo, _hi = e2["regimes"][_names[0]], e2["regimes"][_names[-1]]
+    _dY = _hi["dY_path"][0] - _lo["dY_path"][0]
+    _dI = _hi["components_impact"]["investment"] - _lo["components_impact"]["investment"]
+    _dNX = (_hi["components_impact"]["net_exports"]
+            - _lo["components_impact"]["net_exports"])
+    _big = max(abs(_dI), abs(_dNX))
+    _residue = abs(_dY) < _big
+    _lead = ("**The headline output number is the residue of larger offsetting "
+             "channels.**" if _residue else
+             "**The headline output number is no longer a residue of larger offsetting "
+             "channels — it now exceeds each of them.**")
+    _rel = (f"each roughly {_big / abs(_dY):.1f}x the headline and opposite in sign"
+            if _residue else
+            f"the largest single channel is {_big / abs(_dY):.2f}x the headline")
+    L += ["", f"> {_lead} {_names[0]} → {_names[-1]}, `dY[0]` moves by "
+          f"{_dY:+.2e} while investment moves {_dI:+.2e} and net exports {_dNX:+.2e} — "
+          f"{_rel}. **Report the decomposition, not the headline ΔY** — the channels "
+          "still offset, and `docs/SPEC.md`'s standing caution is about their "
+          "cancellation, not about which term happens to be largest.", "",
           "> `government`, `portfolio_cost` and `macropru_tax` are **verified** zero, not "
           "merely uncached: `G_D` is constant and absent from the Jacobian, `Phi_D` has no "
           "Jacobian column (the portfolio adjustment cost is quadratic about its anchor, "
@@ -212,7 +231,11 @@ def _render_e3(e3, L):
               "be defined under this setting, which is why every row above is evaluated "
               "at the baseline's γ held fixed.", ""]
 
-    L += ["> `psi_lambda_B = 8.5` was tuned to 150 bp with realised losses **off**. The "
+    # Read the amplification live: this caption hardcoded "8.5" until 2026-08-06 and
+    # silently outlived the sticky-price re-tune to 7.85, asserting a stale number in
+    # a GENERATED document. Every parameter quoted in prose must come from provenance.
+    L += [f"> `psi_lambda_B = {e3['provenance']['psi_lambda_B_D']:g}` was tuned to 150 bp "
+          "with realised losses **off**. The "
           "overshoot above is a reportable fact about whether that target survives S-1 — "
           "**not** a number to re-tune away. Whether to re-tune is a separate author "
           "decision this result informs.", ""]
