@@ -292,7 +292,7 @@ def intermediation_IC_F(nu_K_F, nu_bF_F, nu_bD_F, eta_F,
     return ic_res_F
 
 @simple
-def bank_return_F(theta_F, rk_F, rdep_F, b_F_F, b_D_F, n_inter_F,
+def bank_return_F(theta_F, rk_F, rdep_expost_F, b_F_F, b_D_F, n_inter_F,
                   rb_actual_F, rb_actual_D, q_b_F, q_b_D, p):
     phi_bF_lag_F = q_b_F(-1) * b_F_F(-1) / (p(-1) * n_inter_F(-1))
     phi_bD_lag_F = q_b_D(-1) * b_D_F(-1) / (p(-1) * n_inter_F(-1))
@@ -303,21 +303,26 @@ def bank_return_F(theta_F, rk_F, rdep_F, b_F_F, b_D_F, n_inter_F,
     rb_F_fg = (1 + rb_actual_F) * p(-1) / p - 1
     rb_D_fg = (1 + rb_actual_D) * p(-1) / p - 1
     # T-2 fix: funding cost on the t-1 balance sheet is the rate locked at t-1.
-    rn_F = (kappa_lag_F  * (rk_F    - rdep_F(-1))
-            + phi_bF_lag_F * (rb_F_fg - rdep_F(-1))
-            + phi_bD_lag_F * (rb_D_fg - rdep_F(-1))
-            + rdep_F(-1))
+    # Under nominal deposits that realised real cost is rdep_expost_F, which
+    # already carries the (-1) timing internally and contains the inflation
+    # surprise -- the Fisher revaluation on the bank's nominal liabilities.
+    rn_F = (kappa_lag_F  * (rk_F    - rdep_expost_F)
+            + phi_bF_lag_F * (rb_F_fg - rdep_expost_F)
+            + phi_bD_lag_F * (rb_D_fg - rdep_expost_F)
+            + rdep_expost_F)
     return rn_F
 
 
 @simple
-def capital_fund_F(rk_F, rdep_F, Q_F, K_F, omega_K_F, fund_rule_F, K_fund_F):
-    # Passive capital fund funded by deposits; rebates its spread (rk - rdep) on the
-    # lagged capital value to households (F-goods). Zero when the fund is empty.
+def capital_fund_F(rk_F, rdep_expost_F, Q_F, K_F, omega_K_F, fund_rule_F, K_fund_F):
+    # Passive capital fund funded by deposits; rebates its spread on the lagged
+    # capital value to households (F-goods). Same predetermined-rate timing as
+    # bank_return_F (T-2); rdep_expost_F is the realised real funding cost under
+    # nominal deposits. Zero when the fund is empty.
     # fund_rule_F: 0 = fund holds (1-omega_K)·K, 1 = fund holds a constant K_fund.
     K_fnd_lag_F = ((1.0 - fund_rule_F) * (1.0 - omega_K_F) * K_F(-1)
                    + fund_rule_F * K_fund_F)
-    div_fund_F = (rk_F - rdep_F(-1)) * Q_F(-1) * K_fnd_lag_F
+    div_fund_F = (rk_F - rdep_expost_F) * Q_F(-1) * K_fnd_lag_F
     return div_fund_F
 
 @simple

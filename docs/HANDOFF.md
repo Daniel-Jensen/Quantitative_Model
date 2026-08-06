@@ -390,14 +390,15 @@ consequential for the paper right now:
 | `code/tpi_plots.py`, `code/irf_plots.py` | Figure-generation scripts (regenerate from `main`) |
 | Overleaf | https://www.overleaf.com/project/698b4f88aeef1d0e1d08cc0c |
 
-## Nominal rigidities (`add-nkpc`) — Task 11 done, Task 12 next
+## Nominal rigidities (`add-nkpc`) — Task 12 done, Task 13 next
 
-**Where it stands.** Tasks 1–11 committed. The dynamic model is sticky-price
-(27×27) with deposits still **real** in the wiring (Task 11 only adds the derived
-blocks; nothing consumes them yet). Price stickiness alone flips `C_D[0]` from
-+0.2164% to −0.4904% and takes `Y_D[0]` from −0.0149% to −0.4923% — see
-`docs/STATE.md` for the full table, the `kappa_p` sweep, and the one-quarter-spike
-caveat that must not be dropped from the write-up.
+**Where it stands.** Tasks 1–12 committed. The dynamic model is sticky-price
+(27×27) with deposits still **not wired to a solver unknown** — Task 11 added the
+derived rate blocks and Task 12 pointed the two funding-cost blocks at the
+realised rate, but `i_dep` itself is not yet a solver unknown. Price stickiness
+alone flips `C_D[0]` from +0.2164% to −0.4904% and takes `Y_D[0]` from −0.0149%
+to −0.4923% — see `docs/STATE.md` for the full table, the `kappa_p` sweep, and
+the one-quarter-spike caveat that must not be dropped from the write-up.
 
 **Task 11 done.** `equations_D.py`/`equations_F.py`: `deposit_return_D/F` (took
 `rdep`) replaced by `deposit_rates_D/F(i_dep, pi)` → `rdep` (unchanged name,
@@ -408,11 +409,20 @@ P_CES, pi)` → `Rgross`. T-2 timing preserved (`i_dep(-1)` locked). SS-preservi
 at `pi=0` all three rates collapse to `i_dep`. `code/test_nkpc_blocks.py`:
 11 → 15 passed.
 
-**Next: Task 12** — put `rdep_expost_D/F` into `bank_return_D/F` and
-`capital_fund_D/F`, the Fisher-channel wiring (banks are net nominal debtors, so
-deflation raising `rdep_expost` should deepen the net-worth loss on those blocks).
-`i_dep` is still not a solver unknown — Task 13 wires that, and only after Task 13
-will the model solve end-to-end again.
+**Task 12 done.** `bank_return_D/F` and `capital_fund_D/F` now take
+`rdep_expost_D/F` instead of `rdep_D/F`, with every `rdep_D(-1)` in the bodies
+replaced by bare `rdep_expost_D` (it already carries `(-1)` internally — no
+double-lagging). This is the Fisher channel: banks are net nominal debtors on
+deposits, so a D deflation raises `rdep_expost_D` and deepens the net-worth loss
+on those two blocks. `intermediation_P1_D/F`/`divert_bond_foc_D/F` (ex-ante,
+t → t+1) still correctly read `rdep_D/F`, untouched. `code/test_nkpc_blocks.py`:
+15 → 17 passed.
+
+**Next: Task 13** — wire `i_dep_D/F` in as the solver unknown across
+`calibration.py`/`steady_state.py`/`full_model.py`. Only after Task 13 will the
+model solve end-to-end again; its gate check is that `n_inter_D[0]` becomes
+*more* negative under a deflation shock (the Fisher channel amplifying, not
+reversing, the sign).
 
 **Two things not to rediscover the hard way.**
 

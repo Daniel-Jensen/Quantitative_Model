@@ -20,12 +20,35 @@ At SS `pi = 0`, so `rdep_D = rdep_expost_D = i_dep_D` and `Rgross_D = 1 + i_dep_
 exactly — this is what keeps the steady state bit-identical once `i_dep` is wired in as
 the solver unknown (Task 13). `deposit_rates_D/F` and the new `deposit_return_D/F` are
 not yet wired into `full_model.py`'s block list or the calibration/steady-state — that is
-Task 13. `bank_return_D/F` and `capital_fund_D/F` still consume the old `rdep_D` and have
-not been touched — that is Task 12, next.
+Task 13.
 
 `code/test_nkpc_blocks.py` gained 4 tests (11 → 15 passed): SS collapse, deflation raises
 the realised real rate (sign check for the Fisher channel), `Rgross` unchanged at
 `pi=0`, and D/F symmetry.
+
+## Nominal rigidities (`add-nkpc`): Task 12 — `bank_return_D/F`/`capital_fund_D/F` now pay the ex-post real rate
+
+The Fisher channel: `bank_return_D/F` and `capital_fund_D/F` pay for deposits taken on at
+t−1, so they must use the *realised* real rate on that funding, not the ex-ante one.
+Signature changed `rdep_D/F` → `rdep_expost_D/F`; all four (three, for `capital_fund`)
+occurrences of `rdep_D(-1)`/`rdep_F(-1)` in the bodies became bare `rdep_expost_D/F`
+(`rdep_expost` already carries its own `(-1)` internally — writing `rdep_expost_D(-1)`
+would double-lag it). `intermediation_P1_D/F` and `divert_bond_foc_D/F` are untouched —
+they are ex-ante (t → t+1) and still correctly read `rdep_D/F`. F's W-2 `p(-1)/p`
+terms-of-trade conversion in `bank_return_F` is unrelated and was left alone.
+
+Sign logic: D banks are net nominal debtors on deposits. When D deflates,
+`rdep_expost_D` rises (the real value of what the bank owes goes up), so `bank_return_D`
+falls further — this is what Task 13's gate checks (`n_inter_D[0]` more negative, not
+less). Getting the substitution backwards would silently invert the whole channel.
+
+`code/test_nkpc_blocks.py` gained 2 tests (15 → 17 passed): a signature check that
+`bank_return_D`/`capital_fund_D` take `rdep_expost_D` and not `rdep_D`, and a check that
+`intermediation_P1_D`/`divert_bond_foc_D` still take `rdep_D` and not `rdep_expost_D`.
+
+**Next: Task 13** — wire `i_dep_D/F` in as the solver unknown across
+`calibration.py`/`steady_state.py`/`full_model.py`, and verify the Fisher sign
+(`n_inter_D[0]` more negative under a D deflation shock).
 
 ## Nominal rigidities (`add-nkpc`): Task 10 — price-stickiness-only result at the calibrated slope
 

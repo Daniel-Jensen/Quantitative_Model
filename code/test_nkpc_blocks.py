@@ -217,3 +217,21 @@ def test_deposit_rates_F_matches_D():
     f = deposit_rates_F.steady_state({'i_dep_F': 0.0125, 'pi_F': -0.001})
     assert d['rdep_D'] == pytest.approx(f['rdep_F'], rel=1e-15)
     assert d['rdep_expost_D'] == pytest.approx(f['rdep_expost_F'], rel=1e-15)
+
+
+def test_bank_return_uses_the_expost_rate():
+    """Signature check: bank_return_D must take rdep_expost_D and must NOT take
+    rdep_D. Getting this backwards silently reverses the Fisher channel."""
+    from equations_D import bank_return_D, capital_fund_D
+    for blk in (bank_return_D, capital_fund_D):
+        assert 'rdep_expost_D' in blk.inputs, (blk.name, sorted(blk.inputs))
+        assert 'rdep_D' not in blk.inputs, (blk.name, sorted(blk.inputs))
+
+
+def test_forward_looking_blocks_still_use_rdep():
+    """intermediation_P1_D and divert_bond_foc_D are ex-ante and must be
+    untouched -- rdep_D still means the t -> t+1 real rate."""
+    from equations_D import intermediation_P1_D, divert_bond_foc_D
+    for blk in (intermediation_P1_D, divert_bond_foc_D):
+        assert 'rdep_D' in blk.inputs, (blk.name, sorted(blk.inputs))
+        assert 'rdep_expost_D' not in blk.inputs, (blk.name, sorted(blk.inputs))

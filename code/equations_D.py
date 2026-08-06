@@ -400,28 +400,32 @@ def intermediation_IC_D(nu_K_D, nu_bD_D, nu_bF_D, eta_D,
 
 
 @simple
-def bank_return_D(theta_D, rk_D, rdep_D, b_D_D, b_F_D, n_inter_D,
+def bank_return_D(theta_D, rk_D, rdep_expost_D, b_D_D, b_F_D, n_inter_D,
                   rb_actual_D, rb_actual_F, q_b_D, q_b_F):
     phi_bD_lag_D = q_b_D(-1) * b_D_D(-1) / n_inter_D(-1)
     phi_bF_lag_D = q_b_F(-1) * b_F_D(-1) / n_inter_D(-1)
     kappa_lag_D  = theta_D(-1) - phi_bD_lag_D - phi_bF_lag_D
     # T-2 fix: funding cost on the t-1 balance sheet is the rate locked at t-1.
-    rn_D = (kappa_lag_D  * (rk_D        - rdep_D(-1))
-            + phi_bD_lag_D * (rb_actual_D - rdep_D(-1))
-            + phi_bF_lag_D * (rb_actual_F - rdep_D(-1))
-            + rdep_D(-1))
+    # Under nominal deposits that realised real cost is rdep_expost_D, which
+    # already carries the (-1) timing internally and contains the inflation
+    # surprise -- the Fisher revaluation on the bank's nominal liabilities.
+    rn_D = (kappa_lag_D  * (rk_D        - rdep_expost_D)
+            + phi_bD_lag_D * (rb_actual_D - rdep_expost_D)
+            + phi_bF_lag_D * (rb_actual_F - rdep_expost_D)
+            + rdep_expost_D)
     return rn_D
 
 
 @simple
-def capital_fund_D(rk_D, rdep_D, Q_D, K_D, omega_K_D, fund_rule_D, K_fund_D):
-    # Passive capital fund funded by deposits; rebates its spread (rk - rdep) on the
-    # lagged capital value to households. Same predetermined-rate timing as
-    # bank_return_D (T-2). Zero when the fund is empty (omega_K_D=1, K_fund_D=0).
+def capital_fund_D(rk_D, rdep_expost_D, Q_D, K_D, omega_K_D, fund_rule_D, K_fund_D):
+    # Passive capital fund funded by deposits; rebates its spread on the lagged
+    # capital value to households. Same predetermined-rate timing as
+    # bank_return_D (T-2); rdep_expost_D is the realised real funding cost under
+    # nominal deposits. Zero when the fund is empty (omega_K_D=1, K_fund_D=0).
     # fund_rule_D: 0 = fund holds (1-omega_K)·K, 1 = fund holds a constant K_fund.
     K_fnd_lag_D = ((1.0 - fund_rule_D) * (1.0 - omega_K_D) * K_D(-1)
                    + fund_rule_D * K_fund_D)
-    div_fund_D = (rk_D - rdep_D(-1)) * Q_D(-1) * K_fnd_lag_D
+    div_fund_D = (rk_D - rdep_expost_D) * Q_D(-1) * K_fnd_lag_D
     return div_fund_D
 
 

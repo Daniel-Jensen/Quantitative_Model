@@ -14,6 +14,25 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-08-06 — Task 12: bank_return/capital_fund pay the ex-post real deposit rate (`add-nkpc`)
+
+- `bank_return_D/F` and `capital_fund_D/F`: signature `rdep_D/F` → `rdep_expost_D/F`;
+  every `rdep_D(-1)`/`rdep_F(-1)` in the bodies replaced with bare `rdep_expost_D/F`
+  (it already carries its own `(-1)` timing — writing `rdep_expost_D(-1)` would
+  double-lag it).
+- `intermediation_P1_D/F` and `divert_bond_foc_D/F` untouched — ex-ante (t → t+1)
+  blocks correctly still read `rdep_D/F`. F's W-2 `p(-1)/p` conversion in
+  `bank_return_F` preserved, unrelated to this change.
+- This is the Fisher channel: banks are net nominal debtors on deposits, so a D
+  deflation raises `rdep_expost_D` and deepens the net-worth loss in
+  `bank_return_D`/`capital_fund_D`. Task 13's gate checks the sign directly
+  (`n_inter_D[0]` more negative, not less, under a deflation shock).
+- `code/test_nkpc_blocks.py`: 15 → 17 passed, 0 failed. New tests check the
+  signature swap in both directions (ex-post blocks take `rdep_expost_D` and not
+  `rdep_D`; ex-ante blocks take `rdep_D` and not `rdep_expost_D`).
+- Model still does not solve end-to-end — `i_dep` becoming the solver unknown
+  is Task 13, next.
+
 ## 2026-08-06 — Task 11: nominal deposit contracts, ex-ante/ex-post real rates (`add-nkpc`)
 
 - Replaced `deposit_return_D/F` (took `rdep`, a real rate) with two blocks:
