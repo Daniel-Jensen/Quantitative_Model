@@ -390,9 +390,42 @@ consequential for the paper right now:
 | `code/tpi_plots.py`, `code/irf_plots.py` | Figure-generation scripts (regenerate from `main`) |
 | Overleaf | https://www.overleaf.com/project/698b4f88aeef1d0e1d08cc0c |
 
-## Nominal rigidities (`add-nkpc`) — Task 14 done, Task 15 next
+## Nominal rigidities (`add-nkpc`) — Task 15 done, Task 16 next
 
-**Where it stands.** Tasks 1–14 committed. The dynamic model is sticky-price
+**Task 15 done (2026-08-06).** Regime cache rebuilt, then E1–E4 regenerated —
+in that order, which is the whole point: `experiments/` never re-solves the
+model, it reads `regime_model.py`'s cached Jacobians, so the reverse ordering
+silently reports the old model's numbers. New caches tagged
+`psilam7p85_cal685f7838`; every provenance stamp in
+`docs/experiments_results.md` confirms it. Headlines: **loading still monotone
+decreasing (3.82 → 2.90 named, 4.43 → 1.49 across the schedule, above 1
+throughout) — Live Claims 1 and 5 survive**; `Y_D[0]`/`C_D[0]` still positive
+under medium/aggressive and much larger; E2's identity closes at 2e−16 against
+the 1e−07 assertion. Two findings that change prose, not code: E2's
+headline-vs-channels ordering **reverses** (largest channel now 0.25× the
+headline, was ~4×), and E3's full writeoff now inverts Live Claim 1 **only at
+aggressive** (0.26) with medium holding at 2.46. Full tables in `docs/STATE.md`.
+
+E4 is **not** wired into `run_all.py` — `experiments/e4_distribution.py` is a
+separate entry point feeding `experiments/paper_outputs.py`. Its cache was stale
+and both were regenerated. Do not assume `run_all.py` covers E4.
+
+**Next: Task 16** — final documentation pass across STATE.md, PROGRESS.md,
+HANDOFF.md, SPEC.md and CLAUDE.md. Known specifics to fix there:
+- `docs/STATE.md` line 3 still reads branch `eba-recalibration` / 2026-07-31.
+- `CLAUDE.md` still quotes pre-sticky-price E1 numbers (loading 4.35/4.01/3.44,
+  `Y_D[0]=-0.0149%`, spread 150.4bp) and the `psi_lambda_B` guidance predates 7.85.
+- `docs/SPEC.md`'s ΔY caution needs restating: it is about the channels
+  *cancelling*, not about the headline being the smaller object — E2 now shows
+  the opposite magnitude ordering.
+- S-1's appendix framing in `CLAUDE.md` says full writeoff collapses the loading
+  to 0.37/0.28 "below 1"; under sticky prices it is 2.46/0.26, so only the
+  aggressive regime inverts.
+- Consider a test asserting rendered prose agrees with rendered tables in
+  `run_all.py` — two hardcoded captions went stale (one of them *inverted*)
+  and nothing caught it.
+
+**Where it stands.** Tasks 1–15 committed. The dynamic model is sticky-price
 (27×27) **with nominal deposit contracts live and solving end-to-end, and
 `psi_lambda_B` re-tuned back onto the 150bp spread moment** (7.85, was 8.5).
 `i_dep_D/F` is the solver unknown; `rdep_D/F` (ex-ante) and `rdep_expost_D/F`
@@ -442,12 +475,6 @@ monotone declining, `n_inter_D[0]`/`Y_D[0]` both negative, `b_gov_D[499]=4.6e-05
 (same order as Task 13's 1.6e-05 — no instability). `code/test_nkpc_blocks.py`
 unchanged, 17 passed. Full table and harness details in `docs/STATE.md`.
 
-**Next: Task 15** — rebuild the regime cache against the re-tuned model
-(`diagnostics/regimes/regime_model.py --force`), then re-run
-`experiments/run_all.py`. `docs/experiments_results.md` (E1–E4) is stale as of
-this commit: it was built against `psi_lambda_B=8.5` and, further back, against
-the pre-sticky-price model, not the current 7.85 tuning.
-
 **Two things not to rediscover the hard way.**
 
 1. SSJ 1.0.0 drops H_Z rows for targets reachable from no shock, so stock
@@ -455,10 +482,12 @@ the pre-sticky-price model, not the current 7.85 tuning.
    `full_model.solve_jacobian_padded()`. All call sites were converted in Task 9b;
    `grep -rn "\.solve_jacobian(" --include="*.py" code experiments diagnostics`
    must stay empty.
-2. The regime cache has **not** been rebuilt against the 27×27 system, or against
-   the Task 14 `psi_lambda_B=7.85` retune. Task 15 does both
-   (`diagnostics/regimes/regime_model.py --force`), and E1–E4 numbers are stale
-   until it runs.
+2. The regime cache is keyed on a hash of the **whole** live calibration
+   (`regime_model._calibration_fingerprint`), so any calibration change mints a
+   new filename and a stale cache can never be picked up silently. It was rebuilt
+   against the 27×27 system and `psi_lambda_B=7.85` in Task 15
+   (`psilam7p85_cal685f7838`). Rebuild it again — **before** `run_all.py` — after
+   any future calibration change.
 
 ## Run environment
 

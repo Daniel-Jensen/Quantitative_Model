@@ -14,6 +14,52 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-08-06 — Task 15: E1–E4 regenerated on the sticky-price model (`add-nkpc`)
+
+- **Regime cache rebuilt first**, `experiments/run_all.py` second — the ordering is
+  load-bearing. The `experiments/` package never re-solves the model; it reads cached
+  Jacobian response matrices from `diagnostics/regimes/regime_model.py`. Running it
+  against the old cache would have silently re-reported flexible-price results as if
+  they were sticky-price ones.
+- New caches `cache_G_main_v3_psilam{7p85,0p00}_cal685f7838.npz` (old set was tagged
+  `psilam8p50` under hashes `calde195df2` / `cal004630e7` / `cal3397854d`). Confirmed
+  consumed by checking every provenance stamp in `docs/experiments_results.md` reads
+  `calibration 685f7838 · psi_lambda_B=7.85`. The two extra hashes written during the
+  run (`cal1dda3628`, `cal717eb4c5`) are E3's two overridden re-solves, not main-model
+  rebuilds — identified by their `EL_price_D` (0.056134 vs 0.701743).
+- **E1**: γ for the same 0/25/50% compression falls 5.0798 → 3.2515 (medium) and
+  12.7260 → 9.0163 (aggressive) — the backstop is more powerful per unit under sticky
+  prices. Loading 4.00/3.17 → **3.82/2.90**, still monotone decreasing, schedule
+  4.43 → 1.49 over 59 grid points and above 1 throughout. **Live Claim 1 and Live
+  Claim 5 both survive.** `Y_D[0]`/`C_D[0]` remain positive under medium and
+  aggressive and are an order of magnitude larger; the passive `C_D[0]` flips
+  +0.2164 → −0.5103, the Task 10 stickiness sign flip propagating into E1.
+- **E2**: `market_clearing_D` identity closes at 3.5e−17 / 1.1e−16 / 2.2e−16 against
+  the 1e−07 assertion — no Rotemberg resource cost leaked into the resource
+  constraint, which is what the untouched identity was preserved to test. But the
+  headline-vs-channels finding **reverses**: the largest single channel is now 0.25×
+  the headline, where under flex prices it was ~4×.
+- **E3**: `writeoff_enabled=1` alone still negligible and SS-neutral (drift 0.000e+00).
+  Full writeoff now inverts Live Claim 1 **only at aggressive** (loading 0.26) —
+  medium holds at 2.46, where the flex model had both below 1 (0.37/0.28). The
+  appendix robustness claim needs narrowing accordingly.
+- **E4 + paper artefacts**: `experiments/cache_e4_deciles.npz` was stale (2026-08-05,
+  predating the sticky-price workstream) and is **not** wired into `run_all.py`.
+  Rebuilt via `experiments/e4_distribution.py`; `experiments/paper_outputs.py` then
+  re-emitted all 8 tracked `experiments/paper/fig0*.png` and
+  `docs/paper_draft_results.md`. Otherwise the commit would have shipped nine tracked
+  paper artefacts built on the old model.
+- **`experiments/run_all.py`**: two prose captions in the GENERATED document had
+  flex-price numbers hardcoded as string literals. E3's `psi_lambda_B = 8.5` was
+  merely stale; E2's "`dY[0]` moves by ~+4.9e−04 … each roughly 4× the headline" was
+  **asserting the opposite of the table printed immediately above it**. Both now
+  compute from provenance/results, and the E2 caption selects its own leading sentence
+  from the data. No test covers agreement between rendered prose and rendered tables.
+- Tests: 40 passed (`experiments/`, `code/test_nkpc_blocks.py` 17,
+  `code/test_eba_calibration.py` 10).
+
+---
+
 ## 2026-08-06 — Task 14: `psi_lambda_B` re-tuned to the 150bp spread moment (`add-nkpc`)
 
 - Task 13's Fisher channel (plus NKPC stickiness) had pushed the peak GR–DE spread

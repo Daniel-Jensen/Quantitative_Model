@@ -2,6 +2,119 @@
 
 **Branch:** `eba-recalibration` | **Date:** 2026-07-31 | **Status:** **EBA calibration rebuilt, identified, and LIVE** (`EBA_CALIBRATION=True`, `BANK_SCOPE="broad"`). Y-1 and RK-1 resolved; spread on target at 150.4bp; TPI loading declining.
 
+## Nominal rigidities (`add-nkpc`): Task 15 — E1–E4 regenerated on the sticky-price model
+
+The regime cache was rebuilt (`regime_model.py --force`) **before** `experiments/run_all.py`,
+which is the ordering that matters: the experiments never re-solve the model, they read
+cached Jacobian response matrices, so running them first would have silently re-reported
+the flexible-price numbers. New caches are tagged `psilam7p85_cal685f7838` (the old set was
+`psilam8p50_calde195df2` / `cal004630e7` / `cal3397854d`). Every E1/E2/E3 provenance stamp
+in `docs/experiments_results.md` now reads `calibration 685f7838 · psi_lambda_B=7.85`,
+which is the check that the fresh cache was the one consumed.
+
+### E1 — backstop schedule, old (flex, `psi_lambda_B=8.5`) vs new (sticky, 7.85)
+
+| | passive | medium | aggressive |
+|---|---|---|---|
+| γ — old | 0 | 5.0798 | 12.7260 |
+| **γ — new** | **0** | **3.2515** | **9.0163** |
+| peak spread (bp ann) — old | 150.3 | 112.7 | 75.2 |
+| **peak spread (bp ann) — new** | **150.1** | **112.6** | **75.1** |
+| `Y_D[0]` (% SS) — old | −0.0149 | +0.0111 | +0.0338 |
+| **`Y_D[0]` (% SS) — new** | **−0.5064** | **+0.2008** | **+0.8721** |
+| `C_D[0]` (% SS) — old | +0.2164 | +0.3040 | +0.3855 |
+| **`C_D[0]` (% SS) — new** | **−0.5103** | **+0.5285** | **+1.5143** |
+| `I_D[0]` (% SS) — old | −0.7718 | −0.2903 | +0.1217 |
+| **`I_D[0]` (% SS) — new** | **−1.0114** | **−0.2934** | **+0.3977** |
+| `n_inter_D[0]` (% SS) — old | −3.380 | −2.167 | −1.099 |
+| **`n_inter_D[0]` (% SS) — new** | **−4.296** | **−1.649** | **+0.924** |
+| loading — old | n/a | 4.00 | 3.17 |
+| **loading — new** | **n/a** | **3.82** | **2.90** |
+
+The peak-spread column is nearly unchanged **by construction** — the regimes are *defined*
+as 0/25/50% compression and γ is solved to hit that, so the informative move is that the
+same compression now costs a **smaller** γ (3.25 vs 5.08; 9.02 vs 12.73). The backstop is
+more powerful per unit under sticky prices.
+
+**1. Is the loading still monotone decreasing in γ? YES.** 3.82 → 2.90 across the named
+regimes, and the full schedule (59 finite grid points over γ ∈ [0.51, 30.00]) falls
+**4.43 → 1.49**, reported monotone-decreasing by E1's own check. The paper's key claim —
+the self-extinguishing premium — survives the move to sticky prices, and the loading stays
+above 1 throughout, so over-compensation survives too. The level is slightly lower than the
+flex-price schedule (old 4.35/4.01/3.44 at γ=0/5/10) but the shape is the claim, not the level.
+
+**2. Are `Y_D[0]` and `C_D[0]` still positive under the intervening regimes? YES, and far
+more strongly.** `Y_D[0]` = +0.2008 / +0.8721 and `C_D[0]` = +0.5285 / +1.5143 at
+medium/aggressive. The old "watch item" is not merely intact, it is an order of magnitude
+larger. What *has* changed is the **passive** column: `C_D[0]` flips from +0.2164 to
+−0.5103, which is exactly the Task 10 price-stickiness sign flip propagating into E1. So
+the backstop now moves consumption across zero rather than merely raising an
+already-positive number — a cleaner story, but E2 below says do not lead with it.
+
+### E2 — closure held
+
+The `market_clearing_D` identity closes at `max|residual|` = **3.53e−17 / 1.09e−16 /
+2.22e−16** (passive / medium / aggressive) against the 1e−07 assertion. No Rotemberg
+resource cost leaked into the resource constraint, which is what makes this check
+meaningful.
+
+**E2's headline-vs-channels finding REVERSES.** Under flex prices `dY[0]` moved
++4.9e−04 passive → aggressive while investment moved +2.2e−03 and net exports −1.9e−03 —
+the headline was a small residue of channels ~4× its size. Under sticky prices `dY[0]`
+moves **+1.38e−02** while investment moves +3.41e−03 and net exports −2.92e−03: the
+largest single channel is now **0.25×** the headline, not 4×. The channels still offset,
+so "report the decomposition, not the headline ΔY" still stands — but the *reason* has
+changed and `docs/SPEC.md`'s caution must be restated as being about cancellation rather
+than about the headline being dominated. This was caught because the caption was hardcoded;
+it now computes from the data and flips its own wording (see below).
+
+### E3 — S-1 under sticky prices: the inversion is now partial
+
+| setting | `EL_price_D` | peak spread, passive | loading (medium) | loading (aggressive) |
+|---|---|---|---|---|
+| baseline | 0.056134 | 150.1 | 3.82 | 2.90 |
+| `writeoff_enabled=1` | 0.056134 | 149.4 | 3.77 | 2.87 |
+| `+ zeta_writeoff=1` | 0.701743 | 252.3 | **2.46** | **0.26** |
+
+`writeoff_enabled=1` alone remains negligible and SS-neutral (max SS drift 0.000e+00),
+confirming the S-1 decision. Under full writeoff the loading no longer falls below 1
+*everywhere* — **medium stays at 2.46, only aggressive inverts at 0.26**, where the
+flex-price model had both below 1 (0.37/0.28). The appendix robustness claim therefore
+needs restating: full writeoff inverts Live Claim 1 **only at aggressive intervention**,
+not across the schedule. Peak spread remains non-monotone in γ under this setting, so the
+named-regime construction still breaks there and all rows are evaluated at the baseline's γ.
+
+### E4 and paper artefacts also regenerated
+
+`experiments/cache_e4_deciles.npz` was **stale** (2026-08-05, predating the entire
+sticky-price workstream) and is not wired into `run_all.py` — it is a separate entry point.
+Rebuilt via `experiments/e4_distribution.py`, then `experiments/paper_outputs.py` re-emitted
+all 8 tracked `experiments/paper/fig0*.png` and `docs/paper_draft_results.md`. Without this
+the commit would have carried nine tracked paper artefacts built on the old model.
+
+### Two hardcoded captions in the GENERATED document, both now computed live
+
+`experiments/run_all.py` carried two prose captions with flex-price numbers baked in as
+string literals. A generated document that hardcodes results is worse than no document:
+
+1. E3's `psi_lambda_B = 8.5` — stale after the re-tune to 7.85. Now reads
+   `e3['provenance']['psi_lambda_B_D']`.
+2. E2's "`dY[0]` moves by ~+4.9e−04 … each roughly 4× the headline" — not just stale but
+   **stating the opposite of the table printed directly above it**. Now computed from
+   `components_impact` and it selects its own leading sentence depending on whether the
+   headline is or is not dominated by the channels.
+
+Neither was caught by a test, because no test asserts that rendered prose agrees with
+rendered tables. Worth considering in Task 16.
+
+Tests: `experiments/ code/test_nkpc_blocks.py code/test_eba_calibration.py` → **40 passed**
+(17 in `test_nkpc_blocks.py`).
+
+**Next: Task 16** — final documentation pass across STATE.md, PROGRESS.md, HANDOFF.md,
+SPEC.md and CLAUDE.md. Note that this file's header (line 3) still says branch
+`eba-recalibration` / 2026-07-31 and CLAUDE.md still quotes the pre-sticky-price E1 numbers
+and `psi_lambda_B` guidance; both need reconciling there.
+
 ## Nominal rigidities (`add-nkpc`): Task 11 — nominal deposit contracts split into `i_dep`/`rdep`/`rdep_expost`
 
 `rdep_D/F` is split into three names to avoid a wide, risky rename. `deposit_rates_D/F`
