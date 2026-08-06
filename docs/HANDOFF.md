@@ -390,6 +390,31 @@ consequential for the paper right now:
 | `code/tpi_plots.py`, `code/irf_plots.py` | Figure-generation scripts (regenerate from `main`) |
 | Overleaf | https://www.overleaf.com/project/698b4f88aeef1d0e1d08cc0c |
 
+## Nominal rigidities (`add-nkpc`) — Task 10 done, Task 11 next
+
+**Where it stands.** Tasks 1–10 committed. The dynamic model is sticky-price
+(27×27) with deposits still **real**. Price stickiness alone flips `C_D[0]` from
++0.2164% to −0.4904% and takes `Y_D[0]` from −0.0149% to −0.4923% — see
+`docs/STATE.md` for the full table, the `kappa_p` sweep, and the one-quarter-spike
+caveat that must not be dropped from the write-up.
+
+**Next: Task 11** — `deposit_rates_D/F` and nominal `deposit_return_D/F`, per
+`docs/superpowers/plans/2026-08-05-nominal-rigidities.md`. `rdep` keeps its name
+as the derived ex-ante real rate; `i_dep` becomes the nominal unknown;
+`rdep_expost` is new. That refinement means `intermediation_P1`, `divert_bond_foc`
+and `divert_portfolio_adj` need no changes at all.
+
+**Two things not to rediscover the hard way.**
+
+1. SSJ 1.0.0 drops H_Z rows for targets reachable from no shock, so stock
+   `Block.solve_jacobian` cannot solve this system. Everything routes through
+   `full_model.solve_jacobian_padded()`. All call sites were converted in Task 9b;
+   `grep -rn "\.solve_jacobian(" --include="*.py" code experiments diagnostics`
+   must stay empty.
+2. The regime cache has **not** been rebuilt against the 27×27 system. Task 15
+   does that (`diagnostics/regimes/regime_model.py --force`), and E1–E4 numbers
+   are stale until it runs.
+
 ## Run environment
 
 ```

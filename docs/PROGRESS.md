@@ -14,6 +14,23 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-08-06 — Task 10: price-stickiness-only measurement (`add-nkpc`)
+
+- Ran the full pipeline at the calibrated `kappa_p = 0.0871` with deposits still
+  real, isolating what price stickiness alone does. SS byte-identical; both
+  impact signs negative; all TPI gammas inside 1e-7.
+- **`C_D[0]` flips sign: +0.2164% -> −0.4904%.** `Y_D[0]` goes −0.0149% ->
+  −0.4923% (33x), now in range of Bi-Foerster-Traum's −0.6% without their
+  loan-in-advance constraint.
+- Caveat recorded in STATE.md: the response is a **one-quarter spike**, positive
+  from quarter 1, not a sustained downturn.
+- `kappa_p` sweep {0.03, 0.0871, 0.2} monotone and stable; the sign flip holds
+  across the whole sticky range.
+- Fixed `code/dump_irfs.py` to store SS levels for every dumped series with an
+  assertion. `I_D` had no `ss__` entry, so a consumer fell back to a divisor of
+  1.0 and reported a level deviation as a percentage — the mislabelling class
+  CLAUDE.md already records for `n_inter` and `K`.
+
 ## 2026-08-06 — Task 9b: convert all remaining Jacobian call sites to `solve_jacobian_padded`
 
 Task 9 (previous entry) found and fixed the SSJ 1.0.0 defect where

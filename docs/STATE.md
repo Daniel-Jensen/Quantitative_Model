@@ -2,6 +2,69 @@
 
 **Branch:** `eba-recalibration` | **Date:** 2026-07-31 | **Status:** **EBA calibration rebuilt, identified, and LIVE** (`EBA_CALIBRATION=True`, `BANK_SCOPE="broad"`). Y-1 and RK-1 resolved; spread on target at 150.4bp; TPI loading declining.
 
+## Nominal rigidities (`add-nkpc`): Task 10 — price-stickiness-only result at the calibrated slope
+
+Deposits are still **real** here; this isolates what price stickiness alone does.
+`kappa_p = 0.0871` (Calvo theta=0.75 at beta=0.985). Steady state byte-identical
+to pre-change (`goods_mkt_D = -4.2493506589857954e-07`, `IC_D = 1.776357e-15`,
+`rho_b = 0.8451` all unchanged); both impact signs negative; all four TPI gammas
+inside 1e-7.
+
+### Impact responses to the 1pp default shock (% of own SS level)
+
+| | flex (pre-change) | sticky `kappa_p=0.0871` | change |
+|---|---|---|---|
+| `Y_D[0]` | −0.0149 | **−0.4923** | 33x larger |
+| `C_D[0]` | **+0.2164** | **−0.4904** | **SIGN FLIP** |
+| `I_D[0]` | −0.7718 | −0.9907 | 1.28x |
+| `n_inter_D[0]` | −3.3804 | −4.0140 | 1.19x |
+
+The flex column reproduces this file's own E1 passive row to every printed digit,
+which is the check that the SS divisors are right.
+
+**`C_D[0]` DOES change sign.** The spec warned it might not, and that Bi-Foerster-Traum
+get consumption rising on impact even with a Taylor rule and nominal debt. Here
+price stickiness alone flips it.
+
+**But read the path before claiming the consumption-bust problem is solved.**
+
+```
+Y_D sticky:  -0.4923  +0.0083  +0.1006  +0.0881  +0.0580  +0.0329  +0.0161  +0.0063
+C_D sticky:  -0.4904  +0.1141  +0.1553  +0.0790  +0.0046  -0.0440  -0.0685  -0.0761
+C_D flex:    +0.2164  +0.0702  -0.0161  -0.0624  -0.0829  -0.0873  -0.0822  -0.0721
+```
+
+This is a **one-quarter spike, not a downturn**: output and consumption are both
+positive from quarter 1. Bi-Foerster-Traum's output falls 0.6% and stays negative
+for ~20 quarters. Flex consumption is in fact *more* persistently negative from
+quarter 2 on. So the honest claim is: sticky prices fix the **impact quarter**
+and arguably worsen the medium-run path. Do not write "resolves the investment-bust
+counterfactual" without this qualification.
+
+**The extra output decline is not an investment story.** `I_D` moved 1.28x while
+`Y_D` moved 33x — it is the markup wedge shifting labour demand directly, which is
+the mechanism the design intended.
+
+### `kappa_p` sweep — monotone and stable throughout
+
+| `kappa_p` | `Y_D[0]` | `C_D[0]` | `I_D[0]` | `n_inter_D[0]` | `b_gov_D[499]` |
+|---|---|---|---|---|---|
+| 0.03 (stickier) | −0.7280 | −0.8401 | −1.0987 | −4.3244 | 1.50e−05 |
+| **0.0871** (calibrated) | **−0.4923** | **−0.4904** | **−0.9907** | **−4.0140** | 1.4e−05 |
+| 0.2 (more flexible) | −0.3105 | −0.2211 | −0.9077 | −3.7736 | 1.42e−05 |
+| flex limit | −0.0149 | +0.2164 | −0.7718 | −3.3804 | 1.4e−05 |
+
+Every point stable (`b_gov_D[499]` ~1.5e−05) and monotone in `kappa_p`. **The
+consumption sign flip is not knife-edge** — `C_D[0]` is negative across the whole
+sticky range and only positive in the flexible limit.
+
+### Benchmark context
+
+`Y_D[0] = -0.4923%` against Bi-Foerster-Traum (FRBSF WP 2025-10) at −0.6%. The
+pre-change model was two orders of magnitude below that and the spec flagged the
+gap as the main risk to the exercise. Price stickiness closes it **without** their
+Sims-Wu loan-in-advance constraint.
+
 ## Nominal rigidities (`add-nkpc`, in progress): Task 9 — 27×27 sticky-price system LIVE, flex-price equivalence gate PASSED
 
 The dynamic model is now sticky-price. `full_model.build_block_list()` carries
