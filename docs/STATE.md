@@ -270,6 +270,44 @@ one also requires re-tuning `psi_lambda_B`, since peak spread drifts 150.1 → 1
   immediately before the edit — the older `/tmp/nkpc_irfs_nominal.npz` is **stale** (predates
   the `psi_lambda_B` 8.5 → 7.85 re-tune, differs by 1.56) and must not be used.
 
+## Regeneration on the MS-disciplined shock (2026-08-06) — Live Claim 5 WEAKENED
+
+Cache, E1-E4 and all paper figures rebuilt at `rho_def = 0.9408`, `psi_lambda_B = 2.92`.
+E2 closes at 1.1e-16 against its 1e-7 assertion. `fig07_ms_regimes` correctly
+unchanged (estimated from market data, model-independent).
+
+### The loading schedule — read this before quoting Live Claim 5
+
+| | before (`rho`=0.80, `psi`=7.85) | after (`rho`=0.9408, `psi`=2.92) |
+|---|---|---|
+| schedule over γ ∈ [0.51, 30] | 4.43 -> **1.49** | 5.65 -> **4.59** |
+| decline | **−66%** | **−19%** |
+| monotone decreasing | YES | YES |
+| minimum | **1.49** | **4.59** |
+
+**Live Claim 1 (over-compensation, loading > 1) is STRONGER** — the floor rises
+from 1.49 to 4.59, so it no longer depends on where on the schedule you look.
+
+**Live Claim 5 (self-extinguishing premium) is MATERIALLY WEAKER.** The claim
+worked because loading fell *toward 1*: intervene hard enough and the ECB earns
+roughly the actuarially fair expected loss. It now bottoms at 4.6x. Monotonicity
+survives, the economic punchline does not in its present form. A longer crisis
+accumulates premium over more quarters than expected loss, so the ratio stays
+high even under heavy intervention. **Do not write "self-extinguishing" without
+re-deriving what the 19% decline supports.**
+
+### E1 regime table
+
+| regime | γ | peak spread bp | `Y_D[0]` | `C_D[0]` | `I_D[0]` | `n_inter_D[0]` | loading |
+|---|---|---|---|---|---|---|---|
+| passive | 0 | 150.1 | −0.7502 | −0.7014 | −1.7107 | −6.271 | n/a |
+| medium | 3.1033 | 112.6 | +0.1834 | +0.7441 | −0.8688 | −2.922 | 5.48 |
+| aggressive | 8.9732 | 75.0 | +1.1336 | +2.2400 | −0.0508 | +0.469 | 5.17 |
+
+Investment is now negative even under the aggressive backstop (−0.0508, was
++0.3977), and the aggressive-backstop net-worth boom is milder (+0.469, was
++0.924) while its consumption effect is larger (+2.24, was +1.51).
+
 ## Nominal rigidities (`add-nkpc`) — COMPLETE (Tasks 1–16, 2026-08-05/06)
 
 The model went from flexible prices with real deposit contracts to **sticky prices with

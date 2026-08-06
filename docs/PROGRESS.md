@@ -14,6 +14,11 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-08-06 — Regeneration on the MS-disciplined shock
+
+- Rebuilt regime cache, E1-E4 and all paper figures at `rho_def=0.9408`, `psi_lambda_B=2.92`. E2 closes at 1.1e-16.
+- **Live Claim 5 weakened:** loading schedule 4.43->1.49 becomes 5.65->4.59. Still monotone, but the premium no longer approaches extinction. Live Claim 1 correspondingly stronger (floor 1.49 -> 4.59).
+
 ## 2026-08-06 — `rho_def` promoted to the calibration and disciplined at 0.9408; `psi_lambda_B` re-tuned 7.85 → 2.92 (`add-nkpc`)
 
 **Problem.** The sovereign-risk shock's persistence was **hardcoded at `rho_def = 0.80` in

@@ -1,5 +1,13 @@
 # Handoff Notes
 
+## Open decision: Live Claim 5
+
+The MS-disciplined shock persistence fixed the crisis dynamics (cumulative Y over
+40q: −0.049 -> −2.542) but flattened the loading schedule from a 66% decline to
+19%, with the floor at 4.59 rather than 1.49. The self-extinguishing-premium
+framing needs re-deriving against what a 19% decline actually supports before it
+goes in the draft. See docs/STATE.md.
+
 ## Where to start
 
 - **FIRST: regenerate the downstream artefacts. They are stale.** `rho_def` was
