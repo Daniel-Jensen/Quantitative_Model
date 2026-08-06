@@ -294,28 +294,49 @@ moves consumption *across zero* rather than raising an already-positive number.
 string literals. E3's `psi_lambda_B = 8.5` was merely stale; E2's "each roughly 4× the
 headline" was **asserting the opposite of the table printed directly above it**. Both now
 compute from `provenance`/`components_impact`, and the E2 caption selects its own leading
-sentence from the data. **No test asserts that rendered prose agrees with rendered tables** —
-that gap is still open.
+sentence from the data. A partial prose-vs-table check now exists in `paper_outputs.main()`
+(see below), but **`run_all.py` still has no such assertion** — that part of the gap is open.
 
-**The same hazard is still LIVE in `experiments/paper_outputs.py` (found in Task 16, not
-fixed).** Its module-level `CAPTIONS` dict hardcodes flex-price numbers and is baked into the
-eight tracked `experiments/paper/fig0*.png` and into `docs/paper_draft_results.md`. Task 15
-regenerated the *figures and tables* but the caption strings were never updated, so the
-generated document now contradicts itself:
+### Generated-document hazard — **RESOLVED (Task 17, 2026-08-06)**
 
-| caption | says | current value |
+The same hazard was live in `experiments/paper_outputs.py`, whose module-level `CAPTIONS`
+dict hardcoded flexible-price prose that was baked into the eight tracked
+`experiments/paper/fig0*.png` and into `docs/paper_draft_results.md`. Task 15 regenerated the
+*figures and tables* but never the caption strings, so the generated document contradicted
+itself. What it said, and what the data actually says:
+
+| caption | said | derived value now |
 |---|---|---|
-| `fig08_deciles` | "the lowest gains 0.95%… highest 0.59%" | Table 4 **in the same file**: Q1 +0.4250, Q5 −0.9073 |
-| `fig08_deciles` | "Consumption rises for every income quintile on impact" | `C_D[0]` is now −0.5103; Q2–Q5 passive PVs are negative |
-| `fig02_loading_schedule` | "4.5× … 2.1×" | schedule is 4.43 → **1.49** |
-| `fig03_dy_decomposition` | "each roughly four times the headline" | **inverted** — largest channel is 0.25× the headline |
-| `fig01_transmission` | "cuts bank net worth 3.4%… investment (−0.77% on impact)" | −4.296% and −1.0114% |
-| `fig04_spread_decomposition` | "3% / 97%" | not re-derived since `psi_lambda_B` moved 8.5 → 7.85 |
+| `fig08_deciles` | "the lowest gains 0.95%… highest 0.59%" | Table 4 in the same file: Q1 **+0.4250**, Q5 **−0.9073** |
+| `fig08_deciles` | "Consumption rises for every income quintile on impact" | it **falls** ~0.51% in every quintile; the min over 40q is the impact quarter, not quarter five |
+| `fig02_loading_schedule` | "4.5× … 2.1×" | **4.43 → 1.49** over γ ∈ [0.51, 30], monotone, above 1 throughout |
+| `fig03_dy_decomposition` | "each roughly four times the headline" | **inverted** — consumption carries **0.99×** the headline, investment **+0.25×**, NX **−0.21×** |
+| `fig01_transmission` | "cuts bank net worth 3.4%… investment (−0.77% on impact)" | **−4.296%** and **−1.0114%** |
+| `fig04_spread_decomposition` | "3% / 97%" | re-derived at `psi_lambda_B = 7.85`: **3.4% / 96.6%** |
+| `fig06_net_effects` | net path "at every horizon far smaller than the components" | **false in the impact quarter** — passive `ΔY[0] = −5.06` exceeds every component; the claim holds in **14 of the first 16** quarters |
+| `fig05_incidence`, `fig07_ms_regimes` | checked, directionally sound | `fig05` now carries endpoints (exposure 0 → 0.92% of quarterly `Y_D`, loading 4.43× → 1.49×); `fig07` is estimated from `Empirics/outputs/ms_regime_COMPOSITE.npz` and is genuinely **model-independent** — ergodic shares 22.9/52.4/24.7 → 23/52/25, hawk span 2010-09…2014-02, both now read from the npz |
 
-Fixing this needs a code change plus a figure regeneration run, and two of the numbers
-(`fig08`'s quarter-5 trough values, `fig04`'s split) have to be re-derived rather than copied
-— hence it is recorded here as a task, not patched blind. **Do not quote any figure caption
-until this is done.**
+**The fix is structural, not a substitution.** `CAPTIONS` is now an empty dict filled at run
+time: `save(fig, name, caption)` takes the caption as an argument, and each figure builds it
+from the same arrays it just plotted. Directional words are *selected* from the data too —
+`_monotone`, `_first_quarter` and sign tests decide whether a caption says "falls
+monotonically" or "does NOT fall", "reverses by quarter 5" or "never reverses", "a residue of
+larger offsetting channels" or "the largest object in the decomposition". A sign flip now
+rewrites the sentence instead of lying inside it.
+
+**`fig04`'s re-derivation.** Total default loading per unit of default probability is
+`EL_price_D + psi_spread_D` from the bond-pricing FOC (`code/equations_D.py:566`).
+`EL_price_D = (1 − recovery) · delta_b / q_b = 0.70 · 0.0777006 / 0.968941 = 0.056134`, which
+does not move with `psi_lambda_B`. `psi_spread_D = lambda_gk_D · psi_lambda_B_D /
+(beta_inter_D · Omega_D)` (`code/steady_state.py:104`) is **linear** in `psi_lambda_B`, so the
+8.5 → 7.85 re-tune took it 1.737724 → **1.604839**. Split: 0.056134 / 1.660973 = **3.4%**
+fundamental, **96.6%** friction (was 3.1% / 96.9% at 8.5). The figure's own title already
+printed both terms live; only the caption prose was stale.
+
+`paper_outputs.main()` now also asserts that fig01's caption and Table 3 quote the same
+impact net worth by their two independent routes (the cache directly vs `e1.run()`'s
+payload), which is the first check anywhere that rendered prose agrees with a rendered table.
+Table 4 and fig08's caption share the same `pv` object, so they agree by construction.
 
 ### Test entry points
 
@@ -410,6 +431,15 @@ source citations are literal text.
 96.9% collateral friction** (`EL_price_D=0.056134`, `psi_spread_D=1.737724`), not
 the 10.9%/89% recorded at the pre-EBA calibration. This is Live Claim 3's
 quantitative core and 96.9% is a materially stronger version of it.
+
+> **SUPERSEDED 2026-08-06 (Task 17): the live split is 3.4% / 96.6%.** The
+> `psi_spread_D=1.737724` above is at `psi_lambda_B=8.5`; the sticky-price re-tune to
+> 7.85 moves it to 1.604839 (`psi_spread` is linear in `psi_lambda_B`, `EL_price` is
+> not a function of it at all). The "Generated-document hazard" section above carries
+> the derivation. The qualitative claim is unaffected.
+
+> The "every number derived live" claim was true of the tables and **false of the
+> captions**, which were literal prose until Task 17. See the hazard section above.
 
 **New finding from the transmission figure — the backstop does not shift the whole
 spread path down.** Its cushioning is concentrated at impact; by roughly quarter
@@ -862,10 +892,13 @@ is a **hard break**, not the "narrow, mild zone" described below. Measured direc
 **Default-loading split.** `EL_price_D=0.0717` vs `psi_spread_D=0.8385` → fundamental
 expected loss is **10.9%** of the default loading, GK collateral friction **89%**.
 
-> **SUPERSEDED 2026-08-04.** Those are pre-EBA numbers. At the live calibration
-> `EL_price_D=0.056134` and `psi_spread_D=1.737724`, so the split is **3.1%
-> fundamental / 96.9% collateral friction** — a materially stronger version of the
-> constrained-seller claim. Do not quote 10.9%/89%.
+> **SUPERSEDED 2026-08-04, revised 2026-08-06.** Those are pre-EBA numbers. At the
+> live calibration `EL_price_D=0.056134` and `psi_spread_D=1.604839`
+> (`psi_lambda_B=7.85` after the sticky-price re-tune; it was 1.737724 at 8.5, and
+> `psi_spread` is linear in `psi_lambda_B`), so the split is **3.4% fundamental /
+> 96.6% collateral friction** — a materially stronger version of the
+> constrained-seller claim. Do not quote 10.9%/89%, and re-derive rather than
+> re-quote whenever `psi_lambda_B` moves.
 
 **Units.** `spread_rb` is a *quarterly* rate deviation; annualise ×4×1e4 for comparison
 with the 150bp target.

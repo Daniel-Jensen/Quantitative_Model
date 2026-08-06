@@ -77,20 +77,24 @@
   runs the same way (**+2.01** vs **+1.34**). The flex-price figures previously
   quoted here (+0.95 / −0.59, gains +0.40 / +0.07) are superseded.
 
-  > **STALE, needs a follow-up task:** `experiments/paper_outputs.py`'s `CAPTIONS`
-  > dict hardcodes flex-price numbers and was **not** regenerated in Task 15 —
-  > `fig08_deciles`'s caption still says "the lowest gains 0.95%", contradicting
-  > Table 4 in the same generated document, and `fig02`, `fig03`, `fig01` and
-  > `fig04` are stale or inverted the same way. This is the same hazard Task 15
-  > fixed in `run_all.py`. See the open item in `docs/STATE.md`.
+  > **RESOLVED (Task 17, 2026-08-06).** `experiments/paper_outputs.py` no longer
+  > has a hardcoded `CAPTIONS` dict. Each figure now builds its own caption from
+  > the arrays it plots and hands it to `save()`, which registers it — so
+  > `fig08_deciles`'s caption reads the same `pv` object Table 4 does and cannot
+  > drift from it. **Figure captions are quotable again**, but quote them from a
+  > freshly regenerated `docs/paper_draft_results.md`, not from memory.
 
   **S-1 RESOLVED 2026-08-04: `writeoff_enabled=0` stays** — the pure risk-premium
   framing. E3 becomes an appendix robustness result and a *stated caveat*: the
   over-compensation claim is conditional on no realised principal writedown.
 
-  **Default-loading split corrected to 3.1% / 96.9%** (fundamental expected loss /
-  collateral friction). The 10.9% / 89% in older sections is pre-EBA. 96.9% is a
-  stronger version of the constrained-seller claim — use it.
+  **Default-loading split is 3.4% / 96.6%** (fundamental expected loss /
+  collateral friction) at the live `psi_lambda_B = 7.85`. `EL_price_D = 0.056134`
+  is invariant to `psi_lambda_B`; `psi_spread_D` is *linear* in it, so the
+  8.5 → 7.85 sticky-price re-tune moved it 1.737724 → 1.604839 and the split
+  3.1%/96.9% → **3.4%/96.6%** (Task 17). The 10.9% / 89% in older sections is
+  pre-EBA. Either way 96.6% is a strong version of the constrained-seller claim —
+  use it, but **re-derive it whenever `psi_lambda_B` moves.**
 
   **New: the backstop damps the oscillation, it does not lower the spread path.**
   Cushioning is concentrated at impact; by ~q4 the paths converge and the spread
@@ -406,14 +410,15 @@ points on γ ∈ [0.51, 30.00], above 1 throughout). **Live Claim 1 survives**
    an inflation-erosion channel and flip the sign of the bank's net Fisher
    exposure) and a **Sims-Wu loan-in-advance constraint** (Bi-Foerster-Traum's
    persistence device — the one-quarter spike is the symptom it would address).
-4. **No test asserts that rendered prose agrees with rendered tables**, in
-   `experiments/run_all.py` or in `experiments/paper_outputs.py`. Two hardcoded
-   captions in `run_all.py` went stale during this workstream and one of them
-   *inverted*; nothing caught it. **`paper_outputs.py`'s `CAPTIONS` dict is still
-   stale** — `fig08_deciles` contradicts Table 4 of the document it generates, and
-   `fig03`'s "four times the headline" is inverted. Fixing it needs a code change
-   plus a figure regeneration; see the table in `docs/STATE.md`. **Do not quote a
-   figure caption until it is done.**
+4. **Prose-vs-table agreement is only partly guarded.** `paper_outputs.py`'s
+   `CAPTIONS` dict is fixed (Task 17): it is empty at import and filled by
+   `save()` from each figure's own arrays, so a caption cannot outlive the numbers
+   it describes, and `main()` asserts fig01's caption and Table 3 agree on impact
+   net worth. **`experiments/run_all.py` still has no such assertion**, and there
+   is no pytest covering either — the checks are runtime asserts inside the
+   generators. A rendered-prose test remains a genuine follow-on. The generic
+   lesson stands: **never write a number, a direction, or the word "monotone" into
+   a caption as a literal** — derive it, and let a sign flip rewrite the sentence.
 
 ### Two things not to rediscover the hard way
 

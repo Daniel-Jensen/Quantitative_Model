@@ -14,6 +14,55 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-08-06 — Paper figure captions derive from results (`add-nkpc`, Task 17)
+
+**Why.** `experiments/paper_outputs.py` carried a module-level `CAPTIONS` dict of literal
+prose written against the flexible-price model. The sticky-price conversion and the
+`psi_lambda_B` 8.5 → 7.85 re-tune (Tasks 1–16) left every caption stale and three of them
+*inverted*, and because captions are baked into the PNGs, the repo was shipping eight tracked
+figures and a generated `docs/paper_draft_results.md` whose prose contradicted its own tables.
+The clearest case: `fig08_deciles` claimed the lowest quintile "gains 0.95%" and the highest
+loses 0.59%, against a Table 4 *in the same file* reading **+0.4250** and **−0.9073**. This is
+the identical hazard Task 15 fixed inside `run_all.py`.
+
+**Fix (structural, not a substitution).** `CAPTIONS` is now empty at import and filled at run
+time. `save(fig, name, caption)` takes the caption as a required argument and registers it;
+each figure builds it from the arrays it just plotted, via a new `_caption_figNN` helper.
+Directional claims are selected from the data by `_monotone`, `_first_quarter` and sign
+tests, so a flip rewrites the sentence rather than lying in it — e.g. `fig02` will print "does
+NOT fall — the self-extinguishing-premium claim fails at this calibration" if the loading
+schedule ever stops declining, and `fig05` will refuse the German-ledger reading if exposure
+and loading stop moving in opposite directions. `main()` gained a prose-vs-table assertion:
+fig01's caption and Table 3 must agree on impact bank net worth via their two independent
+routes (cache vs `e1.run()` payload).
+
+**What the captions were wrong about.**
+
+| figure | was | now (derived) |
+|---|---|---|
+| `fig01` | "net worth 3.4%", "investment −0.77%" | −4.3% / −1.0%; adds the reversal quarters (net worth q5, spread q8) |
+| `fig02` | "4.5× … 2.1×" | 4.43× at γ=0.51 → 1.49× at γ=30, monotone, above 1 throughout |
+| `fig03` | "each roughly four times the headline" | **inverted**: consumption carries 0.99× the headline, investment +0.25×, NX −0.21× |
+| `fig04` | "3% / 97%" | **3.4% / 96.6%**, re-derived at `psi_lambda_B = 7.85` |
+| `fig05` | qualitative only | endpoints: exposure 0 → 0.92% of quarterly `Y_D`, loading 4.43× → 1.49× |
+| `fig06` | net path smaller "at every horizon" | **false in the impact quarter**; true in 14 of the first 16 |
+| `fig07` | 23/52/25 hardcoded | read from the npz (22.9/52.4/24.7), hawk span 2010–2014 derived; genuinely model-independent |
+| `fig08` | "lowest gains 0.95%, highest 0.59%"; "consumption rises on impact" | Q1 +0.4250 / Q5 −0.9073, backstop gain +2.01 / +1.34; consumption **falls** ~0.51% in every quintile on impact |
+
+**`fig04` derivation.** Loading per unit of default probability = `EL_price_D + psi_spread_D`
+(bond-pricing FOC, `equations_D.py:566`). `EL_price_D = (1−0.30)·0.0777006/0.968941 =
+0.056134`, invariant to `psi_lambda_B`. `psi_spread_D = lambda_gk_D·psi_lambda_B_D /
+(beta_inter_D·Omega_D)` (`steady_state.py:104`) is linear in `psi_lambda_B`, so 8.5 → 7.85
+took it 1.737724 → 1.604839. Split 0.056134/1.660973 = **3.4% fundamental / 96.6% friction**.
+
+**Verification.** 8 figures + `docs/paper_draft_results.md` regenerated (~95s, no Jacobian
+re-solve — runs off the existing regime cache). Every caption cross-checked against the
+corresponding table: no contradictions. `pytest code/test_nkpc_blocks.py
+code/test_eba_calibration.py experiments/` → **40 passed**. No model, calibration or equation
+change; results tables are numerically identical to the pre-Task-17 run.
+
+---
+
 ## 2026-08-05/06 — Nominal rigidities: sticky prices + nominal deposit contracts become the baseline (`add-nkpc`, Tasks 1–16)
 
 *One entry for the whole workstream (16 commits, `2015edd`…`120dcf6` plus this doc pass).
