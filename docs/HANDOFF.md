@@ -390,15 +390,17 @@ consequential for the paper right now:
 | `code/tpi_plots.py`, `code/irf_plots.py` | Figure-generation scripts (regenerate from `main`) |
 | Overleaf | https://www.overleaf.com/project/698b4f88aeef1d0e1d08cc0c |
 
-## Nominal rigidities (`add-nkpc`) — Task 13 done, Task 14 next
+## Nominal rigidities (`add-nkpc`) — Task 14 done, Task 15 next
 
-**Where it stands.** Tasks 1–13 committed. The dynamic model is sticky-price
-(27×27) **with nominal deposit contracts live and solving end-to-end**. `i_dep_D/F`
-is the solver unknown; `rdep_D/F` (ex-ante) and `rdep_expost_D/F` (realised) are
-derived. Price stickiness alone flips `C_D[0]` from +0.2164% to −0.4904% and takes
-`Y_D[0]` from −0.0149% to −0.4923%; adding nominal deposits takes those to −0.5499%
-and −0.5449% — see `docs/STATE.md` for the full table, the `kappa_p` sweep, and
-the one-quarter-spike caveat that must not be dropped from the write-up.
+**Where it stands.** Tasks 1–14 committed. The dynamic model is sticky-price
+(27×27) **with nominal deposit contracts live and solving end-to-end, and
+`psi_lambda_B` re-tuned back onto the 150bp spread moment** (7.85, was 8.5).
+`i_dep_D/F` is the solver unknown; `rdep_D/F` (ex-ante) and `rdep_expost_D/F`
+(realised) are derived. Price stickiness alone flips `C_D[0]` from +0.2164% to
+−0.4904% and takes `Y_D[0]` from −0.0149% to −0.4923%; adding nominal deposits
+takes those to −0.5499% and −0.5449% — see `docs/STATE.md` for the full table,
+the `kappa_p` sweep, and the one-quarter-spike caveat that must not be dropped
+from the write-up.
 
 **Task 11 done.** `equations_D.py`/`equations_F.py`: `deposit_return_D/F` (took
 `rdep`) replaced by `deposit_rates_D/F(i_dep, pi)` → `rdep` (unchanged name,
@@ -429,11 +431,22 @@ shock, real → nominal deposits deepens `n_inter_D[0]` −4.0140% → −4.6155
 `Y_D[0]` −0.4923% → −0.5449%, `C_D[0]` −0.4904% → −0.5499%, `I_D[0]` −0.9907% →
 −1.0849%. `code/test_nkpc_blocks.py` still 17 passed.
 
-**Next: Task 14** — re-tune `psi_lambda_B` to the 150bp spread moment. The spread
-target was last hit on the flex-price real-deposit model; sticky prices plus
-nominal deposits have moved it and it has not been re-fitted. Do the re-fit against
-the full current model (`code/main.py`), and rebuild the regime cache afterwards
-(`diagnostics/regimes/regime_model.py --force`) since `experiments/` reads it.
+**Task 14 done.** `psi_lambda_B_D/F` re-bisected against the 150bp GR–DE peak-
+spread moment on the full sticky-price/nominal-deposit model: `8.5 → 162.14bp`,
+`7.0 → 136.21bp`, `7.8 → 149.16bp`, `7.85 → 150.14bp` (adopted, within 1bp).
+`code/calibration.py`'s `EBA_CALIBRATION` branch changed `8.5 → 7.85`; the
+pre-EBA `else 3.0` branch is untouched. Full-pipeline re-verification: SS
+byte-identical to every prior task's baseline (the dial only touches dynamics),
+`gamma=0` peak spread = +0.375 pp = 150.0 bp on target, `gamma=2/5/10` still
+monotone declining, `n_inter_D[0]`/`Y_D[0]` both negative, `b_gov_D[499]=4.6e-05`
+(same order as Task 13's 1.6e-05 — no instability). `code/test_nkpc_blocks.py`
+unchanged, 17 passed. Full table and harness details in `docs/STATE.md`.
+
+**Next: Task 15** — rebuild the regime cache against the re-tuned model
+(`diagnostics/regimes/regime_model.py --force`), then re-run
+`experiments/run_all.py`. `docs/experiments_results.md` (E1–E4) is stale as of
+this commit: it was built against `psi_lambda_B=8.5` and, further back, against
+the pre-sticky-price model, not the current 7.85 tuning.
 
 **Two things not to rediscover the hard way.**
 
@@ -442,9 +455,10 @@ the full current model (`code/main.py`), and rebuild the regime cache afterwards
    `full_model.solve_jacobian_padded()`. All call sites were converted in Task 9b;
    `grep -rn "\.solve_jacobian(" --include="*.py" code experiments diagnostics`
    must stay empty.
-2. The regime cache has **not** been rebuilt against the 27×27 system. Task 15
-   does that (`diagnostics/regimes/regime_model.py --force`), and E1–E4 numbers
-   are stale until it runs.
+2. The regime cache has **not** been rebuilt against the 27×27 system, or against
+   the Task 14 `psi_lambda_B=7.85` retune. Task 15 does both
+   (`diagnostics/regimes/regime_model.py --force`), and E1–E4 numbers are stale
+   until it runs.
 
 ## Run environment
 

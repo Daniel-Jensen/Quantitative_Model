@@ -107,8 +107,65 @@ equations, so no new tests).
 Caveat carried forward: the spread moment has drifted with the nominal side and has not
 been re-tuned. That is Task 14.
 
-**Next: Task 14** — re-tune `psi_lambda_B` to the 150bp spread moment on the full
-sticky-price / nominal-deposit model.
+## Nominal rigidities (`add-nkpc`): Task 14 — `psi_lambda_B` re-tuned to the 150bp spread moment
+
+Task 13's Fisher channel (plus the earlier NKPC stickiness) raised peak GR–DE spread
+transmission on a 1pp default shock from the pre-change 150.4bp to **162.0bp** at the old
+`psi_lambda_B = 8.5`, an 8% overshoot of the paper's 150bp target (2010-12 calibration
+moment). `psi_lambda_B` is the model's one free amplification dial and is data-disciplined
+to exactly this moment, so it was re-bisected, everything else held fixed.
+
+**Harness.** A scratch script (`/tmp/eval_psi.py`, not committed) patches
+`calibration.get_calibration` to override `psi_lambda_B_D/F` from an env var, re-solves SS
+→ IC-δ → depreciation → full model per point, and reads `irfs_def_D['spread_rb']`. It
+replicates `tpi.py`'s own convention exactly: `peak_spread_pp = spread_rb[:100].max()*100`,
+then `bp_ann = peak_spread_pp*400` (quarterly pp → annualised bp). A first pass omitted the
+`*100` step and read 1.62bp instead of 162bp for `psi_lambda_B=8.5`; the corrected harness
+was sanity-checked to reproduce the task's stated 162.0bp baseline (got 162.14) before any
+tuning happened.
+
+**Bisection table** (peak spread on a 1pp D default shock, γ=0, `EBA_CALIBRATION=True`,
+`BANK_SCOPE="broad"`):
+
+| `psi_lambda_B` | peak spread (pp) | annualised bp | `b_gov_D[499]` |
+|---|---|---|---|
+| 8.5 (old)       | 0.4053 | 162.14 | 1.62e-05 |
+| 7.0             | 0.3405 | 136.21 | −1.68e-04 |
+| 7.8             | 0.3729 | 149.16 | 5.27e-05 |
+| **7.85 (adopted)** | **0.3753** | **150.14** | 4.63e-05 |
+
+150.14bp is within 1bp of the 150bp target. `b_gov_D[499]` stays in the same ~1e-5..1e-4
+band across the whole bracket — no instability opened up while descending from 8.5 to
+7.85, consistent with CLAUDE.md's note that this direction moves *away* from the
+high-`psi_lambda_B` linearisation-breakdown region, not toward it. `n_inter_D[0]` and
+`Y_D[0]` were both negative (correct doom-loop sign) at every point evaluated.
+
+**Adopted value: `psi_lambda_B_D = psi_lambda_B_F = 7.85`** (was 8.5), `EBA_CALIBRATION`
+branch only; the pre-EBA `else 3.0` branch is untouched. Set in `code/calibration.py`
+around line 153-154, with the bisection table recorded in a comment there.
+
+**Full-pipeline verification at the tuned value** (`code/main.py`, T=500 Jacobian):
+steady-state residuals are byte-identical to every prior task's baseline —
+`goods_mkt_D = -4.2493506589857954e-07`, `goods_mkt_F = -4.1914559989475464e-07`,
+`ca_res_D = 6.852157730108388e-17`, `IC_D: θ − θ_tgt = 1.776357e-15`, `ρ_b = 0.8451`,
+`All residuals < 1e-8 ✓` (SS-level quantities don't depend on `psi_lambda_B` at all, so
+this is expected — the dial only touches dynamics). Dynamics:
+
+- `gamma=0` peak spread = **+0.375 pp → 150.0 bp**, on target.
+- `gamma=2/5/10` peak spread = +0.313 / +0.246 / +0.177 pp — still monotone declining in
+  the TPI backstop strength, loading construction intact.
+- `n_inter_D[0] = -4.2962%` of SS, `Y_D[0] = -0.5064%` of SS — both negative (correct sign).
+- `irfs_def_D['b_gov_D'][499] = 0.000046` — same order of magnitude as the Task 13
+  baseline (`1.6e-05`), no blow-up.
+- No `assert_gk_well_posed` failure, no warnings or tracebacks anywhere in the run log.
+
+`code/test_nkpc_blocks.py`: **17 passed, 0 failed** (unchanged — Task 14 is a calibration
+change only, no new blocks or equations).
+
+**Next: Task 15** — rebuild the regime cache (`diagnostics/regimes/regime_model.py
+--force`) and `experiments/run_all.py`. **E1–E4 numbers in `docs/experiments_results.md`
+are stale as of this commit** — they were built against `psi_lambda_B=8.5` (and, further
+back, against the pre-sticky-price model), not the current 7.85 tuning.
 
 ## Nominal rigidities (`add-nkpc`): Task 10 — price-stickiness-only result at the calibrated slope
 

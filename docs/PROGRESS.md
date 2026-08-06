@@ -14,6 +14,34 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-08-06 — Task 14: `psi_lambda_B` re-tuned to the 150bp spread moment (`add-nkpc`)
+
+- Task 13's Fisher channel (plus NKPC stickiness) had pushed the peak GR–DE spread
+  response to a 1pp default shock from 150.4bp (pre-change) to 162.0bp at the old
+  `psi_lambda_B_D/F = 8.5`, an 8% overshoot of the paper's 150bp target moment.
+- Re-bisected with a scratch harness (`/tmp/eval_psi.py`, not committed) that patches
+  `calibration.get_calibration` per point and re-solves SS → IC-δ → depreciation →
+  full model, matching `tpi.py`'s own `peak_pp = spread_rb[:100].max()*100`,
+  `bp_ann = peak_pp*400` convention. Sanity-checked against the stated 162.0bp
+  baseline first (got 162.14) before tuning.
+- Bisection: `psi_lambda_B = 8.5 → 162.14bp`, `7.0 → 136.21bp`, `7.8 → 149.16bp`,
+  `7.85 → 150.14bp` (adopted). `b_gov_D[499]` stayed in the ~1e-5..1e-4 band
+  throughout — no instability opened up while lowering the dial.
+- **`code/calibration.py`**: `psi_lambda_B_D/F` `8.5 → 7.85` under `EBA_CALIBRATION`
+  (the pre-EBA `else 3.0` branch untouched), with the bisection table recorded in a
+  comment.
+- Full-pipeline re-verification: SS residuals byte-identical to every prior task's
+  baseline (`psi_lambda_B` only touches dynamics, not SS). `gamma=0` peak spread
+  = +0.375 pp = **150.0 bp**, on target; `gamma=2/5/10` still monotone declining.
+  `n_inter_D[0]=-4.2962%`, `Y_D[0]=-0.5064%` (both correct sign);
+  `b_gov_D[499]=4.6e-05`, same order as the Task 13 baseline. No `assert_gk_well_posed`
+  failure.
+- `code/test_nkpc_blocks.py` unchanged at 17 passed, 0 failed (calibration-only change).
+- Not done here: `diagnostics/regimes/regime_model.py`'s cached Jacobian and
+  `docs/experiments_results.md` (E1–E4) are stale until rebuilt — Task 15.
+
+---
+
 ## 2026-08-06 — Task 13: nominal deposits wired in; Fisher channel deepens the net-worth loss (`add-nkpc`)
 
 - `code/calibration.py`: `'rdep_D'/'rdep_F': 0.000` → `'i_dep_D'/'i_dep_F': 0.000`.

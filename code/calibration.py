@@ -150,8 +150,21 @@ def get_calibration():
         # _apply_ss_anchors, so a sweep MUST re-solve the SS per point. Patching
         # the flag on an already-solved SS leaves psi_spread stale and inverts the
         # apparent sign of the spread response.
-        'psi_lambda_B_D': 8.5 if EBA_CALIBRATION else 3.0,
-        'psi_lambda_B_F': 8.5 if EBA_CALIBRATION else 3.0,
+        #
+        # RETUNED 2026-08-06 (Task 14, add-nkpc): sticky prices (NKPC blocks) and
+        # nominal (non-state-contingent) deposit contracts both raise spread
+        # transmission, moving the old 8.5 -> 162.0 bp (was 150.4 bp pre-change,
+        # ~8% over target). Re-bisected against the same 150bp GR-DE peak-spread
+        # moment on a 1pp default shock, holding everything else fixed:
+        #   psi_lambda_B = 8.5  -> peak spread 0.4053 pp -> 162.14 bp
+        #   psi_lambda_B = 7.0  -> peak spread 0.3405 pp -> 136.21 bp
+        #   psi_lambda_B = 7.8  -> peak spread 0.3729 pp -> 149.16 bp
+        #   psi_lambda_B = 7.85 -> peak spread 0.3753 pp -> 150.14 bp  <- adopted
+        # b_gov_D[499] stayed in ~1e-5..1e-4 across the whole bracket (no
+        # instability); n_inter_D[0] and Y_D[0] both negative throughout
+        # (correct doom-loop sign). See docs/STATE.md for the full record.
+        'psi_lambda_B_D': 7.85 if EBA_CALIBRATION else 3.0,
+        'psi_lambda_B_F': 7.85 if EBA_CALIBRATION else 3.0,
         # Bank net worth = Core Tier 1 / own quarterly nominal GDP.
         # GR 22,778/55,898 = 0.4075; DE 114,317/653,815 = 0.1748.
         'n_inter_D':    eba_or('n_inter_D', 0.75*4),  'n_inter_F':    eba_or('n_inter_F', 0.75*4),
