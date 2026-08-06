@@ -1,18 +1,212 @@
 # Project State
 
-**Branch:** `eba-recalibration` | **Date:** 2026-07-31 | **Status:** **EBA calibration rebuilt, identified, and LIVE** (`EBA_CALIBRATION=True`, `BANK_SCOPE="broad"`). Y-1 and RK-1 resolved; spread on target at 150.4bp; TPI loading declining.
+**Branch:** `add-nkpc` | **Date:** 2026-08-06 | **Status:** **Sticky prices with nominal deposit contracts are the baseline.** 27×27 solver system; `psi_lambda_B` re-tuned to 7.85 to hold the 150bp spread moment; E1–E4 regenerated on the new model. EBA calibration remains LIVE (`EBA_CALIBRATION=True`, `BANK_SCOPE="broad"`).
 
-## Nominal rigidities (`add-nkpc`): Task 15 — E1–E4 regenerated on the sticky-price model
+## Nominal rigidities (`add-nkpc`) — COMPLETE (Tasks 1–16, 2026-08-05/06)
 
-The regime cache was rebuilt (`regime_model.py --force`) **before** `experiments/run_all.py`,
-which is the ordering that matters: the experiments never re-solve the model, they read
-cached Jacobian response matrices, so running them first would have silently re-reported
-the flexible-price numbers. New caches are tagged `psilam7p85_cal685f7838` (the old set was
-`psilam8p50_calde195df2` / `cal004630e7` / `cal3397854d`). Every E1/E2/E3 provenance stamp
-in `docs/experiments_results.md` now reads `calibration 685f7838 · psi_lambda_B=7.85`,
-which is the check that the fresh cache was the one consumed.
+The model went from flexible prices with real deposit contracts to **sticky prices with
+nominal deposit contracts**, and every downstream result was regenerated. This one section
+replaces the sixteen per-task sections that previously accumulated here; the per-task detail
+is in `docs/PROGRESS.md` and in the commits.
 
-### E1 — backstop schedule, old (flex, `psi_lambda_B=8.5`) vs new (sticky, 7.85)
+### What the model now is
+
+**Sticky prices.** Rotemberg price Phillips curves `pi = beta*pi(+1) + kappa_p*(mu_p*mc - 1)`
+in both countries (`price_nkpc_D/F`). The gap is written as the *ratio* `mu_p*mc - 1`, not a
+level difference, so it is unit-free and linearises to exactly `mc_hat` for any `mu_p` —
+published Calvo slopes map straight onto `kappa_p` with no SS rescaling, and `mu_p` is a free
+normalisation to first order. Discounted at constant `beta_D/F` rather than the SDF, which is
+immaterial to first order because `pi_ss = 0`.
+
+**Markup wedge in labour demand.** `labor_demand_D/F` now solve `w = mu_p*mc*(1-alpha)*Y/N`
+in place of the competitive `w = (1-alpha)*Y/N`. This is the point of the whole exercise:
+previously, flexible labour supply combined with competitive labour demand eliminated `Y`
+entirely and left `N` pinned by `Z`, `K` and `P_CES` alone, with **nothing for aggregate
+demand to act on**. With the wedge, a move in `mc` shifts labour demand, so `N` and `Y` move
+together. **Wages stay flexible** — `labor_market_D/F` is untouched.
+
+**Markup rent.** `firm_profit_D/F` compute `profit = (1 - mu_p*mc)*(1-alpha)*Y`, the residual
+left over once labour is paid `mu_p*mc*(1-alpha)*Y` while capital keeps `alpha*Y`. Left
+unrouted this would be a Walras leak of the W-1/W-2 class. It is distributed to households
+**in proportion to productivity `e`**, not lump-sum, through `income_D/F` — which makes
+labour-plus-profit income per unit of `e` exactly `(1-alpha)*Y*e`, identical to the
+flex-price model (max abs diff 2.2e-16). So the markup wedge bites only on the firm's hiring
+decision, never on household income, and `labor_market_D/F` needs no change.
+
+**Nominal closure with no policy rate.** `terms_of_trade` (global) turns the monetary-union
+identity `p/p(-1) = (1+pi_F)/(1+pi_D)` into a residual on `p`, an unknown that already
+existed: the nominal exchange rate is fixed at 1, so terms-of-trade movement *is* the
+inflation differential, and this pins `pi_D − pi_F` off existing plumbing. `union_inflation`
+supplies the missing level normalisation, `omega_pi_D*pi_D + (1-omega_pi_D)*pi_F = 0` — the
+`phi_pi -> inf` limit of an ECB Taylor rule on union-wide PPI inflation, stated explicitly as
+an abstraction rather than a modelled policy rule. **No financial contract in this model
+carries a policy rate**, so no Fisher relation is needed to close it. Solved together:
+`pi_D = -(1-omega_pi_D)*dlog p`, `pi_F = omega_pi_D*dlog p`. At the renormalised capital-key
+`omega_pi_D = 0.071`, **93% of any terms-of-trade adjustment is Greek PPI deflation and 7% is
+German inflation** — the 2010–12 internal-devaluation pattern. GDP weights would split it
+~50/50 (counterfactual), because the model normalises `Y_D_ss ~ Y_F_ss ~ 1`.
+
+**Nominal deposits.** `deposit_rates_D/F` take the nominal rate `i_dep_D/F` (now the solver
+unknown) and `pi_D/F`, and return two objects: `rdep_D/F`, which **keeps its name and its
+ex-ante meaning** (the real rate for t → t+1, locked at t), and `rdep_expost_D/F`, the
+realised real rate `(1+i_dep(-1))/(1+pi) - 1` that carries the inflation surprise. Because
+`rdep` kept its name, `intermediation_P1_D/F`, `divert_bond_foc_D/F` and
+`divert_portfolio_adj` were **untouched** and remain correctly ex-ante (verified by
+introspecting `.inputs`). `bank_return_D/F` and `capital_fund_D/F` consume `rdep_expost_D/F`
+— that is the Fisher channel. T-2 is not reopened: `deposit_return_D/F` still locks the rate
+at `i_dep(-1)`; only the deflator (`P_CES`, `pi`) is period-t. Note `rdep_expost` carries its
+own `(-1)` internally, so writing `rdep_expost_D(-1)` would double-lag it.
+
+**Sovereign bonds stay real.** A deliberate asymmetry, not an oversight: banks are nominal
+debtors on deposits and real creditors on the sovereign book, which maximises their Fisher
+exposure. **This must be stated as a modelling choice in the paper**, not left implicit.
+Nominal sovereign bonds are a candidate follow-on.
+
+**Solver system: 23×23 → 27×27.** `unknowns_tp` gains `mc_D, pi_D, mc_F, pi_F` and swaps
+`rdep_D/F → i_dep_D/F`; `targets_tp` gains `nkpc_p_res_D/F, tot_res, union_pi_res`. Nothing
+existing was renamed or dropped. The block list has one definition,
+`full_model.build_block_list()`, shared by `full_model.py`, `tpi.py` (which supplies its four
+`_tpi` swaps via `tpi.tpi_overrides()`) and `diagnostics/regimes/regime_model.py`.
+
+**The steady state is bit-identical to pre-change.** Markups are subsidy-neutralised
+(`mc_ss = 1/mu_p`, so `mu_p*mc = 1` and `profit_ss = 0`) and `pi_ss = 0`, so every new object
+is exactly `0.000000e+00` at SS. The monitored numbers are unchanged through every task:
+`goods_mkt_D = -4.2493506589857954e-07`, `goods_mkt_F = -4.1914559989475464e-07`,
+`ca_res_D = 6.852157730108388e-17`, `IC_D: θ − θ_tgt = 1.776357e-15`, `ρ_b = 0.8451`,
+all residuals `< 1e-8 ✓`. At `pi = 0` the three deposit rates collapse exactly:
+`i_dep_D = rdep_D = rdep_expost_D = 0.000000000000`.
+
+### Calibration added and changed
+
+| parameter | value | source / rationale |
+|---|---|---|
+| `mu_p_D/F` | 1.20 | gross price markup, `epsilon_p = 6`. Free to first order under the subsidy neutralisation, so the level needs no defending. |
+| `mc_D/F` | `1/1.20 = 0.8333` | subsidy-neutralised SS real marginal cost (`tau_s = 1 − 1/mu_p`). Retargeted from a dead placeholder `1.0`; this is what keeps the SS bit-identical. |
+| `kappa_p_D/F` | 0.0871 | Rotemberg slope from Calvo `theta_p = 0.75` at `beta = 0.985`, i.e. `(1−θ)(1−βθ)/θ`. Agrees with Bi-Foerster-Traum's implied 0.0846 to within 3%; consistent with the ~4-quarter euro-area IPN median price duration. |
+| `pi_D/F` | 0.0 | SS PPI inflation, exact. |
+| `omega_pi_D` | 0.071 | 1 − the renormalised two-country ECB capital key (BuBa 26.1 / BoG 2.0). **Deliberately not GDP weights**, which would erase the 93/7 internal-devaluation split. |
+| `i_dep_D/F` | 0.000 | renamed from `rdep_D/F`; `rdep_D/F` is now a solved output, not a calibration input. |
+| **`psi_lambda_B_D/F`** | **7.85** (was 8.5) | **re-tuned.** Sticky prices + the Fisher channel pushed peak spread to 162.0bp at 8.5, an 8% overshoot of the paper's 150bp moment. Re-bisected: 8.5 → 162.14bp, 7.0 → 136.21bp, 7.8 → 149.16bp, **7.85 → 150.14bp (adopted, within 1bp)**. `b_gov_D[499]` stayed in the ~1e−5..1e−4 band throughout — lowering the dial moves *away* from the high-`psi_lambda_B` breakdown region, not toward it. `EBA_CALIBRATION` branch only; the pre-EBA `else 3.0` branch is untouched. |
+
+### Headline results
+
+Impact response to the 1pp default shock, % of own SS level. Both columns hit the same
+150bp peak-spread moment, so this is **like-for-like**.
+
+| | flex, real deposits (`psi_lambda_B=8.5`) | sticky + nominal, re-tuned (7.85) |
+|---|---|---|
+| peak spread (bp ann) | 150.4 | 150.0 |
+| `Y_D[0]` | −0.0149 | **−0.5064** |
+| `C_D[0]` | **+0.2164** | **−0.5103** |
+| `I_D[0]` | −0.7718 | −1.0114 |
+| `n_inter_D[0]` | −3.3804 | −4.2962 |
+
+Decomposed into the two structural changes (Tasks 10 and 13, both measured at
+`psi_lambda_B = 8.5` so the dial is held fixed):
+
+| step | `Y_D[0]` | `C_D[0]` | `I_D[0]` | `n_inter_D[0]` |
+|---|---|---|---|---|
+| flex, real deposits | −0.0149 | **+0.2164** | −0.7718 | −3.3804 |
+| + price stickiness (deposits still real) | −0.4923 | **−0.4904** | −0.9907 | −4.0140 |
+| + nominal deposits | −0.5449 | −0.5499 | −1.0849 | −4.6155 |
+| + `psi_lambda_B` 8.5 → 7.85 (back on 150bp) | −0.5064 | −0.5103 | −1.0114 | −4.2962 |
+
+- **Price stickiness alone flips `C_D[0]`** and takes `Y_D[0]` 33× larger. The extra output
+  decline is **not** an investment story (`I_D` moved 1.28×, `Y_D` 33×) — it is the markup
+  wedge shifting labour demand directly, which is the mechanism the design intended.
+- **Nominal deposits are the Fisher channel and the signature is correct**: the amplification
+  lands hardest on bank net worth (−0.60pp, ~15% deeper, ~11× larger than the effect on
+  output) and only reaches output through the intermediary. Had the ex-post/ex-ante
+  substitution been backwards, `n_inter_D[0]` would have gone *less* negative.
+- `Y_D[0] = −0.49%` (stickiness alone) sits against Bi-Foerster-Traum (FRBSF WP 2025-10) at
+  −0.6%. The pre-change model was two orders of magnitude below that. Price stickiness closes
+  the gap **without** their Sims-Wu loan-in-advance constraint.
+
+**`kappa_p` sweep — monotone, stable, and the sign flip is not knife-edge:**
+
+| `kappa_p` | `Y_D[0]` | `C_D[0]` | `I_D[0]` | `n_inter_D[0]` | `b_gov_D[499]` |
+|---|---|---|---|---|---|
+| 0.03 (stickier) | −0.7280 | −0.8401 | −1.0987 | −4.3244 | 1.50e−05 |
+| **0.0871** (calibrated) | **−0.4923** | **−0.4904** | −0.9907 | −4.0140 | 1.4e−05 |
+| 0.2 (more flexible) | −0.3105 | −0.2211 | −0.9077 | −3.7736 | 1.42e−05 |
+| flex limit | −0.0149 | +0.2164 | −0.7718 | −3.3804 | 1.4e−05 |
+
+`C_D[0]` is negative across the whole sticky range and positive only in the flexible limit.
+
+### CAVEAT — this is a one-quarter spike, not a downturn. Do not drop it.
+
+First 8 quarters, % of SS:
+
+```
+Y_D sticky, real dep   : -0.4923 +0.0083 +0.1006 +0.0881 +0.0580 +0.0329 +0.0161 +0.0063
+Y_D sticky, nominal dep: -0.5449 -0.0011 +0.1021 +0.0912 +0.0604 +0.0342 +0.0165 +0.0061
+C_D sticky, real dep   : -0.4904 +0.1141 +0.1553 +0.0790 +0.0046 -0.0440 -0.0685 -0.0761
+C_D sticky, nominal dep: -0.5499 +0.1144 +0.1676 +0.0903 +0.0124 -0.0395 -0.0665 -0.0758
+C_D flex               : +0.2164 +0.0702 -0.0161 -0.0624 -0.0829 -0.0873 -0.0822 -0.0721
+```
+
+Output and consumption are both **positive from quarter 1**, and flexible-price consumption
+is in fact *more* persistently negative from quarter 2 on. Nominal deposits deepen the impact
+quarter (`C_D[1]` is essentially unmoved, +0.1141 → +0.1144 — the entire Fisher effect is an
+impact-quarter effect) but do **not** lengthen the recession. Bi-Foerster-Traum's output stays
+negative for ~20 quarters.
+
+**The honest claim is that the model fixes the impact quarter, not that it resolves the
+investment-bust counterfactual.** Do not write "resolves the investment-bust counterfactual"
+without this qualification.
+
+### The SSJ defect and `solve_jacobian_padded()` — a hard requirement
+
+SSJ 1.0.0's `CombinedBlock._jacobian` seeds from the shock list and ends with
+`total_Js[original_outputs & total_Js.outputs, :]`, only visiting a block whose inputs
+intersect that list. A target that is a **pure function of the solver's own unknowns**
+therefore never enters H_Z and is silently dropped. All four new targets are exactly that (no
+`Z_*`/`shock_def_*` symbol appears anywhere in `nkpc_p_res_D/F`, `tot_res`, `union_pi_res`),
+so SSJ returned a 23-row H_Z against a 27×27 H_U and `Block.solve_jacobian` handed mismatched
+shapes to `np.linalg.solve` (`size 11500 is different from 13500`).
+
+**Fix: `full_model.solve_jacobian_padded()`**, which restores the missing rows as zeros. This
+is **exact, not an approximation** — `dH/dZ` at fixed unknowns is identically zero when the
+shock symbol never appears in the equation. It otherwise reproduces `Block.solve_jacobian`
+line-for-line and prints the padded row names on every solve, so the padding can never go
+silent.
+
+**Every Jacobian call site in the repo routes through it** (converted in Task 9b:
+`code/full_model.py`, `code/tpi.py`, `diagnostics/regimes/regime_model.py`,
+`experiments/e4_distribution.py`, `diagnostics/solve_configs.py`,
+`diagnostics/psilam_moment_sweep.py`, `diagnostics/psilam_breakdown_sweep.py`,
+`diagnostics/substitution_v2/solve_v2.py`, `diagnostics/substitution_v2/exp_psilam0.py`).
+The invariant to keep:
+
+```bash
+grep -rn "\.solve_jacobian(" --include="*.py" code experiments diagnostics | grep -v solve_jacobian_padded
+```
+
+must stay **empty**. A 25×25 rewrite (folding the four targets into existing equations) was
+considered and rejected: it would hit the identical defect with smaller numbers.
+
+### Flex-price equivalence gate (the wiring check)
+
+As `kappa_p -> inf` the NKPC forces `mu_p*mc -> 1` and labour demand collapses to
+competitive, so the 27×27 system must reproduce the pre-change 23×23 IRFs. It does, with
+textbook O(1/`kappa_p`) convergence — worst relative IRF deviation `2.925e-03` at 1e4,
+**`2.925e-04` at 1e5** (gate threshold 1e-3, **PASSED**), `2.925e-05` at 1e6. Every one of
+the 30 IRF series shrinks by a ratio of exactly 10.00 per decade and the 4 SS levels are
+bit-identical at every `kappa_p`. The binding series are `w_D` and `N_D`, the two objects the
+markup wedge acts on directly. A clean 1/`kappa_p` rate rather than a stuck floor is the
+evidence that the blocks are wired correctly. Comparison harness: `code/dump_irfs.py`.
+
+### E1–E4 regenerated (Task 15)
+
+**Ordering is load-bearing.** `diagnostics/regimes/regime_model.py --force` must run
+**before** `experiments/run_all.py`: the experiments never re-solve the model, they read
+cached Jacobian response matrices, so the reverse order silently re-reports the old model's
+numbers. New caches are tagged `psilam7p85_cal685f7838` (the old set was `psilam8p50` under
+`calde195df2`/`cal004630e7`/`cal3397854d`); every provenance stamp in
+`docs/experiments_results.md` now reads `calibration 685f7838 · psi_lambda_B=7.85`, which is
+the check that the fresh cache was the one consumed.
+
+**E1 — backstop schedule** (old = flex at `psi_lambda_B=8.5`, new = sticky+nominal at 7.85):
 
 | | passive | medium | aggressive |
 |---|---|---|---|
@@ -31,44 +225,33 @@ which is the check that the fresh cache was the one consumed.
 | loading — old | n/a | 4.00 | 3.17 |
 | **loading — new** | **n/a** | **3.82** | **2.90** |
 
-The peak-spread column is nearly unchanged **by construction** — the regimes are *defined*
-as 0/25/50% compression and γ is solved to hit that, so the informative move is that the
-same compression now costs a **smaller** γ (3.25 vs 5.08; 9.02 vs 12.73). The backstop is
-more powerful per unit under sticky prices.
+The peak-spread row is nearly unchanged **by construction** — the regimes are *defined* as
+0/25/50% compression and γ is solved to hit that. The informative move is that the same
+compression now costs a **smaller** γ (3.25 vs 5.08; 9.02 vs 12.73): the backstop is more
+powerful per unit under sticky prices.
 
-**1. Is the loading still monotone decreasing in γ? YES.** 3.82 → 2.90 across the named
-regimes, and the full schedule (59 finite grid points over γ ∈ [0.51, 30.00]) falls
-**4.43 → 1.49**, reported monotone-decreasing by E1's own check. The paper's key claim —
-the self-extinguishing premium — survives the move to sticky prices, and the loading stays
-above 1 throughout, so over-compensation survives too. The level is slightly lower than the
-flex-price schedule (old 4.35/4.01/3.44 at γ=0/5/10) but the shape is the claim, not the level.
+- **Live Claim 5 (self-extinguishing premium) SURVIVES.** The loading is monotone decreasing
+  in γ, **4.43 → 1.49** across the full schedule (59 finite grid points over γ ∈ [0.51,
+  30.00]), reported monotone by E1's own check.
+- **Live Claim 1 (over-compensation, loading > 1) SURVIVES.** 3.82 / 2.90 at the named
+  regimes, and above 1 at every grid point. The level is slightly below the flex-price
+  schedule; the *shape* is the claim, not the level.
 
-**2. Are `Y_D[0]` and `C_D[0]` still positive under the intervening regimes? YES, and far
-more strongly.** `Y_D[0]` = +0.2008 / +0.8721 and `C_D[0]` = +0.5285 / +1.5143 at
-medium/aggressive. The old "watch item" is not merely intact, it is an order of magnitude
-larger. What *has* changed is the **passive** column: `C_D[0]` flips from +0.2164 to
-−0.5103, which is exactly the Task 10 price-stickiness sign flip propagating into E1. So
-the backstop now moves consumption across zero rather than merely raising an
-already-positive number — a cleaner story, but E2 below says do not lead with it.
+**E2 — closure held.** The `market_clearing_D` identity closes at `max|residual|` =
+3.53e−17 / 1.09e−16 / 2.22e−16 against the 1e−07 assertion. **No Rotemberg resource cost
+leaked into the resource constraint**, which is what makes this check meaningful.
 
-### E2 — closure held
+**E2's headline-vs-channels finding REVERSES, and `docs/SPEC.md`'s caution was restated
+accordingly.** Under flex prices, `dY[0]` moved +4.9e−04 passive → aggressive while
+investment moved +2.2e−03 and net exports −1.9e−03: the headline was a small residue of
+channels ~4× its size. Under sticky prices `dY[0]` moves **+1.38e−02** while investment moves
++3.41e−03 and net exports −2.92e−03 — the largest single channel is now **0.25×** the
+headline, not 4×. "Report the decomposition, not the headline ΔY" still stands, but the
+*reason* is now that the channels **cancel and land on different households**, not that the
+headline is the smaller object. This is arguably an improvement: output is no longer a
+numerically fragile residue of nearly-cancelling terms.
 
-The `market_clearing_D` identity closes at `max|residual|` = **3.53e−17 / 1.09e−16 /
-2.22e−16** (passive / medium / aggressive) against the 1e−07 assertion. No Rotemberg
-resource cost leaked into the resource constraint, which is what makes this check
-meaningful.
-
-**E2's headline-vs-channels finding REVERSES.** Under flex prices `dY[0]` moved
-+4.9e−04 passive → aggressive while investment moved +2.2e−03 and net exports −1.9e−03 —
-the headline was a small residue of channels ~4× its size. Under sticky prices `dY[0]`
-moves **+1.38e−02** while investment moves +3.41e−03 and net exports −2.92e−03: the
-largest single channel is now **0.25×** the headline, not 4×. The channels still offset,
-so "report the decomposition, not the headline ΔY" still stands — but the *reason* has
-changed and `docs/SPEC.md`'s caution must be restated as being about cancellation rather
-than about the headline being dominated. This was caught because the caption was hardcoded;
-it now computes from the data and flips its own wording (see below).
-
-### E3 — S-1 under sticky prices: the inversion is now partial
+**E3 — S-1 under sticky prices: the inversion is now only partial.**
 
 | setting | `EL_price_D` | peak spread, passive | loading (medium) | loading (aggressive) |
 |---|---|---|---|---|
@@ -78,480 +261,90 @@ it now computes from the data and flips its own wording (see below).
 
 `writeoff_enabled=1` alone remains negligible and SS-neutral (max SS drift 0.000e+00),
 confirming the S-1 decision. Under full writeoff the loading no longer falls below 1
-*everywhere* — **medium stays at 2.46, only aggressive inverts at 0.26**, where the
-flex-price model had both below 1 (0.37/0.28). The appendix robustness claim therefore
-needs restating: full writeoff inverts Live Claim 1 **only at aggressive intervention**,
-not across the schedule. Peak spread remains non-monotone in γ under this setting, so the
-named-regime construction still breaks there and all rows are evaluated at the baseline's γ.
+*everywhere* — **medium holds at 2.46; only aggressive inverts, at 0.26**, where the
+flex-price model had both below 1 (0.37/0.28). **The appendix robustness claim must be
+narrowed:** full writeoff inverts Live Claim 1 only at aggressive intervention, not across
+the schedule. Peak spread remains non-monotone in γ under this setting, so the named-regime
+construction still breaks there and all rows are evaluated at the baseline's γ.
 
-### E4 and paper artefacts also regenerated
+**E4 and paper artefacts.** `experiments/cache_e4_deciles.npz` was stale (predating the whole
+sticky-price workstream) and **E4 is not wired into `run_all.py`** — `e4_distribution.py` is
+a separate entry point feeding `paper_outputs.py`. Both were rebuilt, re-emitting all 8
+tracked `experiments/paper/fig0*.png` and `docs/paper_draft_results.md`. Anyone regenerating
+E1–E3 and assuming E4 came along will ship paper artefacts built on the old model.
 
-`experiments/cache_e4_deciles.npz` was **stale** (2026-08-05, predating the entire
-sticky-price workstream) and is not wired into `run_all.py` — it is a separate entry point.
-Rebuilt via `experiments/e4_distribution.py`, then `experiments/paper_outputs.py` re-emitted
-all 8 tracked `experiments/paper/fig0*.png` and `docs/paper_draft_results.md`. Without this
-the commit would have carried nine tracked paper artefacts built on the old model.
+### NEW WATCH ITEM — the aggressive backstop now produces an impact boom
 
-### Two hardcoded captions in the GENERATED document, both now computed live
+`n_inter_D[0]` is **positive (+0.924)** under the aggressive regime, where it was −1.099
+under flex prices. Together with `Y_D[0] = +0.8721` and `C_D[0] = +1.5143`, the aggressive
+backstop produces an impact **boom** in the crisis country rather than merely cushioning the
+bust. **Flag this prominently — a referee will press on it.** At `γ_aggressive = 9.02` this
+may still be linear-rule overshoot (the same suspicion that attached to the old
+`γ_aggressive = 12.7`), but it is now much larger and reaches bank net worth, not just
+output.
+
+The pre-existing watch item — `Y_D[0]` positive under both intervening regimes — **survives
+and is an order of magnitude larger** (+0.0111/+0.0338 → +0.2008/+0.8721). What has changed
+favourably is the **passive** column: `C_D[0]` flips +0.2164 → −0.5103, so the backstop now
+moves consumption *across zero* rather than raising an already-positive number.
+
+### Generated-document hazard found in Task 15
 
 `experiments/run_all.py` carried two prose captions with flex-price numbers baked in as
-string literals. A generated document that hardcodes results is worse than no document:
+string literals. E3's `psi_lambda_B = 8.5` was merely stale; E2's "each roughly 4× the
+headline" was **asserting the opposite of the table printed directly above it**. Both now
+compute from `provenance`/`components_impact`, and the E2 caption selects its own leading
+sentence from the data. **No test asserts that rendered prose agrees with rendered tables** —
+that gap is still open.
 
-1. E3's `psi_lambda_B = 8.5` — stale after the re-tune to 7.85. Now reads
-   `e3['provenance']['psi_lambda_B_D']`.
-2. E2's "`dY[0]` moves by ~+4.9e−04 … each roughly 4× the headline" — not just stale but
-   **stating the opposite of the table printed directly above it**. Now computed from
-   `components_impact` and it selects its own leading sentence depending on whether the
-   headline is or is not dominated by the channels.
+**The same hazard is still LIVE in `experiments/paper_outputs.py` (found in Task 16, not
+fixed).** Its module-level `CAPTIONS` dict hardcodes flex-price numbers and is baked into the
+eight tracked `experiments/paper/fig0*.png` and into `docs/paper_draft_results.md`. Task 15
+regenerated the *figures and tables* but the caption strings were never updated, so the
+generated document now contradicts itself:
 
-Neither was caught by a test, because no test asserts that rendered prose agrees with
-rendered tables. Worth considering in Task 16.
+| caption | says | current value |
+|---|---|---|
+| `fig08_deciles` | "the lowest gains 0.95%… highest 0.59%" | Table 4 **in the same file**: Q1 +0.4250, Q5 −0.9073 |
+| `fig08_deciles` | "Consumption rises for every income quintile on impact" | `C_D[0]` is now −0.5103; Q2–Q5 passive PVs are negative |
+| `fig02_loading_schedule` | "4.5× … 2.1×" | schedule is 4.43 → **1.49** |
+| `fig03_dy_decomposition` | "each roughly four times the headline" | **inverted** — largest channel is 0.25× the headline |
+| `fig01_transmission` | "cuts bank net worth 3.4%… investment (−0.77% on impact)" | −4.296% and −1.0114% |
+| `fig04_spread_decomposition` | "3% / 97%" | not re-derived since `psi_lambda_B` moved 8.5 → 7.85 |
 
-Tests: `experiments/ code/test_nkpc_blocks.py code/test_eba_calibration.py` → **40 passed**
-(17 in `test_nkpc_blocks.py`).
+Fixing this needs a code change plus a figure regeneration run, and two of the numbers
+(`fig08`'s quarter-5 trough values, `fig04`'s split) have to be re-derived rather than copied
+— hence it is recorded here as a task, not patched blind. **Do not quote any figure caption
+until this is done.**
 
-**Next: Task 16** — final documentation pass across STATE.md, PROGRESS.md, HANDOFF.md,
-SPEC.md and CLAUDE.md. Note that this file's header (line 3) still says branch
-`eba-recalibration` / 2026-07-31 and CLAUDE.md still quotes the pre-sticky-price E1 numbers
-and `psi_lambda_B` guidance; both need reconciling there.
+### Test entry points
 
-## Nominal rigidities (`add-nkpc`): Task 11 — nominal deposit contracts split into `i_dep`/`rdep`/`rdep_expost`
-
-`rdep_D/F` is split into three names to avoid a wide, risky rename. `deposit_rates_D/F`
-(new `@simple` block) takes the nominal unknown `i_dep_D/F` and `pi_D/F` and returns two
-outputs: `rdep_D/F` (unchanged name, unchanged meaning — the ex-ante real rate for
-t → t+1, locked at t) and `rdep_expost_D/F` (new — the realised real rate at t on
-deposits placed at t−1, `= (1+i_dep(-1))/(1+pi) - 1`, carrying the inflation surprise).
-`deposit_return_D/F` now takes `i_dep`, `P_CES`, `pi` instead of `rdep`, keeping the T-2
-timing (rate locked at t−1) and adding the period-t CPI deflator via `pi`.
-
-Because `rdep_D/F` keeps its name and its ex-ante meaning, `intermediation_P1_D/F`,
-`divert_bond_foc_D/F` and `divert_portfolio_adj` (global) are **untouched** — verified by
-introspecting `.inputs` after the change (`rdep_D` present, `rdep_expost_D` absent).
-
-At SS `pi = 0`, so `rdep_D = rdep_expost_D = i_dep_D` and `Rgross_D = 1 + i_dep_D`
-exactly — this is what keeps the steady state bit-identical once `i_dep` is wired in as
-the solver unknown (Task 13). `deposit_rates_D/F` and the new `deposit_return_D/F` are
-not yet wired into `full_model.py`'s block list or the calibration/steady-state — that is
-Task 13.
-
-`code/test_nkpc_blocks.py` gained 4 tests (11 → 15 passed): SS collapse, deflation raises
-the realised real rate (sign check for the Fisher channel), `Rgross` unchanged at
-`pi=0`, and D/F symmetry.
-
-## Nominal rigidities (`add-nkpc`): Task 12 — `bank_return_D/F`/`capital_fund_D/F` now pay the ex-post real rate
-
-The Fisher channel: `bank_return_D/F` and `capital_fund_D/F` pay for deposits taken on at
-t−1, so they must use the *realised* real rate on that funding, not the ex-ante one.
-Signature changed `rdep_D/F` → `rdep_expost_D/F`; all four (three, for `capital_fund`)
-occurrences of `rdep_D(-1)`/`rdep_F(-1)` in the bodies became bare `rdep_expost_D/F`
-(`rdep_expost` already carries its own `(-1)` internally — writing `rdep_expost_D(-1)`
-would double-lag it). `intermediation_P1_D/F` and `divert_bond_foc_D/F` are untouched —
-they are ex-ante (t → t+1) and still correctly read `rdep_D/F`. F's W-2 `p(-1)/p`
-terms-of-trade conversion in `bank_return_F` is unrelated and was left alone.
-
-Sign logic: D banks are net nominal debtors on deposits. When D deflates,
-`rdep_expost_D` rises (the real value of what the bank owes goes up), so `bank_return_D`
-falls further — this is what Task 13's gate checks (`n_inter_D[0]` more negative, not
-less). Getting the substitution backwards would silently invert the whole channel.
-
-`code/test_nkpc_blocks.py` gained 2 tests (15 → 17 passed): a signature check that
-`bank_return_D`/`capital_fund_D` take `rdep_expost_D` and not `rdep_D`, and a check that
-`intermediation_P1_D`/`divert_bond_foc_D` still take `rdep_D` and not `rdep_expost_D`.
-
-## Nominal rigidities (`add-nkpc`): Task 13 — nominal deposits WIRED IN; Fisher gate PASSED
-
-The model solves end-to-end again. Three edits, no equation changed:
-
-- `code/calibration.py` — `'rdep_D'/'rdep_F': 0.000` renamed to `'i_dep_D'/'i_dep_F': 0.000`.
-  `rdep_D/F` is no longer a calibration parameter; it is an output of `deposit_rates_D/F`.
-  Every `ss['rdep_D']` read elsewhere (`steady_state.py` excess-return anchors and
-  `Rgross` seeding, `depreciation_calibration.py` printout, `irf_plots.py`,
-  `diagnostics/solve_configs.py`) still works unchanged — the object exists, it is just
-  solved rather than supplied.
-- `code/steady_state.py` and `code/full_model.py` — `deposit_rates_D/F` imported and
-  placed immediately before `deposit_return_D/F` in both block lists.
-- `code/full_model.py` — `unknowns_tp`: `rdep_D → i_dep_D`, `rdep_F → i_dep_F`.
-  `targets_tp` **unchanged**; the system is still 27×27.
-
-**SS gate: PASSED, bit-identical.** Every numeric steady-state line diffs clean against
-the pre-change baseline: `goods_mkt_D = -4.2493506589857954e-07`,
-`goods_mkt_F = -4.1914559989475464e-07`, `ca_res_D = 6.852157730108388e-17`,
-`IC_D: θ − θ_tgt = 1.776357e-15`, all residuals `< 1e-8 ✓`, `ρ_b = 0.8451`,
-`b_gov_D[499] = 1.6e-05`. And the three rates collapse exactly at `pi = 0`:
-`i_dep_D = rdep_D = rdep_expost_D = 0.000000000000`.
-
-**Fisher gate: PASSED.** Impact response to the D default shock, sticky prices in both
-columns; the only difference is real vs nominal deposit contracts.
-
-| | sticky, REAL deposits (Task 10) | + NOMINAL deposits (Task 13) | change |
-|---|---|---|---|
-| `Y_D[0]`       | −0.4923% | **−0.5449%** | −0.0525 |
-| `C_D[0]`       | −0.4904% | **−0.5499%** | −0.0595 |
-| `I_D[0]`       | −0.9907% | **−1.0849%** | −0.0942 |
-| `n_inter_D[0]` | −4.0140% | **−4.6155%** | −0.6016 |
-
-The sign is right and the ordering is right: the amplification lands hardest on bank net
-worth (−0.60pp, ~15% deeper), and only reaches output through the intermediary. That is
-the Fisher channel doing exactly what it should — D banks are net nominal debtors on
-deposits, the crisis deflates D, `rdep_expost_D` rises, and the realised real funding
-cost eats further into `n_inter_D`. Had the Task 12 ex-post/ex-ante substitution been
-backwards, `n_inter_D[0]` would have gone *less* negative; it does not.
-
-First 8 quarters, % of SS:
-
-```
-Y_D real dep   : -0.4923 +0.0083 +0.1006 +0.0881 +0.0580 +0.0329 +0.0161 +0.0063
-Y_D nominal dep: -0.5449 -0.0011 +0.1021 +0.0912 +0.0604 +0.0342 +0.0165 +0.0061
-C_D real dep   : -0.4904 +0.1141 +0.1553 +0.0790 +0.0046 -0.0440 -0.0685 -0.0761
-C_D nominal dep: -0.5499 +0.1144 +0.1676 +0.0903 +0.0124 -0.0395 -0.0665 -0.0758
+```bash
+/opt/anaconda3/envs/ssj/bin/python -m pytest code/test_nkpc_blocks.py -v          # 17 tests, ~1s
+/opt/anaconda3/envs/ssj/bin/python -m pytest code/test_nkpc_blocks.py code/test_eba_calibration.py experiments/ -v   # 40 passed
 ```
 
-The **one-quarter-spike caveat from Task 10 survives unchanged** and must not be dropped
-from the write-up: nominal deposits deepen the impact quarter but do not fix the sign
-reversal from quarter 2 on — `Y_D` is already back to ≈0 at q1 and positive by q2 in both
-columns. Nominal contracts amplify the impact; they do not lengthen the recession.
-`C_D[1]` is essentially unmoved (+0.1141 → +0.1144), so the whole Fisher effect is an
-impact-quarter effect.
+### Open follow-ons
 
-`code/test_nkpc_blocks.py`: **17 passed, 0 failed** (unchanged — Task 13 added no
-equations, so no new tests).
-
-Caveat carried forward: the spread moment has drifted with the nominal side and has not
-been re-tuned. That is Task 14.
-
-## Nominal rigidities (`add-nkpc`): Task 14 — `psi_lambda_B` re-tuned to the 150bp spread moment
-
-Task 13's Fisher channel (plus the earlier NKPC stickiness) raised peak GR–DE spread
-transmission on a 1pp default shock from the pre-change 150.4bp to **162.0bp** at the old
-`psi_lambda_B = 8.5`, an 8% overshoot of the paper's 150bp target (2010-12 calibration
-moment). `psi_lambda_B` is the model's one free amplification dial and is data-disciplined
-to exactly this moment, so it was re-bisected, everything else held fixed.
-
-**Harness.** A scratch script (`/tmp/eval_psi.py`, not committed) patches
-`calibration.get_calibration` to override `psi_lambda_B_D/F` from an env var, re-solves SS
-→ IC-δ → depreciation → full model per point, and reads `irfs_def_D['spread_rb']`. It
-replicates `tpi.py`'s own convention exactly: `peak_spread_pp = spread_rb[:100].max()*100`,
-then `bp_ann = peak_spread_pp*400` (quarterly pp → annualised bp). A first pass omitted the
-`*100` step and read 1.62bp instead of 162bp for `psi_lambda_B=8.5`; the corrected harness
-was sanity-checked to reproduce the task's stated 162.0bp baseline (got 162.14) before any
-tuning happened.
-
-**Bisection table** (peak spread on a 1pp D default shock, γ=0, `EBA_CALIBRATION=True`,
-`BANK_SCOPE="broad"`):
-
-| `psi_lambda_B` | peak spread (pp) | annualised bp | `b_gov_D[499]` |
-|---|---|---|---|
-| 8.5 (old)       | 0.4053 | 162.14 | 1.62e-05 |
-| 7.0             | 0.3405 | 136.21 | −1.68e-04 |
-| 7.8             | 0.3729 | 149.16 | 5.27e-05 |
-| **7.85 (adopted)** | **0.3753** | **150.14** | 4.63e-05 |
-
-150.14bp is within 1bp of the 150bp target. `b_gov_D[499]` stays in the same ~1e-5..1e-4
-band across the whole bracket — no instability opened up while descending from 8.5 to
-7.85, consistent with CLAUDE.md's note that this direction moves *away* from the
-high-`psi_lambda_B` linearisation-breakdown region, not toward it. `n_inter_D[0]` and
-`Y_D[0]` were both negative (correct doom-loop sign) at every point evaluated.
-
-**Adopted value: `psi_lambda_B_D = psi_lambda_B_F = 7.85`** (was 8.5), `EBA_CALIBRATION`
-branch only; the pre-EBA `else 3.0` branch is untouched. Set in `code/calibration.py`
-around line 153-154, with the bisection table recorded in a comment there.
-
-**Full-pipeline verification at the tuned value** (`code/main.py`, T=500 Jacobian):
-steady-state residuals are byte-identical to every prior task's baseline —
-`goods_mkt_D = -4.2493506589857954e-07`, `goods_mkt_F = -4.1914559989475464e-07`,
-`ca_res_D = 6.852157730108388e-17`, `IC_D: θ − θ_tgt = 1.776357e-15`, `ρ_b = 0.8451`,
-`All residuals < 1e-8 ✓` (SS-level quantities don't depend on `psi_lambda_B` at all, so
-this is expected — the dial only touches dynamics). Dynamics:
-
-- `gamma=0` peak spread = **+0.375 pp → 150.0 bp**, on target.
-- `gamma=2/5/10` peak spread = +0.313 / +0.246 / +0.177 pp — still monotone declining in
-  the TPI backstop strength, loading construction intact.
-- `n_inter_D[0] = -4.2962%` of SS, `Y_D[0] = -0.5064%` of SS — both negative (correct sign).
-- `irfs_def_D['b_gov_D'][499] = 0.000046` — same order of magnitude as the Task 13
-  baseline (`1.6e-05`), no blow-up.
-- No `assert_gk_well_posed` failure, no warnings or tracebacks anywhere in the run log.
-
-`code/test_nkpc_blocks.py`: **17 passed, 0 failed** (unchanged — Task 14 is a calibration
-change only, no new blocks or equations).
-
-**Next: Task 15** — rebuild the regime cache (`diagnostics/regimes/regime_model.py
---force`) and `experiments/run_all.py`. **E1–E4 numbers in `docs/experiments_results.md`
-are stale as of this commit** — they were built against `psi_lambda_B=8.5` (and, further
-back, against the pre-sticky-price model), not the current 7.85 tuning.
-
-## Nominal rigidities (`add-nkpc`): Task 10 — price-stickiness-only result at the calibrated slope
-
-Deposits are still **real** here; this isolates what price stickiness alone does.
-`kappa_p = 0.0871` (Calvo theta=0.75 at beta=0.985). Steady state byte-identical
-to pre-change (`goods_mkt_D = -4.2493506589857954e-07`, `IC_D = 1.776357e-15`,
-`rho_b = 0.8451` all unchanged); both impact signs negative; all four TPI gammas
-inside 1e-7.
-
-### Impact responses to the 1pp default shock (% of own SS level)
-
-| | flex (pre-change) | sticky `kappa_p=0.0871` | change |
-|---|---|---|---|
-| `Y_D[0]` | −0.0149 | **−0.4923** | 33x larger |
-| `C_D[0]` | **+0.2164** | **−0.4904** | **SIGN FLIP** |
-| `I_D[0]` | −0.7718 | −0.9907 | 1.28x |
-| `n_inter_D[0]` | −3.3804 | −4.0140 | 1.19x |
-
-The flex column reproduces this file's own E1 passive row to every printed digit,
-which is the check that the SS divisors are right.
-
-**`C_D[0]` DOES change sign.** The spec warned it might not, and that Bi-Foerster-Traum
-get consumption rising on impact even with a Taylor rule and nominal debt. Here
-price stickiness alone flips it.
-
-**But read the path before claiming the consumption-bust problem is solved.**
-
-```
-Y_D sticky:  -0.4923  +0.0083  +0.1006  +0.0881  +0.0580  +0.0329  +0.0161  +0.0063
-C_D sticky:  -0.4904  +0.1141  +0.1553  +0.0790  +0.0046  -0.0440  -0.0685  -0.0761
-C_D flex:    +0.2164  +0.0702  -0.0161  -0.0624  -0.0829  -0.0873  -0.0822  -0.0721
-```
-
-This is a **one-quarter spike, not a downturn**: output and consumption are both
-positive from quarter 1. Bi-Foerster-Traum's output falls 0.6% and stays negative
-for ~20 quarters. Flex consumption is in fact *more* persistently negative from
-quarter 2 on. So the honest claim is: sticky prices fix the **impact quarter**
-and arguably worsen the medium-run path. Do not write "resolves the investment-bust
-counterfactual" without this qualification.
-
-**The extra output decline is not an investment story.** `I_D` moved 1.28x while
-`Y_D` moved 33x — it is the markup wedge shifting labour demand directly, which is
-the mechanism the design intended.
-
-### `kappa_p` sweep — monotone and stable throughout
-
-| `kappa_p` | `Y_D[0]` | `C_D[0]` | `I_D[0]` | `n_inter_D[0]` | `b_gov_D[499]` |
-|---|---|---|---|---|---|
-| 0.03 (stickier) | −0.7280 | −0.8401 | −1.0987 | −4.3244 | 1.50e−05 |
-| **0.0871** (calibrated) | **−0.4923** | **−0.4904** | **−0.9907** | **−4.0140** | 1.4e−05 |
-| 0.2 (more flexible) | −0.3105 | −0.2211 | −0.9077 | −3.7736 | 1.42e−05 |
-| flex limit | −0.0149 | +0.2164 | −0.7718 | −3.3804 | 1.4e−05 |
-
-Every point stable (`b_gov_D[499]` ~1.5e−05) and monotone in `kappa_p`. **The
-consumption sign flip is not knife-edge** — `C_D[0]` is negative across the whole
-sticky range and only positive in the flexible limit.
-
-### Benchmark context
-
-`Y_D[0] = -0.4923%` against Bi-Foerster-Traum (FRBSF WP 2025-10) at −0.6%. The
-pre-change model was two orders of magnitude below that and the spec flagged the
-gap as the main risk to the exercise. Price stickiness closes it **without** their
-Sims-Wu loan-in-advance constraint.
-
-## Nominal rigidities (`add-nkpc`, in progress): Task 9 — 27×27 sticky-price system LIVE, flex-price equivalence gate PASSED
-
-The dynamic model is now sticky-price. `full_model.build_block_list()` carries
-`firm_profit_D/F`, `price_nkpc_D/F`, `terms_of_trade`, `union_inflation`, and
-`build_and_solve` solves **27×27** (was 23×23): `mc_D, pi_D, mc_F, pi_F` added to
-`unknowns_tp`; `nkpc_p_res_D/F, tot_res, union_pi_res` added to `targets_tp`.
-Nothing existing was renamed or dropped; `labor_mkt_res_D/F` is unchanged because
-wages stay flexible.
-
-**Equivalence gate result (a real number, quote it).** As `kappa_p -> inf` the
-NKPC forces `mu_p*mc -> 1` and labour demand collapses to competitive, so the
-27×27 system must reproduce the pre-change 23×23 IRFs. It does, with **textbook
-O(1/kappa_p) convergence**:
-
-| `kappa_p` | worst relative IRF deviation vs pre-change baseline |
-|---|---|
-| 1e4 | `2.925e-03` |
-| **1e5** | **`2.925e-04`** ← gate threshold 1e-3, **PASSED** |
-| 1e6 | `2.925e-05` |
-
-Every one of the 30 IRF series shrinks by a ratio of **exactly 10.00 per decade
-of `kappa_p`**, and the 4 SS levels are bit-identical (`0.000e+00`) at every
-`kappa_p`. This is a *limit*, not an identity — a finite `kappa_p` cannot match
-to machine precision, and the clean 1/kappa_p rate (rather than a stuck floor) is
-the evidence that the blocks are wired correctly. The binding series are
-`irfs_def_D__w_D` (2.925e-04 at 1e5) and `irfs_def_D__N_D` (1.018e-04) — the two
-objects the markup wedge acts on directly. Comparison harness:
-`code/dump_irfs.py`.
-
-**Open item carried into Task 10 — `full_model.solve_jacobian_padded()`.** SSJ
-1.0.0's `Block.solve_jacobian` cannot solve this system as-is.
-`CombinedBlock._jacobian` ends with
-`total_Js[original_outputs & total_Js.outputs, :]` and only visits a block whose
-inputs intersect the shock list, so a target that is a pure function of the
-solver's *own unknowns* never enters H_Z. All four new targets are exactly that
-(no `Z_*`/`shock_def_*` symbol appears anywhere in them), so SSJ returned a
-23-row H_Z against a 27×27 H_U and numpy raised
-`size 11500 is different from 13500`. The new helper restores those rows as
-zeros — **exact, not an approximation**, since dH/dZ at fixed unknowns is
-identically zero when the shock does not appear in the equation — and otherwise
-reproduces `Block.solve_jacobian` line-for-line. `code/tpi.py` routes through it
-too. It prints the padded row names on every solve so the padding can never go
-silent.
-
-**Task 9b (2026-08-06) — every Jacobian call site now routes through it.**
-The seven remaining raw `Block.solve_jacobian` calls
-(`diagnostics/regimes/regime_model.py:177`, `experiments/e4_distribution.py:255`,
-`diagnostics/solve_configs.py:176`, `diagnostics/psilam_moment_sweep.py:76`,
-`diagnostics/psilam_breakdown_sweep.py:83`,
-`diagnostics/substitution_v2/solve_v2.py:106`,
-`diagnostics/substitution_v2/exp_psilam0.py:64`) were converted to
-`full_model.solve_jacobian_padded`, imported locally per-function (matching
-each file's existing local-import style). `grep -rn "\.solve_jacobian("
---include="*.py" code experiments diagnostics | grep -v solve_jacobian_padded`
-now returns nothing — no call site in the repo can hit the 23-vs-27 H_Z/H_U
-shape mismatch (`size 11500 is different from 13500`) any more.
-`code/test_nkpc_blocks.py` unaffected, still 11/11. The two call sites on the
-critical path for `experiments/run_all.py` — `regime_model.py` (the E1-E4
-Jacobian cache) and `e4_distribution.py` (quintile incidence) — are now safe to
-re-run against the sticky-price system; the regime cache itself has not yet
-been rebuilt (`diagnostics/regimes/regime_model.py --force`), that's for
-whoever next needs fresh E1-E4 numbers.
-
-**Full-pipeline regression at the flex limit** (`code/main.py`, `kappa_p=1e5`)
-reproduces the pre-change baseline on every monitored number:
-`goods_mkt_D=-4.2493506589857954e-07`, `goods_mkt_F=-4.1914559989475464e-07`,
-`ca_res_D=6.852157730108388e-17`, `All residuals < 1e-8 ✓`,
-`b_gov_D[499]=0.000014`, `ρ_b=0.8451`, `n_inter_D[0]=-3.3804%` of SS,
-`Y_D[0]=-0.0149%` of SS (both negative), TPI `max|ca_res_D| ≤ 7.55e-08`,
-`max|goods_mkt_F| ≤ 2.44e-09`, both TPI sanity checks exactly `0.00e+00`.
-`code/test_nkpc_blocks.py`: 11 passed, 0 failed.
-
-**Next: Task 10** — dial `kappa_p` to the calibrated `0.0871` and record the
-price-stickiness result. That is the first run whose IRFs are *supposed* to
-differ from the baseline.
-
-## Nominal rigidities (`add-nkpc`): Task 8 — blocks seeded into the steady state
-
-`code/steady_state.py`'s `create_model([...])` list (inside `solve_steady_state`)
-gains `firm_profit_D/F`, `price_nkpc_D/F`, `terms_of_trade`, `union_inflation` —
-the same blocks Tasks 2, 3 and 5 added to the dynamic model, now also carried
-through the SS solve (they were previously absent from `steady_state.py`'s
-import lists and block list, so `mc`, `pi`, `profit`, `tot_res`, `union_pi_res`
-were computed dynamically but not at SS). `labor_demand_D/F` deliberately
-stays out of the SS block list (SS still uses `labor_ss_D/F`), so Task 4's
-markup wedge in labour demand cannot touch the SS solve. Verified: `profit_D`,
-`profit_F`, `nkpc_p_res_D`, `nkpc_p_res_F`, `tot_res`, `union_pi_res` are all
-exactly `0.000000e+00` at the solved SS, and the full initial-SS→IC-delta→
-depreciation-calibration chain reproduces the pre-change baseline byte-for-byte
-(portfolio shares, betas, p, IC residuals, delta, rk, final betas, rb/rdep/q_b,
-goods_mkt_D/F, ca_res_D all identical). `code/test_nkpc_blocks.py`: still 11
-passed, 0 failed. Next: Task 9, wire the 27×27 dynamic system and run the
-`kappa_p = 1e4` (near-rigid-price) equivalence gate against the flex-price
-Jacobian.
-
-## Model plumbing (2026-08-05): single block-list definition
-
-The model's block list now has **one definition**, `full_model.build_block_list()`.
-`code/tpi.py` and `diagnostics/regimes/regime_model.py` previously each hardcoded
-their own copy of the `sj.create_model([...])` list; both now call the shared
-factory, with the TPI layer supplying its four `_tpi` swaps
-(`budget_residual_D/F`, `external_account_D`, `domestic_bond_clearing`) via
-`tpi.tpi_overrides()`. Verified bit-identical `main.py` output before/after
-(no-op). Done ahead of Task 1 of `docs/superpowers/plans/2026-08-05-nominal-rigidities.md`,
-which adds six new blocks and would otherwise need editing in three places.
-
-## Nominal rigidities (`add-nkpc`, in progress): Task 7 — calibration parameters
-
-`code/calibration.py` gains the parameters Tasks 2–6 already reference:
-`mu_p_D/F = 1.20` (gross price markup, `epsilon_p = 6`; free to first order
-under subsidy neutralisation, so the level needs no defending yet),
-`kappa_p_D/F = 0.0871` (Rotemberg slope from Calvo `theta_p = 0.75` at
-`beta = 0.985`, i.e. `(1-theta)(1-beta*theta)/theta`; matches Bi-Foerster-Traum's
-implied 0.0846 to within 3%, consistent with the ~4-quarter euro-area IPN
-median price duration), `pi_D/F = 0.0` (SS PPI inflation, exact), and
-`omega_pi_D = 0.071` (union-inflation weight on D = 1 − the renormalised
-two-country capital key, BuBa 26.1 / BoG 2.0 — deliberately *not* model GDP
-weights, which would split the terms-of-trade move ~50/50 and erase the
-93/7 internal-devaluation pattern Task 5 derived). **`mc_D`/`mc_F` retargeted**
-from a dead placeholder `1.0` (nothing read them before Task 2) to
-`1.0/mu_p = 0.8333`, the subsidy-neutralised SS real marginal cost that makes
-labour demand collapse to the competitive `w=(1-alpha)Y/N` and keeps the SS
-bit-identical to flex-price. Verified: `mu_p_D*mc_D == 1` and `mu_p_F*mc_F
-== 1` exactly; no duplicate dict keys (checked by AST walk, given `mc_D/F`
-already existed); `kappa_p` arithmetic reproduces 0.0871 to 5e-5.
-`code/test_nkpc_blocks.py`: still 11 passed, 0 failed (calibration values
-only, no new tests). Next: Task 8, seed `mc`, `pi`, `profit` into the steady
-state.
-
-## Nominal rigidities (`add-nkpc`, in progress): Task 6 — markup rent reaches households
-
-`income_D`/`income_F` now add `profit_D*e_grid_D`/`profit_F*e_grid_F` to the
-household's labour income (alongside `div`/`div_fund`), distributed in
-proportion to productivity `e` rather than lump-sum. Because `w*N*e +
-profit*e = mu_p*mc*(1-alpha)*Y*e + (1-mu_p*mc)*(1-alpha)*Y*e =
-(1-alpha)*Y*e` exactly, household labour-plus-profit income is identical to
-the flex-price model — the markup wedge (Task 4) bites only on the firm's
-hiring decision, never on household income — so `labor_market_D/F` (labour
-supply) stays valid and untouched. Zero at SS (`mu_p*mc=1`), so the steady
-state is still bit-identical. `income_D/F` are hetinputs, not `@simple`
-blocks, so adding `profit_D/F` to the function signature was sufficient to
-wire them into `hh_extended_D/F.inputs`. `code/test_nkpc_blocks.py`: 11
-passed, 0 failed (unchanged — no new tests needed for this task).
-
-## Nominal rigidities (`add-nkpc`, in progress): Task 5 — global closure, no policy rate
-
-`firm_profit_D`/`firm_profit_F` (appended after `labor_demand_D/F` in
-`equations_D.py`/`equations_F.py`) now exist: `profit = (1 - mu_p*mc)*(1-alpha)*Y`,
-the residual left over once labour demand pays `mu_p*mc*(1-alpha)*Y` (Task 4)
-while capital keeps earning `alpha*Y` unchanged. Distributed to
-households in proportion to productivity `e`, not lump-sum — this is what lets
-`labor_market_D/F` stay untouched. Zero at SS (`mu_p*mc=1`), so current SS is
-bit-identical.
-
-`price_nkpc_D`/`price_nkpc_F` (appended after `firm_profit_D/F`) add the
-Rotemberg curves themselves: `pi = beta*pi(+1) + kappa_p*(mu_p*mc - 1)`. The
-gap is the ratio `mu_p*mc - 1`, not a level difference — unit-free, and
-linearises to exactly `mc_hat` for any `mu_p`, so published Calvo slopes map
-straight onto `kappa_p` with no SS rescaling. Subsidy-neutralised
-(`mc_ss = 1/mu_p`) so `pi_ss = 0` and the steady state is still bit-identical
-to the flex-price model. Discounted at constant `beta_D/F`, not the SDF —
-immaterial to first order since `pi_ss = 0`. `kappa_p -> inf` recovers
-flexible prices (`mu_p*mc = 1`), the equivalence gate for later tasks.
-
-`labor_demand_D`/`labor_demand_F` now solve `w = mu_p*mc*(1-alpha)*Y/N` in
-place of the competitive `w = (1-alpha)*Y/N`. Employment is no longer purely
-supply-determined: previously, combining flex labour supply
-(`w/P_CES = vphi*N^(1/frisch)`) with the old competitive demand condition
-eliminated `Y` entirely, leaving `N` pinned by `Z`, `K`, `P_CES` alone — nothing
-about aggregate demand entered. With the wedge, a change in `mc` shifts labour
-demand, so `N` and `Y` move together. SS is unchanged bit-for-bit (`mu_p*mc=1`
-at `mc_ss=1/mu_p` collapses the condition identically to the old one).
-`labor_market_D/F` (labour supply) deliberately untouched, per the routing
-argument above. `code/test_nkpc_blocks.py`: 8/8 tests green (2 `firm_profit`
-+ 4 `price_nkpc` + `test_labor_demand_collapses_to_competitive_at_ss_markup`,
-which turns the previously-red factor-exhaustion test green).
-
-**Task 5 (`terms_of_trade` + `union_inflation`, appended to
-`equations_global.py` after `bond_yield`) closes the nominal side with no
-policy rate anywhere in the model.** `terms_of_trade` turns the identity
-`p/p(-1) = (1+pi_F)/(1+pi_D)` (fixed nominal exchange rate in a monetary union,
-so terms-of-trade movement *is* the inflation differential) into a residual on
-`p`, an unknown that already exists (`goods_mkt_D`'s target). `union_inflation`
-supplies the missing level normalisation — `omega_pi_D*pi_D +
-(1-omega_pi_D)*pi_F = 0`, the `phi_pi -> inf` limit of an ECB Taylor rule on
-union-wide PPI inflation, stated as an abstraction and not a modelled rule; no
-Fisher relation is needed since no financial contract in the model carries a
-policy rate. Solved together: `pi_D = -(1-omega_pi_D)*dlog p`, `pi_F =
-omega_pi_D*dlog p`. At the capital-key `omega_pi_D = 0.071`, **93% of any
-terms-of-trade move is Greek PPI deflation, 7% German inflation** — the
-2010-12 internal-devaluation pattern; GDP weights would give ~0.5/0.5
-(counterfactual) since the model normalises `Y_D_ss ~ Y_F_ss ~ 1`. Both
-residuals zero at SS (`p/p(-1)=1`, `pi_D=pi_F=0`). `code/test_nkpc_blocks.py`:
-11/11 green. One test-authoring bug found and fixed in review: the added
-`test_closure_puts_93pct_of_tot_move_into_D_deflation` originally asserted
-`log((1+pi_F)/(1+pi_D)) == dlog_p`, which only holds to first order — the
-closed-form pi's are a linear approximation to the *exact* nonlinear
-`tot_res`, and the O(dlog_p^2) truncation gap is `0.429*dlog_p` in relative
-terms (derived: the gap is `-dlog_p*(pi_F+pi_D)/2`, and `pi_F+pi_D =
-(2*omega-1)*dlog_p = -0.858*dlog_p` at `omega=0.071`), which swamped the
-test's own `rel=1e-6` at `dlog_p=1e-4`. Fixed by asserting on the net rates
-instead — `pi_F - pi_D == dlog_p` and `share_D = |pi_D|/(|pi_D|+|pi_F|) ==
-1-omega` — both exact arithmetic with no linearisation, so the test is
-robust to any `omega_pi_D` (a parameter swept later in this plan) rather than
-tuned to dodge a truncation error. `terms_of_trade`/`union_inflation`
-themselves were correct throughout; only the test needed fixing. Next: Task 6,
-route the markup rent into `income_D/F`.
+1. **Nominal sovereign bonds.** Currently real by design (see above). Making them nominal
+   would give the sovereign an inflation-erosion channel and change the sign of the bank's
+   net Fisher exposure.
+2. **Sims-Wu loan-in-advance constraint.** Bi-Foerster-Traum's device for persistence. The
+   one-quarter-spike caveat is the symptom it would address.
+3. **`experiments/paper_outputs.py`'s `CAPTIONS` are stale and in two places inverted** — see
+   the table above. Blocking: the eight tracked paper figures currently carry flex-price
+   prose baked into the image files.
+4. **A test that rendered prose agrees with rendered tables**, in `run_all.py` and in
+   `paper_outputs.py`. Both have now shipped self-contradicting generated documents.
+5. **The aggressive-backstop impact boom** (watch item above) needs a diagnosis before the
+   intervening-regime paths are reported.
 
 ## Policy experiments (`experiments/`) — **COMPLETE 2026-08-03**
+
+> **HISTORICAL from here down.** Every number below this line was measured on the
+> **flexible-price, real-deposit** model at `psi_lambda_B = 8.5`. The live results are in
+> the `add-nkpc` section at the top of this file and in `docs/experiments_results.md`.
+> The *design* and *method* notes below are still current; the *numbers* are not.
 
 E1, E2 and E3 all land, with the orchestrator writing
 `docs/experiments_results.md`. **Two results change how the paper must be
@@ -842,7 +635,10 @@ equalised and that the `delta_b_F` fix below is correct.
 > contaminated `carry_ss_pv`. Caught by an assertion written into `cb_pnl` before
 > the code was first run. Cache rebuilt; E2 re-ran identically.
 
-## EBA REBUILD (2026-07-31) — read this first
+## EBA REBUILD (2026-07-31) — the live calibration's derivation (dynamics superseded)
+
+*The parameter → moment map below is live. The IRF and TPI numbers in it are flex-price
+and are superseded by the `add-nkpc` section at the top of this file.*
 
 The EBA 2011 moment set was rebuilt from scratch to be identified rather than
 back-solved (`code/eba_calibration.py`, `data/eba_moments.json`,
@@ -1032,7 +828,11 @@ backstop.
 
 ## Historical (2026-07-22 onward) — superseded by the section above
 
-## CURRENT CALIBRATION (2026-07-30) — supersedes every table below
+## CALIBRATION AS OF 2026-07-30 — HISTORICAL, supersedes every table below it only
+
+> **Not current.** This section records the brief pre-EBA revert. `EBA_CALIBRATION = True`
+> and `BANK_SCOPE = "broad"` have been live since 2026-07-31, and `psi_lambda_B = 7.85`
+> since 2026-08-06. See the `add-nkpc` and EBA REBUILD sections above.
 
 **The calibration was reverted to its pre-EBA values.** Everything below this section
 describes the EBA-anchored calibration and is now **historical**. Structural fixes

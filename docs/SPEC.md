@@ -47,9 +47,71 @@ Build a tractable two-country general equilibrium model with heterogeneous house
 - **GK agency problem:** divertable fraction `Delta` drives the IC constraint binding. Multi-asset IC requires separate `Delta` for each asset class.
 - **Walras redundancy:** equations `ca_res_D` and `goods_mkt_F` are dropped from targets. Post-fix they hold to machine tolerance; see `docs/walras_forensics.md`.
 
+*Added 2026-08-06 with the `add-nkpc` workstream (sticky prices + nominal deposits). Full
+numbers in `docs/STATE.md`.*
+
+- **Rotemberg price Phillips curve, subsidy-neutralised.** `pi = beta*pi(+1) + kappa_p*(mu_p*mc − 1)`
+  in both countries, with the markup wedge `mu_p*mc` entering labour demand
+  (`w = mu_p*mc*(1−alpha)*Y/N`). Wages stay **flexible**. Writing the gap as the *ratio*
+  `mu_p*mc − 1` rather than a level difference makes it unit-free: it linearises to exactly
+  `mc_hat` for any `mu_p`, so published Calvo slopes map straight onto `kappa_p` with no
+  steady-state rescaling, and `mu_p` is a free normalisation to first order. The steady state
+  sets `mc_ss = 1/mu_p`, i.e. a production subsidy `tau_s = 1 − 1/mu_p` neutralising the
+  markup, so `mu_p*mc = 1`, `profit_ss = 0`, `pi_ss = 0`, and **the entire steady state is
+  bit-identical to the flexible-price model**. That is what makes the sticky-price results
+  comparable to the earlier ones rather than confounded by a re-solved SS. `kappa_p → ∞`
+  recovers flexible prices exactly, which is the standing equivalence gate.
+  *Why it is needed at all:* under flexible prices, flexible labour supply plus competitive
+  labour demand eliminate `Y` from the labour block entirely and pin `N` on `Z`, `K`, `P_CES`
+  alone — there is nothing for aggregate demand to act on, and the crisis response is two
+  orders of magnitude too small.
+- **Union-inflation normalisation as the nominal anchor; no Taylor rule.** The monetary-union
+  identity `p/p(-1) = (1+pi_F)/(1+pi_D)` pins the inflation *differential* off the existing
+  unknown `p` (the nominal exchange rate is fixed at 1, so terms-of-trade movement **is** the
+  inflation differential). The *level* is pinned by
+  `omega_pi_D*pi_D + (1−omega_pi_D)*pi_F = 0` — the `phi_pi → ∞` limit of an ECB rule on
+  union-wide PPI inflation. **There is deliberately no modelled policy rate**: no financial
+  contract in this model carries one, so no Fisher relation is required to close the nominal
+  side, and adding a Taylor rule would introduce a free parameter with no additional
+  discipline. State it in the paper as an abstraction (perfectly credible union-inflation
+  targeting), not as a modelled reaction function. `omega_pi_D = 0.071` is the renormalised
+  two-country ECB capital key, **not** GDP weights: GDP weights would split any
+  terms-of-trade move ~50/50 (because the model normalises `Y_D_ss ~ Y_F_ss ~ 1`) and erase
+  the 93/7 Greek-deflation / German-inflation pattern that the 2010–12 internal devaluation
+  actually took.
+- **Nominal deposits against real sovereign bonds — a deliberate asymmetry.** Deposit
+  contracts are nominal (`i_dep` is the contracted rate; `rdep_expost` carries the inflation
+  surprise into `bank_return` and `capital_fund`), while sovereign bonds remain real. This is
+  a choice, not an oversight: it makes banks nominal debtors and real creditors, which
+  **maximises their Fisher exposure** and is the configuration under which the deflation
+  channel does the most work. **It must be stated as such in the paper**, since the opposite
+  convention (nominal sovereign debt) would give the sovereign an inflation-erosion channel
+  and flip the sign of the bank's net Fisher position. Nominal sovereign bonds are a
+  candidate extension, not a correction.
+- **The markup rent is distributed in proportion to productivity `e`, not lump-sum.** Once
+  labour is paid `mu_p*mc*(1−alpha)*Y` and capital keeps `alpha*Y`, the residual
+  `(1 − mu_p*mc)(1−alpha)Y` must be routed somewhere or it is a Walras leak of the W-1/W-2
+  class. Routing it proportional to `e` makes labour-plus-profit income per unit of `e`
+  exactly `(1−alpha)*Y*e` — identical to the flexible-price model — so the markup wedge bites
+  only on the *firm's hiring decision* and never on household income, and `labor_market_D/F`
+  (labour supply) needs no change. A **lump-sum rebate was rejected because it is
+  countercyclical**: markup rents rise when `mc` falls, so a lump-sum transfer would hand the
+  largest windfall to the poorest households exactly in the downturn, manufacturing a
+  progressive incidence result as an artifact of the rebate rule rather than of the
+  transmission mechanism this paper is about.
+
 ## Calibration strategy
 
-**Current (2026-07-22), see `docs/eba_calibration.md` for the full parameter →
+> **Values in this section date from 2026-07-22 and several are superseded.** The live
+> calibration table is `docs/STATE.md`. In particular: `psi_lambda_B_D/F = 7.85` (not
+> 1.1793 — re-tuned 2026-07-31 to 8.5 for `BANK_SCOPE="broad"`, then 2026-08-06 to 7.85
+> once sticky prices and the Fisher channel pushed the spread response to 162bp);
+> `EL_price_D/F = 0.056134` (not 0.0717 — that predates the EBA `delta_b=0.0777`,
+> `q_b=0.969`); `delta_b_D/F = 0.0777/0.0568`, measured from the sovereign maturity
+> ladder; `phi_lamb_D/F = 0.15`. The *reasoning* below is still the reasoning; the
+> numbers are not all current. **Re-derive, do not copy.**
+
+**As of 2026-07-22, see `docs/eba_calibration.md` for the full parameter →
 moment map and `docs/STATE.md` for the live calibration table:**
 - Bilateral GR/DE bank exposures from the EBA 2011 stress-test disclosure
   (31 Dec 2010 actual): own-book concentration `phi_bD_D_ss=2.39` (GR),
@@ -187,10 +249,13 @@ why the litigation was tortured, not a claim to have out-theorised the Court.
 
 1. **Expected P&L favours the CB.** `EL_price·def_rate` is actuarially fair by
    construction — the expected loss is *fully* compensated, not partially.
-   `psi_spread·def_rate` sits **on top**. **Current calibration (2026-07-22,
-   `psi_lambda_B=1.1793`, `recovery_rate=0.30`): loading (TPI premium PV /
-   expected-loss PV) is 3.59/3.03/2.47 at gamma=2/5/10** — over-compensated,
-   declining in aggressiveness. (This number moved twice the same day: first
+   `psi_spread·def_rate` sits **on top**. **Current calibration (2026-08-06,
+   sticky prices + nominal deposits, `psi_lambda_B=7.85`, `recovery_rate=0.30`):
+   loading (TPI premium PV / expected-loss PV) is 3.82 at the medium regime and
+   2.90 at the aggressive one, and above 1 at all 59 grid points of the schedule**
+   — over-compensated, declining in aggressiveness. **The claim survived the move
+   to sticky prices**; the flex-price values were 4.00/3.17. (An earlier number
+   moved twice on 2026-07-22: first
    recalibrating `psi_lambda_B` to the 150bp target gave 2.54/2.14/1.74;
    resolving `recovery_rate` afterward — which shrinks `EL_price`, the
    denominator — raised it to the current 3.59/3.03/2.47. Both supersede the
@@ -226,8 +291,10 @@ why the litigation was tortured, not a claim to have out-theorised the Court.
    *because* the marginal holder is constrained; TPI relieves the constraint.
    So intervention erodes its own profit source: more credible backstop →
    spreads compress toward fundamentals → `psi_spread` shrinks → less earned
-   per unit. **Confirmed post-recalibration**: loading declines monotonically
-   in gamma at the current calibration (3.59→3.03→2.47 at gamma=2/5/10).
+   per unit. **Confirmed, and it survived the move to sticky prices**: at the
+   current calibration (2026-08-06) the loading declines monotonically in gamma
+   at all 59 finite grid points, **4.43 → 1.49 over γ ∈ [0.51, 30.00]**, staying
+   above 1 throughout. The *decline* is the claim; the level is not.
    **"Germany profits" and "TPI works" are in tension.**
 6. **The `EL_price`/`psi_spread` decomposition must not be confused with
    Bocola-Dovis's.** Ours is expected-loss vs collateral-friction; theirs is
@@ -294,13 +361,24 @@ already established creditor-interest-in-bailouts via portfolio
 diversification, so the trade channel is *positioning*, not novelty. Cite them
 and differentiate on channel.
 
-**Do not lead with ΔY.** A small headline output number can be *only* small
-because two large channels (investment contraction, NX cushion) are netting
-out — and they land on different households. That's a strength (a RANK model
-can't see it) only if framed as the reallocation it is, not as "nothing
-happened." Check the current model's investment/NX decomposition before
-asserting this — the specific magnitudes reported in earlier drafts predate
-the EBA recalibration and need re-verification.
+**Report the decomposition, not the headline ΔY — because the channels cancel,
+and they land on different households.** A consumption expansion, an investment
+contraction and a net-export cushion offset each other; that offsetting is the
+economics, and a RANK model cannot see it. Frame it as the reallocation it is,
+never as "nothing happened."
+
+*Restated 2026-08-06.* The earlier version of this caution said the headline was
+*only* small because it was the residue of channels ~4× its size. **That is no
+longer true and must not be repeated.** Under flexible prices `dY[0]` moved
++4.9e−04 passive → aggressive against an investment channel of +2.2e−03 and net
+exports of −1.9e−03. Under sticky prices `dY[0]` moves **+1.38e−02** while
+investment moves +3.41e−03 and net exports −2.92e−03 — the largest single channel
+is now **0.25× the headline, not 4×**. The instruction is unchanged; its
+justification has inverted. Arguably this is an improvement: output is no longer
+a numerically fragile residue of nearly-cancelling terms, so the headline can be
+quoted without the earlier caveat that it is an artifact of near-cancellation —
+but the decomposition still carries the distributional content, which is the
+reason to lead with it. Current numbers: `docs/experiments_results.md` (E2).
 
 ### The TL;DR as it currently stands
 
