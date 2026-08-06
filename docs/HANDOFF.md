@@ -390,14 +390,14 @@ consequential for the paper right now:
 | `code/tpi_plots.py`, `code/irf_plots.py` | Figure-generation scripts (regenerate from `main`) |
 | Overleaf | https://www.overleaf.com/project/698b4f88aeef1d0e1d08cc0c |
 
-## Nominal rigidities (`add-nkpc`) — Task 12 done, Task 13 next
+## Nominal rigidities (`add-nkpc`) — Task 13 done, Task 14 next
 
-**Where it stands.** Tasks 1–12 committed. The dynamic model is sticky-price
-(27×27) with deposits still **not wired to a solver unknown** — Task 11 added the
-derived rate blocks and Task 12 pointed the two funding-cost blocks at the
-realised rate, but `i_dep` itself is not yet a solver unknown. Price stickiness
-alone flips `C_D[0]` from +0.2164% to −0.4904% and takes `Y_D[0]` from −0.0149%
-to −0.4923% — see `docs/STATE.md` for the full table, the `kappa_p` sweep, and
+**Where it stands.** Tasks 1–13 committed. The dynamic model is sticky-price
+(27×27) **with nominal deposit contracts live and solving end-to-end**. `i_dep_D/F`
+is the solver unknown; `rdep_D/F` (ex-ante) and `rdep_expost_D/F` (realised) are
+derived. Price stickiness alone flips `C_D[0]` from +0.2164% to −0.4904% and takes
+`Y_D[0]` from −0.0149% to −0.4923%; adding nominal deposits takes those to −0.5499%
+and −0.5449% — see `docs/STATE.md` for the full table, the `kappa_p` sweep, and
 the one-quarter-spike caveat that must not be dropped from the write-up.
 
 **Task 11 done.** `equations_D.py`/`equations_F.py`: `deposit_return_D/F` (took
@@ -418,11 +418,22 @@ on those two blocks. `intermediation_P1_D/F`/`divert_bond_foc_D/F` (ex-ante,
 t → t+1) still correctly read `rdep_D/F`, untouched. `code/test_nkpc_blocks.py`:
 15 → 17 passed.
 
-**Next: Task 13** — wire `i_dep_D/F` in as the solver unknown across
-`calibration.py`/`steady_state.py`/`full_model.py`. Only after Task 13 will the
-model solve end-to-end again; its gate check is that `n_inter_D[0]` becomes
-*more* negative under a deflation shock (the Fisher channel amplifying, not
-reversing, the sign).
+**Task 13 done.** `i_dep_D/F` wired in as the solver unknown:
+`calibration.py` renames the parameter `rdep_D/F → i_dep_D/F`; `steady_state.py`
+and `full_model.py` add `deposit_rates_D/F` to their block lists; `unknowns_tp`
+swaps `rdep_D/F → i_dep_D/F` with `targets_tp` unchanged (still 27×27). The model
+solves end-to-end again and the **steady state is bit-identical** to the
+pre-change baseline (`goods_mkt_D = -4.2493506589857954e-07`, `ca_res_D =
+6.852157730108388e-17`, `ρ_b = 0.8451`). **Fisher gate passed**: on the D default
+shock, real → nominal deposits deepens `n_inter_D[0]` −4.0140% → −4.6155%,
+`Y_D[0]` −0.4923% → −0.5449%, `C_D[0]` −0.4904% → −0.5499%, `I_D[0]` −0.9907% →
+−1.0849%. `code/test_nkpc_blocks.py` still 17 passed.
+
+**Next: Task 14** — re-tune `psi_lambda_B` to the 150bp spread moment. The spread
+target was last hit on the flex-price real-deposit model; sticky prices plus
+nominal deposits have moved it and it has not been re-fitted. Do the re-fit against
+the full current model (`code/main.py`), and rebuild the regime cache afterwards
+(`diagnostics/regimes/regime_model.py --force`) since `experiments/` reads it.
 
 **Two things not to rediscover the hard way.**
 

@@ -14,6 +14,36 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-08-06 — Task 13: nominal deposits wired in; Fisher channel deepens the net-worth loss (`add-nkpc`)
+
+- `code/calibration.py`: `'rdep_D'/'rdep_F': 0.000` → `'i_dep_D'/'i_dep_F': 0.000`.
+  `rdep_D/F` stops being a calibration input and becomes a solved output of
+  `deposit_rates_D/F`. All existing `ss['rdep_D']` reads (`steady_state.py`,
+  `depreciation_calibration.py`, `irf_plots.py`, `diagnostics/solve_configs.py`)
+  keep working untouched.
+- `code/steady_state.py`, `code/full_model.py`: `deposit_rates_D/F` imported and
+  added to both block lists, immediately before `deposit_return_D/F`.
+- `code/full_model.py`: `unknowns_tp` swaps `rdep_D/F` → `i_dep_D/F`. `targets_tp`
+  unchanged — system stays 27×27.
+- **The model solves end-to-end again** (it did not between Tasks 11 and 13).
+- **SS gate passed, bit-identical to baseline:** `goods_mkt_D = -4.2493506589857954e-07`,
+  `goods_mkt_F = -4.1914559989475464e-07`, `ca_res_D = 6.852157730108388e-17`,
+  `IC_D: θ − θ_tgt = 1.776357e-15`, `ρ_b = 0.8451`, `b_gov_D[499] = 1.6e-05`,
+  all residuals `< 1e-8 ✓`. Three rates collapse exactly at `pi=0`:
+  `i_dep_D = rdep_D = rdep_expost_D = 0.0`.
+- **Fisher gate passed.** Impact of the D default shock, sticky prices throughout,
+  real vs nominal deposits: `Y_D[0]` −0.4923% → −0.5449%, `C_D[0]` −0.4904% →
+  −0.5499%, `I_D[0]` −0.9907% → −1.0849%, `n_inter_D[0]` −4.0140% → **−4.6155%**.
+  Amplification concentrated in bank net worth (−0.60pp, ~15% deeper) and reaching
+  output only through the intermediary — the correct signature of the channel.
+- Task 10's one-quarter-spike caveat is unchanged: nominal deposits deepen the
+  impact quarter but do not fix the quarter-2-onward sign reversal.
+- `code/test_nkpc_blocks.py` unchanged at 17 passed, 0 failed (no new equations).
+- Not done here: the spread moment has drifted and needs re-tuning — Task 14
+  (`psi_lambda_B` to 150bp).
+
+---
+
 ## 2026-08-06 — Task 12: bank_return/capital_fund pay the ex-post real deposit rate (`add-nkpc`)
 
 - `bank_return_D/F` and `capital_fund_D/F`: signature `rdep_D/F` → `rdep_expost_D/F`;

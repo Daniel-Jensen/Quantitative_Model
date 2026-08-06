@@ -67,7 +67,11 @@ def get_calibration():
         'eis_D':        0.5,     'eis_F':        0.5,
 
         # ── Rates & Asset Prices ──────────────────────────────────────────────
-        'rdep_D':       0.000,   'rdep_F':       0.000,
+        # Nominal deposit rate. Deposits are nominal euro contracts; the derived
+        # real rates rdep_D/F (ex-ante) and rdep_expost_D/F (realised) come from
+        # deposit_rates_D/F. At SS pi = 0, so rdep = i_dep and the SS is
+        # unchanged from the real-deposit calibration.
+        'i_dep_D':      0.000,   'i_dep_F':      0.000,
         'q_b_D':        0.83,    'q_b_F':        0.83,
         'Q_D':          1.0,     'Q_F':          1.0,
 

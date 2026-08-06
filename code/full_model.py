@@ -11,7 +11,7 @@ from equations_D import (
     intermediation_P2_D, banker_div_res_D, intermediation_P3_D,
     government_default_D, divert_bond_foc_D,
     tax_rule_D, capital_producer_profit_D, budget_residual_D,
-    ces_price_D, import_demand_D, deposit_return_D,
+    ces_price_D, import_demand_D, deposit_rates_D, deposit_return_D,
     bond_return_D, sdf_D, sdf_banker_ss_D, sdf_banker_D, ghh_composite_D,
     welfare_agg_D, market_clearing_D, hh_extended_D,
     price_nkpc_D, firm_profit_D,
@@ -23,7 +23,7 @@ from equations_F import (
     intermediation_P2_F, banker_div_res_F, intermediation_P3_F,
     government_default_F, divert_bond_foc_F,
     tax_rule_F, capital_producer_profit_F, budget_residual_F,
-    ces_price_F, import_demand_F, deposit_return_F,
+    ces_price_F, import_demand_F, deposit_rates_F, deposit_return_F,
     bond_return_F, sdf_F, sdf_banker_ss_F, sdf_banker_F, ghh_composite_F,
     welfare_agg_F, market_clearing_F, hh_extended_F,
     price_nkpc_F, firm_profit_F,
@@ -60,7 +60,7 @@ def build_block_list(financial_solved_D, financial_solved_F, *,
 
     return [
         # Country D
-        deposit_return_D, tax_rule_D, hh_D, ghh_composite_D,
+        deposit_rates_D, deposit_return_D, tax_rule_D, hh_D, ghh_composite_D,
         sdf_D, sdf_banker_D, government_default_D, financial_solved_D,
         bond_return_D, bank_return_D, capital_fund_D, cap_adj_cost_inter_D, macro_pru_tax_D,
         intermediation_P2_D, intermediation_P3_D, k_balance_sheet_D,
@@ -70,7 +70,7 @@ def build_block_list(financial_solved_D, financial_solved_F, *,
         firm_profit_D, price_nkpc_D,
         market_clearing_D, welfare_agg_D,
         # Country F
-        deposit_return_F, tax_rule_F, hh_F, ghh_composite_F,
+        deposit_rates_F, deposit_return_F, tax_rule_F, hh_F, ghh_composite_F,
         sdf_F, sdf_banker_F, government_default_F, financial_solved_F,
         bond_return_F, bank_return_F, capital_fund_F, cap_adj_cost_inter_F, macro_pru_tax_F,
         intermediation_P2_F, intermediation_P3_F, k_balance_sheet_F,
@@ -184,9 +184,9 @@ def build_and_solve(ss_results):
     # normalisation. No targets are renamed or removed -- labor_mkt_res_D/F is
     # unchanged because wages stay flexible.
     unknowns_tp = [
-        'K_D', 'n_inter_D', 'div_D', 'I_D', 'Q_D', 'b_gov_D', 'N_D', 'b_F_D', 'w_D', 'rdep_D',
+        'K_D', 'n_inter_D', 'div_D', 'I_D', 'Q_D', 'b_gov_D', 'N_D', 'b_F_D', 'w_D', 'i_dep_D',
         'mc_D', 'pi_D',
-        'K_F', 'n_inter_F', 'div_F', 'I_F', 'Q_F', 'b_gov_F', 'N_F', 'b_D_F', 'w_F', 'rdep_F',
+        'K_F', 'n_inter_F', 'div_F', 'I_F', 'Q_F', 'b_gov_F', 'N_F', 'b_D_F', 'w_F', 'i_dep_F',
         'mc_F', 'pi_F',
         'p', 'q_b_D', 'q_b_F',
     ]

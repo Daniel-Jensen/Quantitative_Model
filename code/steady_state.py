@@ -8,7 +8,7 @@ from equations_D import (
     smart_steady_D, market_clearing_D, steady_auxilliary_D,
     banker_div_D, sdf_D, sdf_ss_D, sdf_banker_ss_D, government_ss_D, labor_ss_D,
     government_default_D, bond_price_ss_D, bond_return_D,
-    ces_price_D, import_demand_D, deposit_return_D,
+    ces_price_D, import_demand_D, deposit_rates_D, deposit_return_D,
     firm_profit_D, price_nkpc_D,
 )
 from equations_F import (
@@ -16,7 +16,7 @@ from equations_F import (
     smart_steady_F, market_clearing_F, steady_auxilliary_F,
     banker_div_F, sdf_F, sdf_ss_F, sdf_banker_ss_F, government_ss_F, labor_ss_F,
     government_default_F, bond_price_ss_F, bond_return_F,
-    ces_price_F, import_demand_F, deposit_return_F,
+    ces_price_F, import_demand_F, deposit_rates_F, deposit_return_F,
     firm_profit_F, price_nkpc_F,
 )
 from equations_global import (
@@ -161,6 +161,7 @@ def solve_steady_state(calibration_start):
         hh_extended_F, smart_steady_F, market_clearing_F, steady_auxilliary_F,
         banker_div_F, government_ss_F, labor_ss_F, firm_profit_F, price_nkpc_F,
         ces_price_D, import_demand_D, ces_price_F, import_demand_F,
+        deposit_rates_D, deposit_rates_F,
         deposit_return_D, deposit_return_F,
         bond_yield,
         trade_balance, external_account_D, global_goods_mkt,

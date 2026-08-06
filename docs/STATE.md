@@ -46,9 +46,69 @@ less). Getting the substitution backwards would silently invert the whole channe
 `bank_return_D`/`capital_fund_D` take `rdep_expost_D` and not `rdep_D`, and a check that
 `intermediation_P1_D`/`divert_bond_foc_D` still take `rdep_D` and not `rdep_expost_D`.
 
-**Next: Task 13** — wire `i_dep_D/F` in as the solver unknown across
-`calibration.py`/`steady_state.py`/`full_model.py`, and verify the Fisher sign
-(`n_inter_D[0]` more negative under a D deflation shock).
+## Nominal rigidities (`add-nkpc`): Task 13 — nominal deposits WIRED IN; Fisher gate PASSED
+
+The model solves end-to-end again. Three edits, no equation changed:
+
+- `code/calibration.py` — `'rdep_D'/'rdep_F': 0.000` renamed to `'i_dep_D'/'i_dep_F': 0.000`.
+  `rdep_D/F` is no longer a calibration parameter; it is an output of `deposit_rates_D/F`.
+  Every `ss['rdep_D']` read elsewhere (`steady_state.py` excess-return anchors and
+  `Rgross` seeding, `depreciation_calibration.py` printout, `irf_plots.py`,
+  `diagnostics/solve_configs.py`) still works unchanged — the object exists, it is just
+  solved rather than supplied.
+- `code/steady_state.py` and `code/full_model.py` — `deposit_rates_D/F` imported and
+  placed immediately before `deposit_return_D/F` in both block lists.
+- `code/full_model.py` — `unknowns_tp`: `rdep_D → i_dep_D`, `rdep_F → i_dep_F`.
+  `targets_tp` **unchanged**; the system is still 27×27.
+
+**SS gate: PASSED, bit-identical.** Every numeric steady-state line diffs clean against
+the pre-change baseline: `goods_mkt_D = -4.2493506589857954e-07`,
+`goods_mkt_F = -4.1914559989475464e-07`, `ca_res_D = 6.852157730108388e-17`,
+`IC_D: θ − θ_tgt = 1.776357e-15`, all residuals `< 1e-8 ✓`, `ρ_b = 0.8451`,
+`b_gov_D[499] = 1.6e-05`. And the three rates collapse exactly at `pi = 0`:
+`i_dep_D = rdep_D = rdep_expost_D = 0.000000000000`.
+
+**Fisher gate: PASSED.** Impact response to the D default shock, sticky prices in both
+columns; the only difference is real vs nominal deposit contracts.
+
+| | sticky, REAL deposits (Task 10) | + NOMINAL deposits (Task 13) | change |
+|---|---|---|---|
+| `Y_D[0]`       | −0.4923% | **−0.5449%** | −0.0525 |
+| `C_D[0]`       | −0.4904% | **−0.5499%** | −0.0595 |
+| `I_D[0]`       | −0.9907% | **−1.0849%** | −0.0942 |
+| `n_inter_D[0]` | −4.0140% | **−4.6155%** | −0.6016 |
+
+The sign is right and the ordering is right: the amplification lands hardest on bank net
+worth (−0.60pp, ~15% deeper), and only reaches output through the intermediary. That is
+the Fisher channel doing exactly what it should — D banks are net nominal debtors on
+deposits, the crisis deflates D, `rdep_expost_D` rises, and the realised real funding
+cost eats further into `n_inter_D`. Had the Task 12 ex-post/ex-ante substitution been
+backwards, `n_inter_D[0]` would have gone *less* negative; it does not.
+
+First 8 quarters, % of SS:
+
+```
+Y_D real dep   : -0.4923 +0.0083 +0.1006 +0.0881 +0.0580 +0.0329 +0.0161 +0.0063
+Y_D nominal dep: -0.5449 -0.0011 +0.1021 +0.0912 +0.0604 +0.0342 +0.0165 +0.0061
+C_D real dep   : -0.4904 +0.1141 +0.1553 +0.0790 +0.0046 -0.0440 -0.0685 -0.0761
+C_D nominal dep: -0.5499 +0.1144 +0.1676 +0.0903 +0.0124 -0.0395 -0.0665 -0.0758
+```
+
+The **one-quarter-spike caveat from Task 10 survives unchanged** and must not be dropped
+from the write-up: nominal deposits deepen the impact quarter but do not fix the sign
+reversal from quarter 2 on — `Y_D` is already back to ≈0 at q1 and positive by q2 in both
+columns. Nominal contracts amplify the impact; they do not lengthen the recession.
+`C_D[1]` is essentially unmoved (+0.1141 → +0.1144), so the whole Fisher effect is an
+impact-quarter effect.
+
+`code/test_nkpc_blocks.py`: **17 passed, 0 failed** (unchanged — Task 13 added no
+equations, so no new tests).
+
+Caveat carried forward: the spread moment has drifted with the nominal side and has not
+been re-tuned. That is Task 14.
+
+**Next: Task 14** — re-tune `psi_lambda_B` to the 150bp spread moment on the full
+sticky-price / nominal-deposit model.
 
 ## Nominal rigidities (`add-nkpc`): Task 10 — price-stickiness-only result at the calibrated slope
 
