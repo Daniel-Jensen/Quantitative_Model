@@ -215,10 +215,15 @@ def build_and_solve(ss_results):
     print("G computed successfully.")
 
     # ── Shocks ────────────────────────────────────────────────────────────────
-    rho_Z_D      = 0.8
+    # Persistences come from the calibration (code/calibration.py, "Shock
+    # processes"). The literals below are the pre-2026-08-06 hardcoded values
+    # and are kept only as a fallback so any caller that hands build_and_solve
+    # an older calibration dict still runs.
+    rho_Z_D      = float(calibration_start.get('rho_Z_D', 0.8))
     dZ_D         = 0.01 * rho_Z_D ** np.arange(T)
-    rho_def_D    = 0.8
+    rho_def_D    = float(calibration_start.get('rho_def_D', 0.8))
     dShock_def_D = 0.01 * rho_def_D ** np.arange(T)
+    print(f"  shock persistences: rho_Z_D={rho_Z_D:.4f}, rho_def_D={rho_def_D:.4f}")
 
     irfs_Z_D = G @ {
         'Z_D': dZ_D, 'Z_F': np.zeros(T),

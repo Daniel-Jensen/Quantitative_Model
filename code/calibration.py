@@ -165,12 +165,41 @@ def get_calibration():
         #   psi_lambda_B = 8.5  -> peak spread 0.4053 pp -> 162.14 bp
         #   psi_lambda_B = 7.0  -> peak spread 0.3405 pp -> 136.21 bp
         #   psi_lambda_B = 7.8  -> peak spread 0.3729 pp -> 149.16 bp
-        #   psi_lambda_B = 7.85 -> peak spread 0.3753 pp -> 150.14 bp  <- adopted
+        #   psi_lambda_B = 7.85 -> peak spread 0.3753 pp -> 150.14 bp  <- was adopted
         # b_gov_D[499] stayed in ~1e-5..1e-4 across the whole bracket (no
         # instability); n_inter_D[0] and Y_D[0] both negative throughout
         # (correct doom-loop sign). See docs/STATE.md for the full record.
-        'psi_lambda_B_D': 7.85 if EBA_CALIBRATION else 3.0,
-        'psi_lambda_B_F': 7.85 if EBA_CALIBRATION else 3.0,
+        #
+        # RETUNED AGAIN 2026-08-06 (rho_def 0.80 -> 0.9408, see "Shock processes"
+        # below). A more persistent sovereign-risk shock raises the peak spread
+        # for a given amplification: at psi_lambda_B = 7.85 the peak went
+        # 150.14 -> 470.62 bp. Re-bisected against the same 150bp moment,
+        # rho_def = 0.9408 throughout, FULL pipeline re-solve at every point:
+        #   psi_lambda_B = 7.850 -> 470.62 bp
+        #   psi_lambda_B = 2.730 -> 139.60 bp
+        #   psi_lambda_B = 2.8909 -> 148.50 bp
+        #   psi_lambda_B = 2.9181 -> 149.99 bp
+        #   psi_lambda_B = 2.92  -> ADOPTED  (rounded; slope ~55bp per unit,
+        #                            so 2.9181 -> 2.92 is ~+0.1bp)
+        # METHOD WARNING, learned the hard way here: you CANNOT sweep this dial
+        # by patching psi_lambda_B_D/F and psi_spread_D/F onto an already-solved
+        # SS and re-solving only the Jacobian. The SS really is psi-neutral
+        # (goods_mkt_D is bit-identical at every psi), but that shortcut still
+        # gave 150.33bp at psi=2.73 where the real pipeline gives 139.60 -- a
+        # 7% error, all in the same direction, because only the divert_bond_foc
+        # psi_spread channel picks the patch up and not the intermediation_IC
+        # Delta_b_eff collateral channel. Re-solve the pipeline per point.
+        # b_gov_D[499] FELL 4.63e-05 -> 2.04e-05 across the re-tune, i.e. the
+        # move is away from the high-psi_lambda_B breakdown region, not toward
+        # it. All four impact signs stay negative (Y, C, I, n_inter).
+        # PAPER CONSEQUENCE: psi_spread_D is linear in this dial, so it drops
+        # 1.604839 -> ~0.5970 and the default-loading split moves from
+        # 3.4% fundamental / 96.6% collateral friction to ~8.6% / ~91.4% --
+        # a friction:fundamental ratio of ~10.6:1, down from ~28.6:1. The
+        # constrained-seller claim survives but is quantitatively weaker, and
+        # the paper's fig04 prose must be re-derived. See docs/STATE.md.
+        'psi_lambda_B_D': 2.92 if EBA_CALIBRATION else 3.0,
+        'psi_lambda_B_F': 2.92 if EBA_CALIBRATION else 3.0,
         # Bank net worth = Core Tier 1 / own quarterly nominal GDP.
         # GR 22,778/55,898 = 0.4075; DE 114,317/653,815 = 0.1748.
         'n_inter_D':    eba_or('n_inter_D', 0.75*4),  'n_inter_F':    eba_or('n_inter_F', 0.75*4),
@@ -269,6 +298,29 @@ def get_calibration():
         'recovery_rate_D':  0.30,   'recovery_rate_F':  0.30,
         'zeta_writeoff_D':  0.0,    'zeta_writeoff_F':  0.0,
         'writeoff_enabled_D': 0.0,  'writeoff_enabled_F': 0.0,
+
+        # ── Shock processes ───────────────────────────────────────────────────
+        # Promoted out of code/full_model.py (was hardcoded at lines 217-221)
+        # on 2026-08-06 so the persistence of the crisis is a calibration
+        # decision with a source, not a magic number in the solve driver.
+        #
+        # rho_def: quarterly persistence of the sovereign-risk shock. Disciplined
+        # by the repo's own Markov-switching estimation rather than chosen:
+        # Empirics/outputs/ms_regime_GRC.npz fits three states to MONTHLY
+        # Greek-Bund spreads (348 obs, 1997-06..2026-06); the crisis state
+        # (mean 9.63pp) has monthly persistence 0.9798, i.e. an expected
+        # duration of 50 months, and the realised episode ran 2010-04 to
+        # 2017-12 (92 months). Quarterly equivalent: 0.9798^3 = 0.9408. The
+        # previous hardcoded 0.80 implied a 14-month crisis and was the binding
+        # constraint on how long the contraction lasted -- cumulative Y over 40q
+        # goes -0.049 (rho=0.80) -> -0.784 (0.90) -> -2.021 (0.95) holding peak
+        # spread fixed at 150bp, so this is persistence, not crisis size. See
+        # docs/STATE.md.
+        #
+        # rho_Z is the TFP shock and is deliberately LEFT at 0.80 -- the MS
+        # estimate speaks to sovereign spreads only.
+        'rho_def_D':    0.9408,  'rho_def_F':    0.9408,
+        'rho_Z_D':      0.80,    'rho_Z_F':      0.80,
 
         # ── ECB balance sheet (TPI conduit) ───────────────────────────────────
         # Capital-key split of the CB's D-bond programme cash flows between the

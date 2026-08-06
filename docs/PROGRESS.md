@@ -14,6 +14,77 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-08-06 — `rho_def` promoted to the calibration and disciplined at 0.9408; `psi_lambda_B` re-tuned 7.85 → 2.92 (`add-nkpc`)
+
+**Problem.** The sovereign-risk shock's persistence was **hardcoded at `rho_def = 0.80` in
+`code/full_model.py:220`**, next to `rho_Z_D = 0.8`. It was therefore neither stated nor
+defended as a calibration choice, and it implied a **14-month** crisis
+(`0.80^(1/3) = 0.9283` monthly → 13.95 months). The repo's own estimation contradicts that.
+
+**The estimate.** `Empirics/outputs/ms_regime_GRC.npz` fits three Markov-switching states to
+monthly Greek–Bund spreads (348 obs, 1997-06 to 2026-06). The crisis state has mean spread
+**9.63pp** and monthly persistence **0.9798499**, an expected duration of **49.6 months**; the
+realised episode ran 2010-04 to 2017-12, **92 months**. Quarterly equivalent
+`0.9798499^3 = 0.94076` → **`rho_def = 0.9408`** (16.9 quarters).
+
+**Changes.**
+- `code/full_model.py` — `rho_Z_D` and `rho_def_D` now read from `calibration_start` with the
+  old literals as a fallback, and the resolved values are printed.
+- `code/calibration.py` — new *Shock processes* block: `rho_def_D/F = 0.9408`,
+  `rho_Z_D/F = 0.80`. **`rho_Z` deliberately unchanged** — the MS estimate is about sovereign
+  spreads, not TFP.
+- `code/calibration.py` — `psi_lambda_B_D/F` **7.85 → 2.92** (`EBA_CALIBRATION` branch only;
+  the `else 3.0` branch is untouched).
+
+**Re-tune.** Peak spread is monotone increasing in `psi_lambda_B`; at the new persistence the
+old 7.85 gave **470.62 bp** against the 150bp GR–DE moment. Full pipeline re-solve per point:
+7.85 → 470.62, 2.73 → 139.60, 2.8909 → 148.50, 2.9181 → 149.99, **2.92 → 150.09 (adopted)**.
+Harness sanity anchor at `7.85 / rho=0.80` reproduced the recorded baseline bit-for-bit
+(150.14bp, `Y_D[0] = −0.5064`, `C_D[0] = −0.5103`).
+
+**Method finding worth keeping.** Sweeping `psi_lambda_B` by patching it and `psi_spread` onto
+an already-solved SS and re-solving only the Jacobian is **wrong**, even though the SS really
+is `psi_lambda_B`-neutral (bit-identical `goods_mkt_D`/`K_D`/`beta_D` at every value). It
+predicted 150.33bp at `psi = 2.73` where the pipeline gives 139.60 — the
+`intermediation_IC_D` `Delta_bD_eff` collateral channel does not pick the patch up, only
+`divert_bond_foc_D`'s `psi_spread` does. The first bisection was discarded and redone.
+
+**Results.** Like-for-like at 150bp: `Y_D[0]` −0.5064 → **−0.7502**, `C_D[0]` −0.5103 →
+**−0.7014**, `I_D[0]` −1.0114 → **−1.7107**, `n_inter_D[0]` −4.2962 → **−6.2710**. Cumulative
+40-quarter `Y` −0.0492 → **−2.5420** (51.7×); negative-`Y` quarters in the first 40: 5 → **37**;
+spread above half-peak q3 → **q11**. All four impact signs stay negative, so the `add-nkpc`
+consumption sign flip survives.
+
+**Paper-level consequence.** `psi_spread_D` is linear in the dial, so it falls 1.604839 →
+**0.596959** against an unchanged `EL_price_D = 0.056134`. The default-loading split moves
+**3.38% / 96.62% → 8.60% / 91.40%** fundamental / collateral friction — a friction:fundamental
+ratio of **10.63:1**, down from 28.59:1. The constrained-seller claim survives in direction but
+"essentially all of it" must become "roughly nine tenths of it".
+`experiments/paper_outputs.py`'s `fig04_spread_decomposition` prose needs re-deriving again.
+
+**Issue I-1 substantially resolved** — and by the shock process, not by a capital friction, so
+the earlier conclusion that `chi1`/`omega_I` were the wrong hypotheses holds. Residual defect:
+`Y_D` still blips marginally positive at q2–q4 (all under +0.03% of SS) before going negative
+from q5 and staying there.
+
+**Stability — passes, and moves away from the risk.** SS bit-identical
+(`goods_mkt_D = -4.2493506589857954e-07`, `IC_D = 1.776357e-15`, `All residuals < 1e-8 ✓`);
+`b_gov_D[499]` on the default shock **fell** 4.63e−05 → 2.04e−05; `ρ_b = 0.8451 < 0.95`; no
+`assert_gk_well_posed` failure; all four TPI gammas converge (`max|ca_res_D| ≤ 6.39e−08`).
+The re-tune lowers `psi_lambda_B`, i.e. away from the high-`psi_lambda_B` breakdown region.
+TPI loading 5.55 / 5.37 / 5.13 at γ = 2/5/10 — monotone decreasing and above 1, so Live
+Claims 1 and 5 both survive.
+
+**Tests:** 42 passed (`code/test_nkpc_blocks.py code/test_eba_calibration.py experiments/`),
+unchanged from HEAD.
+
+**STALE:** E1–E4, `docs/experiments_results.md`, `docs/paper_draft_results.md` and the eight
+tracked `experiments/paper/fig0*.png` all predate this calibration. Regenerate in order:
+`diagnostics/regimes/regime_model.py --force` → `experiments/run_all.py` →
+`experiments/e4_distribution.py` → `experiments/paper_outputs.py`.
+
+---
+
 ## 2026-08-06 — Investment-flow adjustment cost `S(I/I(-1))`, added inactive at `omega_I = 0` (`add-nkpc`)
 
 **Problem.** On the default shock output falls for exactly **one quarter** and then turns

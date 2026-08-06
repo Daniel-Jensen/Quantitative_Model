@@ -2,10 +2,57 @@
 
 ## Where to start
 
-- **OPEN, and the top priority: `Y_D` is negative for only ONE quarter (issue I-1).**
-  See `docs/STATE.md` → *Open issue I-1*. On the default shock `Y_D` = −0.5064,
+- **FIRST: regenerate the downstream artefacts. They are stale.** `rho_def` was
+  disciplined at **0.9408** and `psi_lambda_B` re-tuned **7.85 → 2.92** on
+  2026-08-06 (see `docs/STATE.md` → *`rho_def` disciplined by the MS regime
+  estimate*). `code/main.py` is verified against the new calibration, but E1–E4
+  and every paper artefact still reflect the old one. Run **in this order** —
+  the ordering is load-bearing, the experiments never re-solve the model:
+  ```
+  /opt/anaconda3/envs/ssj/bin/python diagnostics/regimes/regime_model.py --force
+  /opt/anaconda3/envs/ssj/bin/python experiments/run_all.py
+  /opt/anaconda3/envs/ssj/bin/python experiments/e4_distribution.py
+  /opt/anaconda3/envs/ssj/bin/python experiments/paper_outputs.py
+  ```
+  Affected: `docs/experiments_results.md`, `docs/paper_draft_results.md`, the
+  eight tracked `experiments/paper/fig0*.png`.
+
+- **PAPER EDIT REQUIRED — the constrained-seller number changed.** The default
+  loading split is now **8.60% fundamental / 91.40% collateral friction**
+  (`EL_price_D = 0.056134`, `psi_spread_D = 0.596959`), a ratio of 10.63:1. It
+  was 3.4% / 96.6% (28.6:1). The claim survives in direction but "essentially
+  all of the spread was a constrained-seller phenomenon" must become "roughly
+  nine tenths of it". `experiments/paper_outputs.py`'s
+  `fig04_spread_decomposition` caption is derived at run time and will pick this
+  up automatically once regenerated — but the *prose in the paper* will not.
+
+- **Sweeping `psi_lambda_B`: re-solve the pipeline, do not patch the SS.** The SS
+  is genuinely `psi_lambda_B`-neutral (bit-identical `goods_mkt_D`, `K_D`,
+  `beta_D` at every value), but patching `psi_lambda_B_D/F` + `psi_spread_D/F`
+  onto a solved SS and re-solving only the Jacobian is still **wrong** — it
+  predicted 150.33bp at `psi = 2.73` where the pipeline gives 139.60, because
+  `intermediation_IC_D`'s `Delta_bD_eff` collateral channel ignores the patch.
+  A full re-solve is ~2 minutes. The `rho_def` bisection was thrown away and
+  redone over exactly this.
+
+- **`rho_def` and `rho_Z` now live in `code/calibration.py`**, section *Shock
+  processes*, not in `code/full_model.py`. `rho_Z` stays at 0.80 — the
+  Markov-switching estimate disciplines the sovereign-risk shock only.
+
+- **MOSTLY CLOSED: `Y_D` negative for only ONE quarter (issue I-1).**
+  `rho_def = 0.9408` took cumulative 40-quarter `Y` from −0.049 to **−2.542** and
+  the count of negative-`Y` quarters in the first 40 from 5 to **37**. Residual
+  defect: a small positive blip at q2–q4 (+0.0115, +0.0264, +0.0111 — all under
+  +0.03% of SS) before `Y` goes negative again at q5 and stays there through q39.
+  If a deeper, monotone bust is wanted, the next hypothesis is the `n_inter_D`
+  rebound (+1.09 by q3, peaking **+2.94 at q8**), **not** another capital
+  friction. The original I-1 write-up below is retained because its two rejected
+  hypotheses must not be re-tested.
+
+  *Historical (pre-`rho_def` fix), retained for the rejected hypotheses:* see
+  `docs/STATE.md` → *Open issue I-1*. On the default shock `Y_D` was −0.5064,
   −0.0026, **+0.0929**, … then a positive hump; Bi–Foerster–Traum stay negative
-  ~20 quarters. **Two frictions have now been tested and both rejected — do not
+  ~20 quarters. **Two frictions were tested and both rejected — do not
   re-test either.**
   1. `chi1` (intermediary capital adjustment cost): raising it makes both the
      trough *and* the rebound bigger. Stays 0.
