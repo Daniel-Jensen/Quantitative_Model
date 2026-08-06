@@ -67,11 +67,17 @@ def income_F(e_grid_F, w_F, N_F, div_F, div_fund_F, profit_F, tau_F, lamb_F, P_C
 hh_extended_F = hh_F.add_hetinputs([make_grids_F, income_F])
 
 @simple
-def deposit_return_F(rdep_F, P_CES_F):
-    # Bundle-real gross deposit return: corrects for P_CES revaluation between t-1 and t.
-    # T-2 fix: rate paid at t was locked at t-1 — see deposit_return_D.
-    # At SS P_CES_F(-1)/P_CES_F = 1, so Rgross_F = 1 + rdep_F identically.
-    Rgross_F = (1 + rdep_F(-1)) * P_CES_F(-1) / P_CES_F
+def deposit_rates_F(i_dep_F, pi_F):
+    # See deposit_rates_D.
+    rdep_F        = (1 + i_dep_F) / (1 + pi_F(+1)) - 1
+    rdep_expost_F = (1 + i_dep_F(-1)) / (1 + pi_F) - 1
+    return rdep_F, rdep_expost_F
+
+
+@simple
+def deposit_return_F(i_dep_F, P_CES_F, pi_F):
+    # See deposit_return_D. Nominal contract; T-2 timing preserved.
+    Rgross_F = (1 + i_dep_F(-1)) * P_CES_F(-1) / P_CES_F / (1 + pi_F)
     return Rgross_F
 
 

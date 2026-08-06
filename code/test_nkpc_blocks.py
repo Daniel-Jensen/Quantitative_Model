@@ -178,3 +178,42 @@ def test_omega_one_half_splits_evenly():
     dlog_p = 1e-4
     assert -(1 - omega) * dlog_p == pytest.approx(-0.5 * dlog_p, rel=1e-15)
     assert omega * dlog_p == pytest.approx(0.5 * dlog_p, rel=1e-15)
+
+
+# ── Nominal deposits ──────────────────────────────────────────────────────────
+
+def test_deposit_rates_collapse_at_zero_inflation():
+    """At pi = 0 both derived real rates must equal the nominal rate exactly --
+    this is what keeps the steady state bit-identical."""
+    from equations_D import deposit_rates_D
+    ss = deposit_rates_D.steady_state({'i_dep_D': 0.0125, 'pi_D': 0.0})
+    assert ss['rdep_D'] == pytest.approx(0.0125, rel=1e-15)
+    assert ss['rdep_expost_D'] == pytest.approx(0.0125, rel=1e-15)
+
+
+def test_deflation_raises_the_realised_real_deposit_rate():
+    """Deflation is a windfall to depositors and a loss to banks, which hold
+    real assets against nominal liabilities. This is the Fisher channel; if the
+    sign flips, bank_return_D will amplify in the wrong direction."""
+    from equations_D import deposit_rates_D
+    i = 0.0125
+    base = deposit_rates_D.steady_state({'i_dep_D': i, 'pi_D': 0.0})
+    defl = deposit_rates_D.steady_state({'i_dep_D': i, 'pi_D': -0.001})
+    assert defl['rdep_expost_D'] > base['rdep_expost_D']
+    assert defl['rdep_expost_D'] == pytest.approx((1 + i) / (1 - 0.001) - 1, rel=1e-14)
+
+
+def test_deposit_return_is_unchanged_at_zero_inflation():
+    """Rgross must be exactly 1 + i_dep when pi = 0 and P_CES is flat."""
+    from equations_D import deposit_return_D
+    ss = deposit_return_D.steady_state({'i_dep_D': 0.0125, 'P_CES_D': 1.3, 'pi_D': 0.0})
+    assert ss['Rgross_D'] == pytest.approx(1.0125, rel=1e-15)
+
+
+def test_deposit_rates_F_matches_D():
+    from equations_D import deposit_rates_D
+    from equations_F import deposit_rates_F
+    d = deposit_rates_D.steady_state({'i_dep_D': 0.0125, 'pi_D': -0.001})
+    f = deposit_rates_F.steady_state({'i_dep_F': 0.0125, 'pi_F': -0.001})
+    assert d['rdep_D'] == pytest.approx(f['rdep_F'], rel=1e-15)
+    assert d['rdep_expost_D'] == pytest.approx(f['rdep_expost_F'], rel=1e-15)

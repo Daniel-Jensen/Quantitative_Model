@@ -14,6 +14,24 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-08-06 — Task 11: nominal deposit contracts, ex-ante/ex-post real rates (`add-nkpc`)
+
+- Replaced `deposit_return_D/F` (took `rdep`, a real rate) with two blocks:
+  `deposit_rates_D/F(i_dep, pi)` → `rdep` (ex-ante, unchanged name/meaning) and
+  `rdep_expost` (new — realised real rate on deposits placed t−1, carries the
+  inflation surprise); and a new `deposit_return_D/F(i_dep, P_CES, pi)` → `Rgross`.
+- `rdep_D/F` deliberately keeps its name so `intermediation_P1_D/F`,
+  `divert_bond_foc_D/F` and `divert_portfolio_adj` need zero changes — verified
+  by asserting `rdep_D` in their `.inputs` and `rdep_expost_D` not.
+- T-2 not reopened: `deposit_return_D/F` still locks the rate at `i_dep(-1)`;
+  only the deflator (`P_CES` and now `pi`) is period-t.
+- SS-preserving by construction: at `pi=0` all three collapse to `i_dep`, so
+  `Rgross = 1 + i_dep` exactly.
+- Not yet wired into `full_model.py`, calibration, or steady state — `i_dep`
+  becoming the solver unknown is Task 13. `bank_return_D/F` and
+  `capital_fund_D/F` still read the old `rdep` — Task 12, next.
+- `code/test_nkpc_blocks.py`: 11 → 15 passed, 0 failed.
+
 ## 2026-08-06 — Task 10: price-stickiness-only measurement (`add-nkpc`)
 
 - Ran the full pipeline at the calibrated `kappa_p = 0.0871` with deposits still

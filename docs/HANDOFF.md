@@ -390,19 +390,29 @@ consequential for the paper right now:
 | `code/tpi_plots.py`, `code/irf_plots.py` | Figure-generation scripts (regenerate from `main`) |
 | Overleaf | https://www.overleaf.com/project/698b4f88aeef1d0e1d08cc0c |
 
-## Nominal rigidities (`add-nkpc`) — Task 10 done, Task 11 next
+## Nominal rigidities (`add-nkpc`) — Task 11 done, Task 12 next
 
-**Where it stands.** Tasks 1–10 committed. The dynamic model is sticky-price
-(27×27) with deposits still **real**. Price stickiness alone flips `C_D[0]` from
+**Where it stands.** Tasks 1–11 committed. The dynamic model is sticky-price
+(27×27) with deposits still **real** in the wiring (Task 11 only adds the derived
+blocks; nothing consumes them yet). Price stickiness alone flips `C_D[0]` from
 +0.2164% to −0.4904% and takes `Y_D[0]` from −0.0149% to −0.4923% — see
 `docs/STATE.md` for the full table, the `kappa_p` sweep, and the one-quarter-spike
 caveat that must not be dropped from the write-up.
 
-**Next: Task 11** — `deposit_rates_D/F` and nominal `deposit_return_D/F`, per
-`docs/superpowers/plans/2026-08-05-nominal-rigidities.md`. `rdep` keeps its name
-as the derived ex-ante real rate; `i_dep` becomes the nominal unknown;
-`rdep_expost` is new. That refinement means `intermediation_P1`, `divert_bond_foc`
-and `divert_portfolio_adj` need no changes at all.
+**Task 11 done.** `equations_D.py`/`equations_F.py`: `deposit_return_D/F` (took
+`rdep`) replaced by `deposit_rates_D/F(i_dep, pi)` → `rdep` (unchanged name,
+ex-ante real rate, so `intermediation_P1`, `divert_bond_foc` and
+`divert_portfolio_adj` need no changes) plus new `rdep_expost` (realised real
+rate, carries the inflation surprise), and a new `deposit_return_D/F(i_dep,
+P_CES, pi)` → `Rgross`. T-2 timing preserved (`i_dep(-1)` locked). SS-preserving:
+at `pi=0` all three rates collapse to `i_dep`. `code/test_nkpc_blocks.py`:
+11 → 15 passed.
+
+**Next: Task 12** — put `rdep_expost_D/F` into `bank_return_D/F` and
+`capital_fund_D/F`, the Fisher-channel wiring (banks are net nominal debtors, so
+deflation raising `rdep_expost` should deepen the net-worth loss on those blocks).
+`i_dep` is still not a solver unknown — Task 13 wires that, and only after Task 13
+will the model solve end-to-end again.
 
 **Two things not to rediscover the hard way.**
 

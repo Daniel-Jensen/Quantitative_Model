@@ -2,6 +2,31 @@
 
 **Branch:** `eba-recalibration` | **Date:** 2026-07-31 | **Status:** **EBA calibration rebuilt, identified, and LIVE** (`EBA_CALIBRATION=True`, `BANK_SCOPE="broad"`). Y-1 and RK-1 resolved; spread on target at 150.4bp; TPI loading declining.
 
+## Nominal rigidities (`add-nkpc`): Task 11 — nominal deposit contracts split into `i_dep`/`rdep`/`rdep_expost`
+
+`rdep_D/F` is split into three names to avoid a wide, risky rename. `deposit_rates_D/F`
+(new `@simple` block) takes the nominal unknown `i_dep_D/F` and `pi_D/F` and returns two
+outputs: `rdep_D/F` (unchanged name, unchanged meaning — the ex-ante real rate for
+t → t+1, locked at t) and `rdep_expost_D/F` (new — the realised real rate at t on
+deposits placed at t−1, `= (1+i_dep(-1))/(1+pi) - 1`, carrying the inflation surprise).
+`deposit_return_D/F` now takes `i_dep`, `P_CES`, `pi` instead of `rdep`, keeping the T-2
+timing (rate locked at t−1) and adding the period-t CPI deflator via `pi`.
+
+Because `rdep_D/F` keeps its name and its ex-ante meaning, `intermediation_P1_D/F`,
+`divert_bond_foc_D/F` and `divert_portfolio_adj` (global) are **untouched** — verified by
+introspecting `.inputs` after the change (`rdep_D` present, `rdep_expost_D` absent).
+
+At SS `pi = 0`, so `rdep_D = rdep_expost_D = i_dep_D` and `Rgross_D = 1 + i_dep_D`
+exactly — this is what keeps the steady state bit-identical once `i_dep` is wired in as
+the solver unknown (Task 13). `deposit_rates_D/F` and the new `deposit_return_D/F` are
+not yet wired into `full_model.py`'s block list or the calibration/steady-state — that is
+Task 13. `bank_return_D/F` and `capital_fund_D/F` still consume the old `rdep_D` and have
+not been touched — that is Task 12, next.
+
+`code/test_nkpc_blocks.py` gained 4 tests (11 → 15 passed): SS collapse, deflation raises
+the realised real rate (sign check for the Fisher channel), `Rgross` unchanged at
+`pi=0`, and D/F symmetry.
+
 ## Nominal rigidities (`add-nkpc`): Task 10 — price-stickiness-only result at the calibrated slope
 
 Deposits are still **real** here; this isolates what price stickiness alone does.

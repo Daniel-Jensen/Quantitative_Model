@@ -77,14 +77,41 @@ hh_extended_D = hh_D.add_hetinputs([make_grids_D, income_D])
 
 
 @simple
-def deposit_return_D(rdep_D, P_CES_D):
-    # Bundle-real gross deposit return: corrects for P_CES revaluation between t-1 and t.
-    # T-2 fix: deposits are one-period non-contingent contracts — the rate paid at t
-    # was locked at t-1 (rdep_D(-1)). Previously rdep_D (a period-t unknown) was paid
-    # on the t-1 deposit stock, making deposits state-contingent and generating a
-    # large bank windfall on impact of shocks (audit.md T-2).
-    # At SS P_CES_D(-1)/P_CES_D = 1, so Rgross_D = 1 + rdep_D identically.
-    Rgross_D = (1 + rdep_D(-1)) * P_CES_D(-1) / P_CES_D
+def deposit_rates_D(i_dep_D, pi_D):
+    # Deposits are NOMINAL euro contracts. i_dep_D is the nominal rate and is the
+    # unknown that clears deposit_mkt_D -- there is no policy rate pinning it, so
+    # no absorber or cross-border claim is needed and external_account_D is
+    # untouched.
+    #
+    # rdep_D keeps its existing meaning: the EX-ANTE real rate for the t -> t+1
+    # holding period, locked at t. That is exactly what intermediation_P1_D,
+    # divert_bond_foc_D and divert_portfolio_adj already mean by rdep_D, so those
+    # blocks need no changes.
+    #
+    # rdep_expost_D is the REALISED real rate at t on deposits placed at t-1. It
+    # contains the inflation surprise: a deflation raises the real value of the
+    # bank's nominal liabilities. Banks hold real assets against nominal
+    # liabilities, so they are net nominal debtors and this deepens the net-worth
+    # loss -- the Fisher-Bernanke channel.
+    #
+    # At SS pi_D = 0 and both equal i_dep_D, so the SS is bit-identical.
+    rdep_D        = (1 + i_dep_D) / (1 + pi_D(+1)) - 1
+    rdep_expost_D = (1 + i_dep_D(-1)) / (1 + pi_D) - 1
+    return rdep_D, rdep_expost_D
+
+
+@simple
+def deposit_return_D(i_dep_D, P_CES_D, pi_D):
+    # Bundle-real gross deposit return on a NOMINAL contract.
+    # P_c_D = P_D * P_CES_D is the nominal CPI, so
+    #   P_c_D(-1)/P_c_D = (P_CES_D(-1)/P_CES_D) / (1 + pi_D).
+    #
+    # T-2 is NOT reopened: the rate is still locked at t-1 (i_dep_D(-1)); only
+    # the deflator is period-t, which this block already did via P_CES. T-2 was
+    # about paying a period-t UNKNOWN rate on the t-1 deposit stock.
+    #
+    # At SS P_CES_D(-1)/P_CES_D = 1 and pi_D = 0, so Rgross_D = 1 + i_dep_D.
+    Rgross_D = (1 + i_dep_D(-1)) * P_CES_D(-1) / P_CES_D / (1 + pi_D)
     return Rgross_D
 
 
