@@ -1,21 +1,45 @@
 # Handoff Notes
 
-## Open decision: Live Claim 5
+## Open problem: foreign banks do not retrench
 
-The MS-disciplined shock persistence fixed the crisis dynamics (cumulative Y over
-40q: −0.049 -> −2.542) but flattened the loading schedule from a 66% decline to
-19%, with the floor at 4.59 rather than 1.49. The self-extinguishing-premium
-framing needs re-deriving against what a 19% decline actually supports before it
-goes in the draft. See docs/STATE.md.
+On a 1pp default shock the F bank **increases** its Greek holdings (`b_D_F` rises;
+peak around t≈13) instead of cutting them. That is contrary to the 2010–12 record
+and to the closest published analogue — Bi, Foerster & Traum (FRBSF WP 2025-10),
+whose Foreign intermediary reduces Italian holdings by ~2% of GDP while its own
+economy still expands. It also undercuts the instrument's rationale: the ECB is
+meant to be the risk-neutral buyer of last resort, with private core banks
+retrenching and reinforcing the doom loop TPI addresses.
+
+The country-size asymmetry (2026-08-07) shrank the impact response by an order of
+magnitude — to a near-miss — but did not flip the sign, and from t≈4 the
+mark-to-market term dominates outright. The FOC decomposition of `d b_D_F` off
+`divert_portfolio_adj` isolates the four contributions (MTM, terms of trade,
+`−d rdep_F`, risk premium) and is the right diagnostic for any candidate fix.
+
+Ruled out by inspection: convex/threshold terms in `def_rate`. `def_rate_ss = 0`,
+so anything quadratic has exactly zero first-order effect in the linearised
+solution. Candidate routes, none yet chosen: a home-bias risk-pricing wedge in
+`prem_DF`; a larger cross-border `psi_lambda_B` on `Delta_bD_eff` in
+`intermediation_IC_F`; porting BFT's CES/Krenz bond aggregator (`sigma_b = -2`,
+`gamma_b` from domestically-held shares); or a moral-suasion/forced-absorption
+device on the D side, which is closest to BFT's actual mechanism.
+
+**Note on targets.** The numbered "Live Claims", and the declining loading
+schedule in particular, are **not** success criteria and must not be used to
+evaluate model changes. Report them as outputs. The real gates are the calibration
+moments (150bp peak GR–DE spread) and the correctness checks (Walras residuals,
+GK well-posedness, impact signs).
 
 ## Where to start
 
-- **FIRST: regenerate the downstream artefacts. They are stale.** `rho_def` was
-  disciplined at **0.9408** and `psi_lambda_B` re-tuned **7.85 → 2.92** on
-  2026-08-06 (see `docs/STATE.md` → *`rho_def` disciplined by the MS regime
-  estimate*). `code/main.py` is verified against the new calibration, but E1–E4
-  and every paper artefact still reflect the old one. Run **in this order** —
-  the ordering is load-bearing, the experiments never re-solve the model:
+- **FIRST: regenerate the downstream artefacts. They are stale.** The country-size
+  asymmetry landed on 2026-08-07 (`size_F = 11.697`) with `psi_lambda_B` re-tuned
+  **2.92 → 3.01**; see `docs/STATE.md` → *Country-size asymmetry*. `code/main.py`
+  is verified against the new calibration, but E1–E4 and every paper artefact
+  still reflect the old one — **and everything TPI-related predates the
+  `rem_cb_F` conduit fix, so those numbers are wrong by an amount that grows with
+  γ.** Run **in this order** — the ordering is load-bearing, the experiments never
+  re-solve the model:
   ```
   /opt/anaconda3/envs/ssj/bin/python diagnostics/regimes/regime_model.py --force
   /opt/anaconda3/envs/ssj/bin/python experiments/run_all.py
@@ -26,9 +50,13 @@ goes in the draft. See docs/STATE.md.
   eight tracked `experiments/paper/fig0*.png`.
 
 - **PAPER EDIT REQUIRED — the constrained-seller number changed.** The default
-  loading split is now **8.60% fundamental / 91.40% collateral friction**
-  (`EL_price_D = 0.056134`, `psi_spread_D = 0.596959`), a ratio of 10.63:1. It
-  was 3.4% / 96.6% (28.6:1). The claim survives in direction but "essentially
+  loading split is now **8.36% fundamental / 91.64% collateral friction**
+  (`EL_price_D = 0.056134`, `psi_spread_D = 0.615358`), a ratio of 10.96:1. It
+  was 3.4% / 96.6% (28.6:1). (`psi_spread` is exactly linear in `psi_lambda_B`
+  at a fixed SS — verified 2026-08-07 when the 2.92 → 3.01 retune moved
+  `psi_spread_F` 0.465088 → 0.479423, precisely the 3.01/2.92 ratio — so this
+  rescaled from the 2.92 figures without a re-solve.) The claim survives in
+  direction but "essentially
   all of the spread was a constrained-seller phenomenon" must become "roughly
   nine tenths of it". `experiments/paper_outputs.py`'s
   `fig04_spread_decomposition` caption is derived at run time and will pick this

@@ -175,14 +175,17 @@ def market_clearing_D(Y_D, C_D, I_D, G_D, NX_D, DEP_D, D_supply_D, P_CES_D, Phi_
 
 
 @simple
-def ces_price_D(omega, epsilon_trade, p):
-    P_CES_D = (omega + (1 - omega) * p ** (1 - epsilon_trade)) ** (1 / (1 - epsilon_trade))
+def ces_price_D(omega_D, epsilon_trade, p):
+    # omega was a SINGLE shared home-bias parameter until 2026-08-07. Under the
+    # country-size asymmetry that is untenable: a common import share with F
+    # 11.7x larger makes F's imports from D 11.7x too big. See equations_global.
+    P_CES_D = (omega_D + (1 - omega_D) * p ** (1 - epsilon_trade)) ** (1 / (1 - epsilon_trade))
     return P_CES_D
 
 
 @simple
-def import_demand_D(C_D, omega, epsilon_trade, p, P_CES_D):
-    IM_D = (1 - omega) * (P_CES_D / p) ** epsilon_trade * C_D
+def import_demand_D(C_D, omega_D, epsilon_trade, p, P_CES_D):
+    IM_D = (1 - omega_D) * (P_CES_D / p) ** epsilon_trade * C_D
     return IM_D
 
 

@@ -129,15 +129,18 @@ def market_clearing_F(Y_F, C_F, I_F, G_F, NX_F, DEP_F, D_supply_F, P_CES_F, Phi_
     return goods_mkt_F, deposit_mkt_F
 
 @simple
-def ces_price_F(omega, epsilon_trade, p):
+def ces_price_F(omega_F, epsilon_trade, p):
     # F's domestic good price = 1 (in F-units); D-good import price = 1/p (in F-units).
     # So F's CES price index uses (1/p)^(1-eps), NOT p^(1-eps).
-    P_CES_F = (omega + (1 - omega) * (1 / p) ** (1 - epsilon_trade)) ** (1 / (1 - epsilon_trade))
+    # omega_F > omega_D by construction: the larger country is more closed. See
+    # ces_price_D and equations_global's country-size note.
+    P_CES_F = (omega_F + (1 - omega_F) * (1 / p) ** (1 - epsilon_trade)) ** (1 / (1 - epsilon_trade))
     return P_CES_F
 
 @simple
-def import_demand_F(C_F, omega, epsilon_trade, p, P_CES_F):
-    IM_F = (1 - omega) * (P_CES_F * p) ** epsilon_trade * C_F
+def import_demand_F(C_F, omega_F, epsilon_trade, p, P_CES_F):
+    # Per F capita, like every other F quantity.
+    IM_F = (1 - omega_F) * (P_CES_F * p) ** epsilon_trade * C_F
     return IM_F
 
 @simple

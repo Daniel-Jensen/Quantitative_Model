@@ -14,6 +14,68 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-08-07 — Country-size asymmetry: F is 11.7x D (`fix-cross-border-units`)
+
+**The defect.** The model normalised `Y_D_ss = Y_F_ss = 1` — Greece and Germany the same
+size — while every EBA moment is a ratio to its **own** country's net worth. Cross-border
+stocks built as `phi * n_holder / q` therefore landed in the **holder's** units. The model
+could match the portfolio-composition moment (`phi_bD_F = 0.0075`, DE banks' Greek book /
+DE bank net worth) **or** the market-structure moment (foreigners hold 12.72% of the
+bank-held Greek stock), never both: joint consistency needs `n_F/n_D = 8.85` against the
+model's 0.761, and the gap is exactly the Germany/Greece GDP ratio. Matching composition,
+as the model did, put the foreign share at **1.25%** against 12.72% in the data, and
+symmetrically overstated Greek banks' share of the bank-held Bund stock at 1.50% vs 0.13%.
+
+**The fix.** `size_F = 11.697` (Eurostat 2010 annual GDP, `data/eba_moments.json`
+`raw_EURm`, exposed by `calibration.load_eba_size_ratio`). Convention: **every F variable
+is per F capita and O(1); every D variable is a D aggregate** (`size_D == 1`). The weight
+appears in exactly the blocks where the two countries meet — `trade_balance`,
+`external_account_D`, `global_goods_mkt`, `domestic_bond_clearing`, plus the three `_tpi`
+overrides. Nothing inside the F household, bank or production blocks changes, and no grid
+is rescaled.
+
+**Home bias split.** A single shared `omega` is inconsistent with size asymmetry: at
+`omega_F = omega_D` the larger country's imports from the smaller come out `size_F` times
+too large. Symmetric bilateral trade intensity pins the pair,
+`size_F*(1-omega_F) = (1-omega_D)`, giving `omega_D = 0.85` (unchanged) and
+`omega_F = 0.98717`.
+
+**Bug this exposed — every TPI result before today carried it.** `budget_residual_F_tpi`
+paid `rem_cb_F = kappa_cb_F * cb_flow_D / p`, a **D-aggregate** ECB cash flow, into a
+**per-F-capita** budget. At equal country size the missing weight was exactly 1.0, so it
+was invisible: `goods_mkt_F` sat at 2e-10 for the whole history of the block. Under
+`size_F` it leaked up to **1.98e-2 of F GDP at gamma=10** while gamma=0 stayed clean —
+the signature of a conduit-only units error. Fixed by `/ size_F`; `max|goods_mkt_F|` is
+now 2.06e-10..2.12e-10 across the whole gamma grid.
+
+**Recalibration.** `size_F` makes a Greek shock a much smaller shock to F, damping
+cross-border amplification: peak spread fell to 145.20 bp at the incumbent
+`psi_lambda_B = 2.92`. Re-bisected on the same 150.14 bp moment (SS re-solved per point):
+`2.92 -> 145.20`, **`3.01 -> 149.93` adopted**, local slope 52.6 bp/unit.
+
+**Verification** (`code/main.py`, exit 0): foreign shares **0.1274** (EBA 0.1272) and
+**0.001298** (EBA 0.001301) — both moments now hold jointly; `phi_bD_F` exact;
+`K_D = 10.800`, `K_F = 10.824` against the 10.8 over-identifying check;
+`goods_mkt_D/F ~ 4.2e-07`; `ca_res_D = -2.8e-17`; IC residuals machine-zero; GK
+well-posed; `n_inter_D[0] = -6.7366%`, `Y_D[0] = -0.8521%` (both correct sign);
+peak spread 150.0 bp. 48/48 fast tests pass, including a new
+`code/test_cross_border_units.py` that locks the per-capita/aggregate convention and
+asserts the direction of the weight so it cannot be silently inverted.
+
+**Reported outputs that moved.** TPI loading schedule 5.60 / 5.43 / 5.18 at
+gamma = 2/5/10. Spread compression at gamma=10 is 22.4%. German-side responses are now
+an order of magnitude smaller, which is the point: `rdep_F` falls 2.5 bp on the default
+shock where it fell 17.1 bp before, and `n_inter_F` rises 0.14% where it rose 1.20%.
+Cross-border absorption correspondingly matters far more for Greece — freezing `b_D_F`
+now costs `Y_D` -0.83% -> -1.32% and `C_D` -0.77% -> -1.58%.
+
+**Superseded within the same branch.** An interim patch first scaled the two cross-border
+stocks directly into issuer units. That matched market structure but broke composition
+(`phi_bD_F` 0.0075 -> 0.086) and pushed `K_F` to 10.672 — it traded one moment for the
+other rather than satisfying both. Replaced by `size_F`.
+
+---
+
 ## 2026-08-06 — Regeneration on the MS-disciplined shock
 
 - Rebuilt regime cache, E1-E4 and all paper figures at `rho_def=0.9408`, `psi_lambda_B=2.92`. E2 closes at 1.1e-16.

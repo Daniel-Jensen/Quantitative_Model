@@ -1,6 +1,81 @@
 # Project State
 
-**Branch:** `add-nkpc` | **Date:** 2026-08-06 | **Status:** **Sticky prices with nominal deposit contracts are the baseline.** 27×27 solver system; `rho_def` promoted to the calibration and disciplined at **0.9408** by the repo's own Markov-switching estimate; `psi_lambda_B` re-tuned to **2.92** to hold the 150bp spread moment. EBA calibration remains LIVE (`EBA_CALIBRATION=True`, `BANK_SCOPE="broad"`). **E1–E4 and the paper artefacts are now STALE** — they were regenerated against `psi_lambda_B = 7.85` / `rho_def = 0.80`.
+**Branch:** `fix-cross-border-units` | **Date:** 2026-08-07 | **Status:** **Country-size asymmetry is live: `size_F = 11.697`.** Every F variable is per F capita; every D variable is a D aggregate. Both EBA cross-border moments — portfolio composition and market structure — now hold jointly for the first time. `psi_lambda_B` re-tuned **2.92 -> 3.01** to hold the 150bp spread moment (149.93bp). Sticky prices with nominal deposits remain the baseline; 27x27 solver; `rho_def = 0.9408`; EBA calibration LIVE (`EBA_CALIBRATION=True`, `BANK_SCOPE="broad"`). **E1-E4 and all paper artefacts are STALE** — regenerate before quoting anything.
+
+## Country-size asymmetry — 2026-08-07 (`fix-cross-border-units`)
+
+**What was wrong.** `Y_D_ss = Y_F_ss = 1` made Greece and Germany the same size, while every
+EBA moment is a ratio to its own country's net worth. Cross-border stocks built as
+`phi * n_holder / q` landed in the holder's units, so the model could satisfy
+
+| moment | value | model, pre-fix |
+|---|---|---|
+| composition — `phi_bD_F` (DE banks' GR book / DE bank NW) | 0.0075 | 0.0075 (matched) |
+| market structure — foreign share of bank-held GR stock | 0.1272 | **0.0125** |
+| market structure — foreign share of bank-held Bund stock | 0.0013 | **0.0150** |
+
+but never composition and market structure together: joint consistency requires
+`n_F/n_D = 8.85` against the model's 0.761, a gap equal to the Germany/Greece GDP ratio
+(11.697). Note `omega_pi_D = 0.071` already carried the size asymmetry on the nominal side
+(capital key); quantities never did.
+
+**The fix.** `size_F = 11.697`, from Eurostat 2010 annual GDP in `data/eba_moments.json`
+(`raw_EURm.GDP_ann_F / GDP_ann_D`), read by `calibration.load_eba_size_ratio()`.
+
+> **Convention — the thing to remember.** Every F-side variable is **per F capita**; every
+> D-side variable is a **D aggregate**. A per-capita F quantity meeting a D aggregate takes
+> `* size_F`; a D aggregate meeting a per-capita F quantity takes `/ size_F`.
+
+It appears in exactly seven places: `trade_balance`, `external_account_D`,
+`global_goods_mkt`, `domestic_bond_clearing` (`equations_global.py`) and
+`domestic_bond_clearing_tpi`, `external_account_D_tpi`, `budget_residual_F_tpi`
+(`code/tpi.py`). `omega` split into `omega_D = 0.85` / `omega_F = 0.98717` by
+`size_F*(1-omega_F) = (1-omega_D)`.
+
+**A TPI bug this exposed, present since the block was written.** `rem_cb_F` paid the
+ECB's D-aggregate cash flow into F's per-capita budget. At equal country size the missing
+weight was exactly 1.0 — invisible, `goods_mkt_F` at 2e-10 — so it passed every check the
+repo ran. Under `size_F` it leaked **1.98e-2 of F GDP at gamma=10**, growing in gamma,
+while gamma=0 stayed clean. **Every TPI welfare and P&L number computed before 2026-08-07
+carries this error, increasing with deployment.** Now 2.06e-10..2.12e-10 across the grid.
+
+**Post-fix verification** (`code/main.py`, exit 0):
+
+| check | value | threshold |
+|---|---|---|
+| foreign share, GR stock | 0.1274 | EBA 0.1272 |
+| foreign share, Bund stock | 0.001298 | EBA 0.001301 |
+| `phi_bD_F` | 0.0075 | exact by construction |
+| `K_D` / `K_F` over-ident. | 10.800 / 10.824 | 10.8 |
+| `goods_mkt_D` / `goods_mkt_F` | -4.25e-07 / -4.19e-07 | <= 1e-7 order |
+| `ca_res_D` | -2.78e-17 | <= 1e-7 |
+| `max abs(goods_mkt_F)` over gamma | 2.06e-10 .. 2.12e-10 | was 5.5e-3 .. 2.0e-2 |
+| IC residual D / F | -8.9e-16 / 0.0 | machine zero |
+| `n_inter_D[0]` / `Y_D[0]` | -6.7366% / -0.8521% | both negative |
+| peak spread | 150.0 bp | 150.14 bp moment |
+
+**Reported outputs.** Loading schedule 5.60 / 5.43 / 5.18 at gamma = 2/5/10; spread
+compression 22.4% at gamma=10. F-side responses are now an order of magnitude smaller —
+`rdep_F` -2.5bp (was -17.1bp), `n_inter_F` +0.14% (was +1.20%), `Y_F` +0.062% — which is
+the expected consequence of a Greek shock hitting an economy 11.7x larger. Conversely,
+core absorptive capacity now matters much more to Greece: freezing `b_D_F` costs `Y_D`
+-0.83% -> -1.32% and `C_D` -0.77% -> -1.58%.
+
+### Open items
+
+- **F is Germany, not the core aggregate.** The EBA sample is GR + DE by construction
+  (`data/eba_moments.json` `meta.country_map`), so widening F to the core euro area needs
+  French/Dutch/Belgian sovereign holdings the moment file does not contain. Until then
+  `size_F` and the foreign shares are Germany-specific and understate core exposure.
+- **Foreign banks still do not retrench.** On a 1pp default shock `b_D_F` rises rather
+  than falls, contrary to the 2010-12 record and to Bi-Foerster-Traum's benchmark (their
+  Foreign intermediary cuts Italian holdings ~2% of GDP; FRBSF WP 2025-10, Figure 4). The
+  size asymmetry shrank the impact response by an order of magnitude to a near-miss but
+  did not flip the sign; from t~4 the MTM term dominates outright. See the FOC
+  decomposition below.
+- **E1-E4 and all paper artefacts are stale** and must be regenerated in the documented
+  order before any number is quoted.
+
 
 ## `rho_def` disciplined by the MS regime estimate — 2026-08-06
 

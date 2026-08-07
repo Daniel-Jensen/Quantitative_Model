@@ -43,9 +43,12 @@ RED_MUTED  = '#c0624a'
 
 # ── TPI-1: CB bond clearing + budget constraint (audit fix) ──────────────────
 @simple
-def domestic_bond_clearing_tpi(b_gov_D, b_gov_F, b_D_F, b_F_D, cb_buy_D):
-    b_D_D = b_gov_D - b_D_F - cb_buy_D
-    b_F_F = b_gov_F - b_F_D
+def domestic_bond_clearing_tpi(b_gov_D, b_gov_F, b_D_F, b_F_D, cb_buy_D, size_F):
+    # size_F: see equations_global.domestic_bond_clearing. cb_buy_D is the CB's
+    # book measured as a D aggregate (the ECB buys a quantity of D debt), so it
+    # is NOT per-capita and takes no weight.
+    b_D_D = b_gov_D - size_F * b_D_F - cb_buy_D
+    b_F_F = b_gov_F - b_F_D / size_F
     return b_D_D, b_F_F
 
 
@@ -78,25 +81,33 @@ def budget_residual_D_tpi(b_gov_D, G_D, TAX_D, q_b_D, def_rate_D, recovery_rate_
 @simple
 def budget_residual_F_tpi(b_gov_F, G_F, TAX_F, q_b_F, def_rate_F, recovery_rate_F,
                            zeta_writeoff_F, p, P_CES_F, delta_b_F, writeoff_enabled_F,
-                           cb_flow_D, kappa_cb_F):
+                           cb_flow_D, kappa_cb_F, size_F):
     haircut_F      = 1.0 - recovery_rate_F
     haircut_mult_F = writeoff_enabled_F
     surv_cont_F    = 1.0 - zeta_writeoff_F * def_rate_F * haircut_F * haircut_mult_F
     coupon_F       = delta_b_F * (1.0 - def_rate_F * haircut_F * haircut_mult_F) * b_gov_F(-1)
     net_issuance_F = q_b_F * (b_gov_F - surv_cont_F * (1.0 - delta_b_F) * b_gov_F(-1))
-    rem_cb_F       = kappa_cb_F * cb_flow_D / p
+    # cb_flow_D is a D AGGREGATE cash flow in D goods; this budget is PER F CAPITA
+    # in F goods. So the remittance takes both conversions: /p for the good, and
+    # /size_F to spread the aggregate over F's population. Omitting the second
+    # leaked up to 2e-2 of F GDP through goods_mkt_F at gamma=10, while gamma=0
+    # stayed clean at 2e-10 — the signature of a CB-conduit-only units error.
+    rem_cb_F       = kappa_cb_F * cb_flow_D / p / size_F
     b_gov_res_F    = (coupon_F - net_issuance_F) / p + G_F - P_CES_F * TAX_F - rem_cb_F
     return b_gov_res_F, rem_cb_F
 
 
 @simple
 def external_account_D_tpi(NX_D, q_b_D, q_b_F, b_F_D, b_D_F, rb_actual_F, rb_actual_D,
-                           cb_buy_D, kappa_cb_F):
+                           cb_buy_D, kappa_cb_F, size_F):
     # The F share of the CB book is an F claim on D: it enters D's external
     # account exactly like b_D_F. The D share stays domestic (like b_D_D).
+    # b_D_F is per F capita and takes size_F; cb_buy_D is already a D aggregate
+    # and does not. See equations_global.external_account_D.
     receipts_from_F_bonds = (1 + rb_actual_F) * q_b_F(-1) * b_F_D(-1)
-    payments_on_D_bonds   = (1 + rb_actual_D) * q_b_D(-1) * (b_D_F(-1) + kappa_cb_F * cb_buy_D(-1))
-    nfa_D = q_b_F * b_F_D - q_b_D * (b_D_F + kappa_cb_F * cb_buy_D)
+    payments_on_D_bonds   = (1 + rb_actual_D) * q_b_D(-1) * (size_F * b_D_F(-1)
+                                                             + kappa_cb_F * cb_buy_D(-1))
+    nfa_D = q_b_F * b_F_D - q_b_D * (size_F * b_D_F + kappa_cb_F * cb_buy_D)
     ca_res_D = (NX_D + receipts_from_F_bonds - payments_on_D_bonds - nfa_D)
     return nfa_D, ca_res_D
 

@@ -30,6 +30,50 @@ def load_eba_targets(path: str = _EBA_MOMENTS, scope: str | None = None) -> dict
         return json.load(fh)[key]
 
 
+def load_eba_size_ratio(path: str = _EBA_MOMENTS) -> float:
+    """F/D annual-GDP ratio (Germany / Greece, Eurostat 2010) = 11.697.
+
+    CROSS-BORDER UNITS FIX (2026-08-07). The model normalises Y_D_ss = Y_F_ss = 1,
+    i.e. the two countries are the SAME SIZE, while every EBA moment is measured as
+    a ratio to its own country's net worth or GDP. A cross-border stock built as
+    ``phi * n_holder / q`` therefore lands in the HOLDER's units, and planting it in
+    a model where both countries are size 1 rescales it by this ratio.
+
+    Measured: German banks' Greek book is 1.21% of German quarterly GDP -- correct.
+    Dropped into the model unscaled it became 1.21% of a country the size of Greece,
+    so foreigners held 1.25% of the bank-held Greek stock against 12.72% in the data
+    (7,933.6 / 62,380.7 EURm). The Greek banks' Bund book was distorted the same way
+    in the opposite direction: 1.50% of the bank-held Bund stock against 0.13%.
+
+    The invariant this restores: EVERY BOND STOCK IS MEASURED IN ITS ISSUER'S GDP
+    UNITS. Own-holdings (b_D_D, b_F_F) already satisfy it -- holder and issuer are
+    the same country. Only the two cross-border stocks need converting.
+
+    Note the nominal side already carried the size asymmetry (``omega_pi_D = 0.071``
+    is the capital key, not GDP weights); quantities never did.
+    """
+    with open(path) as fh:
+        raw = json.load(fh)["raw_EURm"]
+    return float(raw["GDP_ann_F"]) / float(raw["GDP_ann_D"])
+
+
+def load_eba_foreign_shares(path: str = _EBA_MOMENTS) -> dict:
+    """Measured foreign-held share of each country's BANK-HELD sovereign stock.
+
+    Pure ratios of EBA EURm figures, so they carry no GDP normalisation and are
+    immune to the defect ``load_eba_size_ratio`` corrects. That is exactly what
+    makes them the over-identifying check on it. Not calibration inputs -- the
+    targeting is driven by the phi moments, and these verify the result.
+
+    D: 7,933.6 / 62,380.7 = 0.1272   F: 410.7 / 315,723.9 = 0.001301
+    """
+    with open(path) as fh:
+        raw = json.load(fh)["raw_EURm"]
+    b_D_D, b_D_F = float(raw["b_D_D"]), float(raw["b_D_F"])
+    b_F_F, b_F_D = float(raw["b_F_F"]), float(raw["b_F_D"])
+    return {"D": b_D_F / (b_D_D + b_D_F), "F": b_F_D / (b_F_F + b_F_D)}
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # EBA switch. True = the MEASURED EBA 2011 moment set (code/eba_calibration.py ->
 # data/eba_moments.json), read at the scope set by BANK_SCOPE above.
@@ -198,8 +242,17 @@ def get_calibration():
         # a friction:fundamental ratio of ~10.6:1, down from ~28.6:1. The
         # constrained-seller claim survives but is quantitatively weaker, and
         # the paper's fig04 prose must be re-derived. See docs/STATE.md.
-        'psi_lambda_B_D': 2.92 if EBA_CALIBRATION else 3.0,
-        'psi_lambda_B_F': 2.92 if EBA_CALIBRATION else 3.0,
+        # RETUNED 2026-08-07 (country-size asymmetry, fix-cross-border-units).
+        # size_F = 11.697 makes a Greek shock a much smaller shock to F, which
+        # damps the cross-border amplification and took the peak spread to
+        # 145.20 bp at the incumbent 2.92. Re-bisected on the same 150.14 bp
+        # moment, re-solving the SS per point (the sweep caveat above):
+        #   psi_lambda_B = 2.92 -> 145.20 bp   (the incumbent, now off target)
+        #   psi_lambda_B = 3.01 -> 149.93 bp   <- ADOPTED
+        # Local secant slope 52.6 bp/unit. Residual 0.21 bp, comparable to the
+        # 0.15 bp at which 2.92 was adopted.
+        'psi_lambda_B_D': 3.01 if EBA_CALIBRATION else 3.0,
+        'psi_lambda_B_F': 3.01 if EBA_CALIBRATION else 3.0,
         # Bank net worth = Core Tier 1 / own quarterly nominal GDP.
         # GR 22,778/55,898 = 0.4075; DE 114,317/653,815 = 0.1748.
         'n_inter_D':    eba_or('n_inter_D', 0.75*4),  'n_inter_F':    eba_or('n_inter_F', 0.75*4),
@@ -340,7 +393,17 @@ def get_calibration():
         'T1_D':             0.0,    'T1_F':             0.0,
 
         # ── Trade & Terms of Trade ────────────────────────────────────────────
-        'omega':            0.85,
+        # Home bias, country-specific since 2026-08-07. A single shared omega is
+        # inconsistent with size asymmetry: at omega_F = omega_D the larger
+        # country's imports from the smaller come out size_F times too large.
+        # Symmetric BILATERAL trade intensity pins the pair --
+        #   size_F * (1 - omega_F) * C_F = (1 - omega_D) * C_D,
+        # so with C_D ~ C_F, (1 - omega_F) = (1 - omega_D) / size_F. D keeps the
+        # 0.85 that has been the calibration throughout; F follows.
+        # Greece imports 15% of its consumption basket from the core; the core
+        # imports 1.28% of its basket from Greece.
+        'omega_D':          0.85,
+        'omega_F':          1.0 - (1.0 - 0.85) / (load_eba_size_ratio() if EBA_CALIBRATION else 1.0),
         'epsilon_trade':    1.5,
         'p':                0.50,
 
@@ -351,6 +414,11 @@ def get_calibration():
         # Own-holdings set in steady_state.py from the same moment file.
         'phi_bF_D_ss':  eba_or('phi_bF_D_ss', 0.25),  'phi_bD_F_ss':  eba_or('phi_bD_F_ss', 0.25),
         'psi_bF_D':     0.5,     'psi_bD_F':     0.5,
+        # F's size relative to D (Germany/Greece 2010 GDP = 11.697). Enters the
+        # four cross-country blocks in equations_global.py and nowhere else --
+        # every F variable is per F capita. 1.0 on the pre-EBA branch keeps that
+        # calibration bit-exact.
+        'size_F': load_eba_size_ratio() if EBA_CALIBRATION else 1.0,
 
         # ── Wage Markups ──────────────────────────────────────────────────────
         # Unchanged: wages are flexible. mu_w = 1 is the SS-neutralising device
@@ -399,12 +467,21 @@ def get_calibration():
     _B_D = calibration_start['B_supply_D']
     _B_F = calibration_start['B_supply_F']
 
+    # Each phi is a ratio to its HOLDER's net worth, so these come out in the
+    # holder's own per-capita units -- which is now exactly right: b_D_F is per F
+    # capita and domestic_bond_clearing aggregates it with size_F. No conversion
+    # here. (An interim fix on 2026-08-07 scaled these directly; superseded by
+    # the size_F weight, which matches both EBA moments instead of trading one
+    # for the other.)
     b_F_D = calibration_start['phi_bF_D_ss'] * _n_D / calibration_start['q_b_F']
     b_D_F = calibration_start['phi_bD_F_ss'] * _n_F / calibration_start['q_b_D']
 
+    # Residual own-holdings must clear at the same weights domestic_bond_clearing
+    # uses, or the initial guess is inconsistent with the block that enforces it.
+    _size_F = calibration_start['size_F']
     calibration_start.update({
-        'b_F_D': b_F_D,         'b_D_F': b_D_F,
-        'b_D_D': _B_D - b_D_F,  'b_F_F': _B_F - b_F_D,
+        'b_F_D': b_F_D,                     'b_D_F': b_D_F,
+        'b_D_D': _B_D - _size_F * b_D_F,    'b_F_F': _B_F - b_F_D / _size_F,
         'b_F_D_anchor': b_F_D,  'b_D_F_anchor': b_D_F,
         'psi_bD_D': 0.0,        'psi_bF_F': 0.0,
     })
