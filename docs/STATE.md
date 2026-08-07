@@ -55,7 +55,42 @@ carries this error, increasing with deployment.** Now 2.06e-10..2.12e-10 across 
 | peak spread | 150.0 bp | 150.14 bp moment |
 
 **Reported outputs.** Loading schedule 5.60 / 5.43 / 5.18 at gamma = 2/5/10; spread
-compression 22.4% at gamma=10. F-side responses are now an order of magnitude smaller —
+compression 22.4% at gamma=10.
+
+**TPI is materially less effective than before these fixes.** The named-regime
+construction solves gamma for fixed peak-spread compression targets, and those gammas
+moved by roughly 8x:
+
+| target | gamma before | gamma now |
+|---|---|---|
+| 25% compression | ~1.6 | ~13 |
+| 50% compression | ~5.1 | ~34 |
+
+Measured on `cache_G_main_v3_psilam3p01` (passive peak 149.9bp). The 50% target stopped
+bracketing on the old `[0,25]` search interval, which aborted `experiments/run_all.py`
+outright; `lottery_math.gamma_for_compression` now uses `hi=40`. **Any gamma or
+compression figure quoted from before 2026-08-07 is wrong by roughly this factor.**
+
+**There is a closed-loop singularity at gamma ~ 42** — `I - gamma*A_cb` going
+near-singular — with a separate solution branch beyond it:
+
+```
+ gamma      0     10     20     30     40   40.5     42    42.5
+ peak bp  149.9  116.2   94.4   79.3   69.6   69.6  538.8    57.0
+```
+
+`peak(gamma)` declines monotonically to 53.6% compression at gamma=40, turns at ~40.5,
+and blows up at ~42. **A coarse scan sampling 40 and 50 reads the two branches as one
+smooth decline and hides the pole entirely** — that error was made and caught during
+this session. `hi=40` keeps the search inside the monotone region; the 61-point
+monotonicity check in `gamma_for_compression` is what catches any recurrence.
+
+**Consequence worth stating in the paper:** the aggressive (50%-compression) regime now
+sits ~8 gamma-units below that singularity, where before these fixes it was at
+gamma~5.1 with the pole far away. How much intervention the model can represent has
+become a live constraint on the policy experiment rather than a formality.
+
+F-side responses are now an order of magnitude smaller —
 `rdep_F` -2.5bp (was -17.1bp), `n_inter_F` +0.14% (was +1.20%), `Y_F` +0.062% — which is
 the expected consequence of a Greek shock hitting an economy 11.7x larger. Conversely,
 core absorptive capacity now matters much more to Greece: freezing `b_D_F` costs `Y_D`
@@ -75,6 +110,137 @@ core absorptive capacity now matters much more to Greece: freezing `b_D_F` costs
   decomposition below.
 - **E1-E4 and all paper artefacts are stale** and must be regenerated in the documented
   order before any number is quoted.
+
+
+## Fiscal rule and fiscal limit: what is identified — 2026-08-07
+
+Two audits of existing mechanisms, prompted by the question of whether the fiscal
+block could generate foreign retrenchment without adding wedges or shocks. Neither
+adds anything to the model. Both change what can be *claimed* about it.
+
+### `phi_lamb_D` (Bohn rule) — sweep on the live par rule
+
+Full re-solve per point, 1pp default shock, everything else at the live calibration.
+
+| `phi_lamb_D` | peak `b_gov_D` | t | endog. default | `b_D_F`[0] | `b_D_F` pk | `b_D_D` pk | spread | `Y_D`[0] | `b_gov_D`[499] |
+|---|---|---|---|---|---|---|---|---|---|
+| 0.15 (live) | +1.513% | 3 | 0.199pp (19.9%) | +0.2707% | +5.12% | +1.53% | 149.9bp | -0.852% | 7.1e-05 |
+| 0.10 | +1.829% | 4 | 0.240pp (24.0%) | +0.2005% | +6.07% | +1.76% | 161.9bp | -0.871% | 3.3e-04 |
+| 0.07 | +8.767% | 119 | 1.148pp (114.8%) | -0.7206% | +22.67% | +6.74% | 314.0bp | -1.670% | **-1.1e-01** |
+| 0.05 | -4.253% | 119 | 0.552pp (55.1%) | -0.1731% | +9.69% | -3.56% | 690.3bp | -1.089% | **+1.6e-01** |
+
+**Findings.**
+
+1. **The stability boundary is between 0.10 and 0.07** — not 0.05. `b_gov_D`[499] jumps
+   three orders of magnitude and alternates sign; peak debt migrates to t=119 (no
+   interior peak); at 0.05 the endogenous default contribution *falls* while the
+   spread doubles and peak debt goes negative, the documented sign-flip signature of
+   a crossed pole.
+2. **The pipeline's printed `rho_b` gate is unreliable.** It predicts a floor of 0.05.
+   It is labelled partial-equilibrium and omits `def_scale_D`, the channel that does
+   the amplifying, so it is systematically optimistic — by enough that using it to
+   pick `phi_lamb_D` lands on a divergent calibration.
+3. **Retrenchment appears only in the divergent region.** `b_D_F` goes negative at 0.07
+   and 0.05 and nowhere else. Within the stable region the impact response moves the
+   right way but far too little (+0.271% -> +0.201%) while the medium-horizon peak moves
+   the *wrong* way (+5.12% -> +6.07%). **There is no stationary calibration of the Bohn
+   rule that produces retrenchment.**
+4. `Y_D`[0] is insensitive to the rule across the stable range (-0.852% to -0.871%). The
+   parameter matters for regime and spread, not for the headline output number.
+5. **`phi_lamb_D` = 0.15 is therefore not "3x more aggressive than needed"** (an earlier
+   claim in this file's history, derived from the `rho_b` gate). It carries ~1.5x margin
+   over the true floor — a normal safety factor.
+
+### `mv_rule_D` = 0 (par debt gap): why, and what it means
+
+The par and market-value gaps move in **opposite directions** in a crisis, because
+`q_b_D` falls 4.5% while face value rises only ~1.5%:
+
+```
+ par gap positive 39/40 quarters   ->  the rule TIGHTENS
+ mv  gap negative 40/40 quarters   ->  the rule LOOSENS,  peak |mv| = 2.88x peak |par|
+```
+
+Under `mv_rule_D` = 1 the treasury reads a wider spread as a mark-to-market windfall
+and *cuts* `T_ls_D` by 0.0075 (0.75% of quarterly GDP) at impact. That is why the
+market-value variant needed `phi_lamb_D` = 0.60 to stay stationary — it was fighting
+its own perverse sign.
+
+**Justification the code previously lacked:** EU fiscal surveillance defines general
+government debt at **nominal face value** (Maastricht), explicitly not marked to market,
+so the par rule is what the framework Greece was actually subject to keys off. It is
+also the economically correct one for an issuer that must roll at the new yields.
+
+**The "market-value rule REQUIRED / `mv_rule_D` = 0 explodes" comment was stale** — it
+entered at `c6230a2` under the CT1 scope where `phi_bD_D` = 2.39; `988c213` moved to
+`BANK_SCOPE="broad"` where that moment is 0.456, a 5.2x weaker doom loop. Retired.
+
+### Fiscal limit `def_scale_D` — estimated (`Empirics/fiscal_limit.py`)
+
+Mirrors Bi-Foerster-Traum eq (3.1), `log(P/(1-P)) = eta0 + eta_s * s(-1)`, with `P` the
+quarterly default probability implied from the Greek-Bund spread via the credit
+triangle at the model's own `recovery_rate_D` = 0.30, and `s` = Eurostat `gov_10q_ggdebt`
+Maastricht debt / annual GDP.
+
+| sample | eta0 | eta_s | R2 | n | implied `def_scale_D` |
+|---|---|---|---|---|---|
+| pre-crisis 2000Q1-2009Q3 (BFT design) | -18.35 (2.55) | 10.92 (2.36) | 0.373 | 38 | 0.0067 |
+| **pre-OMT 2000Q1-2012Q3 (best fit)** | **-14.80 (0.55)** | **7.67 (0.47)** | **0.849** | **50** | **0.63** |
+| full 2000Q1-2026Q1 | -9.13 (0.45) | 2.67 (0.29) | 0.449 | 104 | 0.04 |
+| crisis 2009Q4-2013Q4 | -6.87 (1.41) | 2.29 (0.91) | 0.295 | 17 | 0.19 |
+| *BFT, Italian pre-crisis CDS* | *-10.70* | *5.25* | — | — | — |
+
+**The post-2012 sample must be excluded, and the reason is itself a result:**
+
+```
+ 2010Q1-2012Q3   debt 152.1% of GDP   spread 13.38pp
+ 2013Q1-2019Q4   debt 181.1% of GDP   spread  6.28pp
+ 2020Q1-2026Q1   debt 176.7% of GDP   spread  1.43pp
+```
+
+Debt higher, spread ~9x lower: OMT severed the debt-spread link. Estimating the fiscal
+limit on post-2012 data builds the effect of the policy under study into the parameter
+meant to measure fundamentals.
+
+**Decision: `def_scale_D` stays at 0.25.** It sits inside the estimated range
+(0.04-0.63) and near the crisis-sample value (0.19). The best-fitting pre-OMT estimate
+(0.633) is **not usable**: at that value the amplification dial is not continuously
+calibratable —
+
+```
+ psi_lambda_B 1.9505 ->  123.9bp stable | 2.0000 -> 1730.6bp DIVERGENT
+              2.1000 ->  130.4bp        | 2.2000 ->  143.8bp  (b_gov[499] -4.8e-03, marginal)
+              2.3381 -> 1908.1bp DIVERGENT (n_inter_D[0] -74%, endog 902% of shock)
+```
+
+The 150bp moment would be reached near 2.25, within 0.09 of a divergence, with another
+at 2.0 below it. **The model needs a flatter fiscal limit than the best-fitting sample
+implies in order to leave room for the collateral friction.**
+
+**Curvature is qualitatively wrong but not identified at first order.**
+`def_curvature_D` = 0.5 is *concave* (marginal sensitivity falls with debt); every sample
+estimates *convex* (3.9-10.9), which is what a fiscal limit should be. Because the model
+is solved to first order, only the steady-state slope enters the dynamics and
+`def_scale_D`/`def_curvature_D` are not separately identified — so this affects how the
+mechanism is described, and would matter in a nonlinear solve (as in BFT's second-order
+regime-switching solution), but not the IRFs.
+
+**Caveats.** Scope conversion assumes bank-held debt moves proportionally with total
+(`sigma` = 0.195, pinned so the model SS equals the EBA base-date debt ratio); in 2010-12
+it did not. Spread-implied probabilities are risk-neutral — BFT inherit the same wedge
+from CDS. The model's SS has zero default risk at a debt ratio that in the data carried
+a great deal, so only the slope can be matched, not the level.
+
+### Benchmark check: BFT do not calibrate their fiscal rule either
+
+*"We set the response of lump-sum taxes to debt to `phi_T` = 3 **to ensure stability of
+the debt path**"* (FRBSF WP 2025-10, calibration section). What they **do** estimate is
+the fiscal limit, from Italian CDS. Two structural differences explain why their rule
+can be weaker: their default is **realised** (`Delta_t = delta_b` writes the obligation
+down when the limit is breached) and their default probability is **logistic**, i.e.
+bounded. With `writeoff_enabled_D` = 0 the tax rule is this model's **only** debt-
+stabilising device, which is why its required strength is high. That is a consequence of
+the S-1 framing choice and should be stated as such.
 
 
 ## `rho_def` disciplined by the MS regime estimate — 2026-08-06

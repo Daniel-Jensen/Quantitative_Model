@@ -16,13 +16,31 @@ mark-to-market term dominates outright. The FOC decomposition of `d b_D_F` off
 `divert_portfolio_adj` isolates the four contributions (MTM, terms of trade,
 `−d rdep_F`, risk premium) and is the right diagnostic for any candidate fix.
 
-Ruled out by inspection: convex/threshold terms in `def_rate`. `def_rate_ss = 0`,
-so anything quadratic has exactly zero first-order effect in the linearised
-solution. Candidate routes, none yet chosen: a home-bias risk-pricing wedge in
-`prem_DF`; a larger cross-border `psi_lambda_B` on `Delta_bD_eff` in
-`intermediation_IC_F`; porting BFT's CES/Krenz bond aggregator (`sigma_b = -2`,
-`gamma_b` from domestically-held shares); or a moral-suasion/forced-absorption
-device on the D side, which is closest to BFT's actual mechanism.
+**Ruled out, with evidence — do not re-litigate these:**
+
+- *Convex/threshold terms in `def_rate`.* `def_rate_ss = 0`, so anything quadratic
+  has exactly zero first-order effect in the linearised solution. BFT can use
+  nonlinearity because they solve at second order with regime switching.
+- *The Bohn rule.* Swept over {0.15, 0.10, 0.07, 0.05} on 2026-08-07. `b_D_F` turns
+  negative only in the divergent region past the 0.10–0.07 stability boundary. No
+  stationary calibration of `phi_lamb_D` produces retrenchment.
+- *The fiscal limit.* Estimated from Greek data the same way BFT estimate theirs
+  from Italian CDS. The best-fitting value (`def_scale_D` ≈ 0.63) puts the model in
+  a region where `psi_lambda_B` is not continuously calibratable, and the apparent
+  retrenchment at that value sits past a pole. See `docs/STATE.md`.
+
+So the fiscal block cannot deliver this. The remaining routes are all on the
+portfolio side, none yet chosen: a home-bias risk-pricing wedge in `prem_DF`; a
+larger cross-border sensitivity on `Delta_bD_eff` in `intermediation_IC_F`; porting
+BFT's CES/Krenz bond aggregator (`sigma_b = -2`, `gamma_b` from domestically-held
+shares); or a moral-suasion/forced-absorption device on the D side, which is
+closest to BFT's actual mechanism. Note the impact sign of `b_D_F` is a
+near-cancellation of FOC terms ~300x its size and flips non-monotonically — the
+medium-horizon peak is the better-behaved target.
+
+**Do not trust the printed `rho_b` gate** when choosing `phi_lamb_D`. It is
+partial-equilibrium, omits `def_scale_D`, and predicts a stability floor of 0.05
+against a measured 0.10–0.07.
 
 **Note on targets.** The numbered "Live Claims", and the declining loading
 schedule in particular, are **not** success criteria and must not be used to

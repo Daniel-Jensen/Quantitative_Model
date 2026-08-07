@@ -238,9 +238,16 @@ def build_and_solve(ss_results):
     print("\n=== Stability check: debt level at t=499 (should be near 0) ===")
     print(f"  irfs_Z_D  ['b_gov_D'][499] = {irfs_Z_D['b_gov_D'][499]:.6f}")
     print(f"  irfs_def_D['b_gov_D'][499] = {irfs_def_D['b_gov_D'][499]:.6f}")
+    # ρ_b is PARTIAL-EQUILIBRIUM and DOES NOT decide stationarity. It omits
+    # def_scale_D — the debt->default feedback that does the amplifying — so it is
+    # systematically optimistic. Measured 2026-08-07 by sweeping phi_lamb_D on the
+    # live par rule: the true boundary is between 0.10 and 0.07, where this formula
+    # says 0.05. Do NOT pick phi_lamb_D from it; it lands you on a divergent
+    # calibration. b_gov_D[499] above is the check that means something.
     phi_lamb = calibration_start['phi_lamb_D']
-    print(f"  ρ_b (partial-eq.) = {round((0.953 * 0.95 + 0.05 - phi_lamb) / 0.953, 4)}"
-          "  [target < 0.95]")
+    print(f"  ρ_b (partial-eq., NOT the stationarity test) = "
+          f"{round((0.953 * 0.95 + 0.05 - phi_lamb) / 0.953, 4)}"
+          "   [measured boundary: phi_lamb_D in (0.07, 0.10)]")
     # SSJ returns LEVEL deviations. Y_D_ss ~ 1 so Y_D*100 happens to read as a
     # percent, but n_inter_D_ss is not 1 (2.138 under BANK_SCOPE="broad", 3.0
     # pre-EBA, 0.408 under CT1), so the raw x100 was NOT a percentage and was not

@@ -317,17 +317,27 @@ def get_calibration():
         # Fiscal-rule debt measure: 0 = par/face value (default), 1 = market value
         # (q_b·b_gov(-1)). mv_gov_ss is recomputed exactly from the solved SS in
         # build_and_solve; these are placeholders (unused when mv_rule=0).
-        # Market-value rule REQUIRED under the EBA calibration; par rule for the
-        # pre-EBA placeholder. Measured 2026-07-31: at mv_rule=0 with the measured
-        # concentration the debt path explodes even with the collateral friction
-        # switched off entirely (psi_lambda_B=0 gives b_gov_D[499]=6.4e+03 and a
-        # nonsense peak spread), so this is the DEBT/fiscal mode, not amplification.
-        # The driver is phi_own=2.39 (a ~10x stronger doom loop than the 0.25
-        # placeholder), not duration — which is why the "measured delta_b is close
-        # to the old 0.10, so the par rule is fine" reasoning did not carry: it was
-        # about duration. mv_rule=1 + phi_lamb=0.60 is the pairing the 2026-07-22
-        # EBA build verified stationary, and F-1's hard break at
-        # mv_rule=1 + phi_lamb=0.15 is far away.
+        # PAR RULE (mv_rule=0) IS LIVE AND CORRECT. Justification, added 2026-08-07:
+        # EU fiscal surveillance defines general government debt at NOMINAL FACE
+        # VALUE (Maastricht), explicitly not marked to market, so the par gap is what
+        # the framework Greece was actually subject to keys off. It is also the right
+        # rule economically: an issuer that must roll at the new yields gets no relief
+        # from its mark-to-market liability falling.
+        #
+        # The two gaps move in OPPOSITE directions in a crisis, because q_b_D falls
+        # ~4.5% while face value rises only ~1.5%: over 40q the par gap is positive
+        # 39/40 quarters (the rule TIGHTENS) while the market-value gap is negative
+        # 40/40 and 2.88x larger (the rule would CUT taxes by 0.75% of quarterly GDP
+        # at impact, reading a wider spread as a windfall). That perverse sign is why
+        # the mv variant needed phi_lamb=0.60 to stay stationary.
+        #
+        # RETIRED (was: "Market-value rule REQUIRED under the EBA calibration ... at
+        # mv_rule=0 the debt path explodes"). That was measured under BANK_SCOPE="ct1"
+        # where phi_bD_D=2.39; commit 988c213 moved to the broad scope where the same
+        # moment is 0.456, a 5.2x weaker doom loop, and the explosion does not occur —
+        # b_gov_D[499] ~ 7e-05 at the live calibration. F-1's near-unit-root zone
+        # [0.15,0.18] was likewise an mv_rule=1 measurement and has no established
+        # bearing on the par rule. See docs/STATE.md.
         'mv_rule_D':    0.0,     'mv_rule_F':    0.0,
         'mv_gov_ss_D':  0.6*4,   'mv_gov_ss_F':  0.6*4,
 

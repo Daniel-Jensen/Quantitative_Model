@@ -14,6 +14,46 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-08-07 — Fiscal rule and fiscal limit audited; `Empirics/fiscal_limit.py` added
+
+No model changes. Two existing mechanisms audited to see whether the fiscal block could
+generate foreign retrenchment without new wedges or shocks. It cannot, and the audit
+changed what is claimable about both parameters. Full detail in `docs/STATE.md` ->
+*Fiscal rule and fiscal limit: what is identified*.
+
+- **`phi_lamb_D` sweep {0.15, 0.10, 0.07, 0.05}.** Stability boundary is between **0.10
+  and 0.07**, not the 0.05 the pipeline's printed `rho_b` gate predicts — that gate is
+  partial-equilibrium and omits `def_scale_D`, so it is optimistic enough to land a user
+  on a divergent calibration. Retrenchment (`b_D_F` < 0) appears ONLY in the divergent
+  region, so it is an artefact: **no stationary calibration of the Bohn rule produces
+  retrenchment.** `Y_D[0]` is insensitive across the stable range (-0.852% to -0.871%).
+  `phi_lamb_D` = 0.15 keeps ~1.5x margin over the true floor and stays.
+- **`mv_rule_D` = 0 justified.** Par and market-value debt gaps move in opposite
+  directions in a crisis (par positive 39/40 quarters, market-value negative 40/40, the
+  latter 2.88x larger); the market-value rule would CUT taxes 0.75% of quarterly GDP at
+  impact, reading a wider spread as a windfall. Maastricht debt is nominal face value, so
+  the par rule is institutionally correct. The "market-value rule REQUIRED" comment was
+  stale from the CT1 scope (`phi_bD_D` = 2.39 vs 0.456 under the broad scope) and is retired.
+- **Fiscal limit estimated** (`Empirics/fiscal_limit.py`, new): BFT's logistic on Eurostat
+  `gov_10q_ggdebt` plus the repo's Greek-Bund spreads. Preferred pre-OMT sample
+  `eta0 = -14.80 (0.55)`, `eta_s = 7.67 (0.47)`, R2 = 0.849, n = 50 — same family as BFT's
+  Italian `-10.70 / 5.25`. Post-2012 data must be excluded because OMT severed the
+  debt-spread link (debt 152% -> 181%, spread 13.4pp -> 6.3pp -> 1.4pp), which would build
+  the studied policy into the parameter.
+- **`def_scale_D` stays at 0.25**, now with provenance: it sits inside the estimated range
+  (0.04 full / 0.19 crisis / 0.63 pre-OMT). The best-fitting 0.633 is unusable — at that
+  value `psi_lambda_B` is not continuously calibratable (divergences at 2.00 and 2.34
+  bracketing a marginal island at 2.10-2.20; the 150bp target sits within 0.09 of a
+  blow-up). Curvature is qualitatively wrong (0.5 concave vs 3.9-10.9 convex estimated)
+  but is not identified at first order.
+- **Benchmark check:** BFT set `phi_T` = 3 *"to ensure stability of the debt path"* — they
+  do not calibrate their fiscal rule either. What they estimate is the fiscal limit. Their
+  rule can be weaker because default is realised (`Delta_t = delta_b` writes debt down) and
+  their default probability is logistic/bounded; with `writeoff_enabled_D` = 0 the tax rule
+  is this model's only stabilising device.
+
+---
+
 ## 2026-08-07 — Country-size asymmetry: F is 11.7x D (`fix-cross-border-units`)
 
 **The defect.** The model normalised `Y_D_ss = Y_F_ss = 1` — Greece and Germany the same

@@ -33,19 +33,39 @@ def peak(x, n=100):
     positive spread response this module targets."""
     return float(np.asarray(x)[:n].max())
 
-def gamma_for_compression(A_def, A_cb, eps, target, lo=0.0, hi=25.0, tol=1e-8):
+def gamma_for_compression(A_def, A_cb, eps, target, lo=0.0, hi=40.0, tol=1e-8):
     """Bisect for the gamma whose closed-loop peak spread is (1-target) x passive peak.
     Verifies monotonicity of peak(gamma) over a scan grid first (spec §14).
 
-    hi=25 (was 60, 2026-07-31). Bisection's validity condition is monotonicity on the
-    BRACKETING INTERVAL, not on an arbitrarily wide scan; hi is just the upper bracket.
-    At the current calibration peak(gamma) falls monotonically 187.2 -> 34.2bp across
-    [0,25] and then ticks UP 1.1bp at gamma=30 -- closed-loop saturation at 81%
-    compression, not economics -- which aborted the whole run. The spec's targets sit
-    at gamma~1.6 (25% compression) and ~5.1 (50%), far inside the monotone region, so
-    the check is unchanged in substance and still fires on any real non-monotonicity
-    within the search range. Raise hi only if a target stops bracketing (the assert
-    below will say so)."""
+    hi=40 (2026-08-07; was 25 from 2026-07-31, 60 before that). Bisection's validity
+    condition is monotonicity on the BRACKETING INTERVAL, not on an arbitrarily wide
+    scan; hi is just the upper bracket, and the assert below is what tells you to move
+    it.
+
+    RAISED because the 50% target stopped bracketing on [0,25] after the country-size
+    asymmetry and the rem_cb_F conduit fix (see docs/STATE.md). TPI is materially less
+    effective than before both changes -- the same compression now needs ~8x the
+    intervention:
+
+        target      gamma before      gamma now
+        25%              ~1.6            ~13
+        50%              ~5.1            ~34
+
+    Measured on cache_G_main_v3_psilam3p01 (passive peak 149.9bp):
+
+        gamma      0     10     20     30     40   40.5     42    42.5
+        peak bp  149.9  116.2   94.4   79.3   69.6   69.6  538.8    57.0
+
+    peak(gamma) declines monotonically to 53.6% compression at gamma=40, turns at
+    ~40.5, and there is a CLOSED-LOOP SINGULARITY at gamma ~ 42 (I - gamma*A_cb going
+    near-singular; compute_tpi_irfs prints a conditioning warning there) with a
+    separate branch beyond it. Do NOT set hi past 40 -- a coarse scan that samples 40
+    and 50 reads the two branches as one smooth decline and hides the pole.
+
+    NOTE FOR THE PAPER: the aggressive regime now sits ~8 gamma-units below that
+    singularity, where before the fixes it was at gamma~5.1 with the pole far away.
+    How much intervention the model can represent is now a live constraint, not a
+    formality."""
     p0 = peak(closed_loop(A_def, A_cb, eps, 0.0)[0])
     grid = np.linspace(lo, hi, 61)
     peaks = np.array([peak(closed_loop(A_def, A_cb, eps, g)[0]) for g in grid])
