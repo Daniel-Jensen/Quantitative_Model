@@ -8,26 +8,29 @@ from equations_D import (
     smart_steady_D, market_clearing_D, steady_auxilliary_D,
     banker_div_D, sdf_D, sdf_ss_D, sdf_banker_ss_D, government_ss_D, labor_ss_D,
     government_default_D, bond_price_ss_D, bond_return_D,
-    ces_price_D, import_demand_D, deposit_return_D,
+    ces_price_D, import_demand_D, deposit_rates_D, deposit_return_D,
+    firm_profit_D, price_nkpc_D,
 )
 from equations_F import (
     hh_init_F, hh_F, make_grids_F, income_F, hh_extended_F,
     smart_steady_F, market_clearing_F, steady_auxilliary_F,
     banker_div_F, sdf_F, sdf_ss_F, sdf_banker_ss_F, government_ss_F, labor_ss_F,
     government_default_F, bond_price_ss_F, bond_return_F,
-    ces_price_F, import_demand_F, deposit_return_F,
+    ces_price_F, import_demand_F, deposit_rates_F, deposit_return_F,
+    firm_profit_F, price_nkpc_F,
 )
 from equations_global import (
     trade_balance, domestic_bond_clearing,
     portfolio_level_anchors, portfolio_adj_cost, bond_yield,
     global_goods_mkt, external_account_D,
+    terms_of_trade, union_inflation,
 )
 # NB: import the MODULE, not the flag. `from calibration import EBA_CALIBRATION`
 # binds the value at import time, so a sweep that flips the switch afterwards
 # would silently keep the old portfolio targets — the same stale-binding trap as
 # the regimes cache key and PSILAM_MAIN.
 import calibration
-from calibration import load_eba_targets
+from calibration import load_eba_targets, load_eba_foreign_shares
 
 
 def assert_gk_well_posed(ss_in):
@@ -154,13 +157,15 @@ def solve_steady_state(calibration_start):
         sdf_ss_D, sdf_banker_ss_D, government_default_D, bond_price_ss_D, bond_return_D,
         sdf_ss_F, sdf_banker_ss_F, government_default_F, bond_price_ss_F, bond_return_F,
         hh_extended_D, smart_steady_D, market_clearing_D, steady_auxilliary_D,
-        banker_div_D, government_ss_D, labor_ss_D,
+        banker_div_D, government_ss_D, labor_ss_D, firm_profit_D, price_nkpc_D,
         hh_extended_F, smart_steady_F, market_clearing_F, steady_auxilliary_F,
-        banker_div_F, government_ss_F, labor_ss_F,
+        banker_div_F, government_ss_F, labor_ss_F, firm_profit_F, price_nkpc_F,
         ces_price_D, import_demand_D, ces_price_F, import_demand_F,
+        deposit_rates_D, deposit_rates_F,
         deposit_return_D, deposit_return_F,
         bond_yield,
         trade_balance, external_account_D, global_goods_mkt,
+        terms_of_trade, union_inflation,
     ], name='MU HA Model 2 Country')
 
     unknowns_ss = {'beta_D': 0.9850, 'beta_F': 0.9850, 'p': 0.99}
@@ -243,12 +248,39 @@ def solve_steady_state(calibration_start):
     q_D  = float(ss['q_b_D'])
     q_F  = float(ss['q_b_F'])
 
-    b_D_D_new = target_phi_bD_D * n_D / q_D
-    b_F_D_new = target_phi_bF_D * n_D / q_F
-    b_D_F_new = target_phi_bD_F * n_F / q_D
-    b_F_F_new = target_phi_bF_F * n_F / q_F
-    B_D_new   = b_D_D_new + b_D_F_new
-    B_F_new   = b_F_D_new + b_F_F_new
+    # COUNTRY SIZE (2026-08-07). Each phi is a ratio to its HOLDER's net worth, so
+    # every stock below is in its holder's own per-capita units -- which is exactly
+    # the convention the model now uses. The aggregation happens in
+    # domestic_bond_clearing via size_F, not here.
+    size_F = float(calibration_start['size_F'])
+
+    b_D_D_new = target_phi_bD_D * n_D / q_D     # D aggregate
+    b_F_D_new = target_phi_bF_D * n_D / q_F     # D aggregate
+    b_D_F_new = target_phi_bD_F * n_F / q_D     # per F capita
+    b_F_F_new = target_phi_bF_F * n_F / q_F     # per F capita
+
+    # Government stocks, each in ITS OWN country's units:
+    #   D debt is a D aggregate;  F debt is per F capita.
+    B_D_new   = b_D_D_new + size_F * b_D_F_new
+    B_F_new   = b_F_F_new + b_F_D_new / size_F
+
+    # Over-identifying checks. The two EBA moments that the pre-size-asymmetry
+    # calibration could not satisfy jointly -- portfolio composition (the phi's,
+    # matched by construction above) and market structure (the foreign shares
+    # below). Both should now hold. B_supply_*_qgdp and the foreign shares are
+    # measured directly and were never used by the targeting, which is why the
+    # inconsistency went unnoticed for so long.
+    _eba_all = load_eba_targets()
+    _fs_eba  = load_eba_foreign_shares()
+    fs_D_new = size_F * b_D_F_new / B_D_new
+    fs_F_new = (b_F_D_new / size_F) / B_F_new
+    print(f"  size_F = {size_F:.4f}  (F/D GDP; every F variable is per F capita)")
+    print(f"  foreign-held share of the bank-held sovereign stock:"
+          f"  D = {fs_D_new:.4f} (EBA {_fs_eba['D']:.4f})"
+          f"   F = {fs_F_new:.6f} (EBA {_fs_eba['F']:.6f})")
+    print(f"  bank-held stock in own-country quarterly GDP:"
+          f"  B_D = {B_D_new:.4f} (EBA {_eba_all['B_supply_D_qgdp']:.4f})"
+          f"   B_F = {B_F_new:.4f} (EBA {_eba_all['B_supply_F_qgdp']:.4f})")
 
     # omega_K is MEASURED (corporate+CRE EAD / K), not back-solved. It stays at
     # its calibration value; K is then an OUTPUT of the balance sheet,
@@ -262,8 +294,16 @@ def solve_steady_state(calibration_start):
     omega_K_F_new = float(calibration_start['omega_K_F'])
 
     _fr = float(calibration_start['fund_rule_D'])
-    _bank_D = (float(calibration_start['theta_D']) - target_phi_bD_D - target_phi_bF_D) * n_D
-    _bank_F = (float(calibration_start['theta_F']) - target_phi_bF_F - target_phi_bD_F) * n_F
+    # Built from the REALISED stocks, not `target_phi * n`. Post-units-fix the two
+    # differ for the cross-border legs, and using the targets would compute this
+    # over-identifying check against the pre-fix bond book — overstating K_implied_F
+    # by ~0.13 and quietly making a broken balance sheet look like it validated.
+    # Each bank's own balance sheet, in its own per-capita units -- no size_F here:
+    # the F bank holds b_D_F per F capita and funds it per F capita.
+    _bank_D = (float(calibration_start['theta_D']) * n_D
+               - (q_D * b_D_D_new + q_F * b_F_D_new))
+    _bank_F = (float(calibration_start['theta_F']) * n_F
+               - (q_F * b_F_F_new + q_D * b_D_F_new))
     K_implied_D = ((1 - _fr) * _bank_D / omega_K_D_new
                    + _fr * (_bank_D + float(calibration_start['K_fund_D'])))
     K_implied_F = ((1 - _fr) * _bank_F / omega_K_F_new

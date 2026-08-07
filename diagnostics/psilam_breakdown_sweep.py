@@ -52,7 +52,7 @@ def main():
     from steady_state import solve_steady_state
     from ic_delta_calibration import calibrate_ic_delta
     from depreciation_calibration import calibrate_depreciation
-    from full_model import build_and_solve
+    from full_model import build_and_solve, solve_jacobian_padded
 
     cal = get_calibration()
     print(f"[{ts()}] live psi_lambda_B_D = {cal['psi_lambda_B_D']}, "
@@ -80,8 +80,8 @@ def main():
         for c in ("D", "F"):
             ssg.toplevel[f"psi_lambda_B_{c}"] = g
             ssg.toplevel[f"psi_spread_{c}"] = psi_spread(c, g)
-        Gg = ha.solve_jacobian(ssg, unknowns=unk, targets=tgt,
-                               inputs=["Z_D", "shock_def_D", "Z_F", "shock_def_F"], T=T)
+        Gg = solve_jacobian_padded(ha, ssg, unk, tgt,
+                                   ["Z_D", "shock_def_D", "Z_F", "shock_def_F"], T)
         irf = Gg @ {"Z_D": zero, "Z_F": zero, "shock_def_D": dshock, "shock_def_F": zero}
         sp = np.asarray(irf["spread_rb"])
         r = dict(psilam=g,

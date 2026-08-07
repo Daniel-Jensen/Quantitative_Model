@@ -43,9 +43,12 @@ RED_MUTED  = '#c0624a'
 
 # ── TPI-1: CB bond clearing + budget constraint (audit fix) ──────────────────
 @simple
-def domestic_bond_clearing_tpi(b_gov_D, b_gov_F, b_D_F, b_F_D, cb_buy_D):
-    b_D_D = b_gov_D - b_D_F - cb_buy_D
-    b_F_F = b_gov_F - b_F_D
+def domestic_bond_clearing_tpi(b_gov_D, b_gov_F, b_D_F, b_F_D, cb_buy_D, size_F):
+    # size_F: see equations_global.domestic_bond_clearing. cb_buy_D is the CB's
+    # book measured as a D aggregate (the ECB buys a quantity of D debt), so it
+    # is NOT per-capita and takes no weight.
+    b_D_D = b_gov_D - size_F * b_D_F - cb_buy_D
+    b_F_F = b_gov_F - b_F_D / size_F
     return b_D_D, b_F_F
 
 
@@ -78,27 +81,45 @@ def budget_residual_D_tpi(b_gov_D, G_D, TAX_D, q_b_D, def_rate_D, recovery_rate_
 @simple
 def budget_residual_F_tpi(b_gov_F, G_F, TAX_F, q_b_F, def_rate_F, recovery_rate_F,
                            zeta_writeoff_F, p, P_CES_F, delta_b_F, writeoff_enabled_F,
-                           cb_flow_D, kappa_cb_F):
+                           cb_flow_D, kappa_cb_F, size_F):
     haircut_F      = 1.0 - recovery_rate_F
     haircut_mult_F = writeoff_enabled_F
     surv_cont_F    = 1.0 - zeta_writeoff_F * def_rate_F * haircut_F * haircut_mult_F
     coupon_F       = delta_b_F * (1.0 - def_rate_F * haircut_F * haircut_mult_F) * b_gov_F(-1)
     net_issuance_F = q_b_F * (b_gov_F - surv_cont_F * (1.0 - delta_b_F) * b_gov_F(-1))
-    rem_cb_F       = kappa_cb_F * cb_flow_D / p
+    # cb_flow_D is a D AGGREGATE cash flow in D goods; this budget is PER F CAPITA
+    # in F goods. So the remittance takes both conversions: /p for the good, and
+    # /size_F to spread the aggregate over F's population. Omitting the second
+    # leaked up to 2e-2 of F GDP through goods_mkt_F at gamma=10, while gamma=0
+    # stayed clean at 2e-10 — the signature of a CB-conduit-only units error.
+    rem_cb_F       = kappa_cb_F * cb_flow_D / p / size_F
     b_gov_res_F    = (coupon_F - net_issuance_F) / p + G_F - P_CES_F * TAX_F - rem_cb_F
     return b_gov_res_F, rem_cb_F
 
 
 @simple
 def external_account_D_tpi(NX_D, q_b_D, q_b_F, b_F_D, b_D_F, rb_actual_F, rb_actual_D,
-                           cb_buy_D, kappa_cb_F):
+                           cb_buy_D, kappa_cb_F, size_F):
     # The F share of the CB book is an F claim on D: it enters D's external
     # account exactly like b_D_F. The D share stays domestic (like b_D_D).
+    # b_D_F is per F capita and takes size_F; cb_buy_D is already a D aggregate
+    # and does not. See equations_global.external_account_D.
     receipts_from_F_bonds = (1 + rb_actual_F) * q_b_F(-1) * b_F_D(-1)
-    payments_on_D_bonds   = (1 + rb_actual_D) * q_b_D(-1) * (b_D_F(-1) + kappa_cb_F * cb_buy_D(-1))
-    nfa_D = q_b_F * b_F_D - q_b_D * (b_D_F + kappa_cb_F * cb_buy_D)
+    payments_on_D_bonds   = (1 + rb_actual_D) * q_b_D(-1) * (size_F * b_D_F(-1)
+                                                             + kappa_cb_F * cb_buy_D(-1))
+    nfa_D = q_b_F * b_F_D - q_b_D * (size_F * b_D_F + kappa_cb_F * cb_buy_D)
     ca_res_D = (NX_D + receipts_from_F_bonds - payments_on_D_bonds - nfa_D)
     return nfa_D, ca_res_D
+
+
+def tpi_overrides():
+    """The four blocks the TPI layer swaps into the shared block list."""
+    return {
+        'budget_residual_D':     budget_residual_D_tpi,
+        'budget_residual_F':     budget_residual_F_tpi,
+        'external_account_D':    external_account_D_tpi,
+        'domestic_bond_clearing': domestic_bond_clearing_tpi,
+    }
 
 
 def compute_tpi_irfs(G_tpi, shock_def, gamma_tpi, T):
@@ -142,26 +163,12 @@ def run_tpi(model_results):
     irfs_def_D         = model_results['irfs_def_D']
 
     # ── Build TPI model ───────────────────────────────────────────────────────
-    ha_full_tpi = sj.create_model([
-        deposit_return_D, tax_rule_D, hh_extended_D, ghh_composite_D,
-        sdf_D, sdf_banker_D, government_default_D, financial_solved_D,
-        bond_return_D, bank_return_D, capital_fund_D, cap_adj_cost_inter_D, macro_pru_tax_D,
-        intermediation_P2_D, intermediation_P3_D, k_balance_sheet_D,
-        capital_adj_D, capital_producer_profit_D, budget_residual_D_tpi,
-        labor_D, labor_market_D, labor_demand_D, banker_div_res_D,
-        market_clearing_D, welfare_agg_D,
-        deposit_return_F, tax_rule_F, hh_extended_F, ghh_composite_F,
-        sdf_F, sdf_banker_F, government_default_F, financial_solved_F,
-        bond_return_F, bank_return_F, capital_fund_F, cap_adj_cost_inter_F, macro_pru_tax_F,
-        intermediation_P2_F, intermediation_P3_F, k_balance_sheet_F,
-        capital_adj_F, capital_producer_profit_F, budget_residual_F_tpi,
-        labor_F, labor_market_F, labor_demand_F, banker_div_res_F,
-        market_clearing_F, welfare_agg_F,
-        ces_price_D, import_demand_D, ces_price_F, import_demand_F,
-        trade_balance, external_account_D_tpi, domestic_bond_clearing_tpi,
-        bond_yield, portfolio_level_anchors, divert_portfolio_adj,
-        divert_bond_foc_D, divert_bond_foc_F, global_goods_mkt,
-    ], name="Full 2-Country MU HANK — TPI Extension")
+    from full_model import build_block_list
+    ha_full_tpi = sj.create_model(
+        build_block_list(financial_solved_D, financial_solved_F,
+                         overrides=tpi_overrides()),
+        name="Full 2-Country MU HANK — TPI Extension",
+    )
 
     ss_tpi = copy.deepcopy(ss_final)
     ss_tpi.toplevel['cb_buy_D'] = 0.0
@@ -178,8 +185,9 @@ def run_tpi(model_results):
     # ── Jacobian ──────────────────────────────────────────────────────────────
     exogenous_tpi = ['Z_D', 'shock_def_D', 'Z_F', 'shock_def_F', 'cb_buy_D']
     print(f"Computing G_tpi (T={T}, {len(exogenous_tpi)} exogenous inputs)...")
-    G_tpi = ha_full_tpi.solve_jacobian(
-        ss_tpi, unknowns=unknowns_tp, targets=targets_tp,
+    from full_model import solve_jacobian_padded
+    G_tpi = solve_jacobian_padded(
+        ha_full_tpi, ss_tpi, unknowns=unknowns_tp, targets=targets_tp,
         inputs=exogenous_tpi, T=T,
     )
     print("G_tpi computed.")
