@@ -62,15 +62,21 @@ class RotatedGrid:
         return self.to_phys(w)
 
 
-def rotated_from_path(path, mu=2, k_endog=4.0, k_exog=3.5):
-    # BUILD A ROTATED GRID FROM AN ERGODIC PATH: PCA ON (K,B,P), physical Dz,g.
+def rotated_from_path(path, mu=2, k_endog=4.0, k_exog=3.5, exog_lo=None,
+                      exog_hi=None):
+    # BUILD A ROTATED GRID FROM AN ERGODIC PATH: PCA ON (K,B,P), physical rest.
+    # Handles any number of trailing exogenous dims (2 restricted, 3 full).
+    # exog_lo/exog_hi override the +-k_exog*sd defaults (e.g. to keep the s box
+    # within the solved range).
     endog = path[:, :NENDOG]
     mean = endog.mean(axis=0)
     cov = np.cov(endog, rowvar=False)
     evals, V = np.linalg.eigh(cov)                  # ascending; V columns orthonormal
     sd = np.sqrt(np.maximum(evals, 1e-16))
     pc_lo, pc_hi = -k_endog * sd, k_endog * sd
-    dz, g = path[:, 3], path[:, 4]
-    exog_lo = np.array([dz.mean() - k_exog * dz.std(), g.mean() - k_exog * g.std()])
-    exog_hi = np.array([dz.mean() + k_exog * dz.std(), g.mean() + k_exog * g.std()])
-    return RotatedGrid(mean, V, pc_lo, pc_hi, exog_lo, exog_hi, mu=mu)
+    ex = path[:, NENDOG:]
+    if exog_lo is None:
+        exog_lo = ex.mean(0) - k_exog * ex.std(0)
+        exog_hi = ex.mean(0) + k_exog * ex.std(0)
+    return RotatedGrid(mean, V, pc_lo, pc_hi, np.asarray(exog_lo, float),
+                       np.asarray(exog_hi, float), mu=mu)

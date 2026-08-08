@@ -49,7 +49,14 @@ def expect_pieces(Kp, Bp, Pp, Dz, g, grid, coef, cal, quad):
     QBn = np.maximum(QBn, 1e-4)
     st = statics(S_eval[:, 0], S_eval[:, 1], S_eval[:, 2], Dz_n, g_n,
                  Cn, np.ones(n), QBn, cal, d=0.0)
-    Qk_n = np.where(st["I"] > 0.0, st["Q_K"], 1.0)   # fall back to Q_K=1 if I'<=0
+    # SMOOTH floor on the next-period investment rate so Q_K' is differentiable
+    # everywhere (a hard np.where(I'>0,...) kink makes the FD Jacobian noisy and
+    # stalls Newton). Softplus floor: EXACTLY ik for feasible ik (BGP stays a
+    # rest point to 1e-12), smoothly -> eps only near/below I'=0.
+    ik = st["ik"]
+    eps, w = 1e-6, 1e-4
+    ik_safe = eps + w * np.logaddexp(0.0, (ik - eps) / w)
+    Qk_n = ik_safe ** cal["xi"] / (cal["a1"] * (1.0 - cal["xi"]))
     Zrent_n = st["Zrent"]
 
     wprime = (1.0 - cal["psi"]) + cal["psi"] * avn

@@ -86,14 +86,31 @@ def initial_coef_full(grid, cal, restricted_pert):
     return coef, rv
 
 
-def time_iterate_full(grid, cal, restricted_pert, quad=None, damp=0.3,
-                      tol=1e-6, maxit=300, verbose=True):
+def initial_coef_full_from_saved(grid, coef_saved):
+    # WARM START FROM SAVED COEFFICIENTS: RE-DERIVE POINT VALUES AT THE GRID.
+    rv = {k: (grid.eval(coef_saved[k][0], grid.points),
+              grid.eval(coef_saved[k][1], grid.points))
+          for k in ("C", "R", "QB", "av")}
+    coef = {k: (grid.fit(rv[k][0]), grid.fit(rv[k][1])) for k in rv}
+    rv = {k: (rv[k][0].copy(), rv[k][1].copy()) for k in rv}
+    return coef, rv
+
+
+def time_iterate_full(grid, cal, restricted_pert=None, quad=None, damp=0.3,
+                      tol=1e-6, maxit=300, verbose=True, init=None):
     # TWO-REGIME OUTER TIME ITERATION.
     if quad is None:
         quad = gauss_hermite_3d(3)
-    coef, rv = initial_coef_full(grid, cal, restricted_pert)
+    if init is not None:
+        coef, rv = init
+    else:
+        coef, rv = initial_coef_full(grid, cal, restricted_pert)
     n = grid.n
     conv = np.inf
+    # keep the BEST iterate: the rotated two-regime iteration is not globally
+    # contractive (near-unit-root capital + regime coupling), so it can reach a
+    # good near-fixed-point then oscillate away -- return the best, not the last
+    best = dict(score=np.inf)
     for it in range(1, maxit + 1):
         new = {k: (rv[k][0].copy(), rv[k][1].copy()) for k in rv}
         mu_r = (np.zeros(n), np.zeros(n))
@@ -118,10 +135,22 @@ def time_iterate_full(grid, cal, restricted_pert, quad=None, damp=0.3,
             for d in (0, 1):
                 rv[k][d][:] = (1 - damp) * rv[k][d] + damp * new[k][d]
             coef[k] = (grid.fit(rv[k][0]), grid.fit(rv[k][1]))
+        # score favours few bad points then low update norm (after a warm-up)
+        score = n_bad + min(conv, 1.0)
+        if it >= 5 and score < best["score"]:
+            best = dict(score=score, it=it, n_bad=n_bad, conv=conv,
+                        coef={k: (coef[k][0].copy(), coef[k][1].copy()) for k in coef},
+                        rv={k: (rv[k][0].copy(), rv[k][1].copy()) for k in rv},
+                        mu=mu_r[0].copy(), mu_d1=mu_r[1].copy())
         if verbose and (it <= 3 or it % 25 == 0 or conv < tol):
             print(f"  iter {it:4d}  conv={conv:.2e}  bad={n_bad:3d}  "
-                  f"mu_d0[max]={mu_r[0].max():.4f}", flush=True)
+                  f"mu_d0[max]={mu_r[0].max():.4f}  best@{best.get('it',0)}"
+                  f"(bad={best.get('n_bad','-')})", flush=True)
         if conv < tol and it >= 3:
             break
+    if best["score"] < np.inf:                  # return the best iterate
+        return dict(coef=best["coef"], rv=best["rv"], quad=quad,
+                    iters=best["it"], conv=best["conv"], mu=best["mu"],
+                    mu_d1=best["mu_d1"], grid=grid)
     return dict(coef=coef, rv=rv, quad=quad, iters=it, conv=conv,
                 mu=mu_r[0], mu_d1=mu_r[1], grid=grid)

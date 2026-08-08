@@ -160,8 +160,70 @@ point. This package builds that reference solution.
     binds (level-3 grid / more iterations / the decorrelation machinery
     from Stage 3d applied to the 6-state grid), then (b) add the
     working-capital wedge for the open-economy real transmission.
+  - **Solve-tightening attempt (decorrelated 6-state grid, `full_rotated.py`,
+    `simulate_full.py`)**: the PCA-rotated grid + best-iterate tracking cut
+    the infeasible-corner fraction from 53% to **13%** and strengthened the
+    pass-through (Q_b −19% at p^d 2.5%, closer to Bocola's ~−15%). But μ
+    still reads 0 where leverage rises above the 5.0 ceiling — internally
+    inconsistent, which pinpoints the residual difficulty: the two-regime
+    near-unit-root iteration is not globally contractive (it reaches a good
+    near-fixed-point ~iter 68 then oscillates away; the solver now returns
+    the best iterate), and its update-norm floor (~0.09) is far coarser
+    than the ~1e-4 needed to resolve μ~0.001. The HIGH-RISK region — exactly
+    where the pass-through matters — is the hardest to converge; the bond
+    price is robust (pinned by the bond Euler) but μ and the real-side
+    response (capital Euler) are not yet reliably resolved there.
+- **Honest state of the replication**: the financial pass-through is
+  replicated and correctly signed (the load-bearing result — sovereign risk
+  lowers bond prices and net worth, the opposite of the two-country
+  artifact). Matching Bocola's Figure-5 real-side magnitudes (investment
+  −2%) requires two things, both understood and neither a conceptual gap:
+  (1) a globally-convergent solver for the barely-binding constraint in the
+  coupled two-regime near-unit-root model (candidates: a proper endogenous
+  grid / policy-iteration hybrid, Judd-Maliar-style adaptive Smolyak, or
+  Bocola's own Smolyak-with-nonlinear-filter tuning) to conv ~1e-4 so μ
+  resolves; and (2) the Neumeyer-Perri working-capital wedge that Bocola
+  adds in his open-economy version (Fig. 7) for clean real transmission.
+- **Solver work toward global convergence (`newton_collocation.py`)**: built
+  a Newton solver on the STACKED collocation residual (quadratic convergence,
+  indifferent to the near-unit-root eigenvalue that cripples time iteration),
+  with (a) masked anchoring of infeasible corners, and (b) **Fischer-Burmeister
+  complementarity smoothing** — μ made an explicit unknown and the `max()`
+  kink replaced by `μ + slack − √(μ²+slack²)=0` (the technique the
+  two-country model uses). This precisely characterized why the problem is
+  hard: there are THREE non-smoothness sources, not one — (1) the
+  μ-constraint kink (FB fixes this), (2) an **anchoring floor** (the wide box
+  the near-unit-root ergodic set requires has ~40–64% infeasible corners that
+  must be anchored at frozen values, which propagate through the global fit
+  and floor the achievable residual at ~0.03), and (3) **feasibility guards
+  inside the expectation** (`np.where(I'>0,…)` at quadrature nodes) that
+  give a noisy FD Jacobian. All three were addressed: FB removes (1); the
+  DECORRELATED grid removes (2)'s infeasibility (100% feasible vs 87%
+  axis-aligned); a softplus floor on next-period investment inside
+  `expect_pieces` removes (3) (BGP still a rest point to 1e-12). With all
+  three, **FB-Newton UNSTALLS** — it takes a real step reducing the residual
+  7× (0.037→0.0053) where the axis-aligned solve was fully stuck. But it then
+  **floors at ~5e-3**, and the smoothed guard did NOT lower this floor, which
+  localizes the true residual obstacle: a handful (~16%) of **hard anchored
+  points** — transitional-μ / near-insolvency states with a large warm-start
+  residual — whose frozen values propagate through the GLOBAL collocation fit
+  and floor the residual of every polished point. This is intrinsic to a
+  global collocation on a wide box (the corners are hard AND coupled to the
+  interior through the fit), and 5e-3 does not beat plain time iteration
+  (which resolves the restricted μ to median 0.003 on the ergodic set).
+- **Honest conclusion on the solver**: Newton/FB/decorrelation/guard-smoothing
+  — the full standard toolkit, matching this repo's own two-country solver —
+  were implemented and each removes one obstacle, but the combination floors
+  at ~5e-3 on the coupled hard corners, short of the ~1e-6 that resolves
+  μ~0.001. Beating this needs an approach that decouples the hard corners
+  from the interior fit — e.g. a local/finite-element basis instead of global
+  Chebyshev (so corner errors stay local), an equilibrium-selection scheme
+  that never places collocation nodes in near-infeasible states, or Bocola's
+  own tuned Smolyak+nonlinear-filter pipeline. This is genuine research-grade
+  numerical work; the machinery here (Newton + FB + decorrelation + smoothed
+  guards, all in `newton_collocation.py`) is the right foundation for it.
 - Stage 6 (price/quantity-of-risk decomposition per his Table 4; full
-  write-up): pending.
+  write-up): pending, and requires the resolved solve above.
 
 ## BGP back-out (footnote-14 reparameterization)
 
