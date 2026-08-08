@@ -47,18 +47,16 @@ def get_calibration():
         # point to a near-tangency and the SS solve fails.
         beta_inter_D=0.997,     beta_inter_F=0.997,
         # lambda and omega_ent are SOLVED (calibrate_bank_targets) to hit these.
-        # vs Bocola: leverage 4.0 not his lev^bg = 5.0, and spread 200bp not his
-        # mu^bg = 0.001. The two are NOT independently choosable — the franchise
-        # fixed point alpha = Omega(1+rdep)/(1-mu) has a FOLD, and at leverage 5
-        # with a 200bp spread the calibration would need the UPPER root while
-        # _alpha_ss_fixed_point (like value iteration from below) takes the least
-        # root, so stage 1 cannot hit the target. Cutting the spread toward his
-        # value instead parks the SS bank next to the mu=0 kink and the
-        # EXPANSIONARY TFP experiment stops converging (75bp and 150bp both stall;
-        # the risk experiment survives because sovereign risk TIGHTENS the IC).
-        # Move either only with both experiments re-verified.
-        leverage_target_D=4.0,          leverage_target_F=4.0,
-        credit_spread_target_D=0.005,   credit_spread_target_F=0.005,  # 200 bps/yr
+        # Bocola Table 1-2: leverage^bg = 5.0 and mu^bg = 0.001 (the barely-binding
+        # SS -- his interbank spread averages 8bp/yr = 0.0002/quarter, and eq. 16
+        # mu = spread*lev/(1+spread*lev) gives mu = 0.001). The FOLD that blocked
+        # lev 5 was a HIGH-spread (200bp) artifact -- at Bocola's tiny spread mu ~ 0
+        # so 1-mu ~ 1 and the alpha fixed point is a mild least-root (verified: SS
+        # solves, mu_ss = 0.00100). NB the barely-binding SS is a knife-edge for
+        # the recursive closed-form-mu solve (frequent mu=0 slack); it is what makes
+        # the risk channel amplify (a small MTM loss spikes mu from ~0).
+        leverage_target_D=5.0,          leverage_target_F=5.0,
+        credit_spread_target_D=0.0002,  credit_spread_target_F=0.0002,  # 8 bps/yr (Bocola)
         # warm starts; overwritten by calibrate_bank_targets in steady_state.py
         lambda_K_D=0.22,        lambda_K_F=0.22,
         lambda_bD_D=0.22,       lambda_bD_F=0.22,
@@ -67,16 +65,23 @@ def get_calibration():
 
         # Cross-border bond portfolio adjustment costs
         psi_bF_D=0.05,          psi_bD_F=0.05,
-        b_F_D_ss=0.744,         b_D_F_ss=0.744,   # ~20% of each supply (contagion leg)
+        b_F_D_ss=0.196,         b_D_F_ss=0.196,   # ~20% of each supply (contagion leg)
         excess_return_F_D_ss=0.0,                 # overwritten after the SS solve
         excess_return_D_F_ss=0.0,                 # overwritten after the SS solve
 
-        # Government bonds. vs Bocola: delta_b = 0.036 (~7y HM duration, the Greek
-        # anchor) not his 0.056 (18-month Italian maturity). Long duration is what
-        # makes priced risk generate large MTM losses; at delta_b = 0.25 the
-        # repricing shrinks ~6x and the risk channel turns EXPANSIONARY.
-        delta_b_D=0.036,        delta_b_F=0.036,
-        B_gov_D_ss=3.722,       B_gov_F_ss=3.722,   # 93% of annual GDP
+        # Government bonds. delta_b = 0.056 = Bocola's pi (Table 1, fraction of the
+        # HM/CE perpetuity maturing each quarter). Duration ~1/pi (long duration is
+        # what makes priced risk generate large MTM losses; at delta_b = 0.25 the
+        # repricing shrinks ~6x and the risk channel turns EXPANSIONARY).
+        delta_b_D=0.056,        delta_b_F=0.056,
+        # B_gov set so the D-bank's holdings of D-sovereign are 7.6% of its total
+        # assets -- Bocola's exp^bg (Table 1; Table B1 gives 160/2093 = 0.076).
+        # The earlier 3.722 ("93% of GDP") MISREAD Bocola's "93% of bank EQUITY"
+        # holdings figure as a debt/GDP ratio, giving a 3x-too-high exposure and a
+        # huge default fiscal windfall (55% haircut on ~93% of GDP) that made
+        # default EXPANSIONARY. Banks hold ~all modeled debt, so B_gov ~= 0.076 x
+        # bank assets ~= 0.97 (about 24% of annual GDP).
+        B_gov_D_ss=0.98,        B_gov_F_ss=0.98,
 
         # Default risk (Bocola 2016): the PRICED default probability pi_t is an
         # exogenous input path to the solver (his s-shock), built per experiment
@@ -101,8 +106,11 @@ def get_calibration():
         # zeta = 0 nests it off exactly.
         zeta_wc_D=1.0,          zeta_wc_F=1.0,
 
-        # Fiscal
-        phi_lamb_D=0.15,        phi_lamb_F=0.15,   # Bohn rule strength
+        # Fiscal. Bocola's rule tau(S) = tau* exp{z} + gamma_tau*B with gamma_tau =
+        # 1.0 (Table 1): taxes respond one-for-one to the debt LEVEL, so a default
+        # (lower B) lowers taxes -- the fiscal-relief leg of the default event. The
+        # bank-loss leg dominates (default contractionary) once exposure is 7.6%.
+        phi_lamb_D=1.0,         phi_lamb_F=1.0,   # gamma_tau (Bocola Table 1)
         G_D=0.0,                G_F=0.0,
 
         # Trade / CES basket
