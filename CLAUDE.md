@@ -28,18 +28,37 @@ longer exists.
 
 ## Model code (`code/global/`)
 
-The model is solved with global nonlinear methods over 7T stacked unknowns
-`[N_D, N_F, Kap_D, Kap_F, rdep_D, rdep_F, p]` under perfect foresight
-(MIT shocks), T=200.  Solver (`solvers.py`, 2026-07): damped Newton on an
-explicit finite-difference Jacobian — built in parallel (multiprocessing)
-and REUSED across warm re-solves via caller-owned `jac_cache` dicts, which
-is what makes the CK/risk fixed points fast — with scipy hybr as the
-cold-start/fallback path and a Newton polish to `tol_transition` (1e-10).
-Do not tighten `tol_transition` toward 1e-12 casually: hybr alone plateaus
-near 5e-11 (it stops on xtol, not the residual), and 1e-12 previously made
-every solve grind through futile restarts and then raise.  Hot kernels
-(household EGM backward, distribution forward) are numba-JITed with an
-exact pure-numpy fallback (`cal["use_numba"]`; equivalence is tested).
+**Package layout.** The modules are grouped into subpackages; imports are
+absolute from the `code/global/` root (`from blocks.bank import …`). `main.py`
+sits at the root (run `python3 main.py`) and is the CHEBYSHEV-SMOLYAK PROJECTION
+driver — there is NO perfect-foresight / representative-branch machinery
+(`solver_pf/` was deleted 2026-08-11; git history preserves it).
+- `main.py` — projection driver: SS → TFP → risk pass-through → OMT/TPI (all recursive)
+- `config/` — `calibration.py`, `steady_state.py`
+- `blocks/` — economic blocks (solver-agnostic): `bank.py`, `government.py`,
+  `household.py`, `distribution.py`, `rouwenhorst.py`, `fast_kernels.py`,
+  `firms.py`, `capital.py`, `trade.py`
+- `solver_recursive/` — the ONLY solver: recursive global solution (Smolyak
+  time iteration over a 7-state grid): `state_grid.py`, `decision_rules.py`,
+  `point_map.py`, `expectations.py`, `recursive_main.py`, `recursive_residual.py`,
+  `recursive_experiment.py` (risk + TFP), `tpi_recursive_experiment.py` (OMT/TPI)
+- `reporting/` — `prints.py` (SS table), `plots.py` (activation-IRF figure)
+- `tests/` — regression suite
+
+The model is solved GLOBALLY as recursive decision rules on a Smolyak sparse
+grid (Chebyshev interpolation), over the 7-state vector
+`[K_D, K_F, P_D, P_F, B_D, s, Z_D]` — two capital stocks, two banks' gross
+deposit obligations, the risky D-debt stock, the sovereign-risk factor s, and
+the TFP state Z_D (deterministic AR(1); the TFP experiment reads the IRF along a
+Z-decay path). At each grid point the SEVEN market-clearing unknowns
+`[N_D, N_F, Kap_D, Kap_F, rdep_D, rdep_F, p]` are solved (the per-period image of
+the old stacked system) with Bocola's closed-form occasionally-binding μ; α/Q_b
+and the household aggregates are read off the recursions. Expectations are
+genuine multi-branch Gauss-Hermite quadrature over the s-innovation × the default
+fork (no-default / default-honoured / default-reneged). Driver: time iteration
+(`recursive_main.time_iteration`), converging at μ=1 (15 grid points; μ=2 does
+NOT converge — methods note §8). Hot kernels (household EGM backward, distribution
+forward) are numba-JITed with an exact pure-numpy fallback (`cal["use_numba"]`).
 
 | File | Contents |
 |------|----------|
@@ -47,29 +66,29 @@ exact pure-numpy fallback (`cal["use_numba"]`; equivalence is tested).
 | `steady_state.py` | Two-stage SS solve: {rk_D, rk_F, p} on capital markets + current account, then {β_D, β_F} on deposit markets. Symmetric SS required (see docstring). |
 | `bank.py` | GK/Bocola bank block. `bank_backward` (α, μ, bond prices, cross-border FOC holdings), `bank_forward` (net worth, dividends, deposit supply; portfolio shares on ACTUAL net worth). PRICED (`def_price_D`) vs REALIZED (`def_real_D`) default split; only D is risky, F bonds are safe. |
 | `government.py` | HM perpetuity bonds, Bohn rule. `govt_transition` forward-integrates the debt stock in one pass. Default risk is exogenous (no crisis zones). |
-| `transition.py` | 7T stacked system: 2 FB complementarities, 2 labour, UNION deposit clearing + deposit-UIP, goods-D. IC is OCCASIONALLY BINDING: the capital-market block imposes the Fischer-Burmeister complementarity 0 ≤ μ ⊥ slack ≥ 0 (slack = αn − λ·assets); μ from the capital FOC is valid in both regimes. Capital is PREDETERMINED (Bocola eq. 6): the production stock at t is Kap[t−1] (impact output moves through hours alone). Debt is endogenous inside every residual call; banks clear bonds against the true end-of-period stock (`b_D_D = b_gov_eop − b_D_F`). `make_residual` builds the residual from a picklable spec (shared with Jacobian workers). Supports mid-crisis initial conditions (`init=`) for default branches and policy runs. `market_residuals(out, cal, ss=None)` is the ONE definition of the clearing diagnostics, used by both `prints.py` and the tests. |
-| `solvers.py` | Parallel FD Jacobian + damped Newton with Broyden updates, stall-triggered rebuilds, and cross-solve Jacobian reuse (`jac_cache`). |
+| `solver_recursive/point_map.py` | The per-point period map (image of the old stacked system): 7 market-clearing residuals at one grid point given the frozen continuation rules. Bocola closed-form μ; THREE-branch default quadrature (no-default / honoured / reneged); Z_D read from the state; TPI via `tpi_activation`/`recovery_tpi_D`/`tpi_real_shield`. |
+| `solver_recursive/state_grid.py` | Smolyak sparse grid + Chebyshev basis; `build_state_box` (7-state box incl. Z_D), `default_prob`, `s_process_params` (s-process + deterministic Z-process). |
+| `solver_recursive/recursive_main.py`, `recursive_experiment.py`, `tpi_recursive_experiment.py` | Time-iteration driver; the risk + TFP experiments; the OMT/TPI activation comparison. |
 | `fast_kernels.py` | numba kernels for EGM backward + distribution forward; exact numpy fallback when numba is absent (`cal["use_numba"]`). |
-| `risk_branch.py` | **Bocola risk channel**: representative post-event branches — ONE deterministic solve of the PURE-HAIRCUT feared default (def_real_D[0]=1, recovery 0.45 = Greek PSI), plus the TPI-reneged branch. Two-branch risk inputs for `bank_backward`, `solve_transition_risk` outer loop (base ↔ branch fixed point at exogenous π), and `bond_decomposition` (default comp. + risk premium + liquidity premium, exact identity). A recap-share ladder (`_RECAP_LADDER`) exists ONLY as a numerical continuation when the direct branch solve stalls; the returned branch always has zero recap. |
 | `household.py`, `distribution.py` | EGM with GHH utility; stationary distribution and forward iteration. |
 | `firms.py`, `capital.py`, `trade.py` | Flexible-price production with the Neumeyer-Perri working-capital wedge (w ÷ (1+ζ·r_wc), the spread→output channel; ζ=0 nests exactly — Bocola §V.C's own open-economy fix), Jermann adjustment costs, CES/Armington trade. |
-| `prints.py` | ALL console reporting: `banner`, `print_ss_table`, `print_transition_residuals`, `print_risk_table`, `print_tpi_table`, `lending_spread_bps`. Model code never formats output. |
-| `plots.py` | IRF panels + the spread decomposition, written to `output/`. |
-| `main.py` | End-to-end run: SS → TFP IRF → Bocola pass-through → TPI backstop. Orchestration only — shock paths are built here (`PI_SHOCK`/`PI_RHO`, `TPI_*`), everything printed comes from `prints.py`. Full pipeline ≈ 1–2 min (branch cold-start ≈ 30s; later rounds ~1s via `jac_cache`). |
+| `prints.py` | Console reporting: `banner`, `print_ss_table` (the recursive experiments print their own IRF tables). |
+| `plots.py` | `plot_activation_irf` (the OMT/TPI activation overlay), written to `output/`. |
+| `main.py` | Projection driver: SS → TFP → risk pass-through → OMT/TPI, each a full time-iteration solve. Heavy by design (~20–30 min). |
 | `tests/` | Regression suite (see below). |
 
 ## Running and testing
 
 ```bash
 cd code/global
-python3 main.py                              # full pipeline + figures (~1.5 min)
+python3 main.py                                       # full projection pipeline (SS+TFP+risk+TPI), ~20-30 min
+python3 -m solver_recursive.recursive_experiment      # risk pass-through only
+python3 -m solver_recursive.tpi_recursive_experiment  # OMT/TPI activation only (0/50/100%)
 python3 tests/test_ss_identities.py          # SS theory identities (fast)
 python3 tests/test_bank_block.py             # bank FOC/no-arbitrage identities (fast)
 python3 tests/test_fast_kernels.py           # numba/numpy kernel equivalence (fast)
-python3 tests/test_transition_walras.py      # fixed point + Walras with moving debt (~30s)
-python3 tests/test_signs_bocola.py           # sign acceptance criteria (~20s)
-python3 tests/test_risk_channel.py           # risk-channel nesting/identity/signs (~2 min)
-python3 tests/test_tpi.py                    # TPI nesting + CB budget closure (~5 min)
+python3 tests/test_state_grid.py             # Smolyak grid exactness (fast)
+python3 tests/test_recursive_nesting.py      # recursive SS rest point + pi=0 nesting
 ```
 
 **Comment convention** (enforced across `code/global/`): every module and every
@@ -87,8 +106,8 @@ Console output lives in `prints.py`, never inside the model blocks.
   lending spread↑, b_gov↑, Tax↑ (a positive Y or n response to sovereign
   risk = bug).
 - Complementarity on every solved path: μ ≥ 0, slack = αn − λ·assets ≥ 0,
-  μ·slack ≈ 0 (`out["mu_min_D/F"]`, `out["slack_min_D/F"]`; transition.py
-  warns on violations).  Known open item: risk-on n_D[0] can sit above
+  μ·slack ≈ 0 (`out["mu_D/F"]`, `out["slack_D/F"]` from point_map.py).
+  Known open item: risk-on n_D[0] can sit above
   risk-off (M1 deposit-rate channel; test warning, not assert) and
   post-impact Y_D runs mildly positive — both die with the union deposit
   market (docs/sunspot_transition_study.md §8).
@@ -122,15 +141,28 @@ Console output lives in `prints.py`, never inside the model blocks.
   (Bocola's survival ψ). beta_inter ≈ β_hh ≈ 0.99 proxies the household SDF;
   values ≪ 1/(1+rdep) drive α_ss below 1 and mute the franchise channel
   (the pre-rewrite code had the weights swapped AND beta_inter = 0.96).
-- **Risk channel (Bocola) = two-branch expectations, not a wedge:** bankers
-  discount with the household SDF (Λ = β·u_c′/u_c — Bocola uses log utility,
-  NOT Epstein-Zin) and weight a post-default branch by the priced default
-  probability π_t (EXOGENOUS input path). The premium is endogenous:
-  Ω^d > Ω^nd multiplies the low default-branch payoffs. Approximations
-  (documented in risk_branch.py): Λ^nd ≡ beta_inter on the base path, ONE
-  representative branch reused across dates, aggregate-income SDF as the HA
-  rep-agent proxy. `pi ≡ 0` nests the risk-neutral model exactly —
-  regression-tested.
+- **Risk channel = genuine multi-branch quadrature (solver_recursive/), NOT a
+  representative branch.** The default fork enters `point_map.py`'s banker FOCs
+  as a real probability-weighted integral: Gauss-Hermite over the s-innovation ×
+  the default realization d′∈{0,1} weighted by π_t (EXOGENOUS input path), where
+  the default state is the SAME fitted decision rules evaluated at a reachable
+  next-period point — never a frozen stand-in economy. The premium is endogenous
+  (Ω^d > Ω^nd on the low default payoffs). `pi ≡ 0` nests the risk-neutral model
+  exactly (test_recursive_nesting). The earlier perfect-foresight
+  representative-branch pricing got the sign wrong (expansionary); the entire PF
+  stack (`solver_pf/`: transition + solvers + risk_branch) was deleted 2026-08-11
+  and the Chebyshev-Smolyak projection solver is now the ONLY machinery (TFP is a
+  deterministic 7th state Z_D).
+- **OMT/TPI = THIRD quadrature branch (solver_recursive/):** the default fork
+  splits into backstop-HONOURED and RENEGED, weighted by the priced activation
+  probability `cal["tpi_activation"]` (per-experiment scalar, not a state).
+  Honoured redeems the D-bond at `recovery_tpi_D` and averts a fraction
+  `tpi_real_shield` of the recession (continuation blended toward d′=0); at both
+  = 1 the effective default prob is π·(1−a) (OMT removes the premium).
+  `tpi_activation = 0` (or `tpi_real_shield = 0`) nests the two-branch solve.
+  Monotonic on the financial channels; `tpi_recursive_experiment.py` compares
+  0/50/100%. Full activation (a=1, shield=1) trips the μ=1 slack-slip → shield
+  defaults to 0.5.
 - **Predetermined deposit rate:** the rate paid at t was locked at t−1
   throughout (bank funding legs, household EGM returns, μ timing).
 - **Predetermined capital (Bocola eq. 6):** the stock producing at t was
@@ -185,16 +217,14 @@ Console output lives in `prints.py`, never inside the model blocks.
   next-phase dial: NK/union nominal block (needed for the TPI
   application); real interest parity currently plays the role of the
   single policy rate.
-- Risk channel approximations: single representative default branch,
-  Λ^nd ≡ beta_inter, rep-agent income-SDF proxy for Λ^d, household-side
-  π-blindness (the deposit Euler never weights the default branch —
-  faithful to Bocola, where household deposits are riskless too; see the
-  risk_branch.py module header). Validation moment: risk-channel share of the
-  lending-spread response vs Bocola's "up to 45%".
-- On a deterministic path the occasionally-binding IC regime is a
-  perfect-foresight switch, not a distribution over binding states —
-  the precautionary motive still comes only through the two-branch
-  expectations, not through path uncertainty.
+- Risk channel (recursive) approximations: Λ^nd ≡ beta_inter, rep-agent
+  income-SDF proxy for Λ^d, household-side π-blindness (the deposit Euler never
+  weights the default branch — faithful to Bocola, where household deposits are
+  riskless too). Magnitudes are indicative at μ=1 (13-pt grid); μ=2 does not
+  converge (the near-unit-root d′=1 corners — see the methods note §8). The
+  weak output pass-through at the standard calibration is why the OMT/TPI
+  activation comparison cushions the financial channels cleanly but barely
+  moves output.
 
 ## Branch convention
 

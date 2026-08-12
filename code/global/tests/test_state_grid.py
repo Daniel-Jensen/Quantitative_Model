@@ -5,7 +5,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
 
-from state_grid import (SmolyakGrid, build_state_box, default_prob,
+from solver_recursive.state_grid import (SmolyakGrid, build_state_box, default_prob,
                         s_process_params, STATE_NAMES)
 from common import get_ss
 

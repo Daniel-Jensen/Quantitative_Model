@@ -48,7 +48,7 @@ def stationary_distribution(a_pol, a_grid, Pi, pi_e_stationary, tol, maxiter=100
 
 def forward_paths(D0, a_pol_path, c_path, a_grid, Pi, use_fast=True):
     # FORWARD-SIMULATE THE DISTRIBUTION OVER THE TRANSITION (NUMBA KERNEL OR NUMPY).
-    import fast_kernels
+    from blocks import fast_kernels
 
     T = a_pol_path.shape[0]
     if use_fast and fast_kernels.HAVE_NUMBA:

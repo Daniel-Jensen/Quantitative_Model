@@ -8,9 +8,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np  # noqa: E402
 
-import fast_kernels  # noqa: E402
-from household import solve_backward_transition  # noqa: E402
-from distribution import (forward_iterate, forward_paths,  # noqa: E402
+from blocks import fast_kernels  # noqa: E402
+from blocks.household import solve_backward_transition  # noqa: E402
+from blocks.distribution import (forward_iterate, forward_paths,  # noqa: E402
                           get_lottery_weights)
 
 

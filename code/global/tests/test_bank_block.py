@@ -3,7 +3,7 @@
 import numpy as np
 
 from common import get_ss, ss_input_paths
-from bank import bank_backward, bank_forward
+from blocks.bank import bank_backward, bank_forward
 
 
 def _run_bank(cal, ss, def_price_D=None, def_real_D=None):

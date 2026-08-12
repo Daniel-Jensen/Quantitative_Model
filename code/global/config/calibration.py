@@ -47,16 +47,24 @@ def get_calibration():
         # point to a near-tangency and the SS solve fails.
         beta_inter_D=0.997,     beta_inter_F=0.997,
         # lambda and omega_ent are SOLVED (calibrate_bank_targets) to hit these.
-        # Bocola Table 1-2: leverage^bg = 5.0 and mu^bg = 0.001 (the barely-binding
-        # SS -- his interbank spread averages 8bp/yr = 0.0002/quarter, and eq. 16
-        # mu = spread*lev/(1+spread*lev) gives mu = 0.001). The FOLD that blocked
-        # lev 5 was a HIGH-spread (200bp) artifact -- at Bocola's tiny spread mu ~ 0
-        # so 1-mu ~ 1 and the alpha fixed point is a mild least-root (verified: SS
-        # solves, mu_ss = 0.00100). NB the barely-binding SS is a knife-edge for
-        # the recursive closed-form-mu solve (frequent mu=0 slack); it is what makes
-        # the risk channel amplify (a small MTM loss spikes mu from ~0).
-        leverage_target_D=5.0,          leverage_target_F=5.0,
-        credit_spread_target_D=0.0002,  credit_spread_target_F=0.0002,  # 8 bps/yr (Bocola)
+        # INTERMEDIARY-FRICTION TIGHTNESS -- Gertler-Karadi (2011) standard, NOT
+        # Bocola's ESTIMATE. Bocola's posterior (leverage^bg = 5.0, interbank
+        # spread ~8bp => mu^bg = 0.001; Table 1-2) puts mu_ss ON the incentive-
+        # constraint kink: any perfect-foresight shock drives some period's mu
+        # across 0, where the deterministic FD-Newton has no valid Jacobian and
+        # BOTH the TFP and the sovereign-risk solves stall (~1e-2; verified). A
+        # STANDARD calibration therefore uses the GK11 robustly-binding SS:
+        # leverage 4.0 (GK11) + a 200bp annual SS credit spread (GK11; inside
+        # Bocola's own spread range) => mu_ss ~= 0.02, so the constraint stays
+        # strictly binding through both shocks (min mu ~ +0.015; verified). At
+        # leverage 5.0 a 200bp spread hits the franchise-value fold (stage 1 cannot
+        # reach the upper alpha root), so leverage moves to the GK11 value too.
+        # Everything ELSE stays Bocola-faithful. TRADEOFF: the recursive solver
+        # (solver_recursive/) is healthier at this SS but its risk-channel
+        # magnitudes are smaller than at Bocola's knife-edge mu^bg=0.001 -- that
+        # amplification is documented but not used here (one standard calibration).
+        leverage_target_D=4.0,          leverage_target_F=4.0,
+        credit_spread_target_D=0.005,   credit_spread_target_F=0.005,   # 200 bps/yr (GK11)
         # warm starts; overwritten by calibrate_bank_targets in steady_state.py
         lambda_K_D=0.22,        lambda_K_F=0.22,
         lambda_bD_D=0.22,       lambda_bD_F=0.22,
@@ -87,6 +95,25 @@ def get_calibration():
         # exogenous input path to the solver (his s-shock), built per experiment
         # in main.py. Only D is risky; the feared event is a pure haircut.
         recovery_rate_D=0.45,   # 55% haircut (Greek PSI 2012; Bocola D = 0.55)
+
+        # OMT/TPI backstop -- PROJECTION three-branch pricing (solver_recursive/).
+        # The default fork splits into backstop-HONOURED and RENEGED, weighted by the
+        # priced activation probability tpi_activation. HONOURED redeems the D-bond at
+        # recovery_tpi_D (near-par CB floor) AND averts a fraction tpi_real_shield of
+        # the recession (its continuation is blended toward the no-default rules d'=0).
+        # At recovery_tpi_D = tpi_real_shield = 1 a honoured backstop NEUTRALISES the
+        # default event, so the effective default probability falls to pd*(1-a) -- the
+        # textbook OMT reading (a credible backstop removes the risk premium); lower
+        # values give a partial backstop. tpi_activation = 0 (or tpi_real_shield = 0)
+        # nests the two-branch quadrature EXACTLY; set per experiment (0 / 0.5 / 1.0).
+        # This is the projection-solver TPI (the earlier representative-branch TPI
+        # was removed).
+        # tpi_real_shield=0.5 (partial backstop): a honoured backstop averts HALF
+        # the recession, so full activation stays contractionary and does not tip the
+        # barely-binding IC into the mu=1 slack-slip (shield=1 neutralises risk and
+        # the a=1 solve slips expansionary -- documented). Dial toward 1 for a fuller
+        # OMT once a finer/converged grid removes the slip.
+        tpi_activation=0.0,     recovery_tpi_D=1.0,     tpi_real_shield=0.5,
 
         # Transmission Protection Instrument: Markov-switching CB backstop on the
         # D-sovereign, also built per experiment in main.py (off = no purchases,

@@ -13,18 +13,21 @@
 import numpy as np
 from scipy.optimize import root
 
-from calibration import get_calibration
-from steady_state import solve_steady_state
-from state_grid import build_state_box, s_process_params, default_prob
-from decision_rules import RuleSet, STORE_RULES
-from recursive_main import (time_iteration, calibrate_household_anchors,
+from config.calibration import get_calibration
+from config.steady_state import solve_steady_state
+from solver_recursive.state_grid import build_state_box, s_process_params, default_prob
+from solver_recursive.decision_rules import RuleSet, STORE_RULES
+from solver_recursive.recursive_main import (time_iteration, calibrate_household_anchors,
                             ss_state, ss_x)
-from point_map import point_residuals, SOLVE7
+from solver_recursive.point_map import point_residuals, SOLVE7
 
 
-def solve_recursive(cal, ss, sproc, mu=2, verbose=True):
+def solve_recursive(cal, ss, sproc, mu=1, verbose=True):
     # SOLVE BOTH DEFAULT REGIMES BY TIME ITERATION (WARM-START CHAIN d0 -> d1).
-    # mu=2 (85 pts) captures state cross-terms the mu=1 (13 pts) grid could not.
+    # mu=1 (13 pts) is the converging, correctly-signed grid; mu=2 (85 pts) adds
+    # state cross-terms but the d=1 regime does not converge on the wide box
+    # (joint residual ~0.7, sign flips expansionary) -- the corner-decoupling
+    # numerical obstacle documented in commit 1207f6e / docs/bocola2016_replication.md.
     # SYMMETRIC box: a wide-LOW B (to hold the post-default surviving debt ~0.45
     # on-grid) was tried but DIVERGES -- the deep low-B states are too far from the
     # SS cold start to solve and poison the fit. The d=1 recession is still
@@ -133,6 +136,54 @@ def persistence_irf(rules, cal, ss, sproc, s_shock=-3.9, T=21):
             print(f"   {t:3d}  {100*default_prob(s_t):5.2f}  "
                   f"{100*(o['Y_D']/Yr-1):+7.3f}  {100*(o['C_D']/Cr-1):+7.3f}  "
                   f"{100*(o['I_D']/Ir-1):+7.2f}")
+
+
+def _tfp_read(rules, cal, ss, sproc, S):
+    # READ THE NO-DEFAULT RULES AT STATE S (TFP experiment: no sovereign risk).
+    Sm = np.atleast_2d(S)
+    x = np.array([float(rules.eval(k, 0, Sm)[0]) for k in SOLVE7])
+    res, o = point_residuals(S, 0, x, rules, cal, ss, sproc, n_gh=7, no_default=True)
+    o["_x"] = x
+    return o
+
+
+def solve_tfp(cal, ss, sproc, mu=1):
+    # SOLVE THE NO-DEFAULT (d=0) RULES OVER THE 7-STATE GRID FOR THE TFP EXPERIMENT.
+    grid = build_state_box(ss, cal, mu=mu)
+    rules = RuleSet.from_ss(grid, ss, cal)
+    time_iteration(rules, cal, ss, sproc, regimes=(0,), no_default=True,
+                   damp=0.25, tol=1e-6, max_it=70, n_gh=5)
+    return rules
+
+
+def tfp_irf(rules, cal, ss, sproc, dz=0.01, T=21):
+    # TFP IRF read off the no-default rules along the Z_D-decay path (rho_z from
+    # sproc), endogenous states held at SS so the read stays on-grid -- the exact
+    # image of persistence_irf, with the TFP state Z_D in place of the risk state s.
+    S0 = ss_state(ss, cal, sproc)
+    Z_ss = S0[6]
+    base = _tfp_read(rules, cal, ss, sproc, S0.copy())
+    Yb, Cb, Ib, Nb = base["Y_D"], base["C_D"], base["I_D"], base["_x"][0]
+    print(f"\n  TFP IRF (one-off {dz:.0%} shock, rho_z={sproc['rho_z']} decay)")
+    print("   qtr    Z%     Y_D%     C_D%     I_D%    hours%")
+    for t in range(T):
+        z_t = dz * sproc["rho_z"] ** t
+        S = S0.copy(); S[6] = Z_ss * np.exp(z_t)
+        o = _tfp_read(rules, cal, ss, sproc, S)
+        if t in (0, 1, 2, 4, 6, 8, 12, 16, 20):
+            print(f"   {t:3d}  {100*z_t:5.2f}  {100*(o['Y_D']/Yb-1):+7.3f}  "
+                  f"{100*(o['C_D']/Cb-1):+7.3f}  {100*(o['I_D']/Ib-1):+7.2f}  "
+                  f"{100*(o['_x'][0]/Nb-1):+6.2f}")
+
+
+def tfp_main():
+    cal = get_calibration()
+    ss = solve_steady_state(cal, verbose=False)
+    sproc = s_process_params(cal)
+    calibrate_household_anchors(cal, ss, sproc)
+    print("=== TFP shock — recursive projection (Z_D as the 7th state) ===")
+    rules = solve_tfp(cal, ss, sproc)
+    tfp_irf(rules, cal, ss, sproc)
 
 
 def main():

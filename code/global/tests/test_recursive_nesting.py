@@ -13,10 +13,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
 
 from common import get_ss
-from state_grid import build_state_box, s_process_params
-from decision_rules import RuleSet, SOLVE7
-from point_map import point_residuals
-from recursive_main import (time_iteration, calibrate_household_anchors,
+from solver_recursive.state_grid import build_state_box, s_process_params
+from solver_recursive.decision_rules import RuleSet, SOLVE7
+from solver_recursive.point_map import point_residuals
+from solver_recursive.recursive_main import (time_iteration, calibrate_household_anchors,
                             ss_state, ss_x)
 
 _LABELS = ("cap_D", "cap_F", "lab_D", "lab_F", "euler_D", "uip", "goods_D")

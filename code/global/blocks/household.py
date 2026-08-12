@@ -58,7 +58,7 @@ def solve_steady_state_household(a_grid, Pi, r_ss, y_e, beta, sigma, a_min, tol,
 def solve_backward_transition(a_grid, Pi, r_path, y_path, c_ss, beta, sigma, a_min,
                               vN_path=None, use_fast=True):
     # BACKWARD INDUCTION OVER THE TRANSITION (NUMBA KERNEL OR NUMPY), TERMINAL c_ss.
-    import fast_kernels
+    from blocks import fast_kernels
 
     T = y_path.shape[0]
     n_a, n_e = a_grid.shape[0], y_path.shape[1]

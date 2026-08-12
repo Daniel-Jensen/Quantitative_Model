@@ -6,14 +6,14 @@
 import numpy as np
 from scipy.optimize import brentq, root
 
-from rouwenhorst import rouwenhorst
-from household import make_asset_grid, solve_steady_state_household
-from distribution import stationary_distribution, aggregate_assets, aggregate_consumption
-from firms import steady_state_firm, markup_ss
-from capital import capital_demand
-from bank import steady_state_bank, calibrate_bank_targets
-from government import govt_steady_state
-from trade import ces_price, import_demand, trade_balance
+from blocks.rouwenhorst import rouwenhorst
+from blocks.household import make_asset_grid, solve_steady_state_household
+from blocks.distribution import stationary_distribution, aggregate_assets, aggregate_consumption
+from blocks.firms import steady_state_firm, markup_ss
+from blocks.capital import capital_demand
+from blocks.bank import steady_state_bank, calibrate_bank_targets
+from blocks.government import govt_steady_state
+from blocks.trade import ces_price, import_demand, trade_balance
 
 
 def solve_steady_state(cal, verbose=True):

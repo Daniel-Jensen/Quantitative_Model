@@ -28,10 +28,16 @@ class RuleSet:
         self.vals = {k: [np.empty(grid.n), np.empty(grid.n)] for k in ALL_RULES}
         self.coef = {k: [None, None] for k in ALL_RULES}
 
-    def set_values(self, name, d, values):
+    def set_values(self, name, d, values, weights=None, ridge=0.0):
         # SET POINT VALUES FOR ONE RULE IN ONE REGIME AND REFIT ITS COEFFICIENTS.
+        # weights/ridge (optional) switch to the masked ridge-LS fit; the default
+        # (both absent) keeps the exact square collocation solve.
         self.vals[name][d] = np.asarray(values, dtype=float).copy()
-        self.coef[name][d] = self.grid.fit(self.vals[name][d])
+        if weights is None and ridge == 0.0:
+            self.coef[name][d] = self.grid.fit(self.vals[name][d])
+        else:
+            self.coef[name][d] = self.grid.fit_weighted(self.vals[name][d],
+                                                        weights, ridge)
 
     def eval(self, name, d, x):
         # EVALUATE ONE RULE IN REGIME d AT NATURAL-COORDINATE POINTS x.

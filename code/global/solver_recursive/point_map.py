@@ -19,7 +19,7 @@
 # Fischer-Burmeister, in the recursive-stable form (user-approved 2026-07-30;
 # transition.py / bank.py FB left untouched).
 #
-# Two-branch SDF convention (kept exactly as bank.py/risk_branch.py): the d'=0
+# Two-branch SDF convention (bank.py's kernel): the d'=0
 # continuation discounts with beta_inter (bank.py's proxy); the d'=1 branch with
 # the income-SDF Lam_d = beta_inter*(Y_d/Y_nd)^-sigma. Only the EXPECTATION is
 # genuine now. pi=0 (no_default) nests the deterministic period map exactly.
@@ -28,13 +28,13 @@
 # B_F at SS; TPI off; the wc-wedge rate component uses current rdep.
 import numpy as np
 
-from firms import solve_firm_path, markup_ss
-from capital import solve_capital_path
-from trade import ces_price, import_demand, trade_balance
-from state_grid import default_prob
-from expectations import gh_nodes
+from blocks.firms import solve_firm_path, markup_ss
+from blocks.capital import solve_capital_path
+from blocks.trade import ces_price, import_demand, trade_balance
+from solver_recursive.state_grid import default_prob
+from solver_recursive.expectations import gh_nodes
 
-IK_D, IK_F, IP_D, IP_F, IB_D, IS = range(6)
+IK_D, IK_F, IP_D, IP_F, IB_D, IS, IZ = range(7)
 
 # the SEVEN pointwise Newton unknowns per regime (transition.py's stacked order)
 SOLVE7 = ("N_D", "N_F", "Kp_D", "Kp_F", "rdep_D", "rdep_F", "p")
@@ -72,12 +72,13 @@ def point_residuals(S, d, x, cont, cal, ss, sproc, n_gh=7, no_default=False):
     # household aggregates C/A are computed here and returned in `out` to be
     # stored as the next-iterate rules.
     N_D, N_F, Kp_D, Kp_F, rdep_D, rdep_F, p = x
-    K_D, K_F, P_D, P_F, B_D, s = S
+    K_D, K_F, P_D, P_F, B_D, s, Z_D = S
     bkD, bkF = ss["ss_bank_D"], ss["ss_bank_F"]
 
     # --- firms + capital (current) ----------------------------------------
+    # Z_D is the 7th state (deterministic TFP); F is never shocked.
     Y_D, w_D0, mpk_D, Q_D, _, I_D, capprof_D = _firm_capital(
-        N_D, K_D, Kp_D, cal["Z_ss_D"], cal, "D")
+        N_D, K_D, Kp_D, Z_D, cal, "D")
     Y_F, w_F0, mpk_F, Q_F, _, I_F, capprof_F = _firm_capital(
         N_F, K_F, Kp_F, cal["Z_ss_F"], cal, "F")
     P_CES_D = ces_price(np.array([p]), cal, "D")[0]
@@ -104,6 +105,8 @@ def point_residuals(S, d, x, cont, cal, ss, sproc, n_gh=7, no_default=False):
 
     eps, wq = gh_nodes(n_gh)
     pd = 0.0 if no_default else float(default_prob(s))
+    # deterministic AR(1) for the TFP state (perfect foresight; no innovation)
+    Z_next = (1.0 - sproc["rho_z"]) * sproc["z_star"] + sproc["rho_z"] * Z_D
     s_next = ((1.0 - sproc["rho_s"]) * sproc["s_star"] + sproc["rho_s"] * s
               + sproc["sigma_s"] * eps)
     m = eps.size
@@ -139,11 +142,12 @@ def point_residuals(S, d, x, cont, cal, ss, sproc, n_gh=7, no_default=False):
     # --- two-branch continuation objects (FROZEN cont) --------------------
     def _cont(d_next):
         # CONTINUATION RULE VALUES + NEXT-PERIOD CAPITAL RETURN, REGIME d_next.
-        Sn = np.empty((m, 6))
+        Sn = np.empty((m, 7))
         Sn[:, IK_D] = Kp_D; Sn[:, IK_F] = Kp_F
         Sn[:, IP_D] = Pp_D; Sn[:, IP_F] = Pp_F
         Sn[:, IB_D] = Bp_D
         Sn[:, IS] = s_next
+        Sn[:, IZ] = Z_next
         r = cont.eval_all(d_next, cont.grid.clip(Sn))
         # guard continuation outputs before they enter fractional powers / sqrt
         # (a deep default-regime iterate can push N, p, C negative -> NaN)
@@ -153,7 +157,7 @@ def point_residuals(S, d, x, cont, cal, ss, sproc, n_gh=7, no_default=False):
             r[k] = np.maximum(r[k], 1e-3)
         r["p"] = np.maximum(r["p"], 1e-2)
         mpkD_n, QKD_n, YD_n = _cont_capital(r["N_D"], Kp_D, r["Kp_D"],
-                                            cal["Z_ss_D"], cal, "D")
+                                            Z_next, cal, "D")
         mpkF_n, QKF_n, YF_n = _cont_capital(r["N_F"], Kp_F, r["Kp_F"],
                                             cal["Z_ss_F"], cal, "F")
         rkD_n = (mpkD_n + (1.0 - cal["delta_D"]) * QKD_n) / Q_D - 1.0
@@ -176,16 +180,43 @@ def point_residuals(S, d, x, cont, cal, ss, sproc, n_gh=7, no_default=False):
     Om1_F = Lam1_F * (cal["f_F"] + (1 - cal["f_F"]) * r1["alpha_F"])
 
     w_nd, w_def = wq * (1.0 - pd), wq * pd
+    # THIRD (OMT/TPI) BRANCH: the default fork splits by backstop activation. With
+    # priced probability a_tpi the CB backstop is HONOURED; with (1-a_tpi) it is
+    # RENEGED (full recovery_rate_D haircut, d'=1 recession). The honoured branch
+    # (i) redeems the D-bond at rec_tpi (near-par CB floor) AND (ii) averts a fraction
+    # tpi_real_shield of the recession -- its whole continuation is blended toward the
+    # no-default rules d'=0. This is a genuine THREE-branch quadrature (every
+    # expectation, not just the bond). a_tpi = 0 OR tpi_real_shield = 0 nests the
+    # two-branch solve exactly. Per-experiment scalars, NOT states.
+    a_tpi = float(cal.get("tpi_activation", 0.0))
+    rec_tpi = float(cal.get("recovery_tpi_D", 1.0))
+    shield = float(cal.get("tpi_real_shield", 0.0))
+    w_hon, w_ren = w_def * a_tpi, w_def * (1.0 - a_tpi)
+
+    # honoured continuation = d'=1 recession blended toward d'=0 by `shield`
+    rh = {k: (1.0 - shield) * r1[k] + shield * r0[k] for k in r1}
+    rkD_nh = (1.0 - shield) * rkD_n1 + shield * rkD_n0
+    rkF_nh = (1.0 - shield) * rkF_n1 + shield * rkF_n0
+    YD_nh = (1.0 - shield) * YD_n1 + shield * YD_n0
+    YF_nh = (1.0 - shield) * YF_n1 + shield * YF_n0
+    LamH_D = biD * (YD_nh / np.maximum(YD_n0, 1e-9)) ** (-cal["sigma_D"])
+    LamH_F = biF * (YF_nh / np.maximum(YF_n0, 1e-9)) ** (-cal["sigma_F"])
+    OmH_D = LamH_D * (cal["f_D"] + (1 - cal["f_D"]) * rh["alpha_D"])
+    OmH_F = LamH_F * (cal["f_F"] + (1 - cal["f_F"]) * rh["alpha_F"])
 
     def _E(v0, v1):
-        # TWO-BRANCH EXPECTATION OVER eps_s NODES.
+        # TWO-BRANCH EXPECTATION (no-default vs default) -- F-safe legs.
         return float(np.dot(w_nd, v0) + np.dot(w_def, v1))
+
+    def _E3(v0, vh, vr):
+        # THREE-BRANCH EXPECTATION: no-default / default-honoured / default-reneged.
+        return float(np.dot(w_nd, v0) + np.dot(w_hon, vh) + np.dot(w_ren, vr))
 
     # --- banker FOC block (Bocola Prop. 1 CLOSED-FORM multiplier) -----------
     lKD, lKF = cal["lambda_K_D"], cal["lambda_K_F"]
     lbDD, lbFF = cal["lambda_bD_D"], cal["lambda_bF_F"]
-    E_Om_D = _E(Om0_D, Om1_D)
-    E_Om_F = _E(Om0_F, Om1_F)
+    E_Om_D = _E3(Om0_D, OmH_D, Om1_D)
+    E_Om_F = _E3(Om0_F, OmH_F, Om1_F)
     # divertable assets (same leverage term as the FB slack), frozen-price valued
     lev_D = max(lKD * Q_D * Kp_D + lbDD * Q_bD_cur * b_D_D_new
                 + cal["lambda_bF_D"] * p * Q_bF_cur * b_F_D_lag, 1e-6)
@@ -200,19 +231,25 @@ def point_residuals(S, d, x, cont, cal, ss, sproc, n_gh=7, no_default=False):
     # capital-Euler surplus E[Om(R_K - R)] - lambda_K*mu (the residual pinning K').
     # Normalise by the O(1) discount kernel E_Om so the residual is in return units
     # (dividing by lambda_K*mu_ss amplifies ~130x and wrecks the solver step).
-    E_Om_rk_D = _E(Om0_D * (rkD_n0 - rdep_D), Om1_D * (rkD_n1 - rdep_D))
-    E_Om_rk_F = _E(Om0_F * (rkF_n0 - rdep_F), Om1_F * (rkF_n1 - rdep_F))
+    E_Om_rk_D = _E3(Om0_D * (rkD_n0 - rdep_D), OmH_D * (rkD_nh - rdep_D),
+                    Om1_D * (rkD_n1 - rdep_D))
+    E_Om_rk_F = _E3(Om0_F * (rkF_n0 - rdep_F), OmH_F * (rkF_nh - rdep_F),
+                    Om1_F * (rkF_n1 - rdep_F))
     cap_eul_D = (E_Om_rk_D - lKD * mu_D) / E_Om_D
     cap_eul_F = (E_Om_rk_F - lKF * mu_F) / E_Om_F
     alpha_D_new = np.clip(E_Om_D * (1.0 + rdep_D) / (1.0 - mu_D), 0.3, 8.0)
     alpha_F_new = np.clip(E_Om_F * (1.0 + rdep_F) / (1.0 - mu_F), 0.3, 8.0)
 
-    # bond Euler (D risky: haircut surv' on the d'=1 payoff; F safe), same mu
+    # bond Euler (D risky: haircut on the d'=1 payoff; F safe), same mu.
+    # THREE-BRANCH D-bond payoff: no-default (full) + default-honoured (rec_tpi CB
+    # floor, weight w_hon) + default-reneged (recovery_rate_D haircut, weight w_ren).
     payD_nd0 = db_D + (1 - db_D) * r0["Q_bD"]
-    payD_nd1 = cal["recovery_rate_D"] * (db_D + (1 - db_D) * r1["Q_bD"])
+    payD_gross1 = db_D + (1 - db_D) * r1["Q_bD"]                # gross d'=1 payoff
+    payD_ren = cal["recovery_rate_D"] * payD_gross1            # backstop reneged
+    payD_hon = rec_tpi * (db_D + (1 - db_D) * rh["Q_bD"])     # backstop honoured
+    E_Om_payD = _E3(Om0_D * payD_nd0, OmH_D * payD_hon, Om1_D * payD_ren)
     payF_nd0 = db_F + (1 - db_F) * r0["Q_bF"]
     payF_nd1 = db_F + (1 - db_F) * r1["Q_bF"]
-    E_Om_payD = _E(Om0_D * payD_nd0, Om1_D * payD_nd1)
     E_Om_payF = _E(Om0_F * payF_nd0, Om1_F * payF_nd1)
     Q_bD_new = np.clip(E_Om_payD / (E_Om_D * (1.0 + rdep_D) + lbDD * mu_D),
                        0.2, 1.2)
@@ -256,18 +293,26 @@ def point_residuals(S, d, x, cont, cal, ss, sproc, n_gh=7, no_default=False):
     vNp_F0 = cal["chi_F"] * r0["N_F"] ** (1 + 1 / frisch_F) / (1 + 1 / frisch_F)
     vNp_D1 = cal["chi_D"] * r1["N_D"] ** (1 + 1 / frisch_D) / (1 + 1 / frisch_D)
     vNp_F1 = cal["chi_F"] * r1["N_F"] ** (1 + 1 / frisch_F) / (1 + 1 / frisch_F)
+    vNp_Dh = cal["chi_D"] * rh["N_D"] ** (1 + 1 / frisch_D) / (1 + 1 / frisch_D)
+    vNp_Fh = cal["chi_F"] * rh["N_F"] ** (1 + 1 / frisch_F) / (1 + 1 / frisch_F)
     xp_D0 = np.maximum(r0["C_D"] - vNp_D0, 1e-9)
     xp_F0 = np.maximum(r0["C_F"] - vNp_F0, 1e-9)
     xp_D1 = np.maximum(r1["C_D"] - vNp_D1, 1e-9)
     xp_F1 = np.maximum(r1["C_F"] - vNp_F1, 1e-9)
+    xp_Dh = np.maximum(rh["C_D"] - vNp_Dh, 1e-9)
+    xp_Fh = np.maximum(rh["C_F"] - vNp_Fh, 1e-9)
     rp_D0 = (1.0 + rdep_D) * P_CES_D / ces_price(r0["p"], cal, "D") - 1.0
     rp_F0 = (1.0 + rdep_F) * P_CES_F / ces_price(r0["p"], cal, "F") - 1.0
     rp_D1 = (1.0 + rdep_D) * P_CES_D / ces_price(r1["p"], cal, "D") - 1.0
     rp_F1 = (1.0 + rdep_F) * P_CES_F / ces_price(r1["p"], cal, "F") - 1.0
+    rp_Dh = (1.0 + rdep_D) * P_CES_D / ces_price(rh["p"], cal, "D") - 1.0
+    rp_Fh = (1.0 + rdep_F) * P_CES_F / ces_price(rh["p"], cal, "F") - 1.0
     beff_D = 1.0 / (1.0 + cal["r_dep_D_target"])
     beff_F = 1.0 / (1.0 + cal["r_dep_F_target"])
-    E_mu_D = _E((1.0 + rp_D0) * xp_D0 ** (-sigD), (1.0 + rp_D1) * xp_D1 ** (-sigD))
-    E_mu_F = _E((1.0 + rp_F0) * xp_F0 ** (-sigF), (1.0 + rp_F1) * xp_F1 ** (-sigF))
+    E_mu_D = _E3((1.0 + rp_D0) * xp_D0 ** (-sigD), (1.0 + rp_Dh) * xp_Dh ** (-sigD),
+                 (1.0 + rp_D1) * xp_D1 ** (-sigD))
+    E_mu_F = _E3((1.0 + rp_F0) * xp_F0 ** (-sigF), (1.0 + rp_Fh) * xp_Fh ** (-sigF),
+                 (1.0 + rp_F1) * xp_F1 ** (-sigF))
     xC_D = max(C_D - vN_D, 1e-9)
     xC_F = max(C_F - vN_F, 1e-9)
     euler_D = xC_D ** (-sigD) / (beff_D * E_mu_D) - 1.0

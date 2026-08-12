@@ -8,8 +8,8 @@
 # grid-wide diagnostics the gates and the E-experiment read off the solved rules.
 import numpy as np
 
-from decision_rules import SOLVE7
-from point_map import point_residuals
+from solver_recursive.decision_rules import SOLVE7
+from solver_recursive.point_map import point_residuals
 
 
 def grid_diagnostics(rules, cal, ss, sproc, regime=0, no_default=False, n_gh=7):

@@ -14,17 +14,17 @@
 import numpy as np
 from scipy.optimize import root
 
-from decision_rules import RuleSet, SOLVE7, DERIVED
-from point_map import point_residuals
-from state_grid import build_state_box, s_process_params
+from solver_recursive.decision_rules import RuleSet, SOLVE7, DERIVED
+from solver_recursive.point_map import point_residuals
+from solver_recursive.state_grid import build_state_box, s_process_params
 
 
 def ss_state(ss, cal, sproc):
-    # THE STEADY-STATE POINT IN THE 6-STATE VECTOR [K_D,K_F,P_D,P_F,B_D,s].
+    # THE STEADY-STATE POINT IN THE 7-STATE VECTOR [K_D,K_F,P_D,P_F,B_D,s,Z_D].
     return np.array([ss["Kap_D_ss"], ss["Kap_F_ss"],
                      (1 + cal["r_dep_D_target"]) * ss["ss_bank_D"]["Dep_supply_ss"],
                      (1 + cal["r_dep_F_target"]) * ss["ss_bank_F"]["Dep_supply_ss"],
-                     cal["B_gov_D_ss"], sproc["s_star"]])
+                     cal["B_gov_D_ss"], sproc["s_star"], cal["Z_ss_D"]])
 
 
 def ss_x(ss, cal):
@@ -66,15 +66,17 @@ def solve_point(S, d, cont, cal, ss, sproc, x0, no_default=False, n_gh=7,
         sol2 = root(f, x_ss, method="hybr", tol=1e-12)
         if np.max(np.abs(sol2.fun)) < best[1]:
             best = (sol2.x, np.max(np.abs(sol2.fun)))
-    x = best[0]
-    try:
-        _, out = point_residuals(S, d, x, cont, cal, ss, sproc,
-                                 n_gh=n_gh, no_default=no_default)
-    except (ValueError, RuntimeError, FloatingPointError):
-        x = x0
-        _, out = point_residuals(S, d, x, cont, cal, ss, sproc,
-                                 n_gh=n_gh, no_default=no_default)
-    return x, out, best[1]
+    # evaluate at the best root, falling back to x0; if BOTH raise (a genuinely
+    # infeasible point) return a failure sentinel (fn=1e3) rather than crash -- the
+    # sweep then retains/masks it. Needed for off-box warm starts (e.g. EDS points).
+    for xt in (best[0], x0):
+        try:
+            _, out = point_residuals(S, d, xt, cont, cal, ss, sproc,
+                                     n_gh=n_gh, no_default=no_default)
+            return xt, out, best[1]
+        except (ValueError, RuntimeError, FloatingPointError):
+            continue
+    return x0, None, 1e3
 
 
 def _sweep(rules, cont, cal, ss, sproc, regimes, no_default, n_gh,
@@ -84,6 +86,7 @@ def _sweep(rules, cont, cal, ss, sproc, regimes, no_default, n_gh,
     # iterate's values -- a failed corner must never poison the continuation.
     n = rules.grid.n
     new = {k: {d: np.empty(n) for d in regimes} for k in STORE()}
+    wt = {d: np.ones(n) for d in regimes}     # per-point fit weight (0 = failed corner)
     x_ss = np.array([1.0, 1.0, ss["Kap_D_ss"], ss["Kap_F_ss"],
                      cal["r_dep_D_target"], cal["r_dep_F_target"], ss["p_ss"]])
     worst, n_fail = 0.0, 0
@@ -94,8 +97,9 @@ def _sweep(rules, cont, cal, ss, sproc, regimes, no_default, n_gh,
             x, out, fn = solve_point(S, d, cont, cal, ss, sproc, x0,
                                      no_default=no_default, n_gh=n_gh, x_ss=x_ss)
             worst = max(worst, fn if np.isfinite(fn) else 1e3)
-            if (not np.isfinite(fn)) or fn > keep_tol:   # retain old values
+            if (not np.isfinite(fn)) or fn > keep_tol:   # retain old values, mask fit
                 n_fail += 1
+                wt[d][i] = 0.0
                 for k in STORE():
                     new[k][d][i] = rules.vals[k][d][i]
             else:
@@ -103,7 +107,7 @@ def _sweep(rules, cont, cal, ss, sproc, regimes, no_default, n_gh,
                     new[k][d][i] = x[j]
                 for k in DERIVED:
                     new[k][d][i] = out[k]
-    return new, worst, n_fail
+    return new, worst, n_fail, wt
 
 
 def STORE():
@@ -115,11 +119,20 @@ def time_iteration(rules, cal, ss, sproc, regimes=(0, 1),
                    no_default=False, damp=0.5, tol=1e-7, max_it=60,
                    n_gh=7, verbose=False):
     # TIME-ITERATE THE RULES TO A FIXED POINT (IN PLACE).
+    # cal["fit_mask"]/cal["fit_ridge"] (optional) switch the coefficient fit from the
+    # exact square collocation to a ROBUST weighted ridge-LS fit: failed corners get a
+    # small weight fit_fail_weight (default 0.1) rather than 0 -- they still anchor the
+    # fit (keeping it full-rank and sane) but their reason-2 poisoning is cut ~10x, and
+    # the ridge damps the high-degree wiggle. HARD masking (weight 0) collapses the fit
+    # when a sweep has many failures. Absent -> exact fit, behaviour unchanged.
+    fit_mask = bool(cal.get("fit_mask", False))
+    fit_ridge = float(cal.get("fit_ridge", 0.0))
+    fit_fw = float(cal.get("fit_fail_weight", 0.1))
     worst = np.inf
     for it in range(max_it):
         cont = rules.copy()                       # frozen continuation
-        new, worst, n_fail = _sweep(rules, cont, cal, ss, sproc, regimes,
-                                    no_default, n_gh)
+        new, worst, n_fail, wt = _sweep(rules, cont, cal, ss, sproc, regimes,
+                                        no_default, n_gh)
         change = 0.0
         for k in STORE():
             for d in regimes:
@@ -127,7 +140,8 @@ def time_iteration(rules, cal, ss, sproc, regimes=(0, 1),
                 upd = damp * new[k][d] + (1.0 - damp) * old
                 change = max(change, np.max(np.abs(upd - old))
                              / (np.max(np.abs(old)) + 1e-8))
-                rules.set_values(k, d, upd)
+                weights = (np.where(wt[d] > 0.5, 1.0, fit_fw) if fit_mask else None)
+                rules.set_values(k, d, upd, weights=weights, ridge=fit_ridge)
         if verbose:
             print(f"    [time-it {it + 1:2d}] max|F_point|={worst:.2e}  "
                   f"rel rule change={change:.2e}  fails={n_fail}/"

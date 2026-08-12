@@ -31,7 +31,7 @@
 # this module only re-indexes them from time-paths to grid-points.
 import numpy as np
 
-from decision_rules import RuleSet   # noqa: F401  (API typing/reference)
+from solver_recursive.decision_rules import RuleSet   # noqa: F401  (API typing/reference)
 
 
 def shifted_ss_distribution(D_ss, a_grid, W_target, W_ss):

@@ -5,8 +5,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np  # noqa: E402
-from calibration import get_calibration  # noqa: E402
-from steady_state import solve_steady_state  # noqa: E402
+from config.calibration import get_calibration  # noqa: E402
+from config.steady_state import solve_steady_state  # noqa: E402
 
 _CACHE = {}
 

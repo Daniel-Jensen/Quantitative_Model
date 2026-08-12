@@ -45,7 +45,7 @@ def test_ss_market_clearing():
 
 def test_government_stationary():
     # govt_transition AT SS PRICES WITH NO DEFAULT MUST KEEP DEBT CONSTANT.
-    from government import govt_transition
+    from blocks.government import govt_transition
     cal, ss = get_ss()
     T = cal["T"]
     for c in ("D", "F"):

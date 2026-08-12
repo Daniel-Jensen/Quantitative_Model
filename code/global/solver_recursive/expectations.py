@@ -1,18 +1,18 @@
-# TWO-BRANCH QUADRATURE EXPECTATIONS: THE REPLACEMENT FOR risk_branch.py.
+# TWO-BRANCH QUADRATURE EXPECTATIONS FOR THE RECURSIVE SOLVER.
 # The banker/household expectations that enter bank_backward's FOCs are
 # computed as GENUINE integrals over next period's state: Gauss-Hermite nodes
 # for the s innovation x the default realization d' in {0,1} weighted by
 # p^d(s_t). Next-period objects come from the fitted decision rules evaluated
 # at the implied next state -- the bad state is the SAME rules at a reachable
-# point, never a representative post-default branch. Z and G are deterministic
+# point on the grid. Z and G are deterministic
 # for the D-risk experiment (agreed Tier cuts), so eps_s is the only
 # continuous innovation: 7 GH nodes x 2 branches = 14 continuation points.
 import numpy as np
 
-from state_grid import default_prob
+from solver_recursive.state_grid import default_prob
 
-# state indices, matching state_grid.STATE_NAMES (6-state)
-IK_D, IK_F, IP_D, IP_F, IB_D, IS = range(6)
+# state indices, matching state_grid.STATE_NAMES (7-state)
+IK_D, IK_F, IP_D, IP_F, IB_D, IS, IZ = range(7)
 
 
 def gh_nodes(n=7):

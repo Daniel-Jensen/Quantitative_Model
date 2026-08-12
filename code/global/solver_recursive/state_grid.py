@@ -90,7 +90,8 @@ class SmolyakGrid:
         self.n = self.points_unit.shape[0]
         self.points = self.from_unit(self.points_unit)
         self.max_deg = int(self.degrees.max())
-        self._lu = lu_factor(self._basis_unit(self.points_unit))
+        self._Phi = self._basis_unit(self.points_unit)     # (n, n) collocation basis
+        self._lu = lu_factor(self._Phi)
 
     def to_unit(self, x):
         # MAP NATURAL COORDINATES TO [-1, 1]^d.
@@ -117,6 +118,25 @@ class SmolyakGrid:
         # COLLOCATION COEFFICIENTS FROM VALUES AT self.points ((n,) OR (n, k)).
         return lu_solve(self._lu, np.asarray(values, dtype=float))
 
+    def fit_weighted(self, values, w=None, ridge=0.0):
+        # RIDGE-REGULARISED WEIGHTED LEAST-SQUARES FIT: the fix for global-fit corner
+        # poisoning at mu=2. w in [0,1] per point (0 = point EXCLUDED from the fit, so
+        # an unsolvable/frozen corner cannot leak into the coefficients); the ridge
+        # penalises high-degree coefficients (damps the Gibbs wiggle at the kink) with
+        # a small uniform floor for invertibility when points are masked. w=None,
+        # ridge=0 falls back to the exact square solve (unchanged behaviour).
+        values = np.asarray(values, dtype=float)
+        if w is None and ridge == 0.0:
+            return lu_solve(self._lu, values)
+        w = np.ones(self.n) if w is None else np.asarray(w, dtype=float)
+        A = self._Phi.T * w                                    # Phi^T @ diag(w)
+        lhs = A @ self._Phi                                    # Phi^T W Phi
+        diag_scale = float(np.mean(np.diag(lhs))) + 1e-12
+        td = self.degrees.sum(axis=1).astype(float)            # total degree per basis fn
+        reg = diag_scale * (ridge * td / max(td.max(), 1.0) + 1e-6)
+        lhs[np.diag_indices_from(lhs)] += reg
+        return np.linalg.solve(lhs, A @ values)
+
     def eval(self, coeffs, x):
         # EVALUATE THE INTERPOLANT AT ARBITRARY NATURAL-COORDINATE POINTS.
         return self.basis(x) @ coeffs
@@ -135,12 +155,12 @@ class SmolyakGrid:
 # household supply and bank demand could not both be set freely; deposits now clear
 # by quantity (A = dep/P_CES) and the deposit RATE is pinned by the household Euler.
 # d_D in {0,1} is the discrete default regime (separate coefficient sets).
-STATE_NAMES = ("K_D", "K_F", "P_D", "P_F", "B_D", "s")
+STATE_NAMES = ("K_D", "K_F", "P_D", "P_F", "B_D", "s", "Z_D")
 
 
 def build_state_box(ss, cal, s_lo=-9.0, s_hi=-3.5, k_band=0.03, p_band=0.25,
-                    b_band=0.30, b_lo_frac=None, mu=2, mu_vec=None):
-    # THE 6-STATE BOX AROUND THE (RISKY) STEADY STATE, WIDE-LOW WHERE DEFAULT
+                    b_band=0.30, b_lo_frac=None, mu=2, mu_vec=None, z_band=0.03):
+    # THE 7-STATE BOX AROUND THE (RISKY) STEADY STATE, WIDE-LOW WHERE DEFAULT
     # CUTS STOCKS. s spans p^d ~ 0.01% .. ~3% (logistic); bands sized from the
     # transition-path experience (K moves little -- kept under the ~4.5% Jermann
     # feasibility band; P/B are the movers). b_lo_frac sets the B LOWER bound as a
@@ -155,13 +175,14 @@ def build_state_box(ss, cal, s_lo=-9.0, s_hi=-3.5, k_band=0.03, p_band=0.25,
     P_D = (1.0 + cal["r_dep_D_target"]) * bk_D["Dep_supply_ss"]
     P_F = (1.0 + cal["r_dep_F_target"]) * bk_F["Dep_supply_ss"]
     B_D = cal["B_gov_D_ss"]
+    Z_D = cal["Z_ss_D"]                        # deterministic TFP state (7th dim)
     b_lo = (1 - b_band if b_lo_frac is None else b_lo_frac) * B_D
     lo = np.array([(1 - k_band) * K_D, (1 - k_band) * K_F,
                    (1 - p_band) * P_D, (1 - p_band) * P_F,
-                   b_lo, s_lo])
+                   b_lo, s_lo, (1 - z_band) * Z_D])
     hi = np.array([(1 + k_band) * K_D, (1 + k_band) * K_F,
                    (1 + p_band) * P_D, (1 + p_band) * P_F,
-                   (1 + b_band) * B_D, s_hi])
+                   (1 + b_band) * B_D, s_hi, (1 + z_band) * Z_D])
     return SmolyakGrid(lo, hi, mu=(mu if mu_vec is None else int(max(mu_vec))),
                        mu_vec=mu_vec)
 
@@ -179,4 +200,8 @@ def s_process_params(cal):
     s_high = np.log(0.02 / (1.0 - 0.02))              # p^d = 2% target
     rho_s = 0.95
     sigma_s = (s_high - s_star) / 2.0                 # 2sd one-shot innovation
-    return dict(s_star=s_star, rho_s=rho_s, sigma_s=sigma_s)
+    # TFP (Z_D) as a DETERMINISTIC 7th state: perfect-foresight AR(1), no innovation
+    # (Z is never shocked on the ergodic set -- Z_star = Z_ss -- so its rule slice is
+    # exercised only off-grid, in the TFP experiment that reads along a Z-decay path).
+    return dict(s_star=s_star, rho_s=rho_s, sigma_s=sigma_s,
+                z_star=cal["Z_ss_D"], rho_z=0.9)
