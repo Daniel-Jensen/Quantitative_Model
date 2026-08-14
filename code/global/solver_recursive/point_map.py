@@ -42,6 +42,11 @@ SOLVE7 = ("N_D", "N_F", "Kp_D", "Kp_F", "rdep_D", "rdep_F", "p")
 DERIVED4 = ("alpha_D", "alpha_F", "Q_bD", "Q_bF")
 
 
+def _smax(x, floor, eps=1e-3):
+    # SMOOTH MAX(x, floor) -- differentiable everywhere so the FD-Jacobian stays valid.
+    return floor + 0.5 * ((x - floor) + np.sqrt((x - floor) ** 2 + eps ** 2))
+
+
 def _firm_capital(N, K, Kp, Z, cal, c):
     # ELEMENTWISE FIRM + CAPITAL BLOCK AT ONE POINT (untouched blocks).
     f = solve_firm_path(np.array([N]), np.array([K]), np.array([Z]), cal, c)
@@ -135,6 +140,15 @@ def point_residuals(S, d, x, cont, cal, ss, sproc, n_gh=7, no_default=False):
     assets_F = Q_F * Kp_F + Q_bF_cur * b_F_F_lag + Q_bD_cur * b_D_F_new / p
     n_D = (1.0 - cal["f_D"]) * ng_D + cal["omega_ent_D"] * assets_D
     n_F = (1.0 - cal["f_F"]) * ng_F + cal["omega_ent_F"] * assets_F
+    # BOCOLA FEASIBILITY FLOOR (his N_tom = max(.,0.65)): a deep post-haircut default
+    # corner drives net worth negative, where mu saturates the crude cap and the pointwise
+    # solve fails, poisoning the global fit. Smooth-floor net worth at a small fraction of
+    # n_ss so it is INACTIVE in the ergodic region (nw_floor_frac=0 => baseline unchanged)
+    # and only catches the deep default corners.
+    nwf = cal.get("nw_floor_frac", 0.0)
+    if nwf > 0.0:
+        n_D = _smax(n_D, nwf * bkD["n_ss"])
+        n_F = _smax(n_F, nwf * bkF["n_ss"])
     dep_D, dep_F = assets_D - n_D, assets_F - n_F
     Pp_D = (1.0 + rdep_D) * dep_D
     Pp_F = (1.0 + rdep_F) * dep_F
@@ -344,5 +358,10 @@ def point_residuals(S, d, x, cont, cal, ss, sproc, n_gh=7, no_default=False):
                alpha_D=alpha_D_new, alpha_F=alpha_F_new,
                Q_bD=Q_bD_new, Q_bF=Q_bF_new, C_D=C_D, C_F=C_F, A_D=A_D, A_F=A_F,
                inc_D=inc_D, inc_F=inc_F, w_D=w_D, dep_D=dep_D, dep_F=dep_F,
-               Pp_D=Pp_D, Pp_F=Pp_F, Bp_D=Bp_D, slack_D=slack_D, slack_F=slack_F)
+               Pp_D=Pp_D, Pp_F=Pp_F, Bp_D=Bp_D, slack_D=slack_D, slack_F=slack_F,
+               # accounting legs consumed by the output decomposition and the
+               # heterogeneous-agent welfare overlay (never by the residuals)
+               N_D=N_D, Kap_prod_D=K_D, Z_D=Z_D, Kp_D=Kp_D, P_CES_D=P_CES_D,
+               E_Om_D=E_Om_D, r_wc_D=r_wc_D, wedge_sp_D=lKD * mu_D / E_Om_D,
+               rdep_D=rdep_D, Div_D=Div_D, Tax_D=Tax_D, p=p, Y_F=Y_F)
     return res, out

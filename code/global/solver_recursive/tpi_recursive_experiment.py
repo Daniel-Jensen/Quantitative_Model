@@ -15,10 +15,18 @@ from solver_recursive.state_grid import s_process_params, default_prob
 from solver_recursive.recursive_main import ss_state, calibrate_household_anchors
 from solver_recursive.recursive_experiment import solve_recursive, read_at, _spread_bp
 
-ACTIVATIONS = ((0.0, "0% — known not active", "#d62728"),
-               (0.5, "50% chance", "#ff7f0e"),
-               (1.0, "100% chance", "#2ca02c"))
+DEFAULT_ACTIVATIONS = (0.0, 0.5, 1.0)      # priced OMT/TPI activation probabilities
+_TPI_COLORS = ("#d62728", "#ff7f0e", "#2ca02c", "#1f77b4", "#9467bd", "#8c564b")
 S_SHOCK, T_IRF = -3.9, 21     # +2 sigma risk shock (pd ~ 2%), decaying over T_IRF
+
+
+def _activation_specs(activations):
+    # MAP ACTIVATION PROBABILITIES TO (value, label, color) TRIPLES FOR SOLVE + PLOT.
+    specs = []
+    for i, a in enumerate(activations):
+        lab = "0% — known not active" if a == 0.0 else f"{round(a * 100):.0f}% chance"
+        specs.append((a, lab, _TPI_COLORS[i % len(_TPI_COLORS)]))
+    return specs
 
 
 def irf_series(rules, cal, ss, sproc, a):
@@ -43,18 +51,19 @@ def irf_series(rules, cal, ss, sproc, a):
     return P
 
 
-def run(cal, ss, sproc):
-    # SOLVE THE THREE ACTIVATION SCENARIOS AND WRITE THE OVERLAY FIGURE (shared SS).
+def run(cal, ss, sproc, mu=1, activations=None):
+    # SOLVE THE ACTIVATION SCENARIOS AND WRITE THE OVERLAY FIGURE (shared SS).
     from reporting.plots import plot_activation_irf, OUTDIR
     import os, time
     os.makedirs(OUTDIR, exist_ok=True)
+    specs = _activation_specs(DEFAULT_ACTIVATIONS if activations is None else activations)
     print("=== OMT/TPI activation comparison — recursive projection (three-branch) ===",
           flush=True)
     t0 = time.perf_counter()
     scenarios = []
-    for a, label, color in ACTIVATIONS:
+    for a, label, color in specs:
         cal["tpi_activation"] = a
-        rules = solve_recursive(cal, ss, sproc, mu=1, verbose=False)
+        rules = solve_recursive(cal, ss, sproc, mu=mu, verbose=False)
         P = irf_series(rules, cal, ss, sproc, a)
         scenarios.append((label, P, color))
         print(f"  [{label}] solved ({time.perf_counter()-t0:.0f}s)  "

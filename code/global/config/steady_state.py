@@ -103,6 +103,14 @@ def solve_steady_state(cal, verbose=True):
     if not sol1.success and verbose:
         print(f"  Warning: stage1 hybr did not flag success "
               f"(resid={np.max(np.abs(sol1.fun)):.2e})")
+    # HARD GUARD: the capital-market residuals ARE the bank n_IC/n_ACCUM identity. A large
+    # value means the (f, spread, leverage) targets sit on the franchise fold's UPPER root
+    # while the dynamics rest on the least root -- an inconsistent SS (see main.py). Fail
+    # loudly rather than propagate a silently-off steady state into the projection solve.
+    assert np.max(np.abs(sol1.fun[:2])) < 1e-6, (
+        f"stage-1 n_IC/n_ACCUM inconsistent (max|res_cap|={np.max(np.abs(sol1.fun[:2])):.2e}): "
+        f"the (f, spread, leverage) targets are fold-blocked -- raise f until leverage is the "
+        f"least root (f>=~0.14 at spread 720bp).")
     rk_D_ss, rk_F_ss, p_ss = sol1.x
 
     # rescale TFP so Y_ss = 1 (exact: the stage-1 solution is Z-independent)

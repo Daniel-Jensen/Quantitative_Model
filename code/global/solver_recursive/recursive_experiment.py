@@ -22,7 +22,7 @@ from solver_recursive.recursive_main import (time_iteration, calibrate_household
 from solver_recursive.point_map import point_residuals, SOLVE7
 
 
-def solve_recursive(cal, ss, sproc, mu=1, verbose=True):
+def solve_recursive(cal, ss, sproc, mu=1, verbose=True, mu_vec=None):
     # SOLVE BOTH DEFAULT REGIMES BY TIME ITERATION (WARM-START CHAIN d0 -> d1).
     # mu=1 (13 pts) is the converging, correctly-signed grid; mu=2 (85 pts) adds
     # state cross-terms but the d=1 regime does not converge on the wide box
@@ -33,7 +33,7 @@ def solve_recursive(cal, ss, sproc, mu=1, verbose=True):
     # SS cold start to solve and poison the fit. The d=1 recession is still
     # captured because the haircut hits the CURRENT-period payoff (crashing net
     # worth directly); only the post-default continuation is clipped (second order).
-    grid = build_state_box(ss, cal, mu=mu, k_band=0.02, p_band=0.08, b_band=0.08)
+    grid = build_state_box(ss, cal, mu=mu, mu_vec=mu_vec, k_band=0.02, p_band=0.08, b_band=0.08)
     rules = RuleSet.from_ss(grid, ss, cal)
     if verbose:
         print(f"  grid: mu={mu}, {grid.n} points x 2 regimes")
