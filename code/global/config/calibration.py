@@ -71,7 +71,14 @@ def get_calibration():
         lambda_bF_D=0.22,       lambda_bF_F=0.22,
         omega_ent_D=0.002,      omega_ent_F=0.002,
 
-        # Cross-border bond portfolio adjustment costs
+        # SGU debt-elastic premium on the cross-border (net external) position, Bocola's
+        # ONLY foreign friction (residual_model_open.m: R = 1/beta + 0.01*B_for/gdp). Enters
+        # the deposit-UIP keyed to the P_D-P_F wealth imbalance; 0 at the symmetric SS, so
+        # it is undistorting there and only induces stationarity off-SS (fixes the F-side
+        # wealth quasi-unit-root). kappa_nfa=0 nests the frictionless UIP exactly. Verified
+        # (scratchpad): kappa=0.01 => external-position AR(1) root ~0.92, half-life ~2y.
+        kappa_nfa=0.0,
+        # Cross-border bond portfolio adjustment costs (legacy transition solver only)
         psi_bF_D=0.05,          psi_bD_F=0.05,
         b_F_D_ss=0.196,         b_D_F_ss=0.196,   # ~20% of each supply (contagion leg)
         excess_return_F_D_ss=0.0,                 # overwritten after the SS solve

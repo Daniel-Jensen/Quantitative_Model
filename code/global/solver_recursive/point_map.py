@@ -350,7 +350,11 @@ def point_residuals(S, d, x, cont, cal, ss, sproc, n_gh=7, no_default=False):
         (cal["chi_F"] * N_F ** (1 / frisch_F) - w_F / P_CES_F)    # 4 lab_F -> N_F
         / (w_F / P_CES_F),
         euler_D,                                                 # 5 deposit Euler -> rdep_D
-        (1.0 + rdep_D) - (1.0 + rdep_F) * Ep_next / p,           # 6 UIP -> rdep_F
+        # 6 deposit-UIP -> rdep_F, plus Bocola's SGU debt-elastic premium on the net
+        # external position (proxied by the P_D-P_F wealth imbalance; +ve => the deficit
+        # side F pays more, saves more, P_F reverts up). 0 at the symmetric SS (P_D=P_F).
+        (1.0 + rdep_D) - (1.0 + rdep_F) * Ep_next / p
+        + cal.get("kappa_nfa", 0.0) * (P_D - P_F) / ss["ss_firm_D"]["Y_ss"],
         (Y_D - P_CES_D * C_D - I_D - NX_D - cal["G_D"])          # 7 goods_D -> p
         / ss["ss_firm_D"]["Y_ss"],
     ])
