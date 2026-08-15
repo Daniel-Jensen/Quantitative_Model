@@ -51,7 +51,7 @@ def irf_series(rules, cal, ss, sproc, a):
     return P
 
 
-def run(cal, ss, sproc, mu=1, activations=None):
+def run(cal, ss, sproc, mu=1, activations=None, mu_vec=None):
     # SOLVE THE ACTIVATION SCENARIOS AND WRITE THE OVERLAY FIGURE (shared SS).
     from reporting.plots import plot_activation_irf, OUTDIR
     import os, time
@@ -63,7 +63,7 @@ def run(cal, ss, sproc, mu=1, activations=None):
     scenarios = []
     for a, label, color in specs:
         cal["tpi_activation"] = a
-        rules = solve_recursive(cal, ss, sproc, mu=mu, verbose=False)
+        rules = solve_recursive(cal, ss, sproc, mu=mu, verbose=False, mu_vec=mu_vec)
         P = irf_series(rules, cal, ss, sproc, a)
         scenarios.append((label, P, color))
         print(f"  [{label}] solved ({time.perf_counter()-t0:.0f}s)  "
