@@ -7,7 +7,7 @@ from equations_D import (
     hh_init_D, hh_D, make_grids_D, income_D, hh_extended_D,
     smart_steady_D, market_clearing_D, steady_auxilliary_D,
     banker_div_D, sdf_D, sdf_ss_D, sdf_banker_ss_D, government_ss_D, labor_ss_D,
-    government_default_D, bond_price_ss_D, bond_return_D,
+    government_default_D, bond_price_ss_D, bond_return_D, collateral_quality_D,
     ces_price_D, import_demand_D, deposit_rates_D, deposit_return_D,
     firm_profit_D, price_nkpc_D,
 )
@@ -15,7 +15,7 @@ from equations_F import (
     hh_init_F, hh_F, make_grids_F, income_F, hh_extended_F,
     smart_steady_F, market_clearing_F, steady_auxilliary_F,
     banker_div_F, sdf_F, sdf_ss_F, sdf_banker_ss_F, government_ss_F, labor_ss_F,
-    government_default_F, bond_price_ss_F, bond_return_F,
+    government_default_F, bond_price_ss_F, bond_return_F, collateral_quality_F,
     ces_price_F, import_demand_F, deposit_rates_F, deposit_return_F,
     firm_profit_F, price_nkpc_F,
 )
@@ -156,6 +156,12 @@ def solve_steady_state(calibration_start):
     ha = sj.create_model([
         sdf_ss_D, sdf_banker_ss_D, government_default_D, bond_price_ss_D, bond_return_D,
         sdf_ss_F, sdf_banker_ss_F, government_default_F, bond_price_ss_F, bond_return_F,
+        # Pledgeability map. Nothing in the SS consumes Delta_*_eff_* (the SS uses
+        # steady_auxilliary_D/F, not intermediation_IC_D/F), but the DYNAMIC model does,
+        # so ss_final must carry them. Listed here rather than injected in
+        # _apply_ss_anchors so there is exactly one copy of the algebra -- a second copy
+        # is how audit_artifacts/ drifted (CLAUDE.md). SS-neutral: def_rate_ss = 0.
+        collateral_quality_D, collateral_quality_F,
         hh_extended_D, smart_steady_D, market_clearing_D, steady_auxilliary_D,
         banker_div_D, government_ss_D, labor_ss_D, firm_profit_D, price_nkpc_D,
         hh_extended_F, smart_steady_F, market_clearing_F, steady_auxilliary_F,

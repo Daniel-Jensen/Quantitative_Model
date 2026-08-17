@@ -302,10 +302,24 @@ def price_nkpc_F(pi_F, mc_F, mu_p_F, kappa_p_F, beta_F):
 
 
 @simple
+def collateral_quality_F(Delta_bF_F, Delta_bD_F, psi_lambda_B_F,
+                         def_rate_F, def_rate_D):
+    """F-side mirror of collateral_quality_D — see that block for the derivation,
+    the domain argument and the exact local-slope property."""
+    slack_bF_F     = 1.0 - Delta_bF_F
+    slack_bD_F     = 1.0 - Delta_bD_F
+    z_bF_F         = psi_lambda_B_F * def_rate_F(+1) / slack_bF_F
+    z_bD_F         = psi_lambda_B_F * def_rate_D(+1) / slack_bD_F
+    Delta_bF_eff_F = Delta_bF_F + slack_bF_F * (z_bF_F / (1.0 + z_bF_F))
+    Delta_bD_eff_F = Delta_bD_F + slack_bD_F * (z_bD_F / (1.0 + z_bD_F))
+    return Delta_bF_eff_F, Delta_bD_eff_F
+
+
+@simple
 def intermediation_IC_F(nu_K_F, nu_bF_F, nu_bD_F, eta_F,
                         Q_F, K_F, q_b_F, q_b_D, b_F_F, b_D_F, n_inter_F,
-                        lambda_gk_F, Delta_bF_F, Delta_bD_F, theta_F, p,
-                        def_rate_F, def_rate_D, psi_lambda_B_F, omega_K_F,
+                        lambda_gk_F, theta_F, p,
+                        Delta_bF_eff_F, Delta_bD_eff_F, omega_K_F,
                         fund_rule_F, K_fund_F):
     K_bank_F     = ((1.0 - fund_rule_F) * omega_K_F * K_F
                     + fund_rule_F * (K_F - K_fund_F))
@@ -313,8 +327,9 @@ def intermediation_IC_F(nu_K_F, nu_bF_F, nu_bD_F, eta_F,
     phi_bF_F     = q_b_F * b_F_F / (p * n_inter_F)
     phi_bD_F     = q_b_D * b_D_F / (p * n_inter_F)
     # GK multi-asset IC — see intermediation_IC_D for derivation.
-    Delta_bF_eff = Delta_bF_F + psi_lambda_B_F * def_rate_F(+1)
-    Delta_bD_eff = Delta_bD_F + psi_lambda_B_F * def_rate_D(+1)
+    # Delta_*_eff_F now arrive from collateral_quality_F (bounded map).
+    Delta_bF_eff = Delta_bF_eff_F
+    Delta_bD_eff = Delta_bD_eff_F
     value_F      = nu_K_F * kappa_F + nu_bF_F * phi_bF_F + nu_bD_F * phi_bD_F + eta_F
     theta_tgt_F  = (value_F / lambda_gk_F
                     + (1 - Delta_bF_eff) * phi_bF_F

@@ -14,6 +14,48 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-08-17 — GK structural refactor stage 1: bounded pledgeability (`gk-structural-foc`)
+
+Audit of the sovereign-risk-to-bank-financing block, then the first of five stages. Full
+detail in `docs/STATE.md` -> *GK structural refactor*.
+
+- **Audit finding.** The chain `p_def -> Delta_bD_eff -> IC -> lambda_gk/Omega -> P1 -> q_b_D`
+  is broken at the third arrow. `Delta_bD_eff` moves only `theta_D`; the Greek spread comes
+  entirely from `divert_bond_foc_D`, which touches no endogenous GK object and carries the
+  frozen `psi_spread_D`. `bond_price_ss_D`, `steady_auxilliary_D`, `smart_steady_D` are all
+  SS-only and absent from `build_block_list()`.
+- **GK portfolio optimality is violated at the SS.** `nu_bD_D/nu_K_D = 0.2491` against
+  `Delta_bD_D = 0.20`, and `nu_bD_D == nu_bF_D` bit-identically (0.02696043) while
+  `Delta_bD_D = 0.20` vs `Delta_bF_D = 0.40`. `steady_auxilliary_D` defines the marginal
+  values from returns and never restricts them; the portfolio FOCs are imposed nowhere. This
+  is *why* the wedges exist.
+- **Stage 1 (this commit).** New `collateral_quality_D/F` export the four `Delta_*_eff_*`
+  under a bounded map `Delta + (1-Delta)*z/(1+z)`, `z = psi_lambda_B*def_rate(+1)/(1-Delta)`.
+  Local slope is `psi_lambda_B` exactly (SSJ Jacobian: 3.0100000000), so IRFs are unchanged;
+  range `[Delta,1)` closes the domain hole at `def_rate(+1) > 0.266` where the old linear form
+  drove `1-Delta_eff` negative.
+- **New SSJ gotcha recorded.** `np.exp` in a `@simple` block raises
+  `TypeError: ... AccumulatedDerivative`. Simple blocks differentiate through a dual-number
+  type supporting arithmetic operators only. Hence the rational rather than exponential
+  saturation.
+- **Doc drift corrected.** `docs/eba_calibration.md` ledger said `Delta_own` committed at 0.80
+  and cross at 0.90; CLAUDE.md's GK-1 row said `Delta=0.85/0.90 -> lambda_gk_D=+0.927`. Live
+  values are **0.20 / 0.40** with `lambda_gk_D = 2.2129`. Both docs described the CT1-scope
+  world; GK-2's broad scope cut `phi_own` 2.39 -> 0.456, which satisfies feasibility at the
+  inherited `Delta`, so the raise was never adopted. ~4x error for anyone computing the
+  collateral channel from the old numbers.
+- **Verification.** `code/main.py` exit 0, bit-identical: `n_inter_D[0] = -6.7366%`,
+  `Y_D[0] = -0.8521%`, peak spread +0.375 pp, `goods_mkt_D = -4.2493163257550925e-07`,
+  `max abs(goods_mkt_F)` 2.06e-10..2.12e-10 across the gamma grid. 35 fast tests pass.
+- **Rejected en route.** A prior `writeoff-test` branch flipped `zeta_writeoff`/
+  `writeoff_enabled` to 1 to test whether realising the default loss cures the `n_inter_D`
+  overshoot (+3.14% at t=8). It does not: everything scales 3-4x (peak spread 538.5 bp,
+  `Y_D[0]` -3.68%) with timing untouched — `n_inter_D` still turns positive at t=4 and peaks
+  *higher*, +5.53%. Relative overshoot halves (peak/|trough| 0.465 -> 0.234), so it bites on
+  the right margin but nowhere near enough. Branch deleted, S-1 stands.
+
+---
+
 ## 2026-08-07 — Fiscal rule and fiscal limit audited; `Empirics/fiscal_limit.py` added
 
 No model changes. Two existing mechanisms audited to see whether the fiscal block could

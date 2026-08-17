@@ -417,10 +417,61 @@ def price_nkpc_D(pi_D, mc_D, mu_p_D, kappa_p_D, beta_D):
 
 
 @simple
+def collateral_quality_D(Delta_bD_D, Delta_bF_D, psi_lambda_B_D,
+                         def_rate_D, def_rate_F):
+    """Bounded, forward-looking, asset-specific pledgeability of sovereign collateral.
+
+    Replaces the unbounded linear map ``Delta_eff = Delta + psi_lambda_B*def_rate(+1)``
+    that ``intermediation_IC_D`` used inline. That form leaves the economic domain at
+    ``def_rate(+1) > (1-Delta)/psi_lambda_B`` — 0.266 for the own-bond leg at
+    ``Delta_bD_D=0.2, psi_lambda_B_D=3.01`` — beyond which ``1-Delta_eff`` turns
+    negative and the bond becomes *worse than useless* as collateral, a region with no
+    pledgeability reading.
+
+        z         = psi_lambda_B * def_rate(+1) / (1 - Delta)
+        Delta_eff = Delta + (1 - Delta) * z/(1+z)
+
+    Range ``[Delta, 1)`` for ``def_rate(+1) >= 0``; monotone increasing; and
+
+        d Delta_eff / d def_rate(+1) |_{def_rate=0} = psi_lambda_B   EXACTLY
+
+    (verified against the SSJ Jacobian: 3.0100000000 at ``psi_lambda_B_D = 3.01``),
+    so the linearised model is unchanged and ``psi_lambda_B`` keeps its calibrated
+    meaning as the local slope. SS-neutral: ``def_rate_ss = 0`` gives ``Delta_eff =
+    Delta``. Exported (rather than computed inline) so the same object can price the
+    bond in the intermediary FOC and be reported in the diagnostics.
+
+    WHY RATIONAL AND NOT EXPONENTIAL. The natural ``1 - exp(-z)`` saturation cannot be
+    used: SSJ differentiates ``@simple`` blocks with ``AccumulatedDerivative``, which
+    implements the arithmetic operators only, so ``np.exp`` raises
+    ``TypeError: loop of ufunc does not support argument 0 of type
+    AccumulatedDerivative``. ``z/(1+z)`` is built from ``* / +`` alone, differentiates
+    natively, and has the same three properties that mattered.
+
+    REMAINING DOMAIN CAVEAT: there is a pole at ``def_rate(+1) = -(1-Delta)/psi_lambda_B``
+    = -0.2658 at the live calibration. Only reachable at a default probability 26.6pp
+    BELOW steady state, which is impossible here (``def_rate_ss = 0`` and the shock is
+    positive), and the linearised solve never evaluates the nonlinear map anyway. It
+    would bind on a global/nonlinear solve — flagged for ``code/global/``.
+
+    Interpretation is a MARKET haircut / pledgeability channel — the reduced-form
+    device Bi-Foerster-Traum use for cross-border interbank retrenchment — NOT a
+    Basel-II regulatory risk weight.
+    """
+    slack_bD_D     = 1.0 - Delta_bD_D
+    slack_bF_D     = 1.0 - Delta_bF_D
+    z_bD_D         = psi_lambda_B_D * def_rate_D(+1) / slack_bD_D
+    z_bF_D         = psi_lambda_B_D * def_rate_F(+1) / slack_bF_D
+    Delta_bD_eff_D = Delta_bD_D + slack_bD_D * (z_bD_D / (1.0 + z_bD_D))
+    Delta_bF_eff_D = Delta_bF_D + slack_bF_D * (z_bF_D / (1.0 + z_bF_D))
+    return Delta_bD_eff_D, Delta_bF_eff_D
+
+
+@simple
 def intermediation_IC_D(nu_K_D, nu_bD_D, nu_bF_D, eta_D,
                         Q_D, K_D, q_b_D, q_b_F, b_D_D, b_F_D, n_inter_D,
-                        lambda_gk_D, Delta_bD_D, Delta_bF_D, theta_D,
-                        def_rate_D,def_rate_F, psi_lambda_B_D, omega_K_D,
+                        lambda_gk_D, theta_D,
+                        Delta_bD_eff_D, Delta_bF_eff_D, omega_K_D,
                         fund_rule_D, K_fund_D):
     K_bank_D     = ((1.0 - fund_rule_D) * omega_K_D * K_D
                     + fund_rule_D * (K_D - K_fund_D))
@@ -431,9 +482,10 @@ def intermediation_IC_D(nu_K_D, nu_bD_D, nu_bF_D, eta_D,
     # bond class is weighted by its relative divertability Delta_i vs capital (=1).
     # theta_tgt = value/lambda_gk + (1-Delta_bD)·phi_bD + (1-Delta_bF)·phi_bF.
     # Delta=1 → single-lambda; Delta<1 → bond is better collateral → bank levers more.
-    # psi_lambda_B_D > 0: default risk raises bond divertability (worsens collateral).
-    Delta_bD_eff = Delta_bD_D + psi_lambda_B_D * def_rate_D(+1)
-    Delta_bF_eff = Delta_bF_D + psi_lambda_B_D * def_rate_F(+1)
+    # Delta_*_eff_D now arrive from collateral_quality_D (bounded map); default risk
+    # raising them is the pledgeability channel.
+    Delta_bD_eff = Delta_bD_eff_D
+    Delta_bF_eff = Delta_bF_eff_D
     value_D      = nu_K_D * kappa_D + nu_bD_D * phi_bD_D + nu_bF_D * phi_bF_D + eta_D
     theta_tgt_D  = (value_D / lambda_gk_D
                     + (1 - Delta_bD_eff) * phi_bD_D

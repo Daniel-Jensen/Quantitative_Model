@@ -1,6 +1,120 @@
 # Project State
 
-**Branch:** `fix-cross-border-units` | **Date:** 2026-08-07 | **Status:** **Country-size asymmetry is live: `size_F = 11.697`.** Every F variable is per F capita; every D variable is a D aggregate. Both EBA cross-border moments — portfolio composition and market structure — now hold jointly for the first time. `psi_lambda_B` re-tuned **2.92 -> 3.01** to hold the 150bp spread moment (149.93bp). Sticky prices with nominal deposits remain the baseline; 27x27 solver; `rho_def = 0.9408`; EBA calibration LIVE (`EBA_CALIBRATION=True`, `BANK_SCOPE="broad"`). **E1-E4 and all paper artefacts are STALE** — regenerate before quoting anything.
+**Branch:** `gk-structural-foc` | **Date:** 2026-08-17 | **Status: STAGE 1 of the GK structural refactor is in.** Pledgeability is now a bounded, exported object (`collateral_quality_D/F`); everything else is unchanged and the IRFs are bit-identical. See *GK structural refactor* below. Artefact-staleness note below is itself stale — E1-E4 were regenerated on 2026-08-07 at fingerprint `cce64baf`, which matches the live calibration.
+
+## GK structural refactor — 2026-08-17 (`gk-structural-foc`), STAGE 1 of 5
+
+**The defect (audited 2026-08-17, code-traced, not inferred from comments).** The intended
+chain `p_def -> Delta_bD_eff -> IC -> lambda_gk/Omega -> intermediation_P1_D -> q_b_D` is
+**broken at the third arrow**. What the code does:
+
+- `Delta_bD_eff` enters `intermediation_IC_D` ONLY. It moves `theta_D` (leverage) and
+  dead-ends there.
+- The Greek spread is set entirely by `divert_bond_foc_D`, a hand-written pricing rule that
+  references **no endogenous GK object** — not `Delta_bD_eff`, not `nu_bD_D`, not `theta_D`.
+  Only the frozen scalar `psi_spread_D = lambda_gk_D*psi_lambda_B_D/(beta_inter_D*Omega_D)`,
+  evaluated once at the SS in `_apply_ss_anchors`.
+- `bond_price_ss_D` is **not in the dynamic block list** at all; `steady_auxilliary_D`,
+  `smart_steady_D` likewise. `lambda_gk_D` is therefore a constant in the dynamics
+  (legitimately — it is the structural divertable fraction, BFT's `eta_bar^v`, not a
+  multiplier). `Omega` IS time-varying but only as the local `Omega_p1_D` inside
+  `intermediation_P1_D`; it is never exported.
+
+**GK portfolio optimality is VIOLATED at the steady state**, which is why the wedge exists:
+
+| condition GK requires | required | actual |
+|---|---|---|
+| `nu_bD_D / nu_K_D = Delta_bD_D` | 0.200 | **0.2491** |
+| `nu_bF_D / nu_K_D = Delta_bF_D` | 0.400 | **0.2491** |
+| `nu_bD_D / nu_bF_D = Delta_bD_D/Delta_bF_D` | 0.500 | **1.000** |
+
+`nu_bD_D` and `nu_bF_D` are bit-identical (0.02696043) while their divertability weights
+differ 2x. Root cause: `steady_auxilliary_D` *defines* the marginal values from returns
+(`nu_bD_D = beta_inter_D*Omega_D*(rb_actual_D - rdep_D)`); it never *restricts* returns. The
+portfolio FOCs — relative excess return = relative divertability — are imposed **nowhere**,
+in neither the SS nor the dynamics. With no structural link from collateral quality to
+required return, a channel had to be bolted on.
+
+**Consequence: the refactor is NOT SS-neutral.** Imposing `nu_i = Delta_i*nu_K` moves the
+D-bank own-sovereign excess return 24.9 -> 20.0 bp/q and the cross-border leg 24.9 -> 40.0
+bp/q. Every EBA moment must be re-hit. Author decision 2026-08-17: full recalibration
+(option **i**), and `EL_price_D` is **retained** (option **b**) — S-1 stands, the fundamental
+loading stays priced off-path, relocated into the return inside `intermediation_P1_D` rather
+than sitting in a standalone spread formula.
+
+### Stage 1 (DONE) — bounded pledgeability, exported
+
+New `collateral_quality_D/F` blocks export `Delta_bD_eff_D`, `Delta_bF_eff_D`,
+`Delta_bF_eff_F`, `Delta_bD_eff_F`. `intermediation_IC_D/F` consume them instead of computing
+inline.
+
+```
+z         = psi_lambda_B * def_rate(+1) / (1 - Delta)
+Delta_eff = Delta + (1 - Delta) * z/(1+z)
+```
+
+Range `[Delta, 1)`, monotone, and `d Delta_eff/d def_rate(+1)|_0 = psi_lambda_B` EXACTLY —
+verified against the SSJ Jacobian at 3.0100000000. Replaces the unbounded linear map, which
+left `[0,1]` at `def_rate(+1) > (1-Delta)/psi_lambda_B = 0.266` and turned the collateral
+bonus negative beyond that.
+
+**SSJ GOTCHA — no transcendental functions in `@simple` blocks.** The natural `1-exp(-z)`
+saturation raises `TypeError: loop of ufunc does not support argument 0 of type
+AccumulatedDerivative`. SSJ differentiates simple blocks with a dual-number type implementing
+arithmetic operators only. `z/(1+z)` is built from `* / +` alone. Rank this alongside
+`solve_jacobian_padded` in the SSJ-defect list.
+
+Residual caveat: the rational form has a pole at `def_rate(+1) = -(1-Delta)/psi_lambda_B` =
+-0.2658. Unreachable (`def_rate_ss = 0`, shock positive, linearised solve never evaluates the
+nonlinear map) but would bind in `code/global/`.
+
+**Verification — `code/main.py` exit 0, bit-identical to baseline:**
+
+| check | baseline | stage 1 |
+|---|---|---|
+| `n_inter_D[0]` | -6.7366% | **-6.7366%** |
+| `Y_D[0]` | -0.8521% | **-0.8521%** |
+| peak spread | +0.375 pp | **+0.375 pp** |
+| `goods_mkt_D` | -4.2493163257550925e-07 | identical |
+| `max abs(goods_mkt_F)` over gamma | 2.06e-10..2.12e-10 | identical |
+| `K_D` / `K_F` | 10.800 / 10.824 | identical |
+
+Two wiring bugs were caught by the pipeline, not by the 35 fast tests (which passed before
+each): `np.exp` in a `@simple` block, and `collateral_quality_D/F` missing from
+`steady_state.py`'s block list so `ss_final` lacked `Delta_bF_eff_F`. **Worth a test that
+every input of every block in `build_block_list()` is either produced by another block in the
+list or present in `ss_final`** — would have caught both in a second instead of two 12-minute
+runs.
+
+### Stages 2-5 (NOT STARTED)
+
+2. Swap `rb_D_res` to `nu_bD_D - Delta_bD_eff_D*nu_K_D`. Moves the SS.
+3. Same for `rb_F_res`.
+4. Cross-border. **`psi_bD_F`/`psi_bF_D` = 0.5 must STAY** — they are not spread wedges, they
+   are the coexistence/stationarity device that lets two banks with different `nu_K` and
+   `Delta` hold the same bond at one price. Same job as BFT's CES home bias (their fn 6:
+   "Allowing free cross-border holdings of multiple assets could introduce unit roots").
+   Deleting them would not make the model more structural; it would make it not solve.
+5. Recalibrate; rebuild regime cache and E1-E4.
+
+End state: `psi_spread_D/F` **deleted**; `EL_price_D` **retained**, relocated; `psi_lambda_B`
+survives in ONE role, the slope of pledgeability, and in no pricing equation.
+
+**Identification is still the weak point.** Both routes proposed for disciplining
+`psi_lambda_B` were checked on 2026-08-17 and are blocked:
+- *Eurosystem/LCH haircut path* — **the data does not exist.** The ECB did not disclose
+  haircuts applied to Greek paper 2010-12 (Bruegel labels the period "unknown" and had to
+  replicate ECB methodology from ratings). The rating threshold was suspended for Greece in
+  May 2010 so the published schedule did not apply as written, and Greek repo left LCH
+  clearing. Best available is a counterfactual schedule used as an instrument.
+- *Acharya-Steffen equity regression* — cross-section IS in `data/` (90 bank columns) but the
+  equity returns are not, and many EBA banks are unlisted. Multi-week data project.
+
+Until one lands, `psi_lambda_B` is calibrated to the 150bp spread and then used to argue that
+~91% of that spread is a pledgeability friction. **That is the calibration restated, not an
+independent finding, and the paper must say so.**
+
+ **Country-size asymmetry is live: `size_F = 11.697`.** Every F variable is per F capita; every D variable is a D aggregate. Both EBA cross-border moments — portfolio composition and market structure — now hold jointly for the first time. `psi_lambda_B` re-tuned **2.92 -> 3.01** to hold the 150bp spread moment (149.93bp). Sticky prices with nominal deposits remain the baseline; 27x27 solver; `rho_def = 0.9408`; EBA calibration LIVE (`EBA_CALIBRATION=True`, `BANK_SCOPE="broad"`). **E1-E4 and all paper artefacts are STALE** — regenerate before quoting anything.
 
 ## Country-size asymmetry — 2026-08-07 (`fix-cross-border-units`)
 

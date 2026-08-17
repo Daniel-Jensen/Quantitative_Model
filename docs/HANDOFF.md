@@ -1,5 +1,37 @@
 # Handoff Notes
 
+## IN PROGRESS: GK structural refactor (`gk-structural-foc`), stage 1 of 5
+
+Read `docs/STATE.md` -> *GK structural refactor* first. Short version: the pledgeability
+channel is wired into the incentive constraint but **the constraint does not price the bond** —
+the Greek spread comes from `divert_bond_foc_D`, a hand-written rule carrying the frozen
+`psi_spread_D`, which touches no endogenous GK object. And GK portfolio optimality is violated
+at the steady state (`nu_bD_D/nu_K_D = 0.2491` vs `Delta_bD_D = 0.20`; `nu_bD_D == nu_bF_D`
+while their Deltas differ 2x), because the portfolio FOCs are imposed nowhere.
+
+Stage 1 is committed and is a verified no-op at first order. **Stages 2-5 will move the steady
+state** (own-sovereign excess return 24.9 -> 20.0 bp/q) and require a full recalibration —
+author decision 2026-08-17, option (i), with `EL_price_D` retained (option (b), S-1 stands).
+
+Three things not to rediscover:
+
+- **`np.exp` cannot appear in an SSJ `@simple` block.** `AccumulatedDerivative` supports
+  arithmetic operators only. Use rational forms. Same severity as `solve_jacobian_padded`.
+- **`psi_bD_F`/`psi_bF_D` = 0.5 are NOT spread wedges — do not delete them in stage 4.** They
+  are the coexistence device letting two banks with different `nu_K` and `Delta` hold the same
+  bond at one price, and the stationarity device for the external position. BFT's CES home
+  bias does the identical job (their fn 6). Removing them makes the model not solve.
+- **Any new block must go in BOTH `full_model.build_block_list()` and `steady_state.py`'s
+  list.** Missing the second gives a `KeyError` on `ss_final` at the Jacobian step, twelve
+  minutes in. The fast tests do not cover block-list wiring; a test that every block input is
+  either produced in the list or present in `ss_final` would pay for itself.
+
+**Identification remains the weak point and both fixes are blocked.** The Eurosystem/LCH
+haircut path **does not exist as data** — the ECB never disclosed haircuts on Greek paper for
+2010-12. The Acharya-Steffen route needs equity returns the repo does not have. So
+`psi_lambda_B` is still fitted to the 150bp spread and then used to explain it; say so in the
+paper.
+
 ## Open problem: foreign banks do not retrench
 
 On a 1pp default shock the F bank **increases** its Greek holdings (`b_D_F` rises;
