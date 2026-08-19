@@ -192,7 +192,7 @@ def import_demand_D(C_D, omega_D, epsilon_trade, p, P_CES_D):
 @simple
 def steady_auxilliary_D(theta_D, rk_D, rdep_D, delta_D, alpha_D, Y_D, K_D, N_D,
                         beta_inter_D, ksi_D, rn_D, f_D,
-                        rb_actual_D, rb_actual_F,
+                        rb_exp_D, rb_exp_F,
                         phi_bD_D, phi_bF_D, Delta_bD_D, Delta_bF_D):
     iota_D       = delta_D
     mpk_D        = alpha_D * (Y_D / K_D)
@@ -208,9 +208,15 @@ def steady_auxilliary_D(theta_D, rk_D, rdep_D, delta_D, alpha_D, Y_D, K_D, N_D,
     D_target_D   = theta_D - (1 - Delta_bD_D) * phi_bD_D - (1 - Delta_bF_D) * phi_bF_D
     lambda_gk_D  = f_D / (D_target_D / (beta_inter_D * (1 + rn_D)) - (1 - f_D) * theta_D)
     Omega_D      = f_D + (1 - f_D) * lambda_gk_D * theta_D
-    nu_K_D       = beta_inter_D * Omega_D * (rk_D        - rdep_D)
-    nu_bD_D      = beta_inter_D * Omega_D * (rb_actual_D - rdep_D)
-    nu_bF_D      = beta_inter_D * Omega_D * (rb_actual_F - rdep_D)
+    # STEADY-STATE ANALOGUE of intermediation_P1_D -- an IDENTITY (the envelope
+    # condition evaluated at constant states), NOT a substitute for the portfolio FOC.
+    # It maps returns into marginal values; what CONSTRAINS those returns is
+    # gk_bond_foc_D (nu_bD_D = Delta_bD_eff_D * nu_K_D), imposed separately as an SS
+    # target with q_b_D as its unknown. Pricing reads rb_exp (the expected payoff), the
+    # same object intermediation_P1_D reads; at SS def_rate = 0 so rb_exp == rb_actual.
+    nu_K_D       = beta_inter_D * Omega_D * (rk_D     - rdep_D)
+    nu_bD_D      = beta_inter_D * Omega_D * (rb_exp_D - rdep_D)
+    nu_bF_D      = beta_inter_D * Omega_D * (rb_exp_F - rdep_D)
     eta_D        = beta_inter_D * Omega_D * (1 + rdep_D)
     gamma0_D     = delta_D ** ksi_D / (1 - ksi_D)
     gamma1_D     = -delta_D * ksi_D / (1 - ksi_D)
@@ -273,13 +279,55 @@ def labor_ss_D(w_D, N_D, frisch_D, mu_w_D, P_CES_D):
 
 @simple
 def bond_return_D(def_rate_D, recovery_rate_D, q_b_D, delta_b_D, zeta_writeoff_D, writeoff_enabled_D):
-    # writeoff_enabled_D = 0: pure sovereign risk shock, no haircuts on cash flows.
+    """The D sovereign's payoff — the model's SINGLE SOURCE OF TRUTH for default loss.
+
+    CONTRACT (Hatchondo–Martinez perpetuity). One unit bought at t-1 for ``q_b_D(-1)``
+    pays coupon ``delta_b_D`` at t and survives as ``(1 - delta_b_D)`` units of the same
+    bond, worth ``(1 - delta_b_D) * q_b_D``. Macaulay duration ~ 1/delta_b_D quarters
+    (12.9q at the measured ``delta_b_D = 0.0777``).
+
+    STATE-CONTINGENT PAYOFF at t, with haircut ``h = 1 - recovery_rate_D``:
+
+        Pi(no default) = delta_b + (1 - delta_b) * q_b
+        Pi(default)    = delta_b * (1 - h)  +  (1 - delta_b) * q_b * (1 - zeta_writeoff * h)
+
+    ``zeta_writeoff_D = 1`` writes the PRINCIPAL / continuation value down alongside the
+    coupon. That is the only defensible convention for a 13-quarter claim: the
+    coupon-only loss ``h * delta_b`` misses the continuation leg and under-prices default
+    by a factor of ``[delta_b + (1-delta_b) q_b] / delta_b ≈ 12.6``. It was that
+    under-pricing — not any weakness of the Gertler–Karadi mechanism — that the retired
+    free parameter ``psi_spread_D`` was silently absorbing.
+
+    THREE returns leave this block and they are NOT interchangeable.
+
+    ``rb_exp_D``     E[Pi] / q_b(-1) - 1. The return that PRICES the bond. Ungated by
+                     ``writeoff_enabled``: pricing is always over the full default
+                     distribution. This is the only object the GK Euler equations read.
+    ``rb_actual_D``  The realised return on the branch the IRF traces.
+                     ``writeoff_enabled_D = 0`` selects the no-default branch (the
+                     paper's pure risk-premium framing, S-1), so realised cash flows in
+                     bank net worth and the government budget carry no haircut. The gap
+                     between the two IS the risk premium; it is a branch selection, not a
+                     wedge, and there is no free coefficient anywhere in it.
+    ``EL_load_D``    DIAGNOSTIC ONLY — expected loss per unit of default probability.
+                     Nothing in the model reads it. It exists so the central bank's P&L
+                     accounting (``code/tpi.py``) and every reported decomposition are
+                     computed off the SAME payoff the FOC prices, instead of a separately
+                     anchored ``EL_price_D`` parameter (deleted 2026-08-18).
+    """
     haircut_D        = 1.0 - recovery_rate_D
+    # ── Expected (pricing) payoff. Never gated. ───────────────────────────────
+    coupon_exp_D     = delta_b_D * (1.0 - def_rate_D * haircut_D)
+    cont_exp_D       = (1.0 - delta_b_D) * q_b_D * (1.0 - zeta_writeoff_D * def_rate_D * haircut_D)
+    rb_exp_D         = (coupon_exp_D + cont_exp_D) / q_b_D(-1) - 1.0
+    # ── Realised payoff on the traced branch. ─────────────────────────────────
     haircut_mult_D   = writeoff_enabled_D
     current_payoff_D = delta_b_D * (1.0 - def_rate_D * haircut_D * haircut_mult_D)
     continuation_D   = (1.0 - delta_b_D) * q_b_D * (1.0 - zeta_writeoff_D * def_rate_D * haircut_D * haircut_mult_D)
     rb_actual_D      = (current_payoff_D + continuation_D) / q_b_D(-1) - 1.0
-    return rb_actual_D
+    # ── Diagnostic. Zero at SS (def_rate_ss = 0 does not enter). ──────────────
+    EL_load_D        = haircut_D * (delta_b_D + zeta_writeoff_D * (1.0 - delta_b_D) * q_b_D) / q_b_D(-1)
+    return rb_actual_D, rb_exp_D, EL_load_D
 
 
 # ── OFF STEADY STATE EQUATIONS ─── #############################################################################################
@@ -525,16 +573,36 @@ def capital_fund_D(rk_D, rdep_expost_D, Q_D, K_D, omega_K_D, fund_rule_D, K_fund
 
 
 @simple
-def intermediation_P1_D(rk_D, rb_actual_D, rb_actual_F, rdep_D,
+def intermediation_P1_D(rk_D, rb_exp_D, rb_exp_F, rdep_D,
                         nu_K_D, nu_bD_D, nu_bF_D, eta_D,
                         lambda_gk_D, theta_D, SDF_banker_D, f_D):
+    """D bank's Bellman envelope: marginal value of each asset per unit of net worth.
+
+    ``nu_i = E_t[ M^B_{t,t+1} Omega_{t+1} (r_{i,t+1} - r^dep_t) ]`` with the intermediary
+    SDF ``M^B = SDF_banker_D`` and franchise value ``Omega = f + (1-f) lambda_gk theta``.
+
+    EXPECTED DEFAULT LOSS ENTERS HERE, AND ONLY HERE, on the D bank's two sovereign
+    legs — through ``rb_exp_D`` / ``rb_exp_F``, which ``bond_return_D/F`` compute from
+    the state-contingent payoff. There is no ``EL_price`` parameter, no additive spread
+    term, and no second netting of the same loss anywhere downstream (the cross-border
+    leg reads these same ``nu``s; see ``gk_cross_border_foc``).
+
+    UNITS. ``q_b_D`` and ``q_b_F`` are both D-GOOD prices (``intermediation_P3_D`` adds
+    ``q_b_F * b_F_D`` straight onto ``Q_D * K_D``; ``external_account_D`` books the F-bond
+    receipt with no ``p``), so the D bank needs no terms-of-trade conversion on either
+    leg. The F bank does — see ``intermediation_P1_F``.
+
+    T-2 fix: the deposit rate for the t -> t+1 holding period is ``rdep_D``, locked at t.
+    """
     Omega_p1_D    = f_D + (1 - f_D) * lambda_gk_D * theta_D(+1)
-    # T-2 fix: the deposit rate for the t->t+1 holding period is rdep_D (locked at t).
-    nu_K_res_D    = nu_K_D  - SDF_banker_D * Omega_p1_D * (rk_D(+1)        - rdep_D)
-    nu_bD_res_D   = nu_bD_D - SDF_banker_D * Omega_p1_D * (rb_actual_D(+1) - rdep_D)
-    nu_bF_res_D   = nu_bF_D - SDF_banker_D * Omega_p1_D * (rb_actual_F(+1) - rdep_D)
+    nu_K_res_D    = nu_K_D  - SDF_banker_D * Omega_p1_D * (rk_D(+1)     - rdep_D)
+    nu_bD_res_D   = nu_bD_D - SDF_banker_D * Omega_p1_D * (rb_exp_D(+1) - rdep_D)
+    nu_bF_res_D   = nu_bF_D - SDF_banker_D * Omega_p1_D * (rb_exp_F(+1) - rdep_D)
     eta_res_D     = eta_D   - SDF_banker_D * Omega_p1_D * (1 + rdep_D)
-    return nu_K_res_D, nu_bD_res_D, nu_bF_res_D, eta_res_D
+    # Omega_p1_D is EXPORTED so gk_cross_border_foc can divide the cross-border FOC back
+    # into return units without keeping a second copy of this line (a duplicated copy of
+    # model algebra is exactly how audit_artifacts/ drifted -- see CLAUDE.md).
+    return nu_K_res_D, nu_bD_res_D, nu_bF_res_D, eta_res_D, Omega_p1_D
 
 
 @simple
@@ -585,28 +653,6 @@ def intermediation_P3_D(Q_D, K_D, n_inter_D, b_D_D, b_F_D, q_b_D, q_b_F):
     return D_supply_D
 
 
-@simple
-def bond_price_ss_D(SDF_banker_D, def_rate_D, recovery_rate_D, delta_b_D, zeta_writeoff_D, writeoff_enabled_D):
-    haircut_D      = 1.0 - recovery_rate_D
-    haircut_mult_D = writeoff_enabled_D
-    surv_cont_D    = 1.0 - zeta_writeoff_D * def_rate_D * haircut_D * haircut_mult_D
-    q_b_D          = (
-        SDF_banker_D * delta_b_D * (1.0 - def_rate_D * haircut_D * haircut_mult_D)
-        / (1.0 - SDF_banker_D * (1.0 - delta_b_D) * surv_cont_D)
-    )
-    return q_b_D
-
-
-@simple
-def domestic_bond_foc_D(rb_actual_D, rdep_D, b_D_D, n_inter_D, q_b_D,
-                         phi_bD_D_ss, psi_bD_D, excess_return_bD_D_ss, tau_mp_D):
-    phi_bD_D = q_b_D * b_D_D / n_inter_D
-    rb_D_res = (rb_actual_D(+1) - rdep_D(+1)) - excess_return_bD_D_ss \
-               - psi_bD_D * (phi_bD_D - phi_bD_D_ss) \
-               - tau_mp_D
-    return rb_D_res
-
-
 # ==> GOVERMENT EQUATIONS
 @simple
 def government_default_D(shock_def_D, b_gov_D, Y_ss_D, b_gov_ss_D,
@@ -647,23 +693,62 @@ def budget_residual_D(b_gov_D, G_D, TAX_D, q_b_D, def_rate_D, recovery_rate_D, z
 
 
 @simple
-def divert_bond_foc_D(rb_actual_D, rdep_D, b_D_D, n_inter_D, q_b_D,
-                      phi_bD_D_ss, psi_bD_D, excess_return_bD_D_ss, tau_mp_D,
-                      psi_spread_D, EL_price_D, def_rate_D):
-    phi_bD_D   = q_b_D * b_D_D / n_inter_D
-    # IC-theory derived required spread: additive default loading independent of SS excess return.
-    # psi_spread_D = lambda_gk_D * psi_lambda_B_D / (beta_inter_D * Omega_D), computed in _apply_ss_anchors.
-    # macro-pru-fix: EL_price_D is the FUNDAMENTAL expected-loss loading (per unit default
-    # probability) priced by bondholders, INDEPENDENT of the psi_lambda_B collateral friction.
-    # It makes q_b_D fall on higher def_rate even when psi_lambda_B=0 (psi_spread=0); psi_lambda_B
-    # is now a pure amplifier on top. SS-neutral: multiplies def_rate(+1)=0 at SS.
-    # See diagnostics/recommended_fix.md.
-    req_spread = excess_return_bD_D_ss + (EL_price_D + psi_spread_D) * def_rate_D(+1)
-    # T-2 fix: compare t+1 bond return with rdep_D locked at t.
-    rb_D_res   = (rb_actual_D(+1) - rdep_D) - req_spread \
-                 - psi_bD_D * (phi_bD_D - phi_bD_D_ss) \
-                 - tau_mp_D
+def gk_bond_foc_D(nu_bD_D, nu_K_D, Delta_bD_eff_D):
+    """GK portfolio optimality for the D bank's OWN sovereign. This PINS ``q_b_D``.
+
+    Renamed from ``divert_bond_foc_D``, which is deleted. That block was a hand-written
+    spread rule,
+
+        (rb_actual_D(+1) - rdep_D) = excess_return_bD_D_ss
+                                   + (EL_price_D + psi_spread_D) * def_rate_D(+1)
+                                   - psi_bD_D * (phi_bD_D - phi_bD_D_ss) - tau_mp_D,
+
+    referencing no endogenous GK object at all — ``psi_spread_D`` was a scalar frozen at
+    the steady state and ``excess_return_bD_D_ss`` an anchor read off the same solve. The
+    pledgeability channel entered only the incentive constraint and dead-ended in
+    ``theta_D``; it never reached the price. The sovereign spread was consequently a
+    calibrated object, not an equilibrium one.
+
+    THE GENUINE CONDITION. The banker maximises
+
+        V = nu_K * kappa + nu_bD * phi_bD + nu_bF * phi_bF + eta
+
+    subject to the binding incentive constraint
+
+        V = lambda_gk * (kappa + Delta_bD_eff * phi_bD + Delta_bF_eff * phi_bF).
+
+    Both sides are linear in the portfolio shares, so the first-order conditions in
+    ``kappa`` and ``phi_bD`` give a pure proportionality — excess returns line up with
+    divertability weights:
+
+        nu_bD_D / nu_K_D = Delta_bD_eff_D.
+
+    Composed with ``intermediation_P1_D`` (divide through by SDF_banker * Omega, which is
+    strictly positive) this is
+
+        rb_exp_D(+1) - rdep_D = Delta_bD_eff_D * (rk_D(+1) - rdep_D),
+
+    i.e. the D bank's required expected return on its own sovereign is the capital
+    premium scaled by how much worse the bond is as collateral. Every object in it is
+    endogenous: ``nu_bD_D`` and ``nu_K_D`` are solved inside ``financial_solved_D``, and
+    ``Delta_bD_eff_D`` is the bounded map from ``collateral_quality_D`` (identically
+    ``Delta_bD_D`` at the preferred ``psi_lambda_B_D = 0``).
+
+    HOW THE SPREAD IS NOW GENERATED. ``rb_exp_D`` is the expected payoff over
+    ``q_b_D``, so a rise in ``def_rate_D(+1)`` cuts the expected payoff and ``q_b_D`` has
+    to fall until the condition holds again. The measured yield
+    ``rb_D = delta_b_D (1/q_b_D - 1)`` rises by the expected loss; bank net worth then
+    takes a mark-to-market hit, the IC tightens, ``K_D`` contracts, ``rk_D`` rises, and
+    the right-hand side pushes ``q_b_D`` down further. Direct expected-loss pricing plus
+    balance-sheet amplification — no additive risk-premium term anywhere.
+
+    NOT STEADY-STATE-NEUTRAL, by design: the pre-refactor SS satisfied
+    ``nu_bD_D/nu_K_D = 0.2491`` against ``Delta_bD_D = 0.20``. ``q_b_D`` is therefore an SS
+    UNKNOWN, with this residual as its SS target (``steady_state.solve_steady_state``).
+    """
+    rb_D_res = nu_bD_D - Delta_bD_eff_D * nu_K_D
     return rb_D_res
+
 
 
 @simple

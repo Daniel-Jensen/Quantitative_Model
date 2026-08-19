@@ -182,8 +182,25 @@ def named_regime_gammas(cache):
     Solved rather than chosen so the regimes keep their meaning across
     recalibrations, instead of a round number drifting into a different policy
     stance. Targets are spec section 7: 25% (medium), 50% (aggressive).
+
+    ⚠ **"aggressive" no longer means 50% since the 2026-08-18 GK structural refactor.**
+    The closed loop has a POLE at gamma ~ 27.3, and the maximum compression reachable
+    below it is ~46.6%. The 50% target is only met on the far side of the singularity,
+    which is a different branch, not a stronger version of the same policy. Rather than
+    chase it there (wrong) or drop the regime (would break eight paper figures), the
+    aggressive regime falls back to `lottery_math.POLE_SAFETY_FRACTION * pole` = 0.75 x
+    pole, and this function prints the compression it actually achieves (~40.3%). 0.75
+    rather than "as close to the pole as possible": the loading schedule is monotone in
+    gamma only up to ~0.85 x pole, and at 0.98 x pole the discounted consumption gains
+    reach +12% of steady-state consumption — that is the singularity talking, not the
+    policy. Every downstream table already reports each regime's gamma and
+    peak spread, so the artefacts stay self-describing; but any prose calling the
+    aggressive regime "50% compression" is now WRONG and must say ~46.6% or, better,
+    "maximum feasible". See `lottery_math.gamma_for_compression` and
+    `lottery_math.closed_loop_pole`.
     """
-    from lottery_math import gamma_for_compression
+    from lottery_math import (gamma_for_compression, closed_loop_pole, closed_loop,
+                              peak, CompressionInfeasible, POLE_SAFETY_FRACTION)
     A_def = cache["spread_rb__shock_def_D"]
     A_cb = cache["spread_rb__cb_buy_D"]
     eps = np.asarray(cache["dShock_def_D"])
@@ -191,11 +208,23 @@ def named_regime_gammas(cache):
         f"A_cb[0,0]={float(A_cb[0,0]):+.4e} >= 0: CB purchases WIDEN the spread, so "
         "compression targeting is infeasible. This is the ms-regime SA-1 pathology, "
         "which must be absent on main — investigate before reporting anything.")
-    return {
-        "passive": 0.0,
-        "medium": float(gamma_for_compression(A_def, A_cb, eps, target=0.25)),
-        "aggressive": float(gamma_for_compression(A_def, A_cb, eps, target=0.50)),
-    }
+    p0 = peak(closed_loop(A_def, A_cb, eps, 0.0)[0])
+    out = {"passive": 0.0}
+    for name, target in (("medium", 0.25), ("aggressive", 0.50)):
+        try:
+            out[name] = float(gamma_for_compression(A_def, A_cb, eps, target=target))
+        except CompressionInfeasible as exc:
+            pole = closed_loop_pole(A_cb)
+            assert pole is not None, exc          # infeasible with no pole = a real bug
+            out[name] = POLE_SAFETY_FRACTION * float(pole)
+            got = 1.0 - peak(closed_loop(A_def, A_cb, eps, out[name])[0]) / p0
+            print(f"  [named_regime_gammas] {name}: {100*target:.0f}% compression is "
+                  f"UNREACHABLE below the closed-loop pole at gamma = {pole:.2f} "
+                  f"(max reachable there ~46.6%). Falling back to "
+                  f"POLE_SAFETY_FRACTION x pole = {out[name]:.3f}, which achieves "
+                  f"{100*got:.2f}% and keeps a margin from the singularity. Do not "
+                  f"describe this regime as {100*target:.0f}% compression.")
+    return out
 
 
 def regime_irfs(cache):

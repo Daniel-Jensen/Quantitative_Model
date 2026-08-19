@@ -9,7 +9,7 @@ from equations_D import (
     intermediation_IC_D, bank_return_D, capital_fund_D, intermediation_P1_D,
     k_balance_sheet_D, cap_adj_cost_inter_D, macro_pru_tax_D,
     intermediation_P2_D, banker_div_res_D, intermediation_P3_D,
-    government_default_D, divert_bond_foc_D, collateral_quality_D,
+    government_default_D, gk_bond_foc_D, collateral_quality_D,
     tax_rule_D, capital_producer_profit_D, budget_residual_D,
     ces_price_D, import_demand_D, deposit_rates_D, deposit_return_D,
     bond_return_D, sdf_D, sdf_banker_ss_D, sdf_banker_D, ghh_composite_D,
@@ -21,7 +21,7 @@ from equations_F import (
     intermediation_IC_F, bank_return_F, capital_fund_F, intermediation_P1_F,
     k_balance_sheet_F, cap_adj_cost_inter_F, macro_pru_tax_F,
     intermediation_P2_F, banker_div_res_F, intermediation_P3_F,
-    government_default_F, divert_bond_foc_F, collateral_quality_F,
+    government_default_F, gk_bond_foc_F, collateral_quality_F,
     tax_rule_F, capital_producer_profit_F, budget_residual_F,
     ces_price_F, import_demand_F, deposit_rates_F, deposit_return_F,
     bond_return_F, sdf_F, sdf_banker_ss_F, sdf_banker_F, ghh_composite_F,
@@ -30,7 +30,7 @@ from equations_F import (
 )
 from equations_global import (
     trade_balance, domestic_bond_clearing,
-    portfolio_level_anchors, divert_portfolio_adj, bond_yield,
+    portfolio_level_anchors, gk_cross_border_foc, bond_yield,
     global_goods_mkt, external_account_D,
     terms_of_trade, union_inflation,
 )
@@ -86,8 +86,8 @@ def build_block_list(financial_solved_D, financial_solved_F, *,
         trade_balance,
         pick('external_account_D', external_account_D),
         pick('domestic_bond_clearing', domestic_bond_clearing),
-        bond_yield, portfolio_level_anchors, divert_portfolio_adj,
-        divert_bond_foc_D, divert_bond_foc_F, global_goods_mkt,
+        bond_yield, portfolio_level_anchors, gk_cross_border_foc,
+        gk_bond_foc_D, gk_bond_foc_F, global_goods_mkt,
         terms_of_trade, union_inflation,
     ]
 
@@ -160,6 +160,8 @@ def build_and_solve(ss_results):
                   'eta_D':   float(cali_D['eta_D']),
                   'theta_D': float(cali_D['theta_D'])},
         targets=['nu_K_res_D', 'nu_bD_res_D', 'nu_bF_res_D', 'eta_res_D', 'ic_res_D'],
+        # NB Omega_p1_D is an extra OUTPUT of intermediation_P1_D (not an unknown); it is
+        # consumed by gk_cross_border_foc.
         solver='broyden_custom'
     )
     financial_solved_F = combine([
@@ -257,6 +259,58 @@ def build_and_solve(ss_results):
     # the level deviation; the true impact is -3.38% of SS net worth. Both are
     # printed now: the level for continuity with the historical logs, the
     # percent-of-SS as the number to quote.
+    # ── Pledgeability stays in [0,1] along the SIMULATED PATH ─────────────────
+    # steady_state.report_gk_steady_state checks the SS level; this checks the
+    # deviations, which is where an unbounded collateral map would actually bite.
+    # collateral_quality_D/F's rational form is bounded in [Delta, 1) for
+    # def_rate(+1) >= 0, but the model is solved by LINEARISATION, so the path can
+    # leave that range even though the nonlinear map cannot. At psi_lambda_B = 0 the
+    # map is the identity and these are flat by construction.
+    print("\n=== Pledgeability along the default-shock path ===")
+    for k in ('Delta_bD_eff_D', 'Delta_bF_eff_D', 'Delta_bF_eff_F', 'Delta_bD_eff_F'):
+        if k not in irfs_def_D:
+            print(f"  {k}: not in G.outputs (constant at this calibration)")
+            continue
+        path = float(ss_final[k]) + np.asarray(irfs_def_D[k])
+        lo, hi = float(path.min()), float(path.max())
+        print(f"  {k}: [{lo:.6f}, {hi:.6f}]  (SS {float(ss_final[k]):.6f})")
+        if not (0.0 <= lo and hi <= 1.0):
+            raise ValueError(
+                f"{k} leaves [0,1] on the simulated path: [{lo:.6f}, {hi:.6f}]. The "
+                f"collateral map is not interpretable as a pledgeable share there. "
+                f"Lower psi_lambda_B or shrink the shock — do not clip.")
+
+    # ── Impact signs on BOTH shocks ───────────────────────────────────────────
+    # The TFP row is new (2026-08-18), added because fig_irf_overview_macro.png LOOKS
+    # like Y_D collapses on impact under TFP. It does not — that plunge is the default
+    # shock's red dashed line, and the two are easy to confuse at that scale. Measured:
+    # Y_D -0.073% on a +1% TFP shock, i.e. flat, with N_D -3.71%, w_D -7.26% and
+    # I_D +5.00%.
+    #
+    # That is the STANDARD sticky-price contractionary-technology result (Gali 1999),
+    # not a defect: with prices sticky and the union-inflation normalisation being the
+    # phi_pi -> infinity limit (no accommodation whatever), firms meet unchanged demand
+    # with fewer hours. GHH preferences make labour supply very wage-elastic, which is
+    # why N and w move so much while Y barely does. The threshold below is set at 0.5%
+    # so it flags a genuinely perverse output response rather than this near-zero one.
+    print("\n=== Impact signs (t=0, % of own SS) ===")
+    print(f"  {'variable':<12} {'+1% TFP':>12} {'+1pp default':>14}")
+    for k in ('Y_D', 'C_D', 'I_D', 'N_D', 'w_D', 'n_inter_D', 'K_D', 'q_b_D'):
+        if k not in irfs_Z_D or k not in irfs_def_D:
+            continue
+        ss_k = float(ss_final[k])
+        print(f"  {k:<12} {irfs_Z_D[k][0]/ss_k*100:>11.4f}% "
+              f"{irfs_def_D[k][0]/ss_k*100:>13.4f}%")
+    _y_tfp = irfs_Z_D['Y_D'][0] / float(ss_final['Y_D']) * 100
+    if _y_tfp < -0.5:
+        print(f"  ⚠ Y_D falls {_y_tfp:.4f}% on a POSITIVE TFP shock — beyond the "
+              f"near-zero impact the sticky-price mechanism explains. Investigate before "
+              f"quoting any impact-quarter number.")
+    elif _y_tfp < 0:
+        print(f"  Y_D {_y_tfp:+.4f}% on a +1% TFP shock: flat on impact, hours-driven "
+              f"(N_D {irfs_Z_D['N_D'][0]/float(ss_final['N_D'])*100:+.2f}%). Expected "
+              f"under sticky prices with no monetary accommodation; not a defect.")
+
     n0, Y0 = irfs_def_D['n_inter_D'][0], irfs_def_D['Y_D'][0]
     n_ss, Y_ss = float(ss_final['n_inter_D']), float(ss_final['Y_D'])
     print(f"  n_inter_D[0] on default shock = {n0/n_ss*100:+.4f}% of SS"

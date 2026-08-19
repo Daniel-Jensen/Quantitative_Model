@@ -106,49 +106,62 @@ def portfolio_level_anchors(b_F_D_anchor, b_D_F_anchor):
 
 
 @simple
-def portfolio_adj_cost(rb_actual_F, rb_actual_D, rdep_D, rdep_F,
-                       b_F_D, b_D_F,
-                       b_F_D_ss, b_D_F_ss,
-                       psi_bF_D, psi_bD_F,
-                       excess_return_F_D_ss, excess_return_D_F_ss,
-                       tau_mp_D, tau_mp_F, p):
-    # Level penalty on face-value bond stocks anchors the external position level,
-    # not only its composition relative to net worth.
-    # Expected D-good return on F-bonds: (1+rb_F)·p(+1)/p − 1
-    rb_F_dg_next = (1 + rb_actual_F(+1)) * p(+1) / p - 1
-    b_F_D_res = (rb_F_dg_next - rdep_D(+1)) - excess_return_F_D_ss \
-                - psi_bF_D * (b_F_D - b_F_D_ss) \
-                - tau_mp_D
+def gk_cross_border_foc(nu_bF_D, nu_K_D, Delta_bF_eff_D, SDF_banker_D, Omega_p1_D,
+                        nu_bD_F, nu_K_F, Delta_bD_eff_F, SDF_banker_F, Omega_p1_F,
+                        b_F_D, b_D_F, b_F_D_ss, b_D_F_ss, psi_bF_D, psi_bD_F,
+                        gk_wedge_F_D_ss, gk_wedge_D_F_ss):
+    """GK portfolio optimality on the two CROSS-BORDER sovereign legs.
 
-    # Expected F-good return on D-bonds: (1+rb_D)·p/p(+1) − 1
-    rb_D_fg_next = (1 + rb_actual_D(+1)) * p / p(+1) - 1
-    b_D_F_res    = (rb_D_fg_next - rdep_F(+1)) - excess_return_D_F_ss \
-                   - psi_bD_F * (b_D_F - b_D_F_ss) \
-                   - tau_mp_F
+    Replaces ``divert_portfolio_adj`` (and the never-wired ``portfolio_adj_cost``), which
+    required
 
-    return b_F_D_res, b_D_F_res
+        (r_cross(+1) - rdep) = excess_return_*_ss
+                             + (EL_price_issuer + psi_spread_holder) * def_rate_issuer(+1)
+                             - psi * (b - b_ss) - tau_mp.
 
+    THE DOUBLE-COUNT THAT IS NOW GONE. From 2026-08-17 the expected loss also sat inside
+    ``intermediation_P1_D/F``, so ``b_F_D`` and ``b_D_F`` had ``EL * def_rate`` netted off
+    TWICE — once in the ``nu`` that values the position and again in the block that chose
+    it — while the two own-sovereign legs netted it once. Both cross-border legs now read
+    the same ``nu``s the own legs do, so the loss enters exactly once on all four legs.
+    ``psi_spread_D/F`` and the ``excess_return_*_ss`` anchors are deleted outright.
 
-@simple
-def divert_portfolio_adj(rb_actual_F, rb_actual_D, rdep_D, rdep_F, p,
-                         b_F_D, b_D_F, b_F_D_ss, b_D_F_ss, psi_bF_D, psi_bD_F,
-                         excess_return_F_D_ss, excess_return_D_F_ss, tau_mp_D, tau_mp_F,
-                         psi_spread_D, psi_spread_F, EL_price_D, EL_price_F, def_rate_D, def_rate_F):
-    # D holds F-bonds (F-good claim -> convert with p); issuer = F
-    rb_F_dg_next = (1 + rb_actual_F(+1)) * p(+1) / p - 1
-    # IC-theory derived required premium: D-bank IC parameters govern D-bank's FOC on F-bonds
-    # macro-pru-fix: EL_price_F = fundamental expected-loss loading on F-bonds (issuer=F),
-    # independent of psi_lambda_B. See divert_bond_foc_D.
-    prem_FD      = excess_return_F_D_ss + (EL_price_F + psi_spread_D) * def_rate_F(+1)
-    # T-2 fix: deposit rate for the t->t+1 holding period is locked at t (rdep, not rdep(+1)).
-    b_F_D_res    = (rb_F_dg_next - rdep_D) - prem_FD \
-                   - psi_bF_D * (b_F_D - b_F_D_ss) - tau_mp_D
-    # F holds D-bonds (D-good claim -> convert with p); issuer = D
-    rb_D_fg_next = (1 + rb_actual_D(+1)) * p / p(+1) - 1
-    # IC-theory derived required premium: F-bank IC parameters govern F-bank's FOC on D-bonds
-    # macro-pru-fix: EL_price_D = fundamental expected-loss loading on D-bonds (issuer=D),
-    # independent of psi_lambda_B. See divert_bond_foc_D.
-    prem_DF      = excess_return_D_F_ss + (EL_price_D + psi_spread_F) * def_rate_D(+1)
-    b_D_F_res    = (rb_D_fg_next - rdep_F) - prem_DF \
-                   - psi_bD_F * (b_D_F - b_D_F_ss) - tau_mp_F
+    THE CONDITION. Same first-order condition as ``gk_bond_foc_D``, plus a quadratic
+    portfolio adjustment cost on the cross-border stock:
+
+        nu_bF_D / nu_K_D = Delta_bF_eff_D  +  (adjustment cost).
+
+    Why the cross legs need the cost and the own legs do not: under a binding IC with
+    linear payoffs the banker's problem is linear in portfolio shares, so four
+    proportionality conditions cannot hold simultaneously against only two bond prices.
+    The own-sovereign legs pin ``q_b_D`` and ``q_b_F``; the cross-border legs then pin
+    QUANTITIES, with ``psi_bF_D``/``psi_bD_F`` as the frictions that make an interior
+    cross-border position optimal at all. This is the standard portfolio-cost device and
+    it is NOT a sovereign-spread wedge: it loads on the bond STOCK gap, carries no
+    ``def_rate`` term, and is identically zero at the calibrated position.
+
+    UNITS. The residual is divided through by ``SDF_banker * Omega`` so it is stated in
+    RETURN units, which is what ``psi_bF_D``/``psi_bD_F`` were calibrated against; the
+    division is exact and changes no root (both factors are strictly positive — see
+    ``steady_state.assert_gk_well_posed``). Ordering the terms this way also keeps
+    ``psi_bF_D`` comparable with its pre-refactor value.
+
+    ``gk_wedge_*_ss`` is the CONSTANT steady-state shadow cost of holding the
+    EBA-measured cross-border position — the level at which the adjustment cost sits at
+    the calibrated stock. It is a scalar set once in ``_apply_ss_anchors``, it does not
+    move with ``def_rate``, and at the preferred calibration it is ~0 because GK
+    optimality at a riskless symmetric steady state forces the cross divertability to
+    equal the own one. ``steady_state`` prints it and asserts it stays small precisely so
+    an inconsistent ``Delta`` cannot hide inside it.
+    """
+    # D bank holding F bonds. No terms-of-trade conversion: q_b_F is a D-GOOD price
+    # (intermediation_P3_D, external_account_D), so nu_bF_D is already in D goods.
+    foc_F_D   = (nu_bF_D - Delta_bF_eff_D * nu_K_D) / (SDF_banker_D * Omega_p1_D)
+    b_F_D_res = foc_F_D - gk_wedge_F_D_ss - psi_bF_D * (b_F_D - b_F_D_ss)
+
+    # F bank holding D bonds. The p/p(+1) conversion into F goods already happened
+    # inside intermediation_P1_F, so nu_bD_F and nu_K_F are both F-good objects here.
+    foc_D_F   = (nu_bD_F - Delta_bD_eff_F * nu_K_F) / (SDF_banker_F * Omega_p1_F)
+    b_D_F_res = foc_D_F - gk_wedge_D_F_ss - psi_bD_F * (b_D_F - b_D_F_ss)
+
     return b_F_D_res, b_D_F_res

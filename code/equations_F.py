@@ -146,7 +146,7 @@ def import_demand_F(C_F, omega_F, epsilon_trade, p, P_CES_F):
 @simple
 def steady_auxilliary_F(theta_F, rk_F, rdep_F, delta_F, alpha_F, Y_F, K_F, N_F,
                         beta_inter_F, ksi_F, rn_F, f_F,
-                        rb_actual_F, rb_actual_D,
+                        rb_exp_F, rb_exp_D,
                         phi_bF_F, phi_bD_F, Delta_bF_F, Delta_bD_F):
     iota_F       = delta_F
     mpk_F        = alpha_F * (Y_F / K_F)
@@ -156,9 +156,12 @@ def steady_auxilliary_F(theta_F, rk_F, rdep_F, delta_F, alpha_F, Y_F, K_F, N_F,
     D_target_F  = theta_F - (1 - Delta_bF_F) * phi_bF_F - (1 - Delta_bD_F) * phi_bD_F
     lambda_gk_F  = f_F / (D_target_F / (beta_inter_F * (1 + rn_F)) - (1 - f_F) * theta_F)
     Omega_F      = f_F + (1 - f_F) * lambda_gk_F * theta_F
-    nu_K_F       = beta_inter_F * Omega_F * (rk_F        - rdep_F)
-    nu_bF_F      = beta_inter_F * Omega_F * (rb_actual_F - rdep_F)
-    nu_bD_F      = beta_inter_F * Omega_F * (rb_actual_D - rdep_F)
+    # SS analogue of intermediation_P1_F -- an identity, not the portfolio FOC.
+    # See steady_auxilliary_D. At SS p is constant, so P1_F's p/p(+1) conversion is 1
+    # and no conversion is needed here.
+    nu_K_F       = beta_inter_F * Omega_F * (rk_F     - rdep_F)
+    nu_bF_F      = beta_inter_F * Omega_F * (rb_exp_F - rdep_F)
+    nu_bD_F      = beta_inter_F * Omega_F * (rb_exp_D - rdep_F)
     eta_F        = beta_inter_F * Omega_F * (1 + rdep_F)
     gamma0_F     = delta_F ** ksi_F / (1 - ksi_F)
     gamma1_F     = -delta_F * ksi_F / (1 - ksi_F)
@@ -218,13 +221,26 @@ def labor_ss_F(w_F, N_F, frisch_F, mu_w_F, P_CES_F):
 
 @simple
 def bond_return_F(def_rate_F, recovery_rate_F, q_b_F, delta_b_F, zeta_writeoff_F, writeoff_enabled_F):
-    # writeoff_enabled_F = 0: pure sovereign risk shock, no haircuts on cash flows.
+    """The F sovereign's payoff. Exact mirror of ``bond_return_D`` — see that block for
+    the contract, the state-contingent payoff and why ``rb_exp_F`` / ``rb_actual_F`` /
+    ``EL_load_F`` are not interchangeable.
+
+    F is the SAFE asset: ``def_rate_F`` is driven only by ``shock_def_F`` (never shocked
+    in the baseline) and by F's own debt ratio through ``government_default_F``. Nothing
+    here gives F a spread wedge; its yield moves only through ``q_b_F``, which the F
+    bank's own GK portfolio FOC prices. Flight to quality is therefore free to raise
+    ``q_b_F`` and lower the German yield on a Greek shock.
+    """
     haircut_F        = 1.0 - recovery_rate_F
+    coupon_exp_F     = delta_b_F * (1.0 - def_rate_F * haircut_F)
+    cont_exp_F       = (1.0 - delta_b_F) * q_b_F * (1.0 - zeta_writeoff_F * def_rate_F * haircut_F)
+    rb_exp_F         = (coupon_exp_F + cont_exp_F) / q_b_F(-1) - 1.0
     haircut_mult_F   = writeoff_enabled_F
     current_payoff_F = delta_b_F * (1.0 - def_rate_F * haircut_F * haircut_mult_F)
     continuation_F   = (1.0 - delta_b_F) * q_b_F * (1.0 - zeta_writeoff_F * def_rate_F * haircut_F * haircut_mult_F)
     rb_actual_F      = (current_payoff_F + continuation_F) / q_b_F(-1) - 1.0
-    return rb_actual_F
+    EL_load_F        = haircut_F * (delta_b_F + zeta_writeoff_F * (1.0 - delta_b_F) * q_b_F) / q_b_F(-1)
+    return rb_actual_F, rb_exp_F, EL_load_F
 
 # ── Off-steady-state blocks ───────────────────────────────────────────────────
 
@@ -372,16 +388,36 @@ def capital_fund_F(rk_F, rdep_expost_F, Q_F, K_F, omega_K_F, fund_rule_F, K_fund
     return div_fund_F
 
 @simple
-def intermediation_P1_F(rk_F, rb_actual_F, rb_actual_D, rdep_F,
+def intermediation_P1_F(rk_F, rb_exp_F, rb_exp_D, rdep_F,
                         nu_K_F, nu_bF_F, nu_bD_F, eta_F,
-                        lambda_gk_F, theta_F, SDF_banker_F, f_F):
+                        lambda_gk_F, theta_F, SDF_banker_F, f_F, p):
+    """F bank's Bellman envelope. Mirror of ``intermediation_P1_D``.
+
+    Expected default loss enters through ``rb_exp_F`` / ``rb_exp_D`` and nowhere else.
+
+    UNITS FIX (2026-08-18). Both bond books are D-GOOD claims (``intermediation_P3_F``
+    and ``k_balance_sheet_F`` divide the whole bond block by ``p``; ``government_ss_F``
+    divides F's own coupon and issuance by ``p``), while ``rk_F``, ``rdep_F`` and the F
+    bank's net worth are F goods. The expected D-good return therefore has to be
+    converted, exactly as ``bank_return_F`` converts the realised one with ``p(-1)/p``
+    (the W-2 fix). Forward, that conversion is ``p / p(+1)``.
+
+    Before this fix ``intermediation_P1_F`` compared an unconverted ``rb_actual_F(+1)``
+    with ``rdep_F`` while the old cross-border block applied ``p/p(+1)`` to the same
+    return — the two sides of the F bank's problem were on different unit conventions,
+    and every downstream condition stated on ``nu_bF_F`` inherited the discrepancy. SS is
+    untouched: ``p`` is constant at SS, so both conversions are exactly 1.
+    """
     Omega_p1_F    = f_F + (1 - f_F) * lambda_gk_F * theta_F(+1)
+    rb_F_fg       = (1.0 + rb_exp_F(+1)) * p / p(+1) - 1.0
+    rb_D_fg       = (1.0 + rb_exp_D(+1)) * p / p(+1) - 1.0
     # T-2 fix: the deposit rate for the t->t+1 holding period is rdep_F (locked at t).
-    nu_K_res_F    = nu_K_F  - SDF_banker_F * Omega_p1_F * (rk_F(+1)        - rdep_F)
-    nu_bF_res_F   = nu_bF_F - SDF_banker_F * Omega_p1_F * (rb_actual_F(+1) - rdep_F)
-    nu_bD_res_F   = nu_bD_F - SDF_banker_F * Omega_p1_F * (rb_actual_D(+1) - rdep_F)
+    nu_K_res_F    = nu_K_F  - SDF_banker_F * Omega_p1_F * (rk_F(+1) - rdep_F)
+    nu_bF_res_F   = nu_bF_F - SDF_banker_F * Omega_p1_F * (rb_F_fg  - rdep_F)
+    nu_bD_res_F   = nu_bD_F - SDF_banker_F * Omega_p1_F * (rb_D_fg  - rdep_F)
     eta_res_F     = eta_F   - SDF_banker_F * Omega_p1_F * (1 + rdep_F)
-    return nu_K_res_F, nu_bF_res_F, nu_bD_res_F, eta_res_F
+    # Exported for gk_cross_border_foc -- see intermediation_P1_D.
+    return nu_K_res_F, nu_bF_res_F, nu_bD_res_F, eta_res_F, Omega_p1_F
 
 @simple
 def k_balance_sheet_F(Q_F, theta_F, n_inter_F, K_F, b_F_F, b_D_F, q_b_F, q_b_D, p, omega_K_F,
@@ -428,30 +464,6 @@ def intermediation_P3_F(Q_F, K_F, n_inter_F, b_F_F, b_D_F, q_b_F, q_b_D, p):
     return D_supply_F
 
 @simple
-def bond_price_ss_F(SDF_banker_F, def_rate_F, recovery_rate_F, delta_b_F, zeta_writeoff_F, writeoff_enabled_F):
-    haircut_F      = 1.0 - recovery_rate_F
-    haircut_mult_F = writeoff_enabled_F
-    surv_cont_F    = 1.0 - zeta_writeoff_F * def_rate_F * haircut_F * haircut_mult_F
-    q_b_F          = (
-        SDF_banker_F * delta_b_F * (1.0 - def_rate_F * haircut_F * haircut_mult_F)
-        / (1.0 - SDF_banker_F * (1.0 - delta_b_F) * surv_cont_F)
-    )
-    return q_b_F
-
-
-@simple
-def domestic_bond_foc_F(rb_actual_F, rdep_F, b_F_F, n_inter_F, q_b_F,
-                         phi_bF_F_ss, psi_bF_F, excess_return_bF_F_ss, tau_mp_F, p):
-    phi_bF_F     = q_b_F * b_F_F / (p * n_inter_F)
-    # Expected F-good return on D-good bond: (1+rb)·p/p(+1) − 1
-    rb_F_fg_next = (1 + rb_actual_F(+1)) * p / p(+1) - 1
-    rb_F_res     = (rb_F_fg_next - rdep_F(+1)) - excess_return_bF_F_ss \
-                   - psi_bF_F * (phi_bF_F - phi_bF_F_ss) \
-                   - tau_mp_F
-    return rb_F_res
-
-
-@simple
 def government_default_F(shock_def_F, b_gov_F, Y_ss_F, b_gov_ss_F,
                           def_scale_F, def_curvature_F, def_offset_F):
     debt_ratio_F = b_gov_F(-1) / Y_ss_F
@@ -492,23 +504,26 @@ def budget_residual_F(b_gov_F, G_F, TAX_F, q_b_F, def_rate_F, recovery_rate_F, z
 
 
 @simple
-def divert_bond_foc_F(rb_actual_F, rdep_F, b_F_F, n_inter_F, q_b_F,
-                      phi_bF_F_ss, psi_bF_F, excess_return_bF_F_ss, tau_mp_F, p,
-                      psi_spread_F, EL_price_F, def_rate_F):
-    phi_bF_F   = q_b_F * b_F_F / (p * n_inter_F)
-    # IC-theory derived required spread: additive default loading independent of SS excess return.
-    # psi_spread_F = lambda_gk_F * psi_lambda_B_F / (beta_inter_F * Omega_F), computed in _apply_ss_anchors.
-    # macro-pru-fix: EL_price_F is the fundamental expected-loss loading, independent of
-    # psi_lambda_B (see divert_bond_foc_D). SS-neutral.
-    req_spread = excess_return_bF_F_ss + (EL_price_F + psi_spread_F) * def_rate_F(+1)
-    # W-3 fix: expected F-good return on the D-good-denominated bond converts with
-    # p/p(+1), as in domestic_bond_foc_F and divert_portfolio_adj.
-    rb_F_fg_next = (1 + rb_actual_F(+1)) * p / p(+1) - 1
-    # T-2 fix: compare t+1 bond return with rdep_F locked at t.
-    rb_F_res   = (rb_F_fg_next - rdep_F) - req_spread \
-                 - psi_bF_F * (phi_bF_F - phi_bF_F_ss) \
-                 - tau_mp_F
+def gk_bond_foc_F(nu_bF_F, nu_K_F, Delta_bF_eff_F):
+    """GK portfolio optimality for the F bank's OWN sovereign. This PINS ``q_b_F``.
+
+    Mirror of ``gk_bond_foc_D`` — see that block for the derivation. Renamed from
+    ``divert_bond_foc_F``, which is deleted along with its ``psi_spread_F`` /
+    ``excess_return_bF_F_ss`` / ``tau_mp_F`` wedges.
+
+    Stating the condition on the marginal values rather than on returns also removes a
+    unit inconsistency: the old block converted ``rb_actual_F`` with ``p/p(+1)`` while
+    ``intermediation_P1_F`` defined ``nu_bF_F`` off an UNCONVERTED return. The conversion
+    now lives in exactly one place, ``intermediation_P1_F``, and everything stated on the
+    ``nu``s inherits it.
+
+    German bond pricing stays fully structural. There is no F-side spread wedge of any
+    kind, so a Greek shock reaches ``q_b_F`` only through the F bank's own optimality —
+    flight to quality, not an assumed safe-haven premium.
+    """
+    rb_F_res = nu_bF_F - Delta_bF_eff_F * nu_K_F
     return rb_F_res
+
 
 
 @simple

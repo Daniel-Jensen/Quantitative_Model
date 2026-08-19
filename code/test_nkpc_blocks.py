@@ -229,12 +229,108 @@ def test_bank_return_uses_the_expost_rate():
 
 
 def test_forward_looking_blocks_still_use_rdep():
-    """intermediation_P1_D and divert_bond_foc_D are ex-ante and must be
-    untouched -- rdep_D still means the t -> t+1 real rate."""
-    from equations_D import intermediation_P1_D, divert_bond_foc_D
-    for blk in (intermediation_P1_D, divert_bond_foc_D):
-        assert 'rdep_D' in blk.inputs, (blk.name, sorted(blk.inputs))
-        assert 'rdep_expost_D' not in blk.inputs, (blk.name, sorted(blk.inputs))
+    """intermediation_P1_D is ex-ante: rdep_D still means the t -> t+1 real rate.
+
+    divert_bond_foc_D used to be checked here too. Since the 2026-08-17/18 structural
+    refactor its replacement gk_bond_foc_D states GK portfolio optimality on the marginal
+    values (nu_bD_D = Delta_bD_eff_D * nu_K_D) and carries NO interest rate at all, so the
+    T-2 invariant now lives entirely in intermediation_P1_D. Asserted below, which is
+    strictly stronger than the old signature check.
+    """
+    from equations_D import intermediation_P1_D
+    assert 'rdep_D' in intermediation_P1_D.inputs, sorted(intermediation_P1_D.inputs)
+    assert 'rdep_expost_D' not in intermediation_P1_D.inputs, sorted(intermediation_P1_D.inputs)
+
+
+def test_own_sovereign_foc_is_pure_gk():
+    """gk_bond_foc_D/F must be a function of ENDOGENOUS GK objects only.
+
+    Guards the refactor against regression to a reduced-form spread rule: no frozen
+    psi_spread, no excess_return_*_ss anchor, no tau_mp wedge, no interest rate.
+    """
+    from equations_D import gk_bond_foc_D
+    from equations_F import gk_bond_foc_F
+    for blk, want in ((gk_bond_foc_D, {'nu_bD_D', 'nu_K_D', 'Delta_bD_eff_D'}),
+                      (gk_bond_foc_F, {'nu_bF_F', 'nu_K_F', 'Delta_bF_eff_F'})):
+        assert set(blk.inputs) == want, (blk.name, sorted(blk.inputs))
+
+
+def test_no_ad_hoc_sovereign_spread_wedge_anywhere():
+    """The governing invariant of the 2026-08-18 refactor.
+
+    psi_spread_D/F and EL_price_D/F are DELETED. No symbol of either name may reappear
+    in code/, in any form — parameter, anchor, renamed twin or hard-coded literal. The
+    sovereign spread must come from the state-contingent payoff plus the GK portfolio
+    FOC, never from `spread += coefficient * default_probability`.
+    """
+    import ast
+    import pathlib
+    import re
+    root = pathlib.Path(__file__).resolve().parent
+    banned = ('psi_spread', 'EL_price', 'divert_bond_foc', 'divert_portfolio_adj',
+              'excess_return_')
+    ident = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
+
+    def symbols(tree):
+        """Every identifier the module actually USES. Prose in docstrings and comments
+        is exempt — the deleted objects are documented at length in the blocks that
+        replaced them, and that history is worth keeping."""
+        for n in ast.walk(tree):
+            if isinstance(n, ast.Name):
+                yield n.id
+            elif isinstance(n, ast.arg):
+                yield n.arg
+            elif isinstance(n, ast.Attribute):
+                yield n.attr
+            elif isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                yield n.name
+            elif isinstance(n, ast.alias):
+                yield n.name
+                if n.asname:
+                    yield n.asname
+            elif isinstance(n, ast.Constant) and isinstance(n.value, str):
+                # Dict keys / ss lookups such as ss['psi_spread_D'] land here. Docstrings
+                # do too, but they never match the identifier pattern.
+                if ident.match(n.value):
+                    yield n.value
+
+    hits = []
+    for f in sorted(root.glob('*.py')):
+        if f.name == pathlib.Path(__file__).name:
+            continue
+        for s in symbols(ast.parse(f.read_text())):
+            for b in banned:
+                if b in s:
+                    hits.append(f"{f.name}: {s}")
+    assert not hits, ("deleted objects still referenced in live code:\n"
+                      + "\n".join(sorted(set(hits))))
+
+
+def test_expected_loss_enters_each_sovereign_leg_exactly_once():
+    """Double-counting audit, as a test.
+
+    Expected default loss lives in bond_return_D/F's rb_exp and reaches the banks only
+    through intermediation_P1_D/F. Every downstream portfolio condition must be stated on
+    the resulting nu's, so no block may take BOTH a nu and a def_rate/EL object.
+    """
+    from equations_D import intermediation_P1_D, gk_bond_foc_D
+    from equations_F import intermediation_P1_F, gk_bond_foc_F
+    from equations_global import gk_cross_border_foc
+
+    # The Euler equations price rb_exp, never rb_actual and never def_rate directly.
+    for blk, c, o in ((intermediation_P1_D, 'D', 'F'), (intermediation_P1_F, 'F', 'D')):
+        ins = set(blk.inputs)
+        assert f'rb_exp_{c}' in ins and f'rb_exp_{o}' in ins, (blk.name, sorted(ins))
+        assert not (ins & {f'rb_actual_{c}', f'rb_actual_{o}',
+                           f'def_rate_{c}', f'def_rate_{o}'}), (blk.name, sorted(ins))
+
+    # The four portfolio conditions carry no default object of their own.
+    for blk in (gk_bond_foc_D, gk_bond_foc_F, gk_cross_border_foc):
+        ins = set(blk.inputs)
+        assert not any(k in i for i in ins
+                       for k in ('def_rate', 'EL_price', 'rb_exp', 'rb_actual')), \
+            (blk.name, sorted(ins))
+        assert any(i.startswith('nu_') for i in ins), (blk.name, sorted(ins))
 
 
 # ── Investment-flow adjustment cost ───────────────────────────────────────────

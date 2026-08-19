@@ -62,7 +62,7 @@ def cb_pnl(irf, cache, T_pnl=T_PNL):
     q_b_F_ss = float(cache["q_b_F_ss"])
     delta_b_D = float(cache["delta_b_D_ss"])
     delta_b_F = float(cache["delta_b_F_ss"])
-    EL_price_D = float(cache["EL_price_D"])
+    EL_load_D = float(cache["EL_load_D"])
 
     disc = beta_F ** np.arange(T_pnl)
     cb = np.asarray(irf["cb_buy_D"])[:T_pnl]
@@ -90,7 +90,7 @@ def cb_pnl(irf, cache, T_pnl=T_PNL):
     return {
         "peak_exposure": float(np.max(q_b_D_ss * cb)),
         "purchases_pv": float((disc * q_b_D_ss * purchases).sum()),
-        "el_pv": float((disc * EL_price_D * defr * q_b_D_ss * cb).sum()),
+        "el_pv": float((disc * EL_load_D * defr * q_b_D_ss * cb).sum()),
         "prem_pv": float((disc * dspr * q_b_D_ss * cb_l).sum()),
         "carry_ss_pv": float((disc * spread_ss * q_b_D_ss * cb_l).sum()),
         "mtm_pv": float((disc * (1.0 - delta_b_D) * cb_l * (dq - dq_l)).sum()),
@@ -124,10 +124,24 @@ def loading_schedule(cache, gamma_max=30.0, n=60):
     the wedge exists because the marginal holder is balance-sheet constrained, and
     the backstop relieves that constraint, so intervention erodes its own profit
     source. The schedule, not any single point, is therefore the object.
+
+    THE GRID STOPS BELOW THE CLOSED-LOOP POLE (2026-08-18). `(I - gamma*A_cb)` goes
+    singular at `gamma ~ 27.3` on the post-GK-refactor cache, and the default
+    `gamma_max = 30` ran straight through it: the loading spiked to 1.17 and collapsed
+    to 0.38 across two grid points, the peak-spread panel showed a spurious dip to 82bp,
+    and the caption's monotonicity test read the artefact as a real non-monotonicity.
+    Everything past the pole is a DIFFERENT BRANCH of the closed loop, not a stronger
+    version of the same policy, so it must not be plotted on the same axis.
     """
-    from lottery_math import closed_loop
+    from lottery_math import closed_loop, closed_loop_pole, POLE_SAFETY_FRACTION
     A_def, A_cb = cache["spread_rb__shock_def_D"], cache["spread_rb__cb_buy_D"]
     eps = np.asarray(cache["dShock_def_D"])
+    pole = closed_loop_pole(A_cb, hi=max(gamma_max, 60.0))
+    if pole is not None and POLE_SAFETY_FRACTION * pole <= gamma_max:
+        gamma_max = POLE_SAFETY_FRACTION * pole
+        print(f"  [loading_schedule] closed-loop pole at gamma = {pole:.2f}; "
+              f"capping the grid at {gamma_max:.2f} "
+              f"({POLE_SAFETY_FRACTION:g} x pole, lottery_math.POLE_SAFETY_FRACTION)")
     gammas = np.linspace(0.0, gamma_max, n)
     loading, peak_bp = np.full(n, np.nan), np.empty(n)
     for i, g in enumerate(gammas):
@@ -152,8 +166,14 @@ def run():
     regimes = regime_irfs(cache)
     payload = {
         "provenance": provenance(),
-        "gamma_selection_rule": "peak-spread compression 0/25/50% (spec section 7); "
-                                "gamma solved, not chosen",
+        "gamma_selection_rule":
+            "gamma SOLVED for peak-spread compression, not chosen. medium = 25% (spec "
+            "section 7). aggressive was 50%, but since the 2026-08-18 GK structural "
+            "refactor that target lies beyond a closed-loop pole at gamma ~ 27.3 and is "
+            "unreachable; it falls back to the strongest intervention the model can "
+            "represent, gamma just below the pole, achieving ~46.6%. DO NOT describe the "
+            "aggressive regime as 50% compression -- see common.named_regime_gammas and "
+            "lottery_math.closed_loop_pole.",
         "welfare_caveat": "SECONDARY. SPEC: do not lead with welfare — it is a "
                           "delicate decomposition-dependent object and comes out "
                           "near-exactly zero-sum.",

@@ -7,7 +7,7 @@ from equations_D import (
     hh_init_D, hh_D, make_grids_D, income_D, hh_extended_D,
     smart_steady_D, market_clearing_D, steady_auxilliary_D,
     banker_div_D, sdf_D, sdf_ss_D, sdf_banker_ss_D, government_ss_D, labor_ss_D,
-    government_default_D, bond_price_ss_D, bond_return_D, collateral_quality_D,
+    government_default_D, bond_return_D, collateral_quality_D, gk_bond_foc_D,
     ces_price_D, import_demand_D, deposit_rates_D, deposit_return_D,
     firm_profit_D, price_nkpc_D,
 )
@@ -15,13 +15,13 @@ from equations_F import (
     hh_init_F, hh_F, make_grids_F, income_F, hh_extended_F,
     smart_steady_F, market_clearing_F, steady_auxilliary_F,
     banker_div_F, sdf_F, sdf_ss_F, sdf_banker_ss_F, government_ss_F, labor_ss_F,
-    government_default_F, bond_price_ss_F, bond_return_F, collateral_quality_F,
+    government_default_F, bond_return_F, collateral_quality_F, gk_bond_foc_F,
     ces_price_F, import_demand_F, deposit_rates_F, deposit_return_F,
     firm_profit_F, price_nkpc_F,
 )
 from equations_global import (
     trade_balance, domestic_bond_clearing,
-    portfolio_level_anchors, portfolio_adj_cost, bond_yield,
+    portfolio_level_anchors, bond_yield,
     global_goods_mkt, external_account_D,
     terms_of_trade, union_inflation,
 )
@@ -85,34 +85,147 @@ def min_Delta_own(theta, f, phi_own, phi_cross, Delta_cross, margin=0.0):
     return 1.0 - (f * theta - (1.0 - Delta_cross) * phi_cross - margin) / phi_own
 
 
+def gk_cross_wedges(ss_in):
+    """SS shadow cost of the calibrated cross-border sovereign positions, in return units.
+
+    ``(nu_cross/nu_K - Delta_cross_eff) * (rk - rdep)``, i.e. how far the EBA-measured
+    cross-border book sits from GK proportionality at the solved steady state. Enters
+    ``gk_cross_border_foc`` as a CONSTANT — it carries no ``def_rate`` and is not a spread
+    loading; it is the level at which the portfolio adjustment cost sits so that the
+    measured position is optimal.
+
+    At a riskless steady state (``def_rate_ss = 0``) with ``rk_D = rk_F`` and
+    ``rdep_D = rdep_F``, GK optimality forces the cross divertability to equal the own
+    one, and these wedges vanish. They are printed and range-checked on every solve so an
+    inconsistent ``Delta_bF_D``/``Delta_bD_F`` cannot hide inside them — which is exactly
+    what the pre-refactor ``excess_return_F_D_ss`` / ``excess_return_D_F_ss`` anchors did,
+    since those absorbed the FULL excess return rather than its deviation from the FOC.
+    """
+    exc_D = float(ss_in['rk_D']) - float(ss_in['rdep_D'])
+    exc_F = float(ss_in['rk_F']) - float(ss_in['rdep_F'])
+    w_FD = (float(ss_in['nu_bF_D']) / float(ss_in['nu_K_D'])
+            - float(ss_in['Delta_bF_eff_D'])) * exc_D
+    w_DF = (float(ss_in['nu_bD_F']) / float(ss_in['nu_K_F'])
+            - float(ss_in['Delta_bD_eff_F'])) * exc_F
+    return w_FD, w_DF
+
+
+def report_gk_steady_state(ss_in, cal, tol_own=1e-9, tol_cross=5e-4):
+    """Print the GK/sovereign steady state and NUMERICALLY VERIFY the portfolio FOCs.
+
+    The own-sovereign conditions ``nu_bD_D/nu_K_D = Delta_bD_eff_D`` and
+    ``nu_bF_F/nu_K_F = Delta_bF_eff_F`` are SS TARGETS, so they must hold to solver
+    tolerance; a failure means ``gk_bond_foc_D/F`` is no longer wired to ``q_b_D/q_b_F``.
+    The cross-border conditions are pinned by quantities the calibration takes from EBA,
+    so they hold only up to ``gk_wedge_*_ss``; that wedge is reported and range-checked
+    (``tol_cross``, on the dimensionless ``nu_cross/nu_K - Delta_cross_eff``) so an
+    inconsistent cross divertability cannot hide inside it. At the live calibration all
+    four Delta are 0.20 and the cross residual is ~2e-13.
+    """
+    # Quarterly fraction -> annualised basis points. NOT 400: that is the *percentage-point*
+    # scaling, and mixing the two is how a 205bp spread gets reported as 2bp.
+    BP_ANN = 4.0e4
+    g = lambda k: float(ss_in[k])
+    rows = []
+    for c, own, cross in (("D", "bD", "bF"), ("F", "bF", "bD")):
+        r_own = g(f"nu_{own}_{c}") / g(f"nu_K_{c}")
+        r_cr = g(f"nu_{cross}_{c}") / g(f"nu_K_{c}")
+        rows.append((c, r_own, g(f"Delta_{own}_eff_{c}"), r_cr, g(f"Delta_{cross}_eff_{c}")))
+
+    print("\n=== GK steady state: sovereign block ===")
+    print(f"  {'':4} {'q_b':>9} {'yield q/q':>10} {'yield ann':>11} {'def_rate':>9} "
+          f"{'recovery':>9} {'EL_load':>9} {'delta_b':>8} {'duration':>9}")
+    for c in ("D", "F"):
+        q, db = g(f"q_b_{c}"), g(f"delta_b_{c}")
+        y = db * (1.0 / q - 1.0)
+        print(f"  {c:4} {q:>9.6f} {y:>10.6f} {y*BP_ANN:>9.2f}bp {g(f'def_rate_{c}'):>9.4f} "
+              f"{cal[f'recovery_rate_{c}']:>9.2f} {g(f'EL_load_{c}'):>9.6f} "
+              f"{db:>8.4f} {1.0/db:>8.1f}q")
+    sp = g("delta_b_D") * (1.0 / g("q_b_D") - 1.0) - g("delta_b_F") * (1.0 / g("q_b_F") - 1.0)
+    print(f"  SS spread (D-F) = {sp*BP_ANN:+.4f} bp annualised "
+          f"(zero is correct: def_rate_ss = 0 in both countries)")
+
+    print(f"\n  {'':4} {'lambda_gk':>10} {'Omega':>9} {'theta':>8} {'n_inter':>9} "
+          f"{'K':>9} {'q_b*b_own':>10} {'q_b*b_cross':>12}")
+    for c in ("D", "F"):
+        own_b = "b_D_D" if c == "D" else "b_F_F"
+        cr_b = "b_F_D" if c == "D" else "b_D_F"
+        own_q = "q_b_D" if c == "D" else "q_b_F"
+        cr_q = "q_b_F" if c == "D" else "q_b_D"
+        print(f"  {c:4} {g(f'lambda_gk_{c}'):>10.4f} {g(f'Omega_{c}'):>9.4f} "
+              f"{g(f'theta_{c}'):>8.4f} {g(f'n_inter_{c}'):>9.4f} {g(f'K_{c}'):>9.4f} "
+              f"{g(own_q)*g(own_b):>10.4f} {g(cr_q)*g(cr_b):>12.4f}")
+
+    print("\n  Portfolio FOC check   nu_i/nu_K  vs  Delta_i_eff")
+    print(f"  {'bank':5} {'leg':7} {'nu_i/nu_K':>11} {'Delta_eff':>11} {'residual':>12} {'status':>8}")
+    ok = True
+    for c, r_own, D_own, r_cr, D_cr in rows:
+        for leg, r, D, tol in (("own", r_own, D_own, tol_own), ("cross", r_cr, D_cr, tol_cross)):
+            res = r - D
+            good = abs(res) <= tol
+            ok &= good
+            print(f"  {c:5} {leg:7} {r:>11.6f} {D:>11.6f} {res:>12.3e} "
+                  f"{'OK' if good else 'FAIL':>8}")
+    # Over-identifying check the spec asks for explicitly: nu_own/nu_cross must equal
+    # Delta_own/Delta_cross. Implied by the two rows above, printed because it is the
+    # form the portfolio condition is usually stated in.
+    for c, own, cross in (("D", "bD", "bF"), ("F", "bF", "bD")):
+        nu_r = g(f"nu_{own}_{c}") / g(f"nu_{cross}_{c}")
+        D_r = g(f"Delta_{own}_eff_{c}") / g(f"Delta_{cross}_eff_{c}")
+        print(f"  {c:5} {'ratio':7} {nu_r:>11.6f} {D_r:>11.6f} {nu_r - D_r:>12.3e}")
+    w_FD, w_DF = gk_cross_wedges(ss_in)
+    print(f"  cross-border SS wedges (constant, def_rate-free):"
+          f"  F-in-D = {w_FD*BP_ANN:+.3e} bp/yr   D-in-F = {w_DF*BP_ANN:+.3e} bp/yr")
+    for c in ("D", "F"):
+        for leg in ("bD", "bF"):
+            v = float(ss_in[f"Delta_{leg}_eff_{c}"])
+            if not (0.0 <= v <= 1.0):
+                raise ValueError(f"Delta_{leg}_eff_{c} = {v} outside [0,1] at the steady state.")
+    if not ok:
+        raise ValueError(
+            "GK portfolio FOC violated at the steady state. The own-sovereign legs are "
+            "SS targets and must hold to solver tolerance; a cross-border failure means "
+            "the cross divertability Delta is inconsistent with the calibrated "
+            "cross-border position by more than gk_cross_wedges can legitimately absorb. "
+            "Do NOT paper over this with a spread parameter — fix Delta or the position.")
+    print("  psi_lambda_B = "
+          f"{cal['psi_lambda_B_D']:.4f}/{cal['psi_lambda_B_F']:.4f}  "
+          f"zeta_writeoff = {cal['zeta_writeoff_D']:.1f}/{cal['zeta_writeoff_F']:.1f}  "
+          f"writeoff_enabled = {cal['writeoff_enabled_D']:.1f}/{cal['writeoff_enabled_F']:.1f}")
+
+
 def _apply_ss_anchors(ss_in, cal):
     # Fires on every solved SS (this is the common path for steady_state.py and
-    # depreciation_calibration.py). Note psi_spread below divides by Omega, so a
-    # negative Omega would silently flip the sign of the collateral channel.
+    # depreciation_calibration.py).
+    #
+    # DELETED 2026-08-18 (structural GK refactor):
+    #   psi_spread_D/F           -- the free sovereign-spread loading. Deleted, not
+    #                               recalibrated: it existed only to absorb the
+    #                               principal/continuation loss that zeta_writeoff = 0
+    #                               left out of the bond payoff.
+    #   EL_price_D/F             -- separate expected-loss PRICING wedge. The loss is now
+    #                               inside the payoff itself (bond_return_D/F -> rb_exp).
+    #                               The diagnostic loading survives as the endogenous
+    #                               EL_load_D/F, an OUTPUT of bond_return_D/F.
+    #   excess_return_bD_D_ss    -- own-sovereign SS excess-return anchors, consumed only
+    #   excess_return_bF_F_ss       by the deleted domestic_bond_foc_D/F.
+    #   excess_return_F_D_ss     -- cross-border anchors that absorbed the whole SS excess
+    #   excess_return_D_F_ss        return. Replaced by gk_cross_wedges, which absorbs
+    #                               only the DEVIATION from the GK portfolio FOC.
     assert_gk_well_posed(ss_in)
+    w_FD, w_DF = gk_cross_wedges(ss_in)
     anchors = {
         'phi_bD_D_ss':           float(ss_in['q_b_D']) * float(ss_in['b_D_D']) / float(ss_in['n_inter_D']),
         'phi_bF_F_ss':           float(ss_in['q_b_F']) * float(ss_in['b_F_F']) / (float(ss_in['p']) * float(ss_in['n_inter_F'])),
         'b_F_D_anchor':          float(ss_in['b_F_D']),
         'b_D_F_anchor':          float(ss_in['b_D_F']),
-        'excess_return_bD_D_ss': float(ss_in['rb_actual_D']) - float(ss_in['rdep_D']) - cal['T0_D'],
-        'excess_return_bF_F_ss': float(ss_in['rb_actual_F']) - float(ss_in['rdep_F']) - cal['T0_F'],
-        'excess_return_F_D_ss':  float(ss_in['rb_actual_F']) - float(ss_in['rdep_D']) - cal['T0_D'],
-        'excess_return_D_F_ss':  float(ss_in['rb_actual_D']) - float(ss_in['rdep_F']) - cal['T0_F'],
-        'psi_spread_F': float(ss_in['lambda_gk_F']) * cal['psi_lambda_B_F']
-                        / (float(ss_in['beta_inter_F']) * float(ss_in['Omega_F'])),
-        'psi_spread_D': float(ss_in['lambda_gk_D']) * cal['psi_lambda_B_D']
-                        / (float(ss_in['beta_inter_D']) * float(ss_in['Omega_D'])),
-        # macro-pru-fix: fundamental expected-loss loading per unit default probability,
-        # priced by bondholders independent of the psi_lambda_B collateral friction (so it
-        # survives psi_lambda_B=0). EL = (1-recovery)*[delta_b + zeta*(1-delta_b)*q_b]/q_b
-        # (SS q_b(-1)=q_b). Enters only the bond FOCs (∝ def_rate(+1)=0 at SS) → SS-neutral.
-        'EL_price_D': (1.0 - cal['recovery_rate_D'])
-                      * (cal['delta_b_D'] + cal['zeta_writeoff_D'] * (1.0 - cal['delta_b_D']) * float(ss_in['q_b_D']))
-                      / float(ss_in['q_b_D']),
-        'EL_price_F': (1.0 - cal['recovery_rate_F'])
-                      * (cal['delta_b_F'] + cal['zeta_writeoff_F'] * (1.0 - cal['delta_b_F']) * float(ss_in['q_b_F']))
-                      / float(ss_in['q_b_F']),
+        'gk_wedge_F_D_ss':       w_FD,
+        'gk_wedge_D_F_ss':       w_DF,
+        # Omega_{t+1} at SS. intermediation_P1_D/F export the dynamic Omega_p1; the SS
+        # model builds Omega in steady_auxilliary_D/F instead, and theta is constant at
+        # SS, so the two coincide exactly. gk_cross_border_foc needs it in ss_final.
+        'Omega_p1_D': float(ss_in['Omega_D']),
+        'Omega_p1_F': float(ss_in['Omega_F']),
         'q_b_D':   float(ss_in['q_b_D']),
         'q_b_F':   float(ss_in['q_b_F']),
         'p':       float(ss_in['p']),
@@ -154,8 +267,8 @@ def _apply_ss_anchors(ss_in, cal):
 
 def solve_steady_state(calibration_start):
     ha = sj.create_model([
-        sdf_ss_D, sdf_banker_ss_D, government_default_D, bond_price_ss_D, bond_return_D,
-        sdf_ss_F, sdf_banker_ss_F, government_default_F, bond_price_ss_F, bond_return_F,
+        sdf_ss_D, sdf_banker_ss_D, government_default_D, bond_return_D, gk_bond_foc_D,
+        sdf_ss_F, sdf_banker_ss_F, government_default_F, bond_return_F, gk_bond_foc_F,
         # Pledgeability map. Nothing in the SS consumes Delta_*_eff_* (the SS uses
         # steady_auxilliary_D/F, not intermediation_IC_D/F), but the DYNAMIC model does,
         # so ss_final must carry them. Listed here rather than injected in
@@ -174,8 +287,16 @@ def solve_steady_state(calibration_start):
         terms_of_trade, union_inflation,
     ], name='MU HA Model 2 Country')
 
-    unknowns_ss = {'beta_D': 0.9850, 'beta_F': 0.9850, 'p': 0.99}
-    targets_ss  = ['deposit_mkt_D', 'deposit_mkt_F', 'ca_res_D']
+    # STAGE 2/3 (2026-08-17): q_b_D/q_b_F are now SS UNKNOWNS pinned by the GK
+    # portfolio FOC (rb_D_res / rb_F_res from divert_bond_foc_D/F), replacing
+    # bond_price_ss_D/F which priced off the banker's SDF alone and took no view on
+    # collateral quality -- the reason the old SS violated nu_bD_D/nu_K_D = Delta_bD_D
+    # (0.2491 vs 0.20). Cannot be a @simple block: q_b_D -> balance sheet -> K_D ->
+    # rk_D -> q_b_D is a cycle in the SS DAG, so it has to go through the solver.
+    unknowns_ss = {'beta_D': 0.9850, 'beta_F': 0.9850, 'p': 0.99,
+                   'q_b_D': 0.9749, 'q_b_F': 0.9663}
+    targets_ss  = ['deposit_mkt_D', 'deposit_mkt_F', 'ca_res_D',
+                   'rb_D_res', 'rb_F_res']
 
     # ── Initial SS solve ──────────────────────────────────────────────────────
     print("Solving initial steady state...")
@@ -186,10 +307,11 @@ def solve_steady_state(calibration_start):
         'phi_bF_F_ss':           float(ss['q_b_F']) * float(ss['b_F_F']) / (float(ss['p']) * float(ss['n_inter_F'])),
         'b_F_D_anchor':          float(ss['b_F_D']),
         'b_D_F_anchor':          float(ss['b_D_F']),
-        'excess_return_bD_D_ss': float(ss['rb_actual_D']) - float(ss['rdep_D']) - calibration_start['T0_D'],
-        'excess_return_bF_F_ss': float(ss['rb_actual_F']) - float(ss['rdep_F']) - calibration_start['T0_F'],
-        'excess_return_F_D_ss':  float(ss['rb_actual_F']) - float(ss['rdep_D']) - calibration_start['T0_D'],
-        'excess_return_D_F_ss':  float(ss['rb_actual_D']) - float(ss['rdep_F']) - calibration_start['T0_F'],
+        # No excess_return_*_ss / psi_spread / EL_price anchors -- see _apply_ss_anchors.
+        'gk_wedge_F_D_ss':       gk_cross_wedges(ss)[0],
+        'gk_wedge_D_F_ss':       gk_cross_wedges(ss)[1],
+        'Omega_p1_D':            float(ss['Omega_D']),
+        'Omega_p1_F':            float(ss['Omega_F']),
         'q_b_D':                 float(ss['q_b_D']),
         'q_b_F':                 float(ss['q_b_F']),
         'p':                     float(ss['p']),
@@ -333,10 +455,17 @@ def solve_steady_state(calibration_start):
     })
 
     print("Re-solving SS with new portfolio allocation...")
-    _unknowns_warm = {'beta_D': float(ss['beta_D']), 'beta_F': float(ss['beta_F']), 'p': float(ss['p'])}
+    # Must carry EVERY unknown in unknowns_ss, warm-started at the first solve's
+    # values. q_b_D/q_b_F joined the unknown set in the stage-2/3 refactor; omitting
+    # them here left 3 unknowns against 5 targets and broyden_solver ran to its
+    # 100-iteration cap without converging.
+    _unknowns_warm = {'beta_D': float(ss['beta_D']), 'beta_F': float(ss['beta_F']),
+                      'p':      float(ss['p']),
+                      'q_b_D':  float(ss['q_b_D']), 'q_b_F': float(ss['q_b_F'])}
     ss = ha.solve_steady_state(calibration_start, _unknowns_warm, targets_ss, solver='broyden_custom')
     _apply_ss_anchors(ss, calibration_start)
     print(f"SS re-solved. beta_D={float(ss['beta_D']):.8f}  p={float(ss['p']):.6f}")
+    report_gk_steady_state(ss, calibration_start)
 
     return {
         'ss':                ss,
