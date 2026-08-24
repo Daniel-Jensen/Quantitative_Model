@@ -14,6 +14,58 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-08-24 — Paper introduction rewritten; motivation figures added (`gk-structural-foc`)
+
+**No model source changed.** `code/`, the calibration and every solved object are
+untouched; this entry covers `Empirics/` and the Overleaf project.
+
+- **`Empirics/motivation_figures.py`** (new). Emits two paper figures with captions
+  baked into the PNGs, per the repo's figure convention. Outputs to the gitignored
+  `Empirics/outputs/`; the tracked copies live in the Overleaf project at
+  `VIVA/figures/`.
+  - `fig_greece_motivation` — 2×2: Greek general government debt (€bn), debt/GDP,
+    the ten-year yield against the Bund with the spread shaded, and real GDP against
+    real investment indexed to 2007Q4.
+  - `fig_euro_yield_decoupling` — ITA/ESP/PRT/GRC ten-year yields against the Bund,
+    1995–2026, with ECB/OMT/TPI markers.
+  - Sources: Eurostat `gov_10q_ggdebt` (S13, `na_item=GD`) and `namq_10_gdp` (B1GQ,
+    P51G, CLV10_MEUR, SCA); the FRED yield panel already cached by
+    `Empirics/graph_spreads.py`.
+  - Palette is the existing Okabe–Ito order, validated for colour-vision separation
+    (worst adjacent pair ΔE 11.0 deutan, 15.6 normal). Germany is drawn in ink and
+    dashed rather than given a categorical hue, since it is the benchmark.
+
+- **Two facts the figures establish, both checked against the series.** Real
+  investment fell 69.7% from 2007Q4 to the 2015Q3 trough against a 27.4% fall in
+  GDP — the asymmetry that motivates an intermediary-constraint channel rather than
+  a demand or labour-wedge channel. And the March 2012 PSI cut €75bn and 33.7 points
+  of debt ratio, with the ratio back at its 2011Q4 level by 2013Q2 and the stock not
+  until 2021Q2.
+
+- **Introduction rewritten** (Overleaf `866a537`, `a0aeb1c`). Reframed from a
+  counterfactual-history question to three mechanism questions; TPI named as the
+  modelled instrument via the three design features the model uses; Bi–Foerster–Traum
+  separation expanded to three substantive points (CES portfolio aggregator vs.
+  equilibrium retrenchment; their reduced-form financing friction vs. no additive
+  component here; their joint fundamental/non-fundamental scope vs. our deliberate
+  narrowing). Distributional incidence promoted to the second reported finding.
+
+- **Two errors in the previous draft, corrected.** The "87% of the outstanding
+  stock" motivating statistic was a model share of model-issued paper and wrong as an
+  empirical claim by roughly five times; replaced with the EBA figures (€54bn against
+  €23bn of Core Tier 1, 2.4× equity). And `Delta` was glossed as *pledgeability*,
+  which is backwards relative to the proportionality identity — from
+  `intermediation_IC_D` it is the **divertable** share, so `Delta = 0.20` makes
+  sovereign paper better collateral than capital. **`CLAUDE.md` still carries the old
+  wording** ("makes Greek paper worse collateral than capital") and contradicts both
+  the code comment and the IC algebra; flagged, not yet changed.
+
+- **`docs/referee_report_2.md`** (new, `8fc0786`) — hostile second-referee report on
+  the paper's motivation, ten findings. The introduction has been rewritten against
+  it; Sections 2–4, the abstract and the appendices are unaddressed.
+
+---
+
 ## 2026-08-19 — Central-bank block audit; `docs/cb_mechanism.md` promoted to canonical (`gk-structural-foc`)
 
 Diagnose-and-report audit of the CB block against the refactored pricing. **No model source

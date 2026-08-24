@@ -1,5 +1,36 @@
 # Handoff Notes
 
+## Session status — 2026-08-24: paper, not model
+
+The last session touched **no model source**. Work was on the Overleaf project and
+`Empirics/`:
+
+- The **introduction is rewritten** and pushed (Overleaf `a0aeb1c`). It now asks three
+  mechanism questions rather than a counterfactual-history question, names TPI as the
+  modelled instrument, concedes explicitly that Greece would not have met TPI's
+  eligibility criteria, and separates from Bi–Foerster–Traum on three specific points.
+- **`Empirics/motivation_figures.py`** is new and generates the two motivation figures
+  (`fig_greece_motivation`, `fig_euro_yield_decoupling`). Re-run it after any data
+  refresh: `/opt/anaconda3/envs/ssj/bin/python Empirics/motivation_figures.py --refresh`.
+- **`docs/referee_report_2.md`** is the standing referee report. Its ten findings are the
+  best available list of what the paper still needs.
+
+**Next on the paper, in order.** Sections 2–4 are the coauthor's global nonlinear model
+and have not been reconciled with the sequence-space code — that reconciliation is the
+blocking item. Section 4 (TPI) is an empty stub. The abstract is `Lorem Ipsum`. Appendix B
+is unmodified template boilerplate and there is no calibration table anywhere in the
+manuscript.
+
+**Two live corrections.** `docs/paper_draft_results.md` Table 4 (quintile incidence) was
+generated at `ea23e94`, before the GK structural refactor; the aggregate numbers still
+match STATE.md but the quintile numbers should be regenerated before they go to print
+(`experiments/e4_distribution.py`, then `experiments/paper_outputs.py`). And `CLAUDE.md`'s
+GK-1 row says `Delta_bD_D = 0.20` "makes Greek paper worse collateral than capital", which
+contradicts the code comment in `intermediation_IC_D` and the IC algebra — lower `Delta`
+means *less* divertable, hence better collateral. Fix the wording.
+
+---
+
 ## READ FIRST: `docs/cb_mechanism.md` is canonical — 2026-08-19
 
 The CB-block audit (`diagnostics/cb_audit/`) is done and promoted. **No model source changed.**
