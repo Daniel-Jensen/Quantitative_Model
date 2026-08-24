@@ -196,11 +196,21 @@ Read `docs/STATE.md` → *GK structural refactor* before touching the bank block
 - **All four `Delta` are 0.20.** Cross-border `Delta_bF_D`/`Delta_bD_F` moved 0.40 → 0.20
   because GK optimality at a riskless SS with `rk_D = rk_F` and `rdep_D = rdep_F = 0` forces
   it. Holding 0.40 leaves an 80bp/yr constant cross-border wedge.
-- **`psi_lambda_B_D/F = 0` is the preferred baseline.** The Greek episode gives no
-  independent observable for a sovereign-specific haircut *elasticity*. This does not remove
-  collateral: the IC still binds and `Delta_bD_D = 0.20` still makes Greek paper worse
-  collateral than capital. `psi_lambda_B = 3.01` is a **diagnostic arm**, and the difference
-  is a model counterfactual, never "the non-fundamental share of the spread".
+- **`psi_lambda_B_D/F` is SLATED FOR DELETION (decided 2026-08-24), not a diagnostic arm.**
+  It is 0 in the live calibration and will never again be set otherwise: the parameter and
+  the risk-sensitive branch of `collateral_quality_D/F` are to be removed outright, leaving
+  `Delta_*_eff = Delta_*` as constants. The Greek episode gives no independent observable for
+  a sovereign-specific haircut *elasticity*, and keeping a switched-off dial invites the
+  reader to ask what it does. This does not remove collateral: the IC still binds and
+  `Delta_bD_D = 0.20` still makes sovereign paper LESS divertable than capital — i.e. BETTER
+  collateral, which is why it earns a fifth of the capital premium. (The former wording here
+  said "worse collateral"; that contradicted the code comment in `intermediation_IC_D` and
+  the IC algebra `theta_tgt = value/lambda_gk + (1−Delta)·phi_b`, and is corrected.)
+  **The paper's introduction now states that the model contains no device making a
+  balance-sheet friction a function of the default probability.** Until the deletion lands,
+  `code/` and the paper disagree; the deletion is the fix, not a caveat in the text. The old
+  `psi_lambda_B = 3.01` counterfactual is void and must never be described as "the
+  non-fundamental share of the spread".
 - **Do not write "x% fundamental / y% non-fundamental".** This is a linearised equilibrium
   model; the channels operate jointly. Describe mechanisms: direct expected-default-loss
   pricing, intermediary balance-sheet amplification, and (if enabled) risk-sensitive

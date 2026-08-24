@@ -60,6 +60,14 @@ untouched; this entry covers `Empirics/` and the Overleaf project.
   wording** ("makes Greek paper worse collateral than capital") and contradicts both
   the code comment and the IC algebra; flagged, not yet changed.
 
+- **`psi_lambda_B` slated for DELETION** (decision, 2026-08-24). Not "0 in the baseline
+  with a diagnostic arm at 3.01" — the parameter goes, and with it the risk-sensitive
+  branch of `collateral_quality_D/F`. It is the analogue of Bi–Foerster–Traum's calibrated
+  liquidity-risk channel, which their Table 1 shows carrying most of both financial
+  moments, so removing it outright is the paper's sharpest separation from the nearest
+  published analogue. The introduction now asserts the absence. Until the deletion lands,
+  `code/` and the paper disagree — see STATE.md.
+
 - **`docs/referee_report_2.md`** (new, `8fc0786`) — hostile second-referee report on
   the paper's motivation, ten findings. The introduction has been rewritten against
   it; Sections 2–4, the abstract and the appendices are unaddressed.

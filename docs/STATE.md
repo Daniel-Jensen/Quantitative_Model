@@ -8,6 +8,33 @@
 > `experiments/e4_distribution.py` → `experiments/paper_outputs.py`. Quoting the current
 > artefacts quotes the pre-refactor model.
 
+## `psi_lambda_B` to be DELETED — decided 2026-08-24
+
+**Decision, not a calibration choice.** `psi_lambda_B_D/F` (collateral-friction
+amplification dial) is 0 today and will never be non-zero again. The parameter and the
+risk-sensitive branch of `collateral_quality_D/F` are to be removed from `code/`, leaving
+`Delta_bD_eff_D = Delta_bD_D` and `Delta_bF_eff_D = Delta_bF_D` as constants.
+
+**Why it matters beyond tidiness.** It is the closest analogue in this model to
+Bi–Foerster–Traum's *liquidity risk channel* (`eta^v_t/eta^v = 1 + phi^eta[P(s) − P(sbar)]`,
+their eq. 2.24, `phi^eta = 0.0125` calibrated to the 2012 Italian episode). Their own Table 1
+shows that channel carrying most of both financial moments: dropping it takes the peak yield
+spread from 6.4 to 2.0 pp against 5.0 in the data, and the excess return on government debt
+from 5.1 to 0.9 against 5.1. **Removing ours outright is therefore the paper's sharpest
+point of separation**, and the introduction now asserts it as an absence — "no parameter
+anywhere in the model makes a balance-sheet friction a function of the default probability".
+
+**Open gap until the deletion lands:** the paper claims the device does not exist while
+`code/equations_D.py::collateral_quality_D` still contains it at coefficient zero. The fix
+is the deletion, not a hedge in the text. `code/test_nkpc_blocks.py::test_no_ad_hoc_
+sovereign_spread_wedge_anywhere` is the natural place to add `psi_lambda_B` to the banned
+-names AST scan once it is gone.
+
+**Consequence for the diagnostic arms.** The `psi_lambda_B = 3.01` counterfactual is void.
+Anything in `diagnostics/psilam_*` that varies it is dead code.
+
+---
+
 ## Paper motivation and figures — 2026-08-24
 
 **No model source, calibration or solved object changed by this entry.**
