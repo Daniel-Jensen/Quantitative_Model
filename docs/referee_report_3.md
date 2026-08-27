@@ -38,12 +38,14 @@ Monetary Transactions and the TPI"; the comment header no longer reads "Conclusi
 
 **Left open, deliberately.**
 
-- **C8, the results paragraph.** Not written. The findings that would fill it exist
-  only in the sequence-space implementation, which is a different solution of a
-  different model from the one Sections 2--3 describe; importing those numbers would
-  create exactly the kind of inconsistency this report is about. The position is
-  marked `[ADD RESULTS]`, matching the draft's existing placeholder convention, with
-  a comment block giving the intended structure.
+- **C8, the results paragraph.** Dropped at the author's instruction, not deferred.
+  The introduction states its three questions and moves to the calibration. The
+  findings that would fill the position exist only in the sequence-space
+  implementation, which is a different solution of a different model from the one
+  Sections 2--3 describe, so importing them would create exactly the kind of
+  inconsistency this report is about. The finding stands against the draft: until
+  Section 4 exists and supplies its own numbers, the introduction reports nothing
+  learned.
 - **C7, Section 4.** Still a heading. The introduction's three questions and the road
   map both still promise it.
 - **C5 and the notation ledger.** In `02-model.tex` and `03-calibration.tex`, which
