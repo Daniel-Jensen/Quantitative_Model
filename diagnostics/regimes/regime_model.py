@@ -91,7 +91,7 @@ OPTIONAL = ["G_D", "ra_D", "lambda_gk_D", "theta_D", "GINI_WEALTH", "GINI_C",
 SS_META  = ["q_b_D_ss:q_b_D", "b_D_D_ss:b_D_D", "b_gov_D_ss:b_gov_D", "Y_D_ss:Y_D",
             "C_D_ss:C_D", "I_D_ss:I_D", "NX_D_ss:NX_D", "n_inter_D_ss:n_inter_D",
             "K_D_ss:K_D", "TAX_D_ss:TAX_D", "P_CES_D_ss:P_CES_D",
-            "beta_D:beta_D", "beta_F:beta_F", "EL_price_D:EL_price_D",
+            "beta_D:beta_D", "beta_F:beta_F", "EL_load_D:EL_load_D",
             # schema 2: needed by E1's cb_pnl port and E2's identity
             # schema 3: delta_b_F is NOT delta_b_D (0.0568 vs 0.0777 — the two
             # countries' bank books have different measured durations). E1's
@@ -155,28 +155,13 @@ def build_tpi_model_main(tpi, financial_solved_D, financial_solved_F,
     single place the model is defined — a second copy is how the retired
     audit_artifacts/ harness drifted into testing a different model."""
     t = tpi
-    hh_D = t.hh_extended_D if hh_D is None else hh_D
-    hh_F = t.hh_extended_F if hh_F is None else hh_F
-    return sj.create_model([
-        t.deposit_return_D, t.tax_rule_D, hh_D, t.ghh_composite_D,
-        t.sdf_D, t.sdf_banker_D, t.government_default_D, financial_solved_D,
-        t.bond_return_D, t.bank_return_D, t.capital_fund_D, t.cap_adj_cost_inter_D, t.macro_pru_tax_D,
-        t.intermediation_P2_D, t.intermediation_P3_D, t.k_balance_sheet_D,
-        t.capital_adj_D, t.capital_producer_profit_D, t.budget_residual_D_tpi,
-        t.labor_D, t.labor_market_D, t.labor_demand_D, t.banker_div_res_D,
-        t.market_clearing_D, t.welfare_agg_D,
-        t.deposit_return_F, t.tax_rule_F, hh_F, t.ghh_composite_F,
-        t.sdf_F, t.sdf_banker_F, t.government_default_F, financial_solved_F,
-        t.bond_return_F, t.bank_return_F, t.capital_fund_F, t.cap_adj_cost_inter_F, t.macro_pru_tax_F,
-        t.intermediation_P2_F, t.intermediation_P3_F, t.k_balance_sheet_F,
-        t.capital_adj_F, t.capital_producer_profit_F, t.budget_residual_F_tpi,
-        t.labor_F, t.labor_market_F, t.labor_demand_F, t.banker_div_res_F,
-        t.market_clearing_F, t.welfare_agg_F,
-        t.ces_price_D, t.import_demand_D, t.ces_price_F, t.import_demand_F,
-        t.trade_balance, t.external_account_D_tpi, t.domestic_bond_clearing_tpi,
-        t.bond_yield, t.portfolio_level_anchors, t.divert_portfolio_adj,
-        t.divert_bond_foc_D, t.divert_bond_foc_F, t.global_goods_mkt,
-    ], name="Full 2-Country MU HANK — TPI Extension (regimes cache, main)")
+    from full_model import build_block_list
+    return sj.create_model(
+        build_block_list(financial_solved_D, financial_solved_F,
+                         hh_D=hh_D, hh_F=hh_F,
+                         overrides=t.tpi_overrides()),
+        name="Full 2-Country MU HANK — TPI Extension (regimes cache, main)",
+    )
 
 
 def _ss_tpi(ss_final, kappa_cb_F):
@@ -189,8 +174,9 @@ def _ss_tpi(ss_final, kappa_cb_F):
 
 def _solve_G(model, ss_tpi, unk, tgt, T, label):
     log(f"- {datetime.datetime.now():%Y-%m-%d %H:%M:%S} solving G_tpi at psi_lambda_B={label} ...")
-    return model.solve_jacobian(ss_tpi, unknowns=unk, targets=tgt,
-                                inputs=["Z_D", "shock_def_D", "Z_F", "shock_def_F", "cb_buy_D"], T=T)
+    from full_model import solve_jacobian_padded
+    return solve_jacobian_padded(model, ss_tpi, unk, tgt,
+                                 ["Z_D", "shock_def_D", "Z_F", "shock_def_F", "cb_buy_D"], T)
 
 
 def _col(G, o, i, T):
@@ -260,7 +246,7 @@ def build_caches(force=False):
     log(f"\n## Cache build (main model) — {datetime.datetime.now():%Y-%m-%d %H:%M:%S}")
     log(f"- calibration: psi_lambda_B={cal['psi_lambda_B_D']}, mv_rule={cal['mv_rule_D']}, "
         f"recovery_rate={cal['recovery_rate_D']}, kappa_cb_F={kappa_cb_F}")
-    log(f"- EL_price_D = {float(ss['EL_price_D']):.6f} (main recovery=0.30; NOT the ms-regime 0.102491 anchor)")
+    log(f"- EL_load_D = {float(ss['EL_load_D']):.6f} (endogenous expected-loss loading from bond_return_D; replaced the deleted EL_price_D anchor on 2026-08-18)")
 
     model = build_tpi_model_main(tpi, res["financial_solved_D"], res["financial_solved_F"])
 
@@ -277,11 +263,20 @@ def build_caches(force=False):
         f"(probe found -1.9455e-2 → expect match; A_cb<0 = backstop COMPRESSES on main)")
     np.savez_compressed(paths[psilam_live], **_extract(G28, ss28, T, dshock, psilam_live))
 
-    ss0 = _ss_tpi(ss, kappa_cb_F)
-    ss0.toplevel["psi_lambda_B_D"] = 0.0; ss0.toplevel["psi_lambda_B_F"] = 0.0
-    ss0.toplevel["psi_spread_D"]   = 0.0; ss0.toplevel["psi_spread_F"]   = 0.0
-    G0 = _solve_G(model, ss0, unk, tgt, T, "0.0")
-    np.savez_compressed(paths[0.0], **_extract(G0, ss0, T, dshock, 0.0))
+    # Since 2026-08-18 the live psi_lambda_B IS 0.0, so the counterfactual cache would be
+    # a bit-identical second solve of the same Jacobian (~4 min). Skip it; paths already
+    # collapsed to one entry, and load_cache(0.0) finds the file either way.
+    if psilam_live != 0.0:
+        ss0 = _ss_tpi(ss, kappa_cb_F)
+        # psi_lambda_B now enters ONLY through collateral_quality_D/F (Delta_*_eff), a
+        # genuine endogenous block, so patching the parameter alone is complete. The old
+        # warning that "only the psi_spread channel picks the patch up" is void: that
+        # anchor was deleted with the 2026-08-18 structural refactor.
+        ss0.toplevel["psi_lambda_B_D"] = 0.0; ss0.toplevel["psi_lambda_B_F"] = 0.0
+        G0 = _solve_G(model, ss0, unk, tgt, T, "0.0")
+        np.savez_compressed(paths[0.0], **_extract(G0, ss0, T, dshock, 0.0))
+    else:
+        log("- psi_lambda_B = 0 is LIVE; the counterfactual cache is the same solve, skipped")
 
     log(f"- caches written: {[os.path.basename(p) for p in paths.values()]}")
     return paths

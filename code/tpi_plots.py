@@ -50,11 +50,15 @@ CAPTIONS = {
     'fig_tpi_utility':
         "Household utility with and without intervention: D's crisis trough is shallower "
         "under TPI; F forgoes part of its crisis gain.",
+    # FALLBACK ONLY — plot_loading_schedule always passes a derived caption, which is
+    # what actually gets baked in. Kept deliberately directionless: the schedule sat
+    # above ℓ=1 before the 2026-08-18 payoff repair and sits below it after, so any
+    # hard-coded claim about which side it is on will go stale again.
     'fig_tpi_loading_schedule':
         "The backstop's compensation self-extinguishes as it deploys: premium income per "
-        "unit of expected tail loss declines monotonically toward the fair-insurance limit "
-        "ℓ=1 (illustrative calibration; the declining shape, not the level, is the "
-        "model's prediction).",
+        "unit of expected tail loss declines as deployment rises. Whether the schedule "
+        "sits above or below the fair-insurance benchmark ℓ=1 is calibration-dependent "
+        "and is stated in the figure's own derived caption — do not assert it here.",
 }
 
 
@@ -342,12 +346,19 @@ def plot_loading_schedule(tpi_results, output_dir):
     Y_D_ss      = float(tpi_results['Y_D_ss'])
     kappa_cb_F  = float(tpi_results['kappa_cb_F'])
     gamma_values = list(tpi_results['gamma_values'])
+    # Read live rather than written into the caption as a literal: the caption used to
+    # say "rho=0.8", which stopped being true when rho_def was disciplined by the MS
+    # regime estimate to 0.9408 on 2026-08-06 and nobody noticed for three months.
+    try:
+        rho_def = float(tpi_results['ss_final']['rho_def_D'])
+    except Exception:
+        rho_def = float(tpi_results.get('rho_def_D', float('nan')))
 
     # persist the schedule so the key figure is regenerable without a full solve
     np.savez(output_dir / 'tpi_loading_schedule.npz',
              gammas_fine=gammas_fine, loading_arr=loading_arr,
              prem_pv_arr=prem_pv_arr, el_pv_arr=el_pv_arr, expos_arr=expos_arr,
-             Y_D_ss=Y_D_ss, kappa_cb_F=kappa_cb_F,
+             Y_D_ss=Y_D_ss, kappa_cb_F=kappa_cb_F, rho_def_D=rho_def,
              gamma_values=np.array(gamma_values, dtype=float))
 
     dep  = 100.0 * expos_arr / (4.0 * Y_D_ss)          # peak holdings, % of annual GDP
@@ -359,8 +370,10 @@ def plot_loading_schedule(tpi_results, output_dir):
     # Panel A — the schedule itself (single series: no legend, title names it)
     axA.plot(dep[m], loading_arr[m], color=BLUE, linewidth=2)
     axA.axhline(1.0, color='#888888', linewidth=1.0, linestyle='--')
-    axA.text(dep[m].min(), 1.07, 'actuarially fair  (ℓ = 1)',
-             ha='left', va='bottom', fontsize=8, color='#666666')
+    # BELOW the line, not above it: at 1.07 this label sat in the same band as the
+    # subplot title and the two overprinted each other.
+    axA.text(dep[m].max(), 0.975, 'actuarially fair  (ℓ = 1)',
+             ha='right', va='top', fontsize=8, color='#666666')
     for j, g in enumerate(gamma_values):
         if g == 0:
             continue
@@ -369,12 +382,27 @@ def plot_loading_schedule(tpi_results, output_dir):
                     color=BLUE, edgecolors='white', linewidths=1.5)
         axA.annotate(f'γ={g:g}:  {loading_arr[i]:.2f}×', (dep[i], loading_arr[i]),
                      textcoords='offset points', xytext=(8, 8), fontsize=8)
-    axA.text(0.98, 0.90, 'timid intervention → high loading\n(SMP-type regime)',
-             transform=axA.transAxes, fontsize=7.5, color='#666666',
-             ha='right', va='top')
-    axA.text(0.98, 0.21, 'at scale → fair insurance\n(PSPP-type regime)',
-             transform=axA.transAxes, fontsize=7.5, color='#666666',
-             ha='right', va='bottom')
+    # Annotations are chosen from WHERE THE SCHEDULE ACTUALLY SITS. The old pair
+    # ("timid intervention -> high loading (SMP-type)" above, "at scale -> fair
+    # insurance (PSPP-type)" below) hard-coded a schedule that starts above 1 and falls
+    # toward it. Since the 2026-08-18 payoff repair the whole schedule sits near 0.5, so
+    # those labels described a picture that is no longer on the axis.
+    _lo, _hi = float(np.nanmin(loading_arr[m])), float(np.nanmax(loading_arr[m]))
+    if _hi < 1.0:
+        axA.text(0.98, 0.90,
+                 'entire schedule below ℓ = 1:\nthe CB is UNDER-compensated\nat every '
+                 'deployment', transform=axA.transAxes, fontsize=7.5, color='#666666',
+                 ha='right', va='top')
+        axA.text(0.98, 0.06, 'more deployment → less compensation per unit of risk borne',
+                 transform=axA.transAxes, fontsize=7.5, color='#666666',
+                 ha='right', va='bottom')
+    else:
+        axA.text(0.98, 0.90, 'timid intervention → high loading\n(SMP-type regime)',
+                 transform=axA.transAxes, fontsize=7.5, color='#666666',
+                 ha='right', va='top')
+        axA.text(0.98, 0.21, 'at scale → fair insurance\n(PSPP-type regime)',
+                 transform=axA.transAxes, fontsize=7.5, color='#666666',
+                 ha='right', va='bottom')
     axA.set_xlabel('Deployment: peak CB holdings of D bonds  (% of annual GDP)', fontsize=9)
     axA.set_ylabel('Loading  ℓ = premium PV ÷ expected-loss PV', fontsize=9)
     axA.set_title('The Loading Schedule — Compensation Self-Extinguishes', fontsize=10, pad=6)
@@ -393,9 +421,16 @@ def plot_loading_schedule(tpi_results, output_dir):
     axB.axhline(0, color='#888888', linewidth=0.8, linestyle=':')
     axB.set_xlabel('Deployment: peak CB holdings of D bonds  (% of annual GDP)', fontsize=9)
     axB.set_ylabel('PV over 100q, β_F-discounted  (% of quarterly SS GDP)', fontsize=9)
-    _i_pk = int(np.argmax(prem_pv_arr))
-    axB.set_title(f'The Two Legs — Premium Peaks (γ≈{gammas_fine[_i_pk]:.0f}), '
-                  'Tail Keeps Growing', fontsize=10, pad=6)
+    # Title derived, not asserted. "Premium Peaks (γ≈26), Tail Keeps Growing" was a
+    # literal claim about a shape that only held on the old calibration; on the current
+    # one both legs rise monotonically to the end of the (pole-capped) grid.
+    _i_pk = int(np.nanargmax(prem_pv_arr))
+    _prem_peaks_inside = _i_pk < len(gammas_fine) - 1
+    axB.set_title(
+        (f'The Two Legs — Premium Peaks (γ≈{gammas_fine[_i_pk]:.0f}), Tail Keeps Growing'
+         if _prem_peaks_inside else
+         'The Two Legs — Expected Loss Outgrows Premium Throughout'),
+        fontsize=10, pad=6)
     axB.legend(fontsize=8, frameon=False, loc='center right')
     axB.spines[['top', 'right']].set_visible(False); axB.tick_params(labelsize=8)
 
@@ -405,11 +440,23 @@ def plot_loading_schedule(tpi_results, output_dir):
                  'off-path accounting, never read off the linear DAG',
                  fontsize=11, y=1.04)
     fig.tight_layout()
+    # Every clause below is DERIVED. The previous version asserted the schedule falls
+    # "toward the fair-insurance limit ℓ=1" and quoted the endpoints at one decimal,
+    # which on the current calibration printed "from 0.5× to 0.5×" while describing a
+    # descent toward a benchmark the curve is moving AWAY from.
+    _mono = bool(np.all(np.diff(loading_arr[m]) < 0))
+    _dir = ("falls monotonically" if _mono else
+            "falls on net" if _l1 < _l0 else "does NOT fall")
+    _rel = ("toward the fair-insurance limit ℓ=1" if _l1 > 1.0 else
+            "AWAY from the fair-insurance benchmark ℓ=1, which the whole schedule sits "
+            "below — the CB is under-compensated at every deployment, so this figure "
+            "must not be captioned as over-compensation")
+    _rho = float(rho_def) if rho_def is not None else float('nan')
     caption = (f"The backstop's compensation self-extinguishes as it deploys: premium "
-               f"income per unit of expected tail loss falls monotonically from "
-               f"{_l0:.1f}× at minimal deployment to {_l1:.1f}× at the top of the grid, "
-               f"toward the fair-insurance limit ℓ=1 — because purchases relieve the "
+               f"income per unit of expected tail loss {_dir} from "
+               f"{_l0:.3f}× at minimal deployment to {_l1:.3f}× at the top of the "
+               f"(pole-capped) grid, {_rel} — because purchases relieve the "
                f"constrained marginal holder whose rent generates the premium. "
-               f"Illustrative calibration (1pp default-rate shock, ρ=0.8); the declining "
+               f"1pp default-rate shock, ρ_def={_rho:.4f}; the declining "
                f"shape, not the level, is the model's prediction.")
     _save(fig, 'fig_tpi_loading_schedule', output_dir, caption=caption)

@@ -18,7 +18,7 @@ from equations_D import (
     capital_adj_D, capital_producer_profit_D,
     labor_D, labor_market_D, labor_demand_D, banker_div_res_D,
     market_clearing_D, welfare_agg_D, ces_price_D, import_demand_D,
-    divert_bond_foc_D,
+    gk_bond_foc_D,
 )
 from equations_F import (
     deposit_return_F, tax_rule_F, hh_extended_F, ghh_composite_F,
@@ -28,11 +28,11 @@ from equations_F import (
     capital_adj_F, capital_producer_profit_F,
     labor_F, labor_market_F, labor_demand_F, banker_div_res_F,
     market_clearing_F, welfare_agg_F, ces_price_F, import_demand_F,
-    divert_bond_foc_F,
+    gk_bond_foc_F,
 )
 from equations_global import (
     trade_balance, bond_yield,
-    portfolio_level_anchors, divert_portfolio_adj, global_goods_mkt,
+    portfolio_level_anchors, gk_cross_border_foc, global_goods_mkt,
 )
 
 BLUE       = '#002147'
@@ -43,9 +43,12 @@ RED_MUTED  = '#c0624a'
 
 # ── TPI-1: CB bond clearing + budget constraint (audit fix) ──────────────────
 @simple
-def domestic_bond_clearing_tpi(b_gov_D, b_gov_F, b_D_F, b_F_D, cb_buy_D):
-    b_D_D = b_gov_D - b_D_F - cb_buy_D
-    b_F_F = b_gov_F - b_F_D
+def domestic_bond_clearing_tpi(b_gov_D, b_gov_F, b_D_F, b_F_D, cb_buy_D, size_F):
+    # size_F: see equations_global.domestic_bond_clearing. cb_buy_D is the CB's
+    # book measured as a D aggregate (the ECB buys a quantity of D debt), so it
+    # is NOT per-capita and takes no weight.
+    b_D_D = b_gov_D - size_F * b_D_F - cb_buy_D
+    b_F_F = b_gov_F - b_F_D / size_F
     return b_D_D, b_F_F
 
 
@@ -78,27 +81,45 @@ def budget_residual_D_tpi(b_gov_D, G_D, TAX_D, q_b_D, def_rate_D, recovery_rate_
 @simple
 def budget_residual_F_tpi(b_gov_F, G_F, TAX_F, q_b_F, def_rate_F, recovery_rate_F,
                            zeta_writeoff_F, p, P_CES_F, delta_b_F, writeoff_enabled_F,
-                           cb_flow_D, kappa_cb_F):
+                           cb_flow_D, kappa_cb_F, size_F):
     haircut_F      = 1.0 - recovery_rate_F
     haircut_mult_F = writeoff_enabled_F
     surv_cont_F    = 1.0 - zeta_writeoff_F * def_rate_F * haircut_F * haircut_mult_F
     coupon_F       = delta_b_F * (1.0 - def_rate_F * haircut_F * haircut_mult_F) * b_gov_F(-1)
     net_issuance_F = q_b_F * (b_gov_F - surv_cont_F * (1.0 - delta_b_F) * b_gov_F(-1))
-    rem_cb_F       = kappa_cb_F * cb_flow_D / p
+    # cb_flow_D is a D AGGREGATE cash flow in D goods; this budget is PER F CAPITA
+    # in F goods. So the remittance takes both conversions: /p for the good, and
+    # /size_F to spread the aggregate over F's population. Omitting the second
+    # leaked up to 2e-2 of F GDP through goods_mkt_F at gamma=10, while gamma=0
+    # stayed clean at 2e-10 — the signature of a CB-conduit-only units error.
+    rem_cb_F       = kappa_cb_F * cb_flow_D / p / size_F
     b_gov_res_F    = (coupon_F - net_issuance_F) / p + G_F - P_CES_F * TAX_F - rem_cb_F
     return b_gov_res_F, rem_cb_F
 
 
 @simple
 def external_account_D_tpi(NX_D, q_b_D, q_b_F, b_F_D, b_D_F, rb_actual_F, rb_actual_D,
-                           cb_buy_D, kappa_cb_F):
+                           cb_buy_D, kappa_cb_F, size_F):
     # The F share of the CB book is an F claim on D: it enters D's external
     # account exactly like b_D_F. The D share stays domestic (like b_D_D).
+    # b_D_F is per F capita and takes size_F; cb_buy_D is already a D aggregate
+    # and does not. See equations_global.external_account_D.
     receipts_from_F_bonds = (1 + rb_actual_F) * q_b_F(-1) * b_F_D(-1)
-    payments_on_D_bonds   = (1 + rb_actual_D) * q_b_D(-1) * (b_D_F(-1) + kappa_cb_F * cb_buy_D(-1))
-    nfa_D = q_b_F * b_F_D - q_b_D * (b_D_F + kappa_cb_F * cb_buy_D)
+    payments_on_D_bonds   = (1 + rb_actual_D) * q_b_D(-1) * (size_F * b_D_F(-1)
+                                                             + kappa_cb_F * cb_buy_D(-1))
+    nfa_D = q_b_F * b_F_D - q_b_D * (size_F * b_D_F + kappa_cb_F * cb_buy_D)
     ca_res_D = (NX_D + receipts_from_F_bonds - payments_on_D_bonds - nfa_D)
     return nfa_D, ca_res_D
+
+
+def tpi_overrides():
+    """The four blocks the TPI layer swaps into the shared block list."""
+    return {
+        'budget_residual_D':     budget_residual_D_tpi,
+        'budget_residual_F':     budget_residual_F_tpi,
+        'external_account_D':    external_account_D_tpi,
+        'domestic_bond_clearing': domestic_bond_clearing_tpi,
+    }
 
 
 def compute_tpi_irfs(G_tpi, shock_def, gamma_tpi, T):
@@ -142,26 +163,12 @@ def run_tpi(model_results):
     irfs_def_D         = model_results['irfs_def_D']
 
     # ── Build TPI model ───────────────────────────────────────────────────────
-    ha_full_tpi = sj.create_model([
-        deposit_return_D, tax_rule_D, hh_extended_D, ghh_composite_D,
-        sdf_D, sdf_banker_D, government_default_D, financial_solved_D,
-        bond_return_D, bank_return_D, capital_fund_D, cap_adj_cost_inter_D, macro_pru_tax_D,
-        intermediation_P2_D, intermediation_P3_D, k_balance_sheet_D,
-        capital_adj_D, capital_producer_profit_D, budget_residual_D_tpi,
-        labor_D, labor_market_D, labor_demand_D, banker_div_res_D,
-        market_clearing_D, welfare_agg_D,
-        deposit_return_F, tax_rule_F, hh_extended_F, ghh_composite_F,
-        sdf_F, sdf_banker_F, government_default_F, financial_solved_F,
-        bond_return_F, bank_return_F, capital_fund_F, cap_adj_cost_inter_F, macro_pru_tax_F,
-        intermediation_P2_F, intermediation_P3_F, k_balance_sheet_F,
-        capital_adj_F, capital_producer_profit_F, budget_residual_F_tpi,
-        labor_F, labor_market_F, labor_demand_F, banker_div_res_F,
-        market_clearing_F, welfare_agg_F,
-        ces_price_D, import_demand_D, ces_price_F, import_demand_F,
-        trade_balance, external_account_D_tpi, domestic_bond_clearing_tpi,
-        bond_yield, portfolio_level_anchors, divert_portfolio_adj,
-        divert_bond_foc_D, divert_bond_foc_F, global_goods_mkt,
-    ], name="Full 2-Country MU HANK — TPI Extension")
+    from full_model import build_block_list
+    ha_full_tpi = sj.create_model(
+        build_block_list(financial_solved_D, financial_solved_F,
+                         overrides=tpi_overrides()),
+        name="Full 2-Country MU HANK — TPI Extension",
+    )
 
     ss_tpi = copy.deepcopy(ss_final)
     ss_tpi.toplevel['cb_buy_D'] = 0.0
@@ -178,8 +185,9 @@ def run_tpi(model_results):
     # ── Jacobian ──────────────────────────────────────────────────────────────
     exogenous_tpi = ['Z_D', 'shock_def_D', 'Z_F', 'shock_def_F', 'cb_buy_D']
     print(f"Computing G_tpi (T={T}, {len(exogenous_tpi)} exogenous inputs)...")
-    G_tpi = ha_full_tpi.solve_jacobian(
-        ss_tpi, unknowns=unknowns_tp, targets=targets_tp,
+    from full_model import solve_jacobian_padded
+    G_tpi = solve_jacobian_padded(
+        ha_full_tpi, ss_tpi, unknowns=unknowns_tp, targets=targets_tp,
         inputs=exogenous_tpi, T=T,
     )
     print("G_tpi computed.")
@@ -250,7 +258,12 @@ def run_tpi(model_results):
     q_b_F_ss     = float(ss_final['q_b_F'])
     delta_b_D_v  = float(ss_final['delta_b_D'])
     delta_b_F_v  = float(ss_final['delta_b_F'])
-    EL_price_D_v = float(ss_final['EL_price_D'])
+    # Expected loss per unit of default probability, read off the ENDOGENOUS payoff
+    # (bond_return_D's EL_load_D), not a separately anchored EL_price_D parameter — that
+    # was deleted on 2026-08-18. This is accounting for the CB's book only; it is never
+    # fed back into any price. Same object the GK Euler equation prices, so the P&L and
+    # the model cannot disagree about what a default costs.
+    EL_load_D_v  = float(ss_final['EL_load_D'])
     Y_D_ss       = float(ss_final['Y_D'])
     rb_D_ss      = delta_b_D_v * (1.0 / q_b_D_ss - 1.0)
     rb_F_ss      = delta_b_F_v * (1.0 / q_b_F_ss - 1.0)
@@ -276,7 +289,7 @@ def run_tpi(model_results):
         return {
             'peak_exposure': float(np.max(q_b_D_ss * cb)),
             'purchases_pv':  float((disc * q_b_D_ss * purchases).sum()),
-            'el_pv':         float((disc * EL_price_D_v * defr * q_b_D_ss * cb).sum()),
+            'el_pv':         float((disc * EL_load_D_v * defr * q_b_D_ss * cb).sum()),
             'prem_pv':       float((disc * dspr * q_b_D_ss * cb_l).sum()),
             'carry_ss_pv':   float((disc * spread_ss * q_b_D_ss * cb_l).sum()),
             'mtm_pv':        float((disc * (1.0 - delta_b_D_v) * cb_l * (dq - dq_l)).sum()),
@@ -297,8 +310,12 @@ def run_tpi(model_results):
               f"{pct(d['el_pv']):>9.4f}% {pct(d['prem_pv']):>9.4f}% "
               f"{pct(d['carry_ss_pv']):>11.4f}% {pct(d['mtm_pv']):>9.4f}% {loading:>8.2f}")
     print("─" * 82)
-    print("loading = prem PV / EL PV  (theory: ≈ 1 + psi_spread/EL_price at small γ, "
-          "declining in γ — the self-extinguishing premium)")
+    # The old note here read "theory: ~ 1 + psi_spread/EL_price at small gamma". That
+    # closed form only existed because the spread was a hand-written affine function of
+    # def_rate. With the spread generated by the GK portfolio FOC there is no such
+    # formula and none is substituted: the loading is MEASURED off the run, full stop.
+    print("loading = prem PV / EL PV  — premium income the CB earns per unit of expected "
+          "loss it absorbs. Measured from this run; no closed form, no target.")
     for g in gamma_values[1:]:
         d = pnl_by_gamma[g]
         print(f"  γ={g:<2}: F bears EL PV = {pct(kappa_cb_F*d['el_pv']):.4f}% Y_D, "
@@ -312,7 +329,30 @@ def run_tpi(model_results):
         return sp[:100].max()
 
     peak_no_tpi  = _peak_spread(irfs_tpi[0])
-    gammas_fine  = np.concatenate([np.linspace(0, 5, 25), np.linspace(5, 30, 26)[1:]])
+    # THE GRID MUST STOP BELOW THE CLOSED-LOOP POLE (2026-08-18). compute_tpi_irfs
+    # inverts (I - gamma*A_cb), which is singular where 1/gamma hits an eigenvalue of
+    # A_cb -- gamma ~ 27.3 on the post-GK-refactor calibration. The old fixed grid ran to
+    # 30 and straight through it, putting a spurious spike and a different solution
+    # branch on the effectiveness curve. Located by CONDITION NUMBER: a coarse scan steps
+    # over a pole this narrow and sees nothing. Same guard as
+    # diagnostics/regimes/lottery_math.closed_loop_pole; kept local because code/ does
+    # not import from diagnostics/.
+    # 0.75, matching diagnostics/regimes/lottery_math.POLE_SAFETY_FRACTION: the loading
+    # curve is monotone in gamma only up to ~0.85*pole, so the last stretch before the
+    # singularity is already dominated by it. Duplicated as a literal rather than
+    # imported because code/ must not depend on diagnostics/ -- keep the two in step.
+    _POLE_SAFETY = 0.75
+    _gmax = 30.0
+    _Acb = np.array(G_tpi['spread_rb']['cb_buy_D'])
+    for _g in np.linspace(0.25, 60.0, 240):
+        if np.linalg.cond(np.eye(T) - _g * _Acb) > 1.0e4:
+            _gmax = min(_gmax, _POLE_SAFETY * _g)
+            print(f"  closed-loop pole at gamma = {_g:.2f}; capping the effectiveness "
+                  f"curve at gamma = {_gmax:.2f} ({_POLE_SAFETY:g} x pole — beyond the "
+                  f"pole is a different branch, and the approach to it is dominated by it)")
+            break
+    gammas_fine  = np.concatenate([np.linspace(0, 5, 25),
+                                   np.linspace(5, _gmax, 26)[1:]])
     peak_arr     = np.empty(len(gammas_fine))
     cost_arr     = np.empty(len(gammas_fine))
     el_pv_arr    = np.empty(len(gammas_fine))

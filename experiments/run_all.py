@@ -45,7 +45,13 @@ def _fmt_loading(v):
 
 def _render_e1(e1, L):
     L += ["## E1 — Backstop schedule", "", _stamp(e1["provenance"]), "",
-          f"γ selection: {e1['gamma_selection_rule']}.", "",
+          "γ selection: γ is **solved** for peak-spread compression, not chosen. "
+          "`medium` = 25% (spec section 7). **`aggressive` is NOT 50%**: since the "
+          "2026-08-18 GK structural refactor that target lies beyond a closed-loop pole "
+          "at γ ≈ 27.3, so it falls back to the strongest intervention the model can "
+          "represent — γ just below the pole, achieving **≈46.6%**. See "
+          "`common.named_regime_gammas` / `lottery_math.closed_loop_pole`.", "",
+          f"<sub>Rule recorded in the results file at run time: {e1['gamma_selection_rule']}</sub>", "",
           "| regime | γ | peak spread (bp ann) | Y_D[0] (% SS) | C_D[0] (% SS) "
           "| I_D[0] (% SS) | n_inter_D[0] (% SS) | loading |",
           "|---|---|---|---|---|---|---|---|"]
@@ -124,12 +130,31 @@ def _render_e2(e2, L):
     L.append("| **dY[0] total** | " + " | ".join(
         f"**{e2['regimes'][r]['dY_path'][0]:+.3e}**" for r in e2["regimes"]) + " |")
 
-    L += ["", "> **The headline output number is the residue of two much larger "
-          "offsetting channels.** Passive → aggressive, `dY[0]` moves by ~+4.9e−04 while "
-          "investment moves ~+2.2e−03 and net exports ~−1.9e−03 — each roughly 4× the "
-          "headline and opposite in sign. This confirms `docs/SPEC.md`'s standing caution "
-          "as a measured property of this calibration. **Report the decomposition, not "
-          "the headline ΔY.**", "",
+    # Computed live, never hardcoded. This caption asserted "+4.9e-04 / +2.2e-03 /
+    # -1.9e-03, each roughly 4x the headline" until 2026-08-06 — flex-price numbers that
+    # outlived the sticky-price re-tune. Under sticky prices the ordering REVERSES (the
+    # headline becomes the larger object), so a hardcoded caption here does not merely go
+    # stale, it states the opposite of what the table above it shows.
+    _names = list(e2["regimes"])
+    _lo, _hi = e2["regimes"][_names[0]], e2["regimes"][_names[-1]]
+    _dY = _hi["dY_path"][0] - _lo["dY_path"][0]
+    _dI = _hi["components_impact"]["investment"] - _lo["components_impact"]["investment"]
+    _dNX = (_hi["components_impact"]["net_exports"]
+            - _lo["components_impact"]["net_exports"])
+    _big = max(abs(_dI), abs(_dNX))
+    _residue = abs(_dY) < _big
+    _lead = ("**The headline output number is the residue of larger offsetting "
+             "channels.**" if _residue else
+             "**The headline output number is no longer a residue of larger offsetting "
+             "channels — it now exceeds each of them.**")
+    _rel = (f"each roughly {_big / abs(_dY):.1f}x the headline and opposite in sign"
+            if _residue else
+            f"the largest single channel is {_big / abs(_dY):.2f}x the headline")
+    L += ["", f"> {_lead} {_names[0]} → {_names[-1]}, `dY[0]` moves by "
+          f"{_dY:+.2e} while investment moves {_dI:+.2e} and net exports {_dNX:+.2e} — "
+          f"{_rel}. **Report the decomposition, not the headline ΔY** — the channels "
+          "still offset, and `docs/SPEC.md`'s standing caution is about their "
+          "cancellation, not about which term happens to be largest.", "",
           "> `government`, `portfolio_cost` and `macropru_tax` are **verified** zero, not "
           "merely uncached: `G_D` is constant and absent from the Jacobian, `Phi_D` has no "
           "Jacobian column (the portfolio adjustment cost is quadratic about its anchor, "
@@ -140,31 +165,43 @@ def _render_e2(e2, L):
 
 def _render_e3(e3, L):
     L += ["## E3 — S-1 writeoff", "", _stamp(e3["provenance"]), "",
-          "`writeoff_enabled` is steady-state-neutral: every writeoff term is multiplied "
-          "by `def_rate_ss = 0`. `zeta_writeoff` is **not** — it enters the `EL_price` "
-          "anchor at `code/steady_state.py:107-112` *ungated by* `writeoff_enabled`, and "
-          "`EL_price` is the loading's denominator. S-1 is therefore two nested variants, "
-          "not one switch.", "",
-          "| setting | `writeoff_enabled` | `zeta_writeoff` | EL_price_D | peak spread, "
+          "The two switches answer different questions. `writeoff_enabled` selects which "
+          "BRANCH the impulse response traces and is steady-state-neutral: every realised "
+          "writeoff term is multiplied by `def_rate_ss = 0`. `zeta_writeoff` governs what "
+          "is PRICED — whether a default writes down the perpetuity's continuation value "
+          "alongside its coupon. Both are SS-neutral, for the same reason: every writeoff "
+          "term is multiplied by `def_rate_ss = 0`, inside `rb_exp` as well as inside "
+          "`rb_actual`. So `zeta_writeoff` is allocation-neutral while still changing the "
+          "linearised pricing equation, and hence every dynamic result. Since the "
+          "2026-08-18 refactor the "
+          "baseline is `zeta_writeoff = 1`; `e3b_coupon_only_pricing` is the §12 Arm-3 "
+          "diagnostic showing what the pre-refactor coupon-only payoff was worth.", "",
+          "| setting | `writeoff_enabled` | `zeta_writeoff` | EL_load_D | peak spread, "
           "passive (bp ann) | loading (medium) | loading (aggressive) |",
           "|---|---|---|---|---|---|---|"]
-    flags = {"baseline": ("0", "0.0"), "e3a_coupon_only": ("1", "0.0"),
-             "e3b_full": ("1", "1.0")}
+    flags = {"baseline": ("0", "1.0"), "e3a_realised_writeoff": ("1", "1.0"),
+             "e3b_coupon_only_pricing": ("0", "0.0")}
     for name, r in [("baseline", e3["baseline"])] + list(e3["variants"].items()):
         we, ze = flags.get(name, ("?", "?"))
-        L.append(f"| {name} | {we} | {ze} | {r['EL_price_D']:.6f} | "
+        L.append(f"| {name} | {we} | {ze} | {r['EL_load_D']:.6f} | "
                  f"{r['regimes']['passive']['peak_spread_bp_ann']:.1f} | "
                  f"{_fmt_loading(r['regimes']['medium']['loading'])} | "
                  f"{_fmt_loading(r['regimes']['aggressive']['loading'])} |")
 
-    L += ["", f"γ note: {e3['gamma_note']}", "",
-          "### The headline: full writeoff inverts Live Claim 1", "",
-          "Under `zeta_writeoff = 1` the loading falls **below 1** — the CB becomes "
-          "*under*-compensated, receiving roughly 30% of the actuarially fair expected "
-          "loss, where the paper's central claim is over-compensation. The mechanism is "
-          "attributable to the denominator alone: premium income barely moves while the "
-          "priced expected loss goes up by an order of magnitude. It is a repricing of "
-          "the expected loss, not a change in what the CB earns.", "",
+    L += ["", "γ note: solved on the BASELINE and held fixed across variants, so a "
+          "difference in the table is attributable to the switch alone. `medium` = 25% "
+          "peak-spread compression; **`aggressive` is ≈46.6%, not 50%** — see the E1 note "
+          "above.", "",
+          f"<sub>Note recorded in the results file at run time: {e3['gamma_note']}</sub>", "",
+          "### What the payoff specification is worth", "",
+          "`EL_load_D` is the expected loss per unit of default probability implied by "
+          "the bond contract. Coupon-only pricing (`zeta_writeoff = 0`) puts it at "
+          "`(1-rec)·delta_b/q_b`; full pricing puts it at "
+          "`(1-rec)·[delta_b + (1-delta_b)q_b]/q_b`, larger by roughly "
+          "`[delta_b + (1-delta_b)q_b]/delta_b ≈ 12.6` on a 12.9-quarter claim. Read the "
+          "loading column with that denominator in mind: it is premium income per unit of "
+          "expected loss ABSORBED, so a bigger, better-specified loss lowers it "
+          "mechanically without the central bank earning any less.", "",
           "| variant | regime | EL PV (% Y) | premium PV (% Y) | loading |",
           "|---|---|---|---|---|"]
     for name, r in [("baseline", e3["baseline"])] + list(e3["variants"].items()):
@@ -175,19 +212,20 @@ def _render_e3(e3, L):
                      f"{v['premium_pv_pct_Y']:.5f} | {_fmt_loading(v['loading'])} |")
 
     L += ["", "### Verification", "",
-          "| variant | EL_price (closed form) | EL_price (solved) | ×baseline | max SS drift |",
+          "| variant | EL_load (closed form) | EL_load (solved) | ×baseline | max SS drift |",
           "|---|---|---|---|---|"]
     for name, c in e3["checks"].items():
-        L.append(f"| {name} | {c['EL_price_expected']:.6f} | {c['EL_price_actual']:.6f} | "
-                 f"{c['EL_price_vs_baseline_ratio']:.2f}× | {c['max_ss_drift']:.3e} |")
+        L.append(f"| {name} | {c['EL_load_expected']:.6f} | {c['EL_load_actual']:.6f} | "
+                 f"{c['EL_load_vs_baseline_ratio']:.2f}× | {c['max_ss_drift']:.3e} |")
     L += ["", "Both variants require a full SS + Jacobian re-solve: patching the solved "
-          "SS and re-solving only the Jacobian would presume the very invariance E3a "
-          "exists to test.", "",
-          "> **Measured SS drift is 0.000e+00 for BOTH variants**, which refines the "
-          "design spec's prediction that E3b \"moves the steady state\". `EL_price` "
-          "changes value 12.5×, but no steady-state *allocation* moves: it multiplies "
-          "`def_rate`, which is 0 at SS. So it is allocation-neutral while still "
-          "changing the linearised bond FOC, and hence every dynamic result.", ""]
+          "SS and re-solving only the Jacobian would presume the very invariance these "
+          "variants exist to test.", "",
+          "> **Both variants must show zero SS drift.** Measured 2026-08-18: `q_b_D = "
+          "0.974906` in all three arms. Every writeoff term — priced or realised — is "
+          "multiplied by `def_rate_ss = 0`, so neither switch moves an allocation. What "
+          "`zeta_writeoff` does move is `EL_load_D` (0.0558 -> 0.7014, 12.6x) and hence "
+          "the linearised pricing equation: peak spread on a 1pp shock goes 12.3bp -> "
+          "205.9bp. Allocation-neutral, dynamically decisive.", ""]
 
     comp = e3.get("compression")
     if comp:
@@ -212,7 +250,11 @@ def _render_e3(e3, L):
               "be defined under this setting, which is why every row above is evaluated "
               "at the baseline's γ held fixed.", ""]
 
-    L += ["> `psi_lambda_B = 8.5` was tuned to 150 bp with realised losses **off**. The "
+    # Read the amplification live: this caption hardcoded "8.5" until 2026-08-06 and
+    # silently outlived the sticky-price re-tune to 7.85, asserting a stale number in
+    # a GENERATED document. Every parameter quoted in prose must come from provenance.
+    L += [f"> `psi_lambda_B = {e3['provenance']['psi_lambda_B_D']:g}` was tuned to 150 bp "
+          "with realised losses **off**. The "
           "overshoot above is a reportable fact about whether that target survives S-1 — "
           "**not** a number to re-tune away. Whether to re-tune is a separate author "
           "decision this result informs.", ""]

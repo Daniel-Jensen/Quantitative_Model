@@ -30,6 +30,50 @@ def load_eba_targets(path: str = _EBA_MOMENTS, scope: str | None = None) -> dict
         return json.load(fh)[key]
 
 
+def load_eba_size_ratio(path: str = _EBA_MOMENTS) -> float:
+    """F/D annual-GDP ratio (Germany / Greece, Eurostat 2010) = 11.697.
+
+    CROSS-BORDER UNITS FIX (2026-08-07). The model normalises Y_D_ss = Y_F_ss = 1,
+    i.e. the two countries are the SAME SIZE, while every EBA moment is measured as
+    a ratio to its own country's net worth or GDP. A cross-border stock built as
+    ``phi * n_holder / q`` therefore lands in the HOLDER's units, and planting it in
+    a model where both countries are size 1 rescales it by this ratio.
+
+    Measured: German banks' Greek book is 1.21% of German quarterly GDP -- correct.
+    Dropped into the model unscaled it became 1.21% of a country the size of Greece,
+    so foreigners held 1.25% of the bank-held Greek stock against 12.72% in the data
+    (7,933.6 / 62,380.7 EURm). The Greek banks' Bund book was distorted the same way
+    in the opposite direction: 1.50% of the bank-held Bund stock against 0.13%.
+
+    The invariant this restores: EVERY BOND STOCK IS MEASURED IN ITS ISSUER'S GDP
+    UNITS. Own-holdings (b_D_D, b_F_F) already satisfy it -- holder and issuer are
+    the same country. Only the two cross-border stocks need converting.
+
+    Note the nominal side already carried the size asymmetry (``omega_pi_D = 0.071``
+    is the capital key, not GDP weights); quantities never did.
+    """
+    with open(path) as fh:
+        raw = json.load(fh)["raw_EURm"]
+    return float(raw["GDP_ann_F"]) / float(raw["GDP_ann_D"])
+
+
+def load_eba_foreign_shares(path: str = _EBA_MOMENTS) -> dict:
+    """Measured foreign-held share of each country's BANK-HELD sovereign stock.
+
+    Pure ratios of EBA EURm figures, so they carry no GDP normalisation and are
+    immune to the defect ``load_eba_size_ratio`` corrects. That is exactly what
+    makes them the over-identifying check on it. Not calibration inputs -- the
+    targeting is driven by the phi moments, and these verify the result.
+
+    D: 7,933.6 / 62,380.7 = 0.1272   F: 410.7 / 315,723.9 = 0.001301
+    """
+    with open(path) as fh:
+        raw = json.load(fh)["raw_EURm"]
+    b_D_D, b_D_F = float(raw["b_D_D"]), float(raw["b_D_F"])
+    b_F_F, b_F_D = float(raw["b_F_F"]), float(raw["b_F_D"])
+    return {"D": b_D_F / (b_D_D + b_D_F), "F": b_F_D / (b_F_F + b_F_D)}
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # EBA switch. True = the MEASURED EBA 2011 moment set (code/eba_calibration.py ->
 # data/eba_moments.json), read at the scope set by BANK_SCOPE above.
@@ -67,7 +111,11 @@ def get_calibration():
         'eis_D':        0.5,     'eis_F':        0.5,
 
         # ── Rates & Asset Prices ──────────────────────────────────────────────
-        'rdep_D':       0.000,   'rdep_F':       0.000,
+        # Nominal deposit rate. Deposits are nominal euro contracts; the derived
+        # real rates rdep_D/F (ex-ante) and rdep_expost_D/F (realised) come from
+        # deposit_rates_D/F. At SS pi = 0, so rdep = i_dep and the SS is
+        # unchanged from the real-deposit calibration.
+        'i_dep_D':      0.000,   'i_dep_F':      0.000,
         'q_b_D':        0.83,    'q_b_F':        0.83,
         'Q_D':          1.0,     'Q_F':          1.0,
 
@@ -75,6 +123,12 @@ def get_calibration():
         'alpha_D':      0.35,    'alpha_F':      0.35,
         'delta_D':      0.025,   'delta_F':      0.025,
         'ksi_D':        0.50,    'ksi_F':        0.50,
+
+        # Investment-flow adjustment cost S(I/I(-1)) = (omega_I/2)(I/I(-1)-1)^2.
+        # S(1) = S'(1) = 0, so exactly SS-neutral; omega_I = 0 reproduces the
+        # model without it. Bi-Foerster-Traum use 2. Left at 0 pending the
+        # path-shape comparison.
+        'omega_I_D':        0.0,    'omega_I_F':        0.0,
 
         # ── Long-term bonds ───────────────────────────────────────────────────
         # EBA REBUILD (2026-07-31): delta_b is now MEASURED, from the sovereign
@@ -120,8 +174,21 @@ def get_calibration():
         #
         # Still UNIDENTIFIED: no EBA counterpart, no moment attached. The
         # feasibility inequality bounds them but does not pin a level.
+        #
+        # CROSS-BORDER Delta: 0.4 -> 0.2 on 2026-08-18 (structural GK refactor).
+        # NOT a fit exercise — it is forced. Once gk_cross_border_foc imposes the actual
+        # portfolio optimality condition nu_cross/nu_K = Delta_cross_eff, and the two
+        # own-sovereign FOCs pin q_b_D and q_b_F, the steady-state cross-border ratio is
+        # no longer free:
+        #     nu_bF_D/nu_K_D = (rb_exp_F - rdep_D)/(rk_D - rdep_D)
+        # and at a riskless SS (def_rate_ss = 0) with rk_D = rk_F = 0.01 (RK-1) and
+        # rdep_D = rdep_F = 0 (i_dep_ss = 0, pi_ss = 0) that equals Delta_bF_F = 0.20.
+        # Symmetrically for D-in-F. Holding 0.4 would leave an 80bp/yr constant wedge in
+        # gk_cross_border_foc, i.e. an unexplained cross-border pricing gap of the exact
+        # kind this refactor exists to remove. steady_state.report_gk_steady_state
+        # verifies the resulting residual numerically on every solve.
         'Delta_bD_D':   0.2,     'Delta_bF_F':   0.2,
-        'Delta_bF_D':   0.4,     'Delta_bD_F':   0.4,
+        'Delta_bF_D':   0.2,     'Delta_bD_F':   0.2,
         'lambda_BD_D':  0.06,    'lambda_BF_F':  0.06,
         'lambda_BF_D':  0.06,    'lambda_BD_F':  0.06,
         # EBA 2011 REBUILD (2026-07-31). Supersedes both the 2026-07-22 EBA build
@@ -146,8 +213,80 @@ def get_calibration():
         # _apply_ss_anchors, so a sweep MUST re-solve the SS per point. Patching
         # the flag on an already-solved SS leaves psi_spread stale and inverts the
         # apparent sign of the spread response.
-        'psi_lambda_B_D': 8.5 if EBA_CALIBRATION else 3.0,
-        'psi_lambda_B_F': 8.5 if EBA_CALIBRATION else 3.0,
+        #
+        # RETUNED 2026-08-06 (Task 14, add-nkpc): sticky prices (NKPC blocks) and
+        # nominal (non-state-contingent) deposit contracts both raise spread
+        # transmission, moving the old 8.5 -> 162.0 bp (was 150.4 bp pre-change,
+        # ~8% over target). Re-bisected against the same 150bp GR-DE peak-spread
+        # moment on a 1pp default shock, holding everything else fixed:
+        #   psi_lambda_B = 8.5  -> peak spread 0.4053 pp -> 162.14 bp
+        #   psi_lambda_B = 7.0  -> peak spread 0.3405 pp -> 136.21 bp
+        #   psi_lambda_B = 7.8  -> peak spread 0.3729 pp -> 149.16 bp
+        #   psi_lambda_B = 7.85 -> peak spread 0.3753 pp -> 150.14 bp  <- was adopted
+        # b_gov_D[499] stayed in ~1e-5..1e-4 across the whole bracket (no
+        # instability); n_inter_D[0] and Y_D[0] both negative throughout
+        # (correct doom-loop sign). See docs/STATE.md for the full record.
+        #
+        # RETUNED AGAIN 2026-08-06 (rho_def 0.80 -> 0.9408, see "Shock processes"
+        # below). A more persistent sovereign-risk shock raises the peak spread
+        # for a given amplification: at psi_lambda_B = 7.85 the peak went
+        # 150.14 -> 470.62 bp. Re-bisected against the same 150bp moment,
+        # rho_def = 0.9408 throughout, FULL pipeline re-solve at every point:
+        #   psi_lambda_B = 7.850 -> 470.62 bp
+        #   psi_lambda_B = 2.730 -> 139.60 bp
+        #   psi_lambda_B = 2.8909 -> 148.50 bp
+        #   psi_lambda_B = 2.9181 -> 149.99 bp
+        #   psi_lambda_B = 2.92  -> ADOPTED  (rounded; slope ~55bp per unit,
+        #                            so 2.9181 -> 2.92 is ~+0.1bp)
+        # METHOD WARNING, learned the hard way here: you CANNOT sweep this dial
+        # by patching psi_lambda_B_D/F and psi_spread_D/F onto an already-solved
+        # SS and re-solving only the Jacobian. The SS really is psi-neutral
+        # (goods_mkt_D is bit-identical at every psi), but that shortcut still
+        # gave 150.33bp at psi=2.73 where the real pipeline gives 139.60 -- a
+        # 7% error, all in the same direction, because only the divert_bond_foc
+        # psi_spread channel picks the patch up and not the intermediation_IC
+        # Delta_b_eff collateral channel. Re-solve the pipeline per point.
+        # b_gov_D[499] FELL 4.63e-05 -> 2.04e-05 across the re-tune, i.e. the
+        # move is away from the high-psi_lambda_B breakdown region, not toward
+        # it. All four impact signs stay negative (Y, C, I, n_inter).
+        # PAPER CONSEQUENCE: psi_spread_D is linear in this dial, so it drops
+        # 1.604839 -> ~0.5970 and the default-loading split moves from
+        # 3.4% fundamental / 96.6% collateral friction to ~8.6% / ~91.4% --
+        # a friction:fundamental ratio of ~10.6:1, down from ~28.6:1. The
+        # constrained-seller claim survives but is quantitatively weaker, and
+        # the paper's fig04 prose must be re-derived. See docs/STATE.md.
+        # RETUNED 2026-08-07 (country-size asymmetry, fix-cross-border-units).
+        # size_F = 11.697 makes a Greek shock a much smaller shock to F, which
+        # damps the cross-border amplification and took the peak spread to
+        # 145.20 bp at the incumbent 2.92. Re-bisected on the same 150.14 bp
+        # moment, re-solving the SS per point (the sweep caveat above):
+        #   psi_lambda_B = 2.92 -> 145.20 bp   (the incumbent, now off target)
+        #   psi_lambda_B = 3.01 -> 149.93 bp   <- ADOPTED
+        # Local secant slope 52.6 bp/unit. Residual 0.21 bp, comparable to the
+        # 0.15 bp at which 2.92 was adopted.
+        # ── SET TO 0 ON 2026-08-18 (structural GK refactor) ───────────────────
+        # Everything above this line is the history of tuning psi_lambda_B to a 150bp
+        # peak-spread moment. That entire exercise was conditional on a MIS-SPECIFIED
+        # bond payoff: zeta_writeoff = 0 priced only the coupon, so the pledgeability
+        # dial (and the now-deleted psi_spread_D it fed) had to carry the missing
+        # principal loss. With the payoff corrected the dial is no longer needed to
+        # generate a spread, and the Greek 2010-12 episode provides NO independent
+        # observable that identifies a sovereign-specific haircut ELASTICITY -- only
+        # the level of the haircut, which Delta_bD_D already carries.
+        #
+        # The PREFERRED BASELINE is therefore 0: d(Delta_bD_eff)/d(def_rate) = 0.
+        # This does NOT remove collateral from the model. The bank still faces the GK
+        # incentive constraint, Greek bonds are still worse collateral than capital
+        # (Delta_bD_D = 0.20), and the transmission is
+        #     def_rate up -> q_b_D down -> MTM loss on the bank's sovereign book
+        #                 -> IC tightens -> K_D contracts -> rk_D up -> q_b_D down.
+        # psi_lambda_B > 0 adds a SECOND channel on top (the haircut itself widening
+        # with risk). experiments/ Arm 2 re-runs the model at 3.01 as a DIAGNOSTIC of
+        # what that channel is worth; it is not the baseline and the difference is a
+        # model counterfactual, not an empirical decomposition of the spread.
+        # Do not retune this to recover 150bp -- see docs/STATE.md.
+        'psi_lambda_B_D': 0.0,
+        'psi_lambda_B_F': 0.0,
         # Bank net worth = Core Tier 1 / own quarterly nominal GDP.
         # GR 22,778/55,898 = 0.4075; DE 114,317/653,815 = 0.1748.
         'n_inter_D':    eba_or('n_inter_D', 0.75*4),  'n_inter_F':    eba_or('n_inter_F', 0.75*4),
@@ -212,17 +351,27 @@ def get_calibration():
         # Fiscal-rule debt measure: 0 = par/face value (default), 1 = market value
         # (q_b·b_gov(-1)). mv_gov_ss is recomputed exactly from the solved SS in
         # build_and_solve; these are placeholders (unused when mv_rule=0).
-        # Market-value rule REQUIRED under the EBA calibration; par rule for the
-        # pre-EBA placeholder. Measured 2026-07-31: at mv_rule=0 with the measured
-        # concentration the debt path explodes even with the collateral friction
-        # switched off entirely (psi_lambda_B=0 gives b_gov_D[499]=6.4e+03 and a
-        # nonsense peak spread), so this is the DEBT/fiscal mode, not amplification.
-        # The driver is phi_own=2.39 (a ~10x stronger doom loop than the 0.25
-        # placeholder), not duration — which is why the "measured delta_b is close
-        # to the old 0.10, so the par rule is fine" reasoning did not carry: it was
-        # about duration. mv_rule=1 + phi_lamb=0.60 is the pairing the 2026-07-22
-        # EBA build verified stationary, and F-1's hard break at
-        # mv_rule=1 + phi_lamb=0.15 is far away.
+        # PAR RULE (mv_rule=0) IS LIVE AND CORRECT. Justification, added 2026-08-07:
+        # EU fiscal surveillance defines general government debt at NOMINAL FACE
+        # VALUE (Maastricht), explicitly not marked to market, so the par gap is what
+        # the framework Greece was actually subject to keys off. It is also the right
+        # rule economically: an issuer that must roll at the new yields gets no relief
+        # from its mark-to-market liability falling.
+        #
+        # The two gaps move in OPPOSITE directions in a crisis, because q_b_D falls
+        # ~4.5% while face value rises only ~1.5%: over 40q the par gap is positive
+        # 39/40 quarters (the rule TIGHTENS) while the market-value gap is negative
+        # 40/40 and 2.88x larger (the rule would CUT taxes by 0.75% of quarterly GDP
+        # at impact, reading a wider spread as a windfall). That perverse sign is why
+        # the mv variant needed phi_lamb=0.60 to stay stationary.
+        #
+        # RETIRED (was: "Market-value rule REQUIRED under the EBA calibration ... at
+        # mv_rule=0 the debt path explodes"). That was measured under BANK_SCOPE="ct1"
+        # where phi_bD_D=2.39; commit 988c213 moved to the broad scope where the same
+        # moment is 0.456, a 5.2x weaker doom loop, and the explosion does not occur —
+        # b_gov_D[499] ~ 7e-05 at the live calibration. F-1's near-unit-root zone
+        # [0.15,0.18] was likewise an mv_rule=1 measurement and has no established
+        # bearing on the par rule. See docs/STATE.md.
         'mv_rule_D':    0.0,     'mv_rule_F':    0.0,
         'mv_gov_ss_D':  0.6*4,   'mv_gov_ss_F':  0.6*4,
 
@@ -238,14 +387,47 @@ def get_calibration():
         # Gulati, PIIE WP13-8; 59-65% investor NPV loss). The pre-EBA value was 0.00,
         # i.e. 100% loss-given-default -- counterfactual for Greece, and the *harshest*
         # possible assumption rather than a neutral one.
-        # While writeoff_enabled=0 this is live ONLY through EL_price (the realized-
-        # haircut terms in bond_return/government_ss/budget_residual are gated by
-        # writeoff_enabled). EL_price = (1-rec)*delta_b/q_b: 0.1025 at rec=0.00 ->
-        # 0.0717 at rec=0.30. Against psi_spread=0.8385 that moves total default
-        # loading by only ~3.3%.
         'recovery_rate_D':  0.30,   'recovery_rate_F':  0.30,
-        'zeta_writeoff_D':  0.0,    'zeta_writeoff_F':  0.0,
+        # ── zeta_writeoff: 0 -> 1 on 2026-08-18 (structural GK refactor) ──────
+        # zeta_writeoff scales the haircut applied to the CONTINUATION VALUE of the
+        # perpetuity, alongside the coupon. At 0 a default wrote down only the current
+        # coupon, so the expected loss on a 12.9-quarter claim was
+        #     h*delta_b/q_b = 0.7*0.0777/0.975 = 0.0558
+        # per unit of default probability, against the true
+        #     h*[delta_b + (1-delta_b) q_b]/q_b = 0.7014  --  12.6x larger.
+        # That missing principal loss is what the free parameter psi_spread_D (0.615 at
+        # the last flex calibration) was silently standing in for, which is why the old
+        # decomposition read 8.4% "fundamental" / 91.6% "friction". With the payoff
+        # right, the loss is priced by bond_return_D/F -> rb_exp -> the GK Euler
+        # equation, and psi_spread_D is deleted rather than recalibrated.
+        # NOTE writeoff_enabled stays 0: the REALISED path still traces the no-default
+        # branch (S-1, the paper's pure risk-premium framing). zeta_writeoff governs what
+        # is PRICED; writeoff_enabled governs what is REALISED. They are independent.
+        'zeta_writeoff_D':  1.0,    'zeta_writeoff_F':  1.0,
         'writeoff_enabled_D': 0.0,  'writeoff_enabled_F': 0.0,
+
+        # ── Shock processes ───────────────────────────────────────────────────
+        # Promoted out of code/full_model.py (was hardcoded at lines 217-221)
+        # on 2026-08-06 so the persistence of the crisis is a calibration
+        # decision with a source, not a magic number in the solve driver.
+        #
+        # rho_def: quarterly persistence of the sovereign-risk shock. Disciplined
+        # by the repo's own Markov-switching estimation rather than chosen:
+        # Empirics/outputs/ms_regime_GRC.npz fits three states to MONTHLY
+        # Greek-Bund spreads (348 obs, 1997-06..2026-06); the crisis state
+        # (mean 9.63pp) has monthly persistence 0.9798, i.e. an expected
+        # duration of 50 months, and the realised episode ran 2010-04 to
+        # 2017-12 (92 months). Quarterly equivalent: 0.9798^3 = 0.9408. The
+        # previous hardcoded 0.80 implied a 14-month crisis and was the binding
+        # constraint on how long the contraction lasted -- cumulative Y over 40q
+        # goes -0.049 (rho=0.80) -> -0.784 (0.90) -> -2.021 (0.95) holding peak
+        # spread fixed at 150bp, so this is persistence, not crisis size. See
+        # docs/STATE.md.
+        #
+        # rho_Z is the TFP shock and is deliberately LEFT at 0.80 -- the MS
+        # estimate speaks to sovereign spreads only.
+        'rho_def_D':    0.9408,  'rho_def_F':    0.9408,
+        'rho_Z_D':      0.80,    'rho_Z_F':      0.80,
 
         # ── ECB balance sheet (TPI conduit) ───────────────────────────────────
         # Capital-key split of the CB's D-bond programme cash flows between the
@@ -265,7 +447,17 @@ def get_calibration():
         'T1_D':             0.0,    'T1_F':             0.0,
 
         # ── Trade & Terms of Trade ────────────────────────────────────────────
-        'omega':            0.85,
+        # Home bias, country-specific since 2026-08-07. A single shared omega is
+        # inconsistent with size asymmetry: at omega_F = omega_D the larger
+        # country's imports from the smaller come out size_F times too large.
+        # Symmetric BILATERAL trade intensity pins the pair --
+        #   size_F * (1 - omega_F) * C_F = (1 - omega_D) * C_D,
+        # so with C_D ~ C_F, (1 - omega_F) = (1 - omega_D) / size_F. D keeps the
+        # 0.85 that has been the calibration throughout; F follows.
+        # Greece imports 15% of its consumption basket from the core; the core
+        # imports 1.28% of its basket from Greece.
+        'omega_D':          0.85,
+        'omega_F':          1.0 - (1.0 - 0.85) / (load_eba_size_ratio() if EBA_CALIBRATION else 1.0),
         'epsilon_trade':    1.5,
         'p':                0.50,
 
@@ -276,12 +468,44 @@ def get_calibration():
         # Own-holdings set in steady_state.py from the same moment file.
         'phi_bF_D_ss':  eba_or('phi_bF_D_ss', 0.25),  'phi_bD_F_ss':  eba_or('phi_bD_F_ss', 0.25),
         'psi_bF_D':     0.5,     'psi_bD_F':     0.5,
+        # F's size relative to D (Germany/Greece 2010 GDP = 11.697). Enters the
+        # four cross-country blocks in equations_global.py and nowhere else --
+        # every F variable is per F capita. 1.0 on the pre-EBA branch keeps that
+        # calibration bit-exact.
+        'size_F': load_eba_size_ratio() if EBA_CALIBRATION else 1.0,
 
         # ── Wage Markups ──────────────────────────────────────────────────────
+        # Unchanged: wages are flexible. mu_w = 1 is the SS-neutralising device
+        # in labor_ss_D/F; there is no wage Phillips curve.
         'mu_w_D':       1.0,     'mu_w_F':       1.0,
 
-        # ── SS Real Variables ─────────────────────────────────────────────────
-        'mc_D':         1.0,     'mc_F':         1.0,
+        # ── Price Rigidity (Rotemberg) ────────────────────────────────────────
+        # mu_p: gross price markup, epsilon_p = 6. FREE TO FIRST ORDER under the
+        #   subsidy neutralisation -- the gap (mu_p*mc - 1) linearises to mc_hat
+        #   for any mu_p -- so this needs no defending unless live markups are
+        #   ever adopted.
+        # mc: SS real marginal cost = 1/mu_p. The production subsidy
+        #   tau_s = 1 - 1/mu_p makes labour demand collapse to the competitive
+        #   w = (1-alpha)Y/N at this value, so the SS is bit-identical to flex.
+        # kappa_p: Calvo theta_p = 0.75 at beta = 0.985, slope
+        #   (1-theta)(1-beta*theta)/theta = 0.0871. Euro-area IPN median price
+        #   duration ~4 quarters (Alvarez et al. 2006; Dhyne et al. 2006).
+        #   Agrees with Bi-Foerster-Traum's implied 0.0846 to within 3%.
+        # pi: SS producer-price inflation, exactly zero.
+        'mu_p_D':       1.20,    'mu_p_F':       1.20,
+        'mc_D':    1.0 / 1.20,   'mc_F':    1.0 / 1.20,
+        'kappa_p_D':    0.0871,  'kappa_p_F':    0.0871,
+        'pi_D':         0.0,     'pi_F':         0.0,
+
+        # omega_pi_D: weight on D in the union producer-price aggregate that the
+        # ECB is assumed to stabilise. = 1 - kappa_cb_F, the renormalised
+        # two-country capital key (BuBa 26.1 / BoG 2.0 of the euro-area key).
+        # DO NOT use model GDP weights: the model normalises Y_D_ss ~ Y_F_ss ~ 1,
+        # so they would give ~0.5 and split the terms-of-trade adjustment evenly
+        # between Greek deflation and German inflation -- counterfactual for
+        # 2010-12. Load-bearing twice over once deposits are nominal, since it
+        # scales pi_D and hence the Fisher revaluation on bank balance sheets.
+        'omega_pi_D':   0.071,
 
         # ── Idiosyncratic Income Process (Rouwenhorst) ────────────────────────
         'rho_z_D':  0.90,    'rho_z_F':  0.90,
@@ -297,12 +521,21 @@ def get_calibration():
     _B_D = calibration_start['B_supply_D']
     _B_F = calibration_start['B_supply_F']
 
+    # Each phi is a ratio to its HOLDER's net worth, so these come out in the
+    # holder's own per-capita units -- which is now exactly right: b_D_F is per F
+    # capita and domestic_bond_clearing aggregates it with size_F. No conversion
+    # here. (An interim fix on 2026-08-07 scaled these directly; superseded by
+    # the size_F weight, which matches both EBA moments instead of trading one
+    # for the other.)
     b_F_D = calibration_start['phi_bF_D_ss'] * _n_D / calibration_start['q_b_F']
     b_D_F = calibration_start['phi_bD_F_ss'] * _n_F / calibration_start['q_b_D']
 
+    # Residual own-holdings must clear at the same weights domestic_bond_clearing
+    # uses, or the initial guess is inconsistent with the block that enforces it.
+    _size_F = calibration_start['size_F']
     calibration_start.update({
-        'b_F_D': b_F_D,         'b_D_F': b_D_F,
-        'b_D_D': _B_D - b_D_F,  'b_F_F': _B_F - b_F_D,
+        'b_F_D': b_F_D,                     'b_D_F': b_D_F,
+        'b_D_D': _B_D - _size_F * b_D_F,    'b_F_F': _B_F - b_F_D / _size_F,
         'b_F_D_anchor': b_F_D,  'b_D_F_anchor': b_D_F,
         'psi_bD_D': 0.0,        'psi_bF_F': 0.0,
     })

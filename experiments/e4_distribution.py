@@ -191,7 +191,7 @@ def build():
     import tpi
     from calibration import get_calibration
     from depreciation_calibration import calibrate_depreciation
-    from full_model import build_and_solve
+    from full_model import build_and_solve, solve_jacobian_padded
     from ic_delta_calibration import calibrate_ic_delta
     from regime_model import _ss_tpi, build_tpi_model_main
     from steady_state import solve_steady_state
@@ -252,10 +252,10 @@ def build():
     T = res["T"]
     print(f"Solving Jacobian with {len(DECILE_AGG_D)} extra decile outputs (T={T}) ...",
           flush=True)
-    G = model.solve_jacobian(ss_tpi, unknowns=res["unknowns_tp"],
-                             targets=res["targets_tp"],
-                             inputs=["Z_D", "shock_def_D", "Z_F", "shock_def_F",
-                                     "cb_buy_D"], T=T)
+    G = solve_jacobian_padded(model, ss_tpi, res["unknowns_tp"],
+                              res["targets_tp"],
+                              ["Z_D", "shock_def_D", "Z_F", "shock_def_F",
+                               "cb_buy_D"], T)
 
     out = {"T": np.array(T), "dShock_def_D": np.asarray(res["dShock_def_D"]),
            "decile_mass_ss": realised, "decile_c_ss": c_bin, "dep_edges": dep_edges,

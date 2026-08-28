@@ -47,7 +47,7 @@ def main():
     from steady_state import solve_steady_state
     from ic_delta_calibration import calibrate_ic_delta
     from depreciation_calibration import calibrate_depreciation
-    from full_model import build_and_solve
+    from full_model import build_and_solve, solve_jacobian_padded
 
     log(f"\n## Experiment — output response at psi_lambda_B = 0 (EL_price ON) — {ts()}")
     cal = get_calibration()
@@ -61,8 +61,8 @@ def main():
     ss0.toplevel["psi_spread_D"]   = 0.0; ss0.toplevel["psi_spread_F"]   = 0.0
     # EL_price stays anchored (~0.1025)
     log(f"- {ts()} solving psi_lambda_B=0, psi_spread=0, EL_price={float(ss0['EL_price_D']):.6f}")
-    G = ha.solve_jacobian(ss0, unknowns=unk, targets=tgt,
-                          inputs=["Z_D", "shock_def_D", "Z_F", "shock_def_F"], T=T)
+    G = solve_jacobian_padded(ha, ss0, unk, tgt,
+                              ["Z_D", "shock_def_D", "Z_F", "shock_def_F"], T)
     d = irf_to_dict(G @ {"Z_D": np.zeros(T), "Z_F": np.zeros(T),
                          "shock_def_D": dshock, "shock_def_F": np.zeros(T)})
     np.savez(os.path.join(HERE, "irfs_psilam0_full.npz"), **d)
