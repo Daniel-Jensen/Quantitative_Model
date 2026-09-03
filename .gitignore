@@ -10,3 +10,8 @@ __pycache__/
 
 # Claude Code local tool config/runtime state
 .claude/
+
+# Bocola (2016) replication package: the author's solved-model .mat outputs
+# (165 MB; counterfactual.mat alone is 113 MB, over GitHub's 100 MB file
+# limit). Regenerate them with the package's own Model/*.m scripts.
+replication/bocola2016/Matfiles/
