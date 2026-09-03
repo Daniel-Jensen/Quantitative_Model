@@ -3,11 +3,72 @@
 # formatting out of the model code.
 
 
+# UNIT CONVENTION FOR EVERY NUMBER THE EXPERIMENTS PRINT (2026-08-28).
+# The model is quarterly. Three different objects used to be reported in three
+# different units with no label, and the Bocola comparison was read off the wrong one.
+#   RATES (deposit, working-capital, credit spread, sovereign yield) -> ANNUALISED
+#     basis points, bp_ann(). 4 x the quarterly rate x 1e4.
+#   PROBABILITIES (p^d) -> both the QUARTERLY figure, which is what Bocola's Figure 7
+#     plots and what the s-process is calibrated in, and the annualised
+#     1 - (1-p)^4, ann_prob().
+#   LEVEL RESPONSES (Y, C, I, hours, K, net worth) -> the % deviation from the
+#     no-shock path, which is what Bocola's Figures 5 and 7 plot, AND for the FLOW
+#     variables an annualised companion ann_pct() = 4 x that.
+# ann_pct IS Bocola's Table 5 unit. His output losses are cumsum(g_s - g_ns)*400 where
+# g is a quarterly log growth rate, so the cumulated object is the log LEVEL gap and
+# the 400 is 100 (to %) x 4 (to an annual rate). His -1.05 / -1.44 / -1.53 are therefore
+# level gaps of -0.26 / -0.36 / -0.38%. Reporting both columns is what makes the
+# comparison exact in either unit.
+# THE LIKE-FOR-LIKE IRF TARGETS, in level %: -0.295 (his closed benchmark) and -0.186
+# (his SS V.C open economy, the version whose GHH + working-capital transmission this
+# model shares), both at his p^d ~ 2.5-3.0%/qtr shock; -0.222 and -0.157 rescaled to
+# a p^d = 1.98% shock.
+BOCOLA_IRF_CLOSED = -0.2225      # level %, his closed benchmark at p^d = 1.98%/qtr
+BOCOLA_IRF_OPEN = -0.157         # level %, his open economy at the same shock
+BOCOLA_EPISODE_LEVEL = -0.36     # level %, 2011Q4 Italian episode (Table 5 / 4)
+
+
+def bp_ann(rate_q):
+    # QUARTERLY RATE -> ANNUALISED BASIS POINTS.
+    return 4e4 * rate_q
+
+
+def ann_pct(dev_pct):
+    # QUARTERLY-FLOW LEVEL GAP IN % -> THE SAME GAP AT AN ANNUAL RATE (Bocola x400).
+    return 4.0 * dev_pct
+
+
+def ann_prob(p_q):
+    # QUARTERLY PROBABILITY -> ANNUAL.
+    return 1.0 - (1.0 - p_q) ** 4
+
+
 def banner(text, width=65):
     # FULL-WIDTH SECTION HEADER.
     print("\n" + "=" * width)
     print(f"  {text}")
     print("=" * width)
+
+
+def print_solve_stage(label, ok, its, worst, n_fail, n_pts):
+    # ONE LINE PER TIME-ITERATION STAGE, INCLUDING FAILURE. A stage that does not
+    # converge must SAY SO: the exit test needs both a settled rule and every point
+    # clearing, so a run can look finished while part of the grid is frozen on its
+    # cold start. Silence here is what let that go unnoticed.
+    # The exit test is BOTH a settled rule AND every point clearing, so a bare "did not
+    # converge" conflates two very different states: a stage sitting at 1e-14 with zero
+    # frozen points that merely ran out of sweep budget, and a stage with points that
+    # never solved. Only the second is a failure to act on -- say which.
+    if ok:
+        tag, note = "converged", ""
+    elif n_fail == 0 and worst < 1e-6:
+        tag = "residuals OK"
+        note = "  (rule-change tol not reached in the sweep budget; no point unsolved)"
+    else:
+        tag = "DID NOT CONVERGE"
+        note = f"  <-- {n_fail}/{n_pts} points frozen (unsolved)"
+    print(f"    {label:<34s} {tag:>16s} in {its:3d} sweeps   "
+          f"max|F|={worst:.2e}{note}")
 
 
 def _rule(width):
@@ -39,6 +100,10 @@ def print_ss_table(ss, cal):
     print(_row("w_ss",   f"{fm_D['w_ss']:.4f}",   f"{fm_F['w_ss']:.4f}"))
     print(_row("rk_ss (ann %)", f"{ss['rk_D_ss']*400:.3f}", f"{ss['rk_F_ss']*400:.3f}",
                "target ~ 1.8% ann"))
+    print(_row("country mass", f"{cal['size_D']:.1f}", f"{cal['size_F']:.1f}",
+               "F/D = 8: D is a small member"))
+    print(_row("omega_home", f"{cal['omega_home_D']:.5f}", f"{cal['omega_home_F']:.5f}",
+               "size-consistent: (1-w_F)=(1-w_D)/8"))
 
     _rule(65)
     print(_row("n_ss (net worth)", f"{bk_D['n_ss']:.4f}", f"{bk_F['n_ss']:.4f}"))
@@ -62,9 +127,15 @@ def print_ss_table(ss, cal):
     print(_row("p_ss (RER)", f"{ss['p_ss']:.6f}", "—", "1 = symmetric SS"))
     print(_row("Q_bD_ss / Q_bF_ss", f"{ss['Q_bD_ss']:.5f}", f"{ss['Q_bF_ss']:.5f}",
                "IC-consistent prices"))
+    # SOVEREIGN HOLDINGS ARE IN THE ISSUER'S PER-CAPITA UNITS, so b_D_F_ss is the slice
+    # of D's own stock held abroad and the F BANK's own book carries b_D_F_ss/sz of it.
+    # Printing the raw state next to the F bank's balance sheet would overstate the
+    # F bank's exposure by the mass ratio.
+    sz = cal["size_F"] / cal["size_D"]
     print(_row("b_D_D / b_F_D (D-bank)", f"{ss['b_D_D_ss']:.4f}", f"{ss['b_F_D_ss']:.4f}",
-               "dom / for holdings"))
-    print(_row("b_F_F / b_D_F (F-bank)", f"{ss['b_F_F_ss']:.4f}", f"{ss['b_D_F_ss']:.4f}"))
+               "dom / for holdings, per D capita"))
+    print(_row("b_F_F / b_D_F (F-bank)", f"{ss['b_F_F_ss']:.4f}",
+               f"{ss['b_D_F_ss']/sz:.4f}", "per F capita (= b_D_F/sz)"))
     print(_row("F-bank share of D-debt", f"{ss['b_D_F_ss']/cal['B_gov_D_ss']:.1%}", "—",
                "contagion leg, target 20%"))
     print(_row("B_gov / 4Y (debt/GDP)",
@@ -99,3 +170,25 @@ def print_ss_table(ss, cal):
                f"{fm_F['Y_ss'] - ss['C_F_ss'] - fm_F['I_ss'] - cal['G_F']:.2e}",
                "F = diagnostic only"))
     _rule(65)
+
+
+def print_sovereign_spread(legs, label=""):
+    # THE SOVEREIGN SPREAD, LEG BY LEG -- WHAT ANY GIVEN INSTRUMENT COULD EVER REACH.
+    # Each number is the yield the bond would LOSE if that leg were removed entirely, so
+    # it is the CEILING on an instrument that acts only through that leg. The reason this
+    # table exists: a bank-liquidity facility can touch the liquidity leg and nothing
+    # else, and on this calibration that leg is ~2% of the D-F spread, which is why the
+    # LTRO moves the credit spread by tens of basis points and the sovereign spread by
+    # single digits. Legs are removals, not a partition -- y is convex in q.
+    from solver_recursive.output_decomposition import SOVEREIGN_LEGS
+    print(f"\n  SOVEREIGN SPREAD DECOMPOSITION{(' - ' + label) if label else ''}"
+          f"   (annualised bp)")
+    print(f"   {'leg':<32s}{'y_D':>10s}{'y_F':>10s}{'SPREAD':>10s}{'% of spread':>13s}")
+    for k, nm in SOVEREIGN_LEGS:
+        sh = 100 * legs[f"spread_{k}"] / legs["spread"] if legs["spread"] else float("nan")
+        print(f"   {nm:<32s}{legs[f'y_D_{k}']:10.1f}{legs[f'y_F_{k}']:10.1f}"
+              f"{legs[f'spread_{k}']:10.1f}{sh:12.1f}%")
+    print(f"   {'ACTUAL YIELD':<32s}{legs['y_D']:10.1f}{legs['y_F']:10.1f}"
+          f"{legs['spread']:10.1f}")
+    print(f"   FOC closure off-node: D {100*legs['foc_closure_D']:+.3f}%, "
+          f"F {100*legs['foc_closure_F']:+.3f}%  (the solve is exact only AT the nodes)")

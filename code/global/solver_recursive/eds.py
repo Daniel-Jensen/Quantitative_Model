@@ -14,13 +14,17 @@ from itertools import combinations_with_replacement
 import numpy as np
 
 from solver_recursive.state_grid import (chebyshev_basis_1d, build_state_box,
-                                          s_process_params, default_prob)
+                                          s_process_params, default_prob,
+                                          IK_D, IK_F, IP_D, IP_F, IBDD, IBDF, IBFD, IV,
+                                          IS, IZ, STATE_NAMES)
 from solver_recursive.decision_rules import RuleSet, STORE_RULES
 from solver_recursive.recursive_main import (time_iteration, ss_state, ss_x,
                                              calibrate_household_anchors)
 from solver_recursive.point_map import point_residuals, SOLVE7
 
-IS, IZ = 5, 6
+# The state indices come from state_grid, not local literals. They were hard-wired to
+# IS, IZ = 5, 6 here -- a third private copy of the convention, which the 7 -> 9 state
+# change would have silently turned into b_DF and V_dep.
 
 
 class EDSGrid:
@@ -99,8 +103,15 @@ class EDSGrid:
 
 
 def _next_state(S, x, out, s_next):
-    # NEXT-PERIOD STATE FROM THE PERIOD-MAP OUTPUTS (Kp from SOLVE7, Pp/Bp from out).
-    return np.array([x[2], x[3], out["Pp_D"], out["Pp_F"], out["Bp_D"], s_next, S[IZ]])
+    # NEXT-PERIOD STATE FROM THE PERIOD-MAP OUTPUTS (Kp from SOLVE7, the rest from out).
+    Sn = np.empty(len(STATE_NAMES))
+    Sn[IK_D], Sn[IK_F] = x[2], x[3]
+    Sn[IP_D], Sn[IP_F] = out["Pp_D"], out["Pp_F"]
+    Sn[IBDD], Sn[IBDF] = out["b_D_D_new"], out["b_D_F_new"]
+    Sn[IBFD] = out["b_F_D_new"]
+    Sn[IV] = out["Vp_dep"]
+    Sn[IS], Sn[IZ] = s_next, S[IZ]
+    return Sn
 
 
 def simulate_cloud(rules, cal, ss, sproc, d, T=3000, seed=0, no_default=False,
@@ -108,7 +119,7 @@ def simulate_cloud(rules, cal, ss, sproc, d, T=3000, seed=0, no_default=False,
     # FORWARD-SIMULATE THE MODEL ON THE FITTED RULES (read the policy, step the state).
     rng = np.random.default_rng(seed)
     S = ss_state(ss, cal, sproc).copy()
-    out_c = np.empty((T, 7))
+    out_c = np.empty((T, len(STATE_NAMES)))
     for t in range(T):
         Sm = np.atleast_2d(S)
         x = np.array([float(rules.eval(k, d, Sm)[0]) for k in SOLVE7])
@@ -191,13 +202,13 @@ def solve_eds(cal, ss, sproc, n_points=140, degree=2, seed_mu=1, verbose=True,
     from solver_recursive.recursive_experiment import solve_recursive
     if verbose:
         print("  [eds] solving mu=1 Smolyak seed (for the ergodic cloud) ...", flush=True)
-    seed_rules = solve_recursive(cal, ss, sproc, mu=seed_mu, verbose=False)
+    seed_rules = solve_recursive(cal, ss, sproc, mu=seed_mu, verbose=False, s_refine=0)
     grid = build_eds_grid(seed_rules, cal, ss, sproc, n_points=n_points,
                           degree=degree, verbose=verbose)
     rules = RuleSet.from_ss(grid, ss, cal)                    # feasible everywhere
     if verbose:
         print("  [eds] d0 no-default solve ...", flush=True)
-    _, _, w0 = time_iteration(rules, cal, ss, sproc, regimes=(0,), no_default=True,
+    _, _, w0, _ = time_iteration(rules, cal, ss, sproc, regimes=(0,), no_default=True,
                               damp=0.25, tol=1e-6, max_it=max_it, n_gh=5, verbose=verbose)
     for k in STORE_RULES:                                     # warm d1 from converged d0
         rules.set_values(k, 1, rules.vals[k][0].copy())
@@ -205,14 +216,14 @@ def solve_eds(cal, ss, sproc, n_points=140, degree=2, seed_mu=1, verbose=True,
     w1 = np.nan
     for rec in (0.85, 0.70, 0.55, rec_t):                    # d1 recovery homotopy
         cal["recovery_rate_D"] = rec
-        _, _, w1 = time_iteration(rules, cal, ss, sproc, regimes=(1,), no_default=False,
+        _, _, w1, _ = time_iteration(rules, cal, ss, sproc, regimes=(1,), no_default=False,
                                   damp=0.2, tol=1e-6, max_it=40, n_gh=5, verbose=False)
         if verbose:
             print(f"  [eds] d1 homotopy recovery={rec:.2f}: worst={w1:.2e}", flush=True)
     cal["recovery_rate_D"] = rec_t
     if verbose:
         print("  [eds] joint two-regime solve ...", flush=True)
-    ok, it, wj = time_iteration(rules, cal, ss, sproc, regimes=(0, 1), no_default=False,
+    ok, it, wj, _ = time_iteration(rules, cal, ss, sproc, regimes=(0, 1), no_default=False,
                                 damp=damp, tol=1e-6, max_it=max_it, n_gh=5, verbose=verbose)
     if verbose:
         print(f"  [eds] DONE: d0 worst={w0:.2e}  d1 worst={w1:.2e}  joint worst={wj:.2e}",

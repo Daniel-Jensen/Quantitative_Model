@@ -9,13 +9,6 @@
 import numpy as np
 from scipy.optimize import brentq
 
-# Smoothing scale (Q_bD units) for the TPI purchase-quantity kink max(0, gap).
-# A raw max() is non-differentiable exactly where the floor turns on/off, which
-# stalls the FD-Jacobian Newton solve. Small relative to typical Q_bD levels
-# (O(0.7-1.0)), so it does not distort the economics.
-_CB_SMOOTH_EPS = 1e-5
-
-
 def _least_root(resid, what, v_lo=1e-6, v_hi=1e6, n_scan=300):
     # LEAST ROOT OF A SCALAR RESIDUAL, FOUND BY LOG-GRID SIGN SCAN + BRENTQ.
     # Selecting the LEAST root matters: the franchise fixed point can fold, and
@@ -76,8 +69,19 @@ def calibrate_bank_targets(beta_inter, f, rdep, theta_target, spread_target):
 
 
 def steady_state_bank(cal, rk_ss, Kap_ss, Q_bD_ss, Q_bF_ss,
-                      b_dom_ss, b_for_ss, p_ss, country="D"):
+                      b_dom_ss, b_for_ss, p_ss, country="D", L_wc_ss=0.0):
     # STEADY-STATE BANK BLOCK: PRICES, MULTIPLIERS, NET WORTH, LEVERAGE, DEPOSITS.
+    # L_wc_ss is the WORKING-CAPITAL LOAN (Bocola 2016 SV.C): "firms need to borrow a
+    # fraction phi of the wage bill before production takes place. These loans are
+    # obtained from the bankers ... and they pay the gross return R_W = R* + lambda*
+    # mu/E[Lambda]". So the loan is a BANK ASSET, deposit-funded, inside the divertable
+    # base at the SAME lambda (his residual_model_open.m: mu = N/(lambda*(Q*K + q*B +
+    # psi*(1-alpha)*gdp))), and the interest accrues to the BANK -- not, as before, to
+    # households as a dividend, which made the credit spread a pure intra-period transfer
+    # and turned the risk channel expansionary.
+    # It earns the SAME excess return s = lambda*mu/Omega as the other classes, so the
+    # leverage identity theta = D_val/((1-f)s + omega_ent) is unchanged and the
+    # calibration still hits its targets with the enlarged asset base.
     f          = cal[f"f_{country}"]
     rdep_ss    = cal[f"r_dep_{country}_target"]
     beta_inter = cal[f"beta_inter_{country}"]
@@ -93,6 +97,7 @@ def steady_state_bank(cal, rk_ss, Kap_ss, Q_bD_ss, Q_bF_ss,
     )
     IC_spread_dom = lambda_bD * mu_ss / Omega_ss
     IC_spread_for = lambda_bF * mu_ss / Omega_ss
+    IC_spread_wc  = lambda_K * mu_ss / Omega_ss      # r_wc - rdep, Bocola's R_W - R*
 
     # "dom"/"for" are relative to the country: D's home bond is the D-bond
     db_dom, db_for = (delta_b_D, delta_b_F) if country == "D" else (delta_b_F, delta_b_D)
@@ -115,23 +120,27 @@ def steady_state_bank(cal, rk_ss, Kap_ss, Q_bD_ss, Q_bF_ss,
     if country == "D":
         n_ss_IC = (lambda_K * Kap_ss
                    + lambda_bD * Q_bdom_ss * b_dom_ss
-                   + lambda_bF * p_ss * Q_bfor_ss * b_for_ss) / alpha_ss
-        total_assets = Kap_ss + bdom_val + p_ss * Q_bfor_ss * b_for_ss
+                   + lambda_bF * p_ss * Q_bfor_ss * b_for_ss
+                   + lambda_K * L_wc_ss) / alpha_ss
+        total_assets = Kap_ss + bdom_val + p_ss * Q_bfor_ss * b_for_ss + L_wc_ss
         n_ss_ACCUM = (
             ((1 - f) * (rk_ss - rdep_ss) + omega_ent) * Kap_ss
             + ((1 - f) * IC_spread_dom + omega_ent) * Q_bdom_ss * b_dom_ss
             + ((1 - f) * IC_spread_for + omega_ent) * p_ss * Q_bfor_ss * b_for_ss
+            + ((1 - f) * IC_spread_wc + omega_ent) * L_wc_ss
         ) / D_val
     else:
         bfor_val = Q_bfor_ss * b_for_ss / p_ss
         n_ss_IC = (lambda_K * Kap_ss
                    + lambda_bD * Q_bdom_ss * b_dom_ss
-                   + lambda_bF * Q_bfor_ss * b_for_ss / p_ss) / alpha_ss
-        total_assets = Kap_ss + bdom_val + bfor_val
+                   + lambda_bF * Q_bfor_ss * b_for_ss / p_ss
+                   + lambda_K * L_wc_ss) / alpha_ss
+        total_assets = Kap_ss + bdom_val + bfor_val + L_wc_ss
         n_ss_ACCUM = (
             ((1 - f) * (rk_ss - rdep_ss) + omega_ent) * Kap_ss
             + ((1 - f) * IC_spread_dom + omega_ent) * bdom_val
             + ((1 - f) * IC_spread_for + omega_ent) * bfor_val
+            + ((1 - f) * IC_spread_wc + omega_ent) * L_wc_ss
         ) / D_val
 
     n_ss = n_ss_ACCUM
@@ -142,11 +151,13 @@ def steady_state_bank(cal, rk_ss, Kap_ss, Q_bD_ss, Q_bF_ss,
     phi_bdom_ss = Q_bdom_ss * b_dom_ss / n_ss
     phi_bfor_ss = (p_ss * Q_bfor_ss * b_for_ss / n_ss if country == "D"
                    else Q_bfor_ss * b_for_ss / (p_ss * n_ss))
-    theta_ss    = kappa_ss + phi_bdom_ss + phi_bfor_ss
+    phi_wc_ss   = L_wc_ss / n_ss
+    theta_ss    = kappa_ss + phi_bdom_ss + phi_bfor_ss + phi_wc_ss
 
     rn_ss = (kappa_ss * (rk_ss - rdep_ss)
              + phi_bdom_ss * (rb_dom_ss - rdep_ss)
              + phi_bfor_ss * (rb_for_ss - rdep_ss)
+             + phi_wc_ss * IC_spread_wc
              + rdep_ss)
     div_ss = f * (1 + rn_ss) * n_ss - omega_ent * total_assets
 
@@ -154,25 +165,19 @@ def steady_state_bank(cal, rk_ss, Kap_ss, Q_bD_ss, Q_bF_ss,
         alpha_ss=alpha_ss, mu_ss=mu_ss, Omega_ss=Omega_ss,
         n_ss=n_ss, n_ss_IC=n_ss_IC, n_ss_ACCUM=n_ss_ACCUM,
         kappa_ss=kappa_ss, phi_bdom_ss=phi_bdom_ss, phi_bfor_ss=phi_bfor_ss,
-        theta_ss=theta_ss, div_ss=div_ss,
+        theta_ss=theta_ss, div_ss=div_ss, phi_wc_ss=phi_wc_ss,
+        L_wc_ss=L_wc_ss, IC_spread_wc=IC_spread_wc,
         Dep_supply_ss=(theta_ss - 1) * n_ss,
+        # the P STATE is the bank's obligation NET of the working-capital receivable
+        # (Bocola: P' = R*(assets - N') - R_W*L), which is what makes ng = X - P hold
+        # without carrying L as a separate state
+        P_state_ss=((1 + rdep_ss) * ((theta_ss - 1) * n_ss)
+                    - (1 + rdep_ss + IC_spread_wc) * L_wc_ss),
         rb_dom_ss=rb_dom_ss, rb_for_ss=rb_for_ss,
         Q_bdom_IC=Q_bdom_ss,
         IC_spread_dom=IC_spread_dom, IC_spread_for=IC_spread_for,
         lambda_K=lambda_K, lambda_bD=lambda_bD, lambda_bF=lambda_bF,
     )
-
-
-def _cb_price_floor(Q_free, Epay, rdep_t, ic_spread_ss, psi_cb, s_on):
-    # MECHANICAL TPI PRICE FLOOR: SUPPORTED PRICE, PURCHASE QUANTITY, FLOOR LEVEL.
-    # Q_floor prices the SAME expected payoff at the STEADY-STATE IC spread, i.e.
-    # it strips out the liquidity (and any risk-premium) component while keeping
-    # default compensation. The max(0, gap) is smoothed for the Newton solver.
-    Q_floor = Epay / (1 + rdep_t + ic_spread_ss)
-    gap_raw = Q_floor - Q_free
-    gap     = 0.5 * (gap_raw + np.sqrt(gap_raw ** 2 + _CB_SMOOTH_EPS ** 2))
-    cb_buy  = (gap / psi_cb) * s_on
-    return Q_free + psi_cb * cb_buy, cb_buy, Q_floor
 
 
 def bank_backward(rk_D, rk_F, rdep_D, rdep_F, p_path,
@@ -206,7 +211,6 @@ def bank_backward(rk_D, rk_F, rdep_D, rdep_F, p_path,
     exc_FD_ss  = cal["excess_return_F_D_ss"]
     exc_DF_ss  = cal["excess_return_D_F_ss"]
     rec_D      = cal["recovery_rate_D"]
-    psi_cb_D   = cal["psi_cb_D"]
 
     alpha_D_path = np.empty(T);  mu_D_path = np.empty(T)
     alpha_F_path = np.empty(T);  mu_F_path = np.empty(T)
@@ -215,9 +219,6 @@ def bank_backward(rk_D, rk_F, rdep_D, rdep_F, p_path,
     b_F_D_path   = np.empty(T);  b_D_F_path = np.empty(T)
     ic_bD_D_path = np.empty(T)
     ic_bF_F_path = np.empty(T)
-    cb_buy_D_path  = np.zeros(T)
-    Q_bD_free_path = np.empty(T)
-    Q_floor_D_path = np.empty(T)
 
     # terminal conditions (SS values as the t=T continuation)
     alpha_D_next = ss_bk_D["alpha_ss"]
@@ -265,7 +266,6 @@ def bank_backward(rk_D, rk_F, rdep_D, rdep_F, p_path,
         rk_D_next = rk_D[t + 1] if t + 1 < T else rk_D[T - 1]   # rk[T] ~ rk[T-1]
         rk_F_next = rk_F[t + 1] if t + 1 < T else rk_F[T - 1]
         p_next    = p_path[t + 1] if t + 1 < T else p_path[t]
-        floor_on  = s_tpi_D is not None and s_tpi_D[t] > 0.0
 
         if not risk_mode:
             Omega_D = bi_D * (f_D + (1 - f_D) * alpha_D_next)
@@ -278,16 +278,7 @@ def bank_backward(rk_D, rk_F, rdep_D, rdep_F, p_path,
             surv_D_price   = 1.0 - defp_D_next * (1.0 - rec_D)   # priced default prob
             ic_spread_bD_D = lbD_D * mu_D / Omega_D
             payoff_D_nd = db_D + (1 - db_D) * Q_bD_next
-            Q_bD_free   = surv_D_price * payoff_D_nd / (1 + rdep_D[t] + ic_spread_bD_D)
-
-            # floor computed before the cross-border FOC so the F-bank sees the
-            # same post-floor price it would actually transact at
-            if floor_on:
-                Q_bD, cb_buy_D_t, Q_floor = _cb_price_floor(
-                    Q_bD_free, surv_D_price * payoff_D_nd, rdep_D[t],
-                    ic_spread_bD_ss, psi_cb_D, s_tpi_D[t])
-            else:
-                Q_bD, cb_buy_D_t, Q_floor = Q_bD_free, 0.0, Q_bD_free
+            Q_bD = surv_D_price * payoff_D_nd / (1 + rdep_D[t] + ic_spread_bD_D)
 
             Omega_F = bi_F * (f_F + (1 - f_F) * alpha_F_next)
             mu_F    = Omega_F * (rk_F_next - rdep_F[t]) / lK_F
@@ -334,14 +325,6 @@ def bank_backward(rk_D, rk_F, rdep_D, rdep_F, p_path,
                          + w_tpi * Om_tpi_D[t] * payoff_D_tpi)
                         / (Omega_til_D * (1 + rdep_D[t]) + lbD_D * mu_D))
 
-            # the floor prices the PLAIN probability-weighted payoff, i.e. without
-            # the Omega^d covariance premium (mirrors bond_decomposition's defcomp)
-            if floor_on:
-                Q_bD, cb_buy_D_t, Q_floor = _cb_price_floor(
-                    Q_bD_free, (1.0 - pi_def1) * payoff_D_nd + pi_def1 * payoff_D_d,
-                    rdep_D[t], ic_spread_bD_ss, psi_cb_D, s_tpi_D[t])
-            else:
-                Q_bD, cb_buy_D_t, Q_floor = Q_bD_free, 0.0, Q_bD_free
 
             Omega_nd_F  = bi_F * (f_F + (1 - f_F) * alpha_F_next)
             Omega_til_F = w_nd * Omega_nd_F + w_def * Om_d_F[t] + w_tpi * Om_tpi_F[t]
@@ -400,9 +383,6 @@ def bank_backward(rk_D, rk_F, rdep_D, rdep_F, p_path,
         b_F_D_path[t]   = b_F_D_t;  b_D_F_path[t] = b_D_F_t
         ic_bD_D_path[t] = ic_spread_bD_D
         ic_bF_F_path[t] = ic_spread_bF_F
-        cb_buy_D_path[t]  = cb_buy_D_t
-        Q_bD_free_path[t] = Q_bD_free
-        Q_floor_D_path[t] = Q_floor
 
         alpha_D_next = alpha_D;  alpha_F_next = alpha_F
         Q_bD_next    = Q_bD;     Q_bF_next    = Q_bF
@@ -414,7 +394,6 @@ def bank_backward(rk_D, rk_F, rdep_D, rdep_F, p_path,
         b_F_D=b_F_D_path, b_D_F=b_D_F_path,
         ic_spread_bD_D=ic_bD_D_path, ic_spread_bF_F=ic_bF_F_path,
         Q_bD_ss_val=Q_bD_ss_val, Q_bF_ss_val=Q_bF_ss_val,
-        cb_buy_D=cb_buy_D_path, Q_bD_free=Q_bD_free_path, Q_floor_D=Q_floor_D_path,
     )
 
 
@@ -423,14 +402,16 @@ def bank_forward(Kap_D, Kap_F, Q_D, Q_F, rk_D, rk_F, rdep_D, rdep_F, p_path,
                  def_real_D=None,
                  init_D=None, init_F=None,
                  Q_bD_lag0=None, Q_bF_lag0=None, p_lag0=None,
-                 recap_D=None):
+                 L_wc_D=None, L_wc_F=None):
     # FORWARD PASS: NET WORTH, DIVIDENDS, DEPOSIT SUPPLY FROM REALIZED RETURNS.
+    # L_wc_* are the WORKING-CAPITAL LOANS the bank holds (Bocola SV.C): assets and
+    # divertable base like any other class, earning lambda*mu/Omega over the deposit
+    # rate. They default to the SS level so a constant-SS input path still reproduces
+    # the SS exactly. (Legacy path-based block: the projection solver uses point_map.)
     T = len(Kap_D)
 
     if def_real_D is None:
         def_real_D = np.zeros(T)
-    if recap_D is None:
-        recap_D = np.zeros(T)   # branch equity injection, added to retained net worth
 
     f_D   = cal["f_D"];           f_F   = cal["f_F"]
     lK_D  = cal["lambda_K_D"];    lK_F  = cal["lambda_K_F"]
@@ -438,6 +419,11 @@ def bank_forward(Kap_D, Kap_F, Q_D, Q_F, rk_D, rk_F, rdep_D, rdep_F, p_path,
     lbF_D = cal["lambda_bF_D"];   lbF_F = cal["lambda_bF_F"]
     rec_D = cal["recovery_rate_D"]
     db_D  = cal["delta_b_D"];     db_F  = cal["delta_b_F"]
+
+    L_wc_D = (np.full(T, ss_bk_D["L_wc_ss"]) if L_wc_D is None
+              else np.asarray(L_wc_D, dtype=float))
+    L_wc_F = (np.full(T, ss_bk_F["L_wc_ss"]) if L_wc_F is None
+              else np.asarray(L_wc_F, dtype=float))
 
     Q_bD_path = bwd["Q_bD"];  Q_bF_path = bwd["Q_bF"]
     b_F_D_path = bwd["b_F_D"];  b_D_F_path = bwd["b_D_F"]
@@ -464,6 +450,7 @@ def bank_forward(Kap_D, Kap_F, Q_D, Q_F, rk_D, rk_F, rdep_D, rdep_F, p_path,
                       phi_bfor_prev=ss_bk_D["phi_bfor_ss"],
                       rdep_prev=cal["r_dep_D_target"])
     n_D_prev        = init_D["n_prev"]
+    phi_wc_D_prev   = init_D.get("phi_wc_prev", ss_bk_D["phi_wc_ss"])
     kappa_D_prev    = init_D["kappa_prev"]
     phi_bdom_D_prev = init_D["phi_bdom_prev"]
     phi_bfor_D_prev = init_D["phi_bfor_prev"]
@@ -475,6 +462,7 @@ def bank_forward(Kap_D, Kap_F, Q_D, Q_F, rk_D, rk_F, rdep_D, rdep_F, p_path,
                       phi_bfor_prev=ss_bk_F["phi_bfor_ss"],
                       rdep_prev=cal["r_dep_F_target"])
     n_F_prev        = init_F["n_prev"]
+    phi_wc_F_prev   = init_F.get("phi_wc_prev", ss_bk_F["phi_wc_ss"])
     kappa_F_prev    = init_F["kappa_prev"]
     phi_bdom_F_prev = init_F["phi_bdom_prev"]
     phi_bfor_F_prev = init_F["phi_bfor_prev"]
@@ -490,15 +478,17 @@ def bank_forward(Kap_D, Kap_F, Q_D, Q_F, rk_D, rk_F, rdep_D, rdep_F, p_path,
         rb_D_t = rb_D_path[t]
         rb_F_t = (1.0 + rb_F_path[t]) * p_t / p_lag - 1
 
+        rwc_D_t = lK_D * bwd["mu_D"][t] / bwd["Omega_D"][t]      # r_wc - rdep
         rn_D_t = (kappa_D_prev * (rk_D[t] - rdep_D_prev)
                   + phi_bdom_D_prev * (rb_D_t - rdep_D_prev)
                   + phi_bfor_D_prev * (rb_F_t - rdep_D_prev)
+                  + phi_wc_D_prev * rwc_D_t
                   + rdep_D_prev)
         gross_D = (1 + rn_D_t) * n_D_prev
         total_assets_D = (Q_D[t] * Kap_D[t] + Q_bD_path[t] * b_D_D_path[t]
-                          + p_t * Q_bF_path[t] * b_F_D_path[t])
+                          + p_t * Q_bF_path[t] * b_F_D_path[t] + L_wc_D[t])
         entrant_D = cal["omega_ent_D"] * total_assets_D
-        n_ACCUM_D_t = (1 - f_D) * gross_D + entrant_D + recap_D[t]
+        n_ACCUM_D_t = (1 - f_D) * gross_D + entrant_D
         n_ACCUM_D[t] = n_ACCUM_D_t
         rn_D[t]  = rn_D_t
         div_D[t] = f_D * gross_D - entrant_D
@@ -507,11 +497,13 @@ def bank_forward(Kap_D, Kap_F, Q_D, Q_F, rk_D, rk_F, rdep_D, rdep_F, p_path,
         # p x Q_bF); slack = alpha*(n - n_IC) >= 0
         n_IC_D[t] = (lK_D * Q_D[t] * Kap_D[t]
                      + lbD_D * Q_bD_path[t] * b_D_D_path[t]
-                     + lbF_D * p_t * Q_bF_path[t] * b_F_D_path[t]) / alpha_D_path[t]
+                     + lbF_D * p_t * Q_bF_path[t] * b_F_D_path[t]
+                     + lK_D * L_wc_D[t]) / alpha_D_path[t]
         # portfolio shares on ACTUAL net worth (equal to n_IC only when it binds)
         kappa_D_prev    = Q_D[t] * Kap_D[t] / n_ACCUM_D_t
         phi_bdom_D_prev = Q_bD_path[t] * b_D_D_path[t] / n_ACCUM_D_t
         phi_bfor_D_prev = p_t * Q_bF_path[t] * b_F_D_path[t] / n_ACCUM_D_t
+        phi_wc_D_prev   = L_wc_D[t] / n_ACCUM_D_t
         n_D_prev        = n_ACCUM_D_t
         rdep_D_prev     = rdep_D[t]
 
@@ -519,14 +511,16 @@ def bank_forward(Kap_D, Kap_F, Q_D, Q_F, rk_D, rk_F, rdep_D, rdep_F, p_path,
         rb_F_fg_t = rb_F_path[t]
         rb_D_fg_t = (1 + rb_D_path[t]) * p_lag / p_t - 1
 
+        rwc_F_t = lK_F * bwd["mu_F"][t] / bwd["Omega_F"][t]      # r_wc - rdep
         rn_F_t = (kappa_F_prev * (rk_F[t] - rdep_F_prev)
                   + phi_bdom_F_prev * (rb_F_fg_t - rdep_F_prev)
                   + phi_bfor_F_prev * (rb_D_fg_t - rdep_F_prev)
+                  + phi_wc_F_prev * rwc_F_t
                   + rdep_F_prev)
         gross_F = (1 + rn_F_t) * n_F_prev
         total_assets_F = (Q_F[t] * Kap_F[t]
                           + Q_bF_path[t] * b_F_F_path[t]
-                          + Q_bD_path[t] * b_D_F_path[t] / p_t)
+                          + Q_bD_path[t] * b_D_F_path[t] / p_t + L_wc_F[t])
         entrant_F = cal["omega_ent_F"] * total_assets_F
         n_ACCUM_F_t = (1 - f_F) * gross_F + entrant_F
         n_ACCUM_F[t] = n_ACCUM_F_t
@@ -535,17 +529,19 @@ def bank_forward(Kap_D, Kap_F, Q_D, Q_F, rk_D, rk_F, rdep_D, rdep_F, p_path,
 
         n_IC_F[t] = (lK_F * Q_F[t] * Kap_F[t]
                      + lbF_F * Q_bF_path[t] * b_F_F_path[t]
-                     + lbD_F * Q_bD_path[t] * b_D_F_path[t] / p_t) / alpha_F_path[t]
+                     + lbD_F * Q_bD_path[t] * b_D_F_path[t] / p_t
+                     + lK_F * L_wc_F[t]) / alpha_F_path[t]
         kappa_F_prev    = Q_F[t] * Kap_F[t] / n_ACCUM_F_t
         phi_bdom_F_prev = Q_bF_path[t] * b_F_F_path[t] / n_ACCUM_F_t
         phi_bfor_F_prev = Q_bD_path[t] * b_D_F_path[t] / (p_t * n_ACCUM_F_t)
+        phi_wc_F_prev   = L_wc_F[t] / n_ACCUM_F_t
         n_F_prev        = n_ACCUM_F_t
         rdep_F_prev     = rdep_F[t]
 
-    theta_D = ((Q_D * Kap_D + Q_bD_path * b_D_D_path + p_path * Q_bF_path * b_F_D_path)
-               / n_ACCUM_D)
-    theta_F = ((Q_F * Kap_F + Q_bF_path * b_F_F_path + Q_bD_path * b_D_F_path / p_path)
-               / n_ACCUM_F)
+    theta_D = ((Q_D * Kap_D + Q_bD_path * b_D_D_path + p_path * Q_bF_path * b_F_D_path
+                + L_wc_D) / n_ACCUM_D)
+    theta_F = ((Q_F * Kap_F + Q_bF_path * b_F_F_path + Q_bD_path * b_D_F_path / p_path
+                + L_wc_F) / n_ACCUM_F)
 
     return dict(
         n_IC_D=n_IC_D, n_D=n_ACCUM_D, rn_D=rn_D, div_D=div_D,

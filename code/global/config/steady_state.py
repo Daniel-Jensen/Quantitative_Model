@@ -13,7 +13,7 @@ from blocks.firms import steady_state_firm, markup_ss
 from blocks.capital import capital_demand
 from blocks.bank import steady_state_bank, calibrate_bank_targets
 from blocks.government import govt_steady_state
-from blocks.trade import ces_price, import_demand, trade_balance
+from blocks.trade import ces_price, import_demand, trade_balance, size_ratio
 
 
 def solve_steady_state(cal, verbose=True):
@@ -47,10 +47,19 @@ def solve_steady_state(cal, verbose=True):
     gs_F = govt_steady_state(cal, rdep_F_tgt, "F")
     Q_bD_ss = gs_D["Q_B_ss"]
     Q_bF_ss = gs_F["Q_B_ss"]
-    b_F_D_ss = cal["b_F_D_ss"]
-    b_D_F_ss = cal["b_D_F_ss"]
+    # SOVEREIGN HOLDINGS ARE CARRIED IN THE ISSUER'S PER-CAPITA UNITS. b_D_F_ss is the
+    # slice of D's OWN per-capita stock held abroad, so the F bank's per-capita book is
+    # b_D_F_ss/sz (sz = size_F/size_D): 8x as many F agents split the same aggregate.
+    # Symmetrically b_F_D_ss is D's per-capita holding of the F sovereign, and what the
+    # F bank keeps is B_gov_F_ss - b_F_D_ss/sz. At sz = 1 this is the old block exactly;
+    # at sz = 8 both banks still end up with IDENTICAL per-capita balance sheets, because
+    # b_D_D + b_F_D = B_gov_D and b_F_F + b_D_F/sz = B_gov_F both still hold.
+    sz = size_ratio(cal)
+    b_F_D_ss = cal["b_F_D_ss"]           # D's per-capita holding of the F sovereign
+    b_D_F_ss = cal["b_D_F_ss"]           # F's holding of the D sovereign, in D units
     b_D_D_ss = cal["B_gov_D_ss"] - b_D_F_ss
-    b_F_F_ss = cal["B_gov_F_ss"] - b_F_D_ss
+    b_F_F_ss = cal["B_gov_F_ss"] - b_F_D_ss / sz
+    b_D_F_ss_pc = b_D_F_ss / sz          # the same holding per F capita
 
     ncalls = [0]
 
@@ -62,26 +71,36 @@ def solve_steady_state(cal, verbose=True):
             Kap_D = capital_demand(rk_D, mc_D, cal, country="D")
             Kap_F = capital_demand(rk_F, mc_F, cal, country="F")
 
+            # the firm block comes FIRST: the working-capital loan the bank holds is
+            # zeta * the wage bill, and w_ss is a firm object. It does not move the
+            # stage-1 solution -- every class earns the same spread there, so
+            # n_IC/n_ACCUM is composition-free -- but it must be consistent.
+            fm_D = steady_state_firm(cal, Kap_D, country="D")
+            fm_F = steady_state_firm(cal, Kap_F, country="F")
+            L_wc_D = cal["zeta_wc_D"] * fm_D["w_ss"]          # N_ss = 1
+            L_wc_F = cal["zeta_wc_F"] * fm_F["w_ss"]
+
             bk_D = steady_state_bank(cal, rk_D, Kap_D, Q_bD_ss, Q_bF_ss,
-                                     b_D_D_ss, b_F_D_ss, p, country="D")
+                                     b_D_D_ss, b_F_D_ss, p, country="D",
+                                     L_wc_ss=L_wc_D)
             bk_F = steady_state_bank(cal, rk_F, Kap_F, Q_bD_ss, Q_bF_ss,
-                                     b_F_F_ss, b_D_F_ss, p, country="F")
+                                     b_F_F_ss, b_D_F_ss_pc, p, country="F",
+                                     L_wc_ss=L_wc_F)
 
             res_cap_D = (bk_D["n_ss_IC"] - bk_D["n_ss_ACCUM"]) / bk_D["n_ss_ACCUM"]
             res_cap_F = (bk_F["n_ss_IC"] - bk_F["n_ss_ACCUM"]) / bk_F["n_ss_ACCUM"]
-
-            fm_D = steady_state_firm(cal, Kap_D, country="D")
-            fm_F = steady_state_firm(cal, Kap_F, country="F")
 
             P_CES_D = ces_price(p, cal, country="D")
             P_CES_F = ces_price(p, cal, country="F")
             IM_D = import_demand(p, fm_D["C_ss"], P_CES_D, cal, country="D")
             IM_F = import_demand(p, fm_F["C_ss"], P_CES_F, cal, country="F")
-            NX_D, _ = trade_balance(p, IM_D, IM_F)
+            NX_D, _ = trade_balance(p, IM_D, IM_F, cal)
 
             # cross-border coupon income, already priced into Q
             rb_D_mkt = rdep_D_tgt + bk_D["IC_spread_dom"]
             rb_F_mkt = rdep_F_tgt + bk_F["IC_spread_dom"]
+            # both legs are in D-per-capita units already: b_F_D_ss is D's own holding
+            # and b_D_F_ss is the slice of D's own stock held abroad, so no mass ratio
             income_in_D  = rb_F_mkt * p * bk_F["Q_bdom_IC"] * b_F_D_ss
             income_out_D = rb_D_mkt * bk_D["Q_bdom_IC"] * b_D_F_ss
 
@@ -121,12 +140,14 @@ def solve_steady_state(cal, verbose=True):
     # re-evaluate every SS object at the solution with the corrected Z
     Kap_D_ss = capital_demand(rk_D_ss, mc_D, cal, "D")
     Kap_F_ss = capital_demand(rk_F_ss, mc_F, cal, "F")
-    bk_D_ss  = steady_state_bank(cal, rk_D_ss, Kap_D_ss, Q_bD_ss, Q_bF_ss,
-                                 b_D_D_ss, b_F_D_ss, p_ss, "D")
-    bk_F_ss  = steady_state_bank(cal, rk_F_ss, Kap_F_ss, Q_bD_ss, Q_bF_ss,
-                                 b_F_F_ss, b_D_F_ss, p_ss, "F")
     fm_D_ss  = steady_state_firm(cal, Kap_D_ss, "D")
     fm_F_ss  = steady_state_firm(cal, Kap_F_ss, "F")
+    L_wc_D_ss = cal["zeta_wc_D"] * fm_D_ss["w_ss"]           # N_ss = 1
+    L_wc_F_ss = cal["zeta_wc_F"] * fm_F_ss["w_ss"]
+    bk_D_ss  = steady_state_bank(cal, rk_D_ss, Kap_D_ss, Q_bD_ss, Q_bF_ss,
+                                 b_D_D_ss, b_F_D_ss, p_ss, "D", L_wc_ss=L_wc_D_ss)
+    bk_F_ss  = steady_state_bank(cal, rk_F_ss, Kap_F_ss, Q_bD_ss, Q_bF_ss,
+                                 b_F_F_ss, b_D_F_ss_pc, p_ss, "F", L_wc_ss=L_wc_F_ss)
 
     # the traded bond prices are the IC-consistent ones, not the risk-free ones
     Q_bD_ss = bk_D_ss["Q_bdom_IC"]
@@ -161,14 +182,12 @@ def solve_steady_state(cal, verbose=True):
         print(f"  Kap_D={Kap_D_ss:.3f}  Kap_F={Kap_F_ss:.3f}  "
               f"n_ss_D={bk_D_ss['n_ss']:.4f}  n_ss_F={bk_F_ss['n_ss']:.4f}")
 
-    # stage 2: dividends include the working-capital financing income
-    # (r_wc_ss = rdep + the credit-spread target, a constant at the SS)
-    wc_D_ss = (cal["zeta_wc_D"]
-               * (rdep_D_tgt + cal["credit_spread_target_D"]) * fm_D_ss["w_ss"])
-    wc_F_ss = (cal["zeta_wc_F"]
-               * (rdep_F_tgt + cal["credit_spread_target_F"]) * fm_F_ss["w_ss"])
-    Div_D_ss = (1 - mc_D) * fm_D_ss["Y_ss"] + bk_D_ss["div_ss"] + wc_D_ss
-    Div_F_ss = (1 - mc_F) * fm_F_ss["Y_ss"] + bk_F_ss["div_ss"] + wc_F_ss
+    # stage 2: the working-capital financing income accrues to the BANK (it is inside
+    # bk["div_ss"] via rn_ss and the enlarged asset base), NOT to households. Adding it
+    # to household dividends made the credit spread an intra-period transfer, which
+    # under GHH -- no wealth effect to offset it -- turned the risk channel expansionary.
+    Div_D_ss = (1 - mc_D) * fm_D_ss["Y_ss"] + bk_D_ss["div_ss"]
+    Div_F_ss = (1 - mc_F) * fm_F_ss["Y_ss"] + bk_F_ss["div_ss"]
 
     P_CES_D_ss = ces_price(p_ss, cal, "D")
     P_CES_F_ss = ces_price(p_ss, cal, "F")
@@ -231,7 +250,7 @@ def solve_steady_state(cal, verbose=True):
     # goods-market check with the true stage-2 consumption
     IM_D_chk = import_demand(p_ss, C_D_ss, P_CES_D_ss, cal, "D")
     IM_F_chk = import_demand(p_ss, C_F_ss, P_CES_F_ss, cal, "F")
-    NX_D_chk, _ = trade_balance(p_ss, IM_D_chk, IM_F_chk)
+    NX_D_chk, _ = trade_balance(p_ss, IM_D_chk, IM_F_chk, cal)
     walras_D_chk = (fm_D_ss["Y_ss"] - P_CES_D_ss * C_D_ss - fm_D_ss["I_ss"]
                     - cal["G_D"] - NX_D_chk)
     if verbose:

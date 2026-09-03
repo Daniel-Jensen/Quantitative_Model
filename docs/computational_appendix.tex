@@ -1,0 +1,2161 @@
+\documentclass[11pt]{article}
+
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{graphicx}
+\usepackage[colorlinks=true,linkcolor=blue!55!black,citecolor=blue!55!black,
+            urlcolor=blue!55!black]{hyperref}
+
+\allowdisplaybreaks
+\numberwithin{equation}{section}
+
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\one}{\mathbf{1}}
+\newcommand{\code}[1]{\texttt{\small #1}}
+\newcommand{\D}{\mathrm{D}}
+\newcommand{\F}{\mathrm{F}}
+\newcommand{\bx}{\mathbf{x}}
+\newcommand{\bS}{\mathbf{S}}
+
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}[section]
+\theoremstyle{plain}
+\newtheorem{proposition}{Proposition}[section]
+\theoremstyle{remark}
+\newtheorem{remark}{Remark}[section]
+
+% ---- code listing style -------------------------------------------------
+\definecolor{kwc}{RGB}{0,90,150}
+\definecolor{cmc}{RGB}{110,110,110}
+\definecolor{stc}{RGB}{140,60,20}
+\definecolor{frc}{RGB}{200,200,200}
+\definecolor{bgc}{RGB}{250,250,248}
+
+\lstdefinestyle{py}{
+  language=Python,
+  basicstyle=\ttfamily\scriptsize,
+  keywordstyle=\color{kwc}\bfseries,
+  commentstyle=\color{cmc}\itshape,
+  stringstyle=\color{stc},
+  numbers=left,
+  numberstyle=\tiny\color{cmc},
+  numbersep=7pt,
+  breaklines=true,
+  breakatwhitespace=true,
+  showstringspaces=false,
+  frame=single,
+  rulecolor=\color{frc},
+  backgroundcolor=\color{bgc},
+  framesep=5pt,
+  xleftmargin=16pt,
+  captionpos=b,
+  columns=fullflexible,
+  keepspaces=true,
+  aboveskip=8pt,
+  belowskip=8pt,
+}
+\lstset{style=py}
+\renewcommand{\lstlistingname}{Listing}
+
+% ---- editorial callouts -------------------------------------------------
+\definecolor{notec}{RGB}{120,60,20}
+\newcommand{\trick}[1]{\par\smallskip\noindent
+  \textcolor{notec}{$\blacktriangleright$}\;\emph{#1}\par\smallskip}
+\newcommand{\warn}[1]{\par\smallskip\noindent
+  \textcolor{red!60!black}{$\bigstar$}\;\emph{#1}\par\smallskip}
+
+\title{\vspace{-1.4cm}\bfseries A Computational Manual for the\\
+Global Projection Solution\\[6pt]
+\large Chebyshev--Smolyak projection methods, quadrature over a discrete
+default fork,\\ and the solver architecture of \code{code/global/solver\_recursive/}}
+\author{Computational appendix}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent This manual explains, from first principles and in full detail, how the
+two-country monetary-union model with sovereign risk and constrained financial
+intermediaries is solved \emph{globally} by a Chebyshev--Smolyak projection method.
+It is written for economists who are comfortable with structural macroeconomics ---
+Euler equations, Bellman equations, market clearing --- but who have never
+implemented a non-linear global solution. Part~1 develops the mathematics of
+projection methods: what a projection method \emph{is}, why Chebyshev polynomials
+and Chebyshev-extrema nodes rather than any other basis and any other points, and
+how Smolyak sparse grids defeat the curse of dimensionality in a seven-dimensional
+state space. Part~2 shows how the model's theoretical equations become a concrete
+residual function $R(\bx;\bS,\Gamma)=0$, and how expectations over a continuous risk
+factor \emph{and} a discrete default fork are computed by Gauss--Hermite quadrature.
+Part~3 maps every mathematical object onto the exact file, function and variable
+that implements it, with code excerpts. Part~4 --- the longest --- documents the
+``under the hood'' machinery: time iteration, damping, homotopy continuation, frozen
+continuations, log-space collocation, smoothed guards, failed-point masking, the
+Newton solver and its Jacobian, vectorisation, JIT compilation, and how solution
+accuracy is measured. Throughout, choices that were tried and \emph{rejected} are
+documented alongside those that were kept, because in this class of problem the
+failures are as informative as the successes.
+
+\medskip
+\noindent\emph{Companion documents.} The file \code{model\_equations.pdf} states
+the structural environment: preferences, technology, the intermediary problem, the
+government, and the equilibrium definition. The note
+\code{global\_solver\_methods.pdf} is a gentler and less complete introduction to
+the same numerical ideas; this manual is the technical reference and supersedes it
+where the two overlap.
+\end{abstract}
+
+\clearpage
+\tableofcontents
+\clearpage
+
+%%=====================================================================
+\section*{Part 0. Orientation}
+\addcontentsline{toc}{section}{Part 0. Orientation}
+%%=====================================================================
+\setcounter{section}{0}
+
+\section{What is being solved, and why globally}
+
+\subsection{The object of interest}
+
+The model is a recursive competitive equilibrium in which every equilibrium quantity
+is a \emph{function} of an aggregate state. Let
+\begin{equation}
+\bS_t=\bigl(K_{\D,t},\,K_{\F,t},\,P_{\D,t},\,P_{\F,t},\,B_{\D,t},\,s_t,\,Z_{\D,t}\bigr)\in\R^{7},
+\qquad d_t\in\{0,1\},
+\label{eq:state}
+\end{equation}
+collect the two capital stocks, the two intermediaries' gross deposit obligations,
+the risky sovereign debt stock, the latent sovereign-risk factor and total factor
+productivity, together with a discrete default regime $d$. We must find functions
+\begin{equation}
+\bx(d,\bS)=\bigl(N_\D,\;N_\F,\;K'_\D,\;K'_\F,\;r_\D,\;r_\F,\;p\bigr)(d,\bS)
+\label{eq:policy-vector}
+\end{equation}
+--- hours in each country, next period's capital in each country, the two deposit
+rates and the terms of trade --- along with valuation functions
+$\varphi_X(d,\bS)$ (the intermediary's marginal value of net worth), $q^{X}(d,\bS)$
+(sovereign bond prices), and household aggregates $C_X(d,\bS)$, $A_X(d,\bS)$, such
+that at \emph{every} point of the state space the seven equilibrium conditions of
+Table~\ref{tab:seven} hold.
+
+The unknowns are therefore not numbers but \textbf{functions on $\R^{7}\times\{0,1\}$}.
+Since a computer cannot store an arbitrary function, the first task of any global
+method is to replace each unknown function by a finite list of coefficients. That is
+what a projection method does.
+
+\subsection{Why not linearise?}
+
+The overwhelmingly standard alternative --- perturbation, i.e.\ a Taylor expansion of
+the equilibrium conditions around the deterministic steady state --- is
+\emph{invalid} for this model, for three independent reasons. Each is worth stating
+carefully, because each is the reason a reader from a linear-DSGE background should
+expect the machinery in this manual to be necessary rather than ornamental.
+
+\paragraph{(i) The incentive constraint is occasionally binding.} The intermediary's
+leverage constraint $\varphi_{X,t}n_{X,t}\ge\lambda_X\mathcal{A}_{X,t}$ holds with
+complementary slackness,
+\begin{equation}
+\mu_{X,t}\ge0,\qquad
+\mathrm{slack}_{X,t}\ge0,\qquad
+\mu_{X,t}\cdot\mathrm{slack}_{X,t}=0 .
+\label{eq:kkt}
+\end{equation}
+The equilibrium map is therefore only piecewise smooth: it has a \emph{kink} on the
+manifold $\{\mu=0\}$. A Taylor expansion around a point on one side of the kink
+extrapolates the wrong branch on the other side, and no order of expansion repairs
+this, because the map is not analytic there.
+
+\paragraph{(ii) The mechanism of interest is a risk premium, which is identically
+zero at first order.} Certainty equivalence holds in a first-order approximation:
+the linearised decision rules of a model with $\sigma_s=0.63$ are numerically
+identical to those with $\sigma_s=0$. But the entire object this model exists to
+measure --- the pass-through of sovereign risk --- \emph{is} a risk premium. In the
+bond-pricing condition
+\begin{equation}
+q^{\D}_t=\frac{\E_t\bigl[\Omega_{t,t+1}\Xi^{\D}_{t+1}\bigr]}
+              {\E_t[\Omega_{t,t+1}]R_{\D,t}+\lambda_\D\mu_{\D,t}}
+       =\frac{\E_t[\Xi^{\D}_{t+1}]}{R_{\D,t}}
+       +\frac{\mathrm{Cov}_t(\Omega_{t,t+1},\Xi^{\D}_{t+1})}{\E_t[\Omega_{t,t+1}]R_{\D,t}}
+       -(\text{constraint discount}),
+\label{eq:bondprice}
+\end{equation}
+the covariance term is second order in the shock and vanishes under certainty
+equivalence. A first-order solution would price the risky sovereign bond at its
+actuarially fair value and report a zero risk premium --- i.e.\ it would return
+exactly nothing.
+
+\paragraph{(iii) The relevant experiment is a large, rare, discrete event.} The
+default fork is a jump to a state in which the sovereign claim is written down to
+$45\%$ of face value. The economy in that branch is far from the steady state:
+measured on the solved rules, the intermediary's marginal value of net worth
+$\varphi$ reaches more than thirteen times its steady-state level in the deep
+default corners. A local approximation is not merely inaccurate there; it is
+qualitatively wrong, and --- as \S\ref{sec:mu2} documents --- getting the sign of the
+output response right depends on representing that region.
+
+\trick{These three reasons compound. A first-order solution gives no premium; a
+second- or third-order perturbation gives a premium but still smooths the
+occasionally-binding kink and still expands around a point far from the default
+branch. A global method is the only approach that represents both the kink and the
+distant branch --- which is why the entire perfect-foresight and
+representative-branch machinery this project began with was deleted in favour of the projection
+solver.}
+
+\subsection{Road map}
+
+\begin{itemize}
+\item \textbf{Part 1} (\S\ref{sec:projection}--\S\ref{sec:box}) --- projection
+      methods, Chebyshev bases, Smolyak grids, and the collocation box.
+\item \textbf{Part 2} (\S\ref{sec:residual}--\S\ref{sec:quadrature}) --- the residual
+      function and numerical integration over the risk factor and the default fork.
+\item \textbf{Part 3} (\S\ref{sec:architecture}--\S\ref{sec:mapping}) --- code
+      architecture and the mathematics-to-code map.
+\item \textbf{Part 4} (\S\ref{sec:timeiter}--\S\ref{sec:accuracy}) --- the solver
+      algorithm and every computational trick it relies on.
+\end{itemize}
+
+%%=====================================================================
+\clearpage
+\section*{Part 1. Mathematical foundations of the solution method}
+\addcontentsline{toc}{section}{Part 1. Mathematical foundations}
+%%=====================================================================
+
+\section{Projection methods from first principles}
+\label{sec:projection}
+
+\subsection{The general problem}
+
+Every global solution method starts from the same abstract statement. We seek an
+unknown function $g:\mathcal{D}\to\R^{n}$, defined on a domain
+$\mathcal{D}\subseteq\R^{d}$, that satisfies a functional equation
+\begin{equation}
+\mathcal{H}\bigl[g\bigr](\bS)\;=\;0
+\qquad\text{for all }\bS\in\mathcal{D},
+\label{eq:functional}
+\end{equation}
+where $\mathcal{H}$ is an operator that may involve $g$ evaluated at other points
+(through the transition law) and expectations over future shocks. In our case
+$\mathcal{H}$ is the stack of seven equilibrium conditions and $g$ is the collection
+of decision rules \eqref{eq:policy-vector}.
+
+Equation~\eqref{eq:functional} is an infinite system: one vector equation for each
+of the uncountably many points $\bS\in\mathcal{D}$. A \textbf{projection method}
+makes it finite in two steps.
+
+\paragraph{Step 1: parameterise.} Choose a family of basis functions
+$\{\Psi_1,\dots,\Psi_n\}$ and approximate
+\begin{equation}
+g(\bS)\;\approx\;\hat g(\bS;c)\;=\;\sum_{b=1}^{n}c_b\,\Psi_b(\bS),
+\label{eq:parameterisation}
+\end{equation}
+so the unknown function is replaced by the unknown coefficient vector
+$c\in\R^{n}$.
+
+\paragraph{Step 2: project.} Substituting \eqref{eq:parameterisation} into
+\eqref{eq:functional} defines the \emph{residual function}
+\begin{equation}
+R(\bS;c)\;\equiv\;\mathcal{H}\bigl[\hat g(\cdot\,;c)\bigr](\bS),
+\label{eq:residual-def}
+\end{equation}
+which will not be identically zero for any finite $n$. We instead require it to be
+zero in a weighted-average sense: choose $n$ weighting functions $w_1,\dots,w_n$ and
+impose
+\begin{equation}
+\int_{\mathcal{D}}w_b(\bS)\,R(\bS;c)\,d\bS\;=\;0,
+\qquad b=1,\dots,n .
+\label{eq:projection-conditions}
+\end{equation}
+This is $n$ equations in $n$ unknowns.
+
+Different choices of $w_b$ give the classical variants: Galerkin ($w_b=\Psi_b$),
+least squares ($w_b=\partial R/\partial c_b$), and --- the one used here ---
+\textbf{collocation}, where $w_b(\bS)=\delta(\bS-\bS_b)$ is a Dirac mass at a
+selected node $\bS_b$. Collocation reduces \eqref{eq:projection-conditions} to the
+simple and intuitive requirement
+\begin{equation}
+\boxed{\;R(\bS_b;c)=0,\qquad b=1,\dots,n\;}
+\label{eq:collocation}
+\end{equation}
+\emph{the residual is exactly zero at $n$ chosen points of the state space.} Between
+those points the residual is not zero; how large it is there is precisely the
+accuracy question of \S\ref{sec:accuracy}.
+
+\begin{remark}[Why collocation]
+Galerkin projection requires integrating the residual against each basis function
+over a seven-dimensional domain, and each residual evaluation here costs a
+seven-equation non-linear solve with a multi-branch quadrature inside it. Collocation
+requires the residual only at $n$ points. With $n=259$ nodes and two regimes, the
+cost difference is the difference between a solve that runs in ninety minutes and one
+that does not run at all.
+\end{remark}
+
+\subsection{What ``choose a basis'' means in practice}
+
+Two decisions remain: \emph{which} basis functions $\Psi_b$, and \emph{which}
+collocation points $\bS_b$. These are not independent --- a bad pairing produces a
+near-singular collocation matrix or a wildly oscillating interpolant --- and the next
+two sections address them together. The answer used here is: tensor products of
+Chebyshev polynomials, evaluated at Chebyshev-extrema nodes, both restricted to a
+Smolyak sparse index set.
+
+\section{Chebyshev approximation in one dimension}
+\label{sec:chebyshev}
+
+\subsection{Definition and the recurrence}
+
+The Chebyshev polynomials of the first kind are defined on $[-1,1]$ by
+\begin{equation}
+T_k(x)\;=\;\cos\bigl(k\arccos x\bigr),
+\qquad k=0,1,2,\dots
+\label{eq:cheb-def}
+\end{equation}
+The trigonometric definition makes several properties immediate: $|T_k(x)|\le1$ on
+$[-1,1]$; $T_k$ has exactly $k$ roots and $k+1$ extrema in $[-1,1]$; and $T_k$
+oscillates between $+1$ and $-1$ with equal amplitude --- the equioscillation
+property that underlies its optimality. Despite the cosine, $T_k$ \emph{is} a
+polynomial of degree $k$, as the three-term recurrence shows:
+\begin{equation}
+T_0(x)=1,\qquad T_1(x)=x,\qquad
+T_{k+1}(x)=2x\,T_k(x)-T_{k-1}(x).
+\label{eq:cheb-recurrence}
+\end{equation}
+Equation~\eqref{eq:cheb-recurrence} --- not \eqref{eq:cheb-def} --- is what the code
+evaluates, because it is $O(k)$ per point, numerically stable, and free of
+transcendental function calls. It is implemented verbatim:
+
+\begin{lstlisting}[caption={The Chebyshev recurrence. \code{state\_grid.py}, \code{chebyshev\_basis\_1d}.}]
+def chebyshev_basis_1d(x, max_deg):
+    # T_0..T_max_deg AT POINTS x VIA THE RECURRENCE (SHAPE (len(x), max_deg+1)).
+    x = np.asarray(x, dtype=float)
+    T = np.empty((x.size, max_deg + 1))
+    T[:, 0] = 1.0
+    if max_deg >= 1:
+        T[:, 1] = x
+    for k in range(2, max_deg + 1):
+        T[:, k] = 2.0 * x * T[:, k - 1] - T[:, k - 2]
+    return T
+\end{lstlisting}
+
+The polynomials are orthogonal on $[-1,1]$ with respect to the weight
+$(1-x^{2})^{-1/2}$:
+\begin{equation}
+\int_{-1}^{1}\frac{T_j(x)T_k(x)}{\sqrt{1-x^{2}}}\,dx
+=\begin{cases}
+0, & j\ne k,\\
+\pi, & j=k=0,\\
+\pi/2, & j=k\ge1 .
+\end{cases}
+\label{eq:cheb-orthogonality}
+\end{equation}
+Orthogonality is what makes the coefficients of a Chebyshev expansion decay rapidly
+and independently, so that truncating the series at degree $n$ discards a
+well-controlled remainder rather than redistributing error across the retained terms.
+
+\subsection{Why Chebyshev: three properties that matter}
+
+\paragraph{(a) Near-minimax accuracy.} Let $f$ be continuous on $[-1,1]$ and let
+$p^{\ast}_n$ be its best degree-$n$ polynomial approximation in the sup norm. The
+degree-$n$ Chebyshev interpolant $p_n$ satisfies
+\begin{equation}
+\|f-p_n\|_{\infty}\;\le\;\Bigl(1+\Lambda_n\Bigr)\,\|f-p^{\ast}_n\|_{\infty},
+\qquad
+\Lambda_n\;\sim\;\frac{2}{\pi}\log n ,
+\label{eq:lebesgue}
+\end{equation}
+where $\Lambda_n$ is the Lebesgue constant of the node set. The logarithmic growth is
+the crucial fact: at $n=64$ the Chebyshev interpolant is within a factor of about
+$3.6$ of the unimprovable approximation. For \emph{equispaced} nodes the Lebesgue
+constant instead grows like $2^{n}/(e\,n\log n)$ --- exponentially --- which is the
+Runge phenomenon of \S\ref{sec:runge}.
+
+\paragraph{(b) Spectral (geometric) convergence for smooth functions.} If $f$ is
+analytic in the Bernstein ellipse $E_\rho$ (the ellipse in the complex plane with
+foci $\pm1$ and semi-axis sum $\rho>1$), then
+\begin{equation}
+\|f-p_n\|_{\infty}\;\le\;\frac{2M\rho^{-n}}{\rho-1},
+\qquad M=\max_{z\in E_\rho}|f(z)| ,
+\label{eq:spectral}
+\end{equation}
+i.e.\ the error falls \emph{geometrically} in the degree. Adding one degree
+multiplies the accuracy by a constant factor, rather than adding a fixed number of
+digits as in a finite-difference scheme. If instead $f$ has only $k$ continuous
+derivatives, convergence degrades to the algebraic rate $O(n^{-k})$.
+
+\warn{Property (b) is exactly what the occasionally-binding constraint threatens.
+The equilibrium map is smooth on each side of $\{\mu=0\}$ but only $C^{0}$ across it.
+Where the kink lies inside the collocation box, the geometric rate
+\eqref{eq:spectral} is lost and the interpolant develops Gibbs-type oscillations.
+Section~\ref{sec:mu2} shows this is not hypothetical: it is the reason the solve
+converges at approximation level $\ell=1$ and fails at $\ell=2$.}
+
+\paragraph{(c) A well-conditioned collocation matrix.} Because the basis is
+orthogonal and the nodes are the natural ones for that basis, the matrix $\Phi$ of
+\S\ref{sec:fitting} is far better conditioned than the Vandermonde matrix of a
+monomial basis $\{1,x,x^{2},\dots\}$, whose condition number grows exponentially in
+degree. In double precision a monomial basis becomes unusable above degree ten or so;
+the Chebyshev basis remains usable into the hundreds.
+
+\subsection{Node placement and the Runge disaster}
+\label{sec:runge}
+
+Interpolation error at any $x$ factors as
+\begin{equation}
+f(x)-p_n(x)\;=\;\frac{f^{(n+1)}(\xi)}{(n+1)!}\prod_{j=0}^{n}\bigl(x-x_j\bigr),
+\label{eq:interp-error}
+\end{equation}
+so the node placement enters only through the \emph{node polynomial}
+$\prod_j(x-x_j)$. Minimising its sup norm over node choices is a classical problem
+whose solution clusters points towards the endpoints with the arcsine density
+$1/(\pi\sqrt{1-x^{2}})$. Equispaced nodes leave the node polynomial exponentially
+large near $\pm1$, and interpolants of even innocuous functions --- Runge's
+$f(x)=1/(1+25x^{2})$ is the textbook case --- \emph{diverge} as $n$ grows.
+
+This code uses the \textbf{Chebyshev extrema} (Gauss--Lobatto) points,
+\begin{equation}
+x_j\;=\;-\cos\!\left(\frac{\pi j}{m-1}\right),
+\qquad j=0,1,\dots,m-1,
+\label{eq:cheb-extrema}
+\end{equation}
+which include the endpoints $\pm1$ and satisfy the arcsine clustering. The choice of
+extrema rather than \emph{roots} (Gauss points) is deliberate and is what makes the
+Smolyak construction of \S\ref{sec:smolyak} possible: extrema sets are
+\textbf{nested}, so that the level-$i$ point set is a subset of the level-$(i{+}1)$
+set. Root sets are not.
+
+\begin{lstlisting}[caption={Nested Chebyshev-extrema levels. \code{state\_grid.py}.}]
+def _level_points(i):
+    # FULL 1D CHEBYSHEV-EXTREMA SET OF LEVEL i (m = 1, 3, 5, 9, ... POINTS).
+    if i == 1:
+        return np.array([0.0])
+    m = 2 ** (i - 1) + 1
+    return -np.cos(np.pi * np.arange(m) / (m - 1))
+
+def _new_points(i):
+    # POINTS INTRODUCED AT LEVEL i (DISJOINT ACROSS LEVELS BY NESTEDNESS).
+    if i == 1:
+        return np.array([0.0])
+    if i == 2:
+        return np.array([-1.0, 1.0])
+    return _level_points(i)[1::2]   # odd positions are absent from level i-1
+\end{lstlisting}
+
+The level sequence is $m_i=1,3,5,9,17,\dots$ (i.e.\ $m_1=1$ and
+$m_i=2^{\,i-1}+1$ for $i\ge2$), and the ``new points'' at level $i$ are the
+odd-indexed members of level $i$, which are exactly those absent from level $i-1$.
+Table~\ref{tab:levels} lists the first few levels.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Nested one-dimensional levels: points and the degrees they introduce.}
+\label{tab:levels}
+\begin{tabular}{@{}cccl@{}}
+\toprule
+Level $i$ & $m_i$ (cumulative points) & New points & New degrees \\
+\midrule
+1 & 1 & $\{0\}$                                  & $\{0\}$ \\
+2 & 3 & $\{-1,+1\}$                              & $\{1,2\}$ \\
+3 & 5 & $\{-\tfrac{\sqrt2}{2},+\tfrac{\sqrt2}{2}\}$ & $\{3,4\}$ \\
+4 & 9 & 4 points                                  & $\{5,6,7,8\}$ \\
+5 & 17& 8 points                                  & $\{9,\dots,16\}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The pairing of ``new points'' with ``new degrees'' in the last column is what keeps
+the collocation system square, and is implemented as:
+
+\begin{lstlisting}[caption={Degrees introduced at each level. \code{state\_grid.py}, \code{\_new\_degrees}.}]
+def _new_degrees(i):
+    # CHEBYSHEV DEGREES INTRODUCED AT LEVEL i (|new degrees| = |new points|).
+    if i == 1:
+        return np.array([0])
+    if i == 2:
+        return np.array([1, 2])
+    m_prev = 2 ** (i - 2) + 1
+    return np.arange(m_prev, 2 ** (i - 1) + 1)
+\end{lstlisting}
+
+\subsection{Fitting is a linear solve}
+\label{sec:fitting}
+
+Given nodes $\{x_p\}_{p=1}^{n}$ and degrees $\{k_b\}_{b=1}^{n}$, build the
+collocation matrix
+\begin{equation}
+\Phi_{pb}\;=\;T_{k_b}(x_p),
+\qquad
+\Phi\in\R^{n\times n},
+\label{eq:phi-1d}
+\end{equation}
+and let $y_p=f(x_p)$ be the function values. The interpolation conditions
+$\hat f(x_p)=y_p$ are the linear system
+\begin{equation}
+\Phi\,c\;=\;y
+\qquad\Longrightarrow\qquad
+c=\Phi^{-1}y .
+\label{eq:fit-1d}
+\end{equation}
+Two implementation points matter. First, $\Phi$ depends only on the \emph{grid}, not
+on the function being fitted, so it is built once and LU-factorised once; every
+subsequent fit is a triangular back-substitution costing $O(n^{2})$ instead of
+$O(n^{3})$. Second, this is what makes it cheap to fit \emph{seventeen} rules in two
+regimes on every sweep: they all share one factorisation.
+
+\begin{lstlisting}[caption={One factorisation, many fits. \code{state\_grid.py}, \code{SmolyakGrid}.}]
+self._Phi = self._basis_unit(self.points_unit)     # (n, n) collocation basis
+self._lu = lu_factor(self._Phi)
+...
+def fit(self, values):
+    # COLLOCATION COEFFICIENTS FROM VALUES AT self.points ((n,) OR (n, k)).
+    return lu_solve(self._lu, np.asarray(values, dtype=float))
+\end{lstlisting}
+
+\subsection{Never extrapolate}
+
+Equation~\eqref{eq:spectral} holds \emph{inside} the interpolation interval. Outside
+it, the Chebyshev interpolant behaves like the leading monomial $x^{k_{\max}}$ and
+diverges rapidly: at $x=1.3$ with $k_{\max}=8$, $T_8$ is already of order $10^{3}$.
+Every evaluation of the decision rules must therefore be inside the box. The code
+enforces this explicitly at the one place where an off-box state can arise --- the
+continuation point in the expectation --- by clipping:
+\begin{equation}
+\bS'_{\text{eval}}=\Pi_{[\text{lo},\text{hi}]}\bigl(\bS'\bigr),
+\qquad
+\text{code: \code{cont.eval\_all(d\_next, cont.grid.clip(Sn))}} .
+\label{eq:clip}
+\end{equation}
+Clipping is not free --- \S\ref{sec:box} shows that an over-tight box makes the clip
+distort the risk process itself --- so the box must be wide enough that clipping is
+rare, and how often it binds is reported by the accuracy diagnostic
+(\S\ref{sec:accuracy}).
+
+\section{Seven dimensions without the explosion}
+\label{sec:smolyak}
+
+\subsection{The curse of dimensionality}
+
+The natural multi-dimensional extension of \S\ref{sec:chebyshev} is the tensor
+product: take $m$ nodes per dimension and use all $m^{d}$ combinations, with the
+corresponding product basis $\prod_{j}T_{k_j}(x_j)$. In $d=7$ with the modest choice
+$m=3$ this is $3^{7}=2{,}187$ points; with $m=5$ it is $78{,}125$; with $m=9$ it is
+$4{,}782{,}969$. Each point requires a seven-equation non-linear solve with a
+$3M$-node quadrature inside it, in each of two regimes. At roughly a second per
+point, $m=5$ alone is a day of computation per sweep, and dozens of sweeps are
+needed. Tensor products are unusable here.
+
+\subsection{The Smolyak construction}
+
+Smolyak's (1963) insight, in the nested Chebyshev form of Krueger and Kubler (2004),
+is that most of the tensor product is wasted: it spends points on \emph{high-order
+interactions} --- terms like $x_1^{8}x_2^{8}x_3^{8}$ --- which contribute almost
+nothing to the accuracy of a smooth function. A sparse grid keeps the cheap
+combinations and discards the expensive ones, according to a budget on the total
+level.
+
+Formally, index each dimension by a level $i_j\ge1$, and define the admissible
+multi-index set
+\begin{equation}
+\mathcal{I}(\ell)\;=\;\Bigl\{\,i=(i_1,\dots,i_d)\in\N^{d}\;:\;
+\sum_{j=1}^{d}\bigl(i_j-1\bigr)\;\le\;\ell,
+\quad i_j-1\le\ell_j\ \forall j\,\Bigr\},
+\label{eq:multi-index}
+\end{equation}
+where $\ell$ is the \textbf{approximation level} (the code calls it \code{mu}; we
+write $\ell$ throughout to avoid collision with the incentive-constraint multiplier
+$\mu$) and the optional per-dimension caps $\ell_j$ produce the anisotropic grids of
+\S\ref{sec:anisotropic}. The grid and the basis are then unions of small tensor
+products over that index set, using the \emph{new} point and degree sets of
+Table~\ref{tab:levels}:
+\begin{align}
+\mathcal{H}(\ell)&=\bigcup_{i\in\mathcal{I}(\ell)}\;
+   \Delta_{i_1}\times\Delta_{i_2}\times\cdots\times\Delta_{i_d},
+&&\Delta_i=\text{new points at level }i,
+\label{eq:smolyak-grid}\\[3pt]
+\mathcal{B}(\ell)&=\bigcup_{i\in\mathcal{I}(\ell)}\;
+   \mathcal{K}_{i_1}\times\mathcal{K}_{i_2}\times\cdots\times\mathcal{K}_{i_d},
+&&\mathcal{K}_i=\text{new degrees at level }i .
+\label{eq:smolyak-basis}
+\end{align}
+Because $|\Delta_i|=|\mathcal{K}_i|$ for every $i$ and the unions are over the same
+index set, $|\mathcal{H}(\ell)|=|\mathcal{B}(\ell)|=n$: the collocation matrix is
+\textbf{square by construction}, and \eqref{eq:fit-1d} carries over unchanged. This
+is the structural reason the ``new points / new degrees'' pairing of
+Table~\ref{tab:levels} is set up as it is.
+
+The multi-index enumeration is a depth-first recursion over the remaining level
+budget:
+
+\begin{lstlisting}[caption={Enumerating $\mathcal{I}(\ell)$. \code{state\_grid.py}, \code{\_multi\_indices}.}]
+def _multi_indices(d, mu, mu_vec):
+    # ALL LEVEL MULTI-INDICES i (EACH >= 1) WITH sum(i-1) <= mu AND i-1 <= mu_vec.
+    out = []
+    def rec(prefix, budget):
+        # DEPTH-FIRST ENUMERATION UNDER THE REMAINING LEVEL BUDGET.
+        j = len(prefix)
+        if j == d:
+            out.append(tuple(prefix))
+            return
+        for lev in range(1, min(budget, mu_vec[j]) + 2):
+            rec(prefix + [lev], budget - (lev - 1))
+    rec([], mu)
+    return out
+\end{lstlisting}
+
+and the grid assembly is a loop of small meshgrids:
+
+\begin{lstlisting}[caption={Building the sparse grid and its basis degrees. \code{state\_grid.py}, \code{SmolyakGrid.\_\_init\_\_}.}]
+pts, degs = [], []
+for i_vec in _multi_indices(self.d, self.mu, self.mu_vec):
+    axes_p = [_new_points(i)  for i in i_vec]
+    axes_d = [_new_degrees(i) for i in i_vec]
+    mesh_p = np.meshgrid(*axes_p, indexing="ij")
+    mesh_d = np.meshgrid(*axes_d, indexing="ij")
+    pts.append(np.column_stack([m.ravel() for m in mesh_p]))
+    degs.append(np.column_stack([m.ravel() for m in mesh_d]))
+self.points_unit = np.vstack(pts)
+self.degrees     = np.vstack(degs).astype(int)
+\end{lstlisting}
+
+The multi-dimensional basis matrix is then the elementwise product of
+one-dimensional Chebyshev matrices, one per dimension --- a fully vectorised
+operation over all points and all basis functions at once:
+
+\begin{lstlisting}[caption={The tensor basis, vectorised. \code{state\_grid.py}, \code{\_basis\_unit}.}]
+def _basis_unit(self, u):
+    # BASIS MATRIX AT UNIT-BOX POINTS: PRODUCTS OF PER-DIMENSION CHEBYSHEVS.
+    u = np.atleast_2d(u)
+    B = np.ones((u.shape[0], self.n))
+    for j in range(self.d):
+        Tj = chebyshev_basis_1d(u[:, j], self.max_deg)
+        B *= Tj[:, self.degrees[:, j]]
+    return B
+\end{lstlisting}
+
+\subsection{What it buys}
+
+Table~\ref{tab:counts} gives the actual point counts for $d=7$, computed from the
+implementation. The savings are dramatic and grow with dimension.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Smolyak versus tensor-product point counts in $d=7$ (computed from
+\code{SmolyakGrid}).}
+\label{tab:counts}
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+Level $\ell$ & Max degree & Smolyak points & Tensor points & Ratio \\
+\midrule
+1 & 2 & 15  & 2{,}187     & $1:146$ \\
+2 & 4 & 113 & 78{,}125    & $1:691$ \\
+3 & 8 & 589 & 4{,}782{,}969 & $1:8{,}120$ \\
+\midrule
+\multicolumn{5}{@{}l@{}}{\emph{Grids actually used:}}\\
+$[1,1,1,1,1,3,0]$ (production, risk) & 8 & \textbf{259} & --- & anisotropic \\
+$[0,0,1,1,0,3,0]$ (frozen capital)   & 8 & 41  & --- & anisotropic \\
+$\ell=1$ isotropic (TFP experiment)  & 2 & 15  & 2{,}187 & $1:146$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The approximation-theoretic guarantee is that the sparse grid loses surprisingly
+little. Level $\ell$ reproduces \emph{exactly} every polynomial of total degree
+$\le\ell$ in $d$ variables, including all cross terms. At $\ell=2$ this means every
+complete quadratic --- all $d$ linear terms, all $d$ squares and all $d(d-1)/2$
+interactions --- which is already the entire information content of a second-order
+perturbation, but represented globally rather than locally. This property is
+regression-tested directly:
+
+\begin{lstlisting}[caption={The exactness property, tested. \code{tests/test\_state\_grid.py}.}]
+def test_quadratic_exactness():
+    # LEVEL 2 REPRODUCES COMPLETE QUADRATICS INCL. CROSS TERMS (KK04 PROPERTY).
+    rng = np.random.default_rng(1); d = 8
+    g = SmolyakGrid(-np.ones(d), np.ones(d), mu=2)
+    A = rng.standard_normal((d, d)); A = 0.5 * (A + A.T)
+    b = rng.standard_normal(d); c0 = rng.standard_normal()
+    def f(x):
+        return np.einsum("ij,jk,ik->i", x, A, x) + x @ b + c0
+    coef = g.fit(f(g.points))
+    x = rng.uniform(-1, 1, size=(800, d))
+    assert np.max(np.abs(g.eval(coef, x) - f(x))) < 1e-9
+\end{lstlisting}
+
+The general error bound (Barthelmann, Novak and Ritter, 2000) for $f$ with bounded
+mixed derivatives of order $k$ is
+\begin{equation}
+\bigl\|f-\hat f_{\ell}\bigr\|_{\infty}
+\;=\;O\!\left(n^{-k}\bigl(\log n\bigr)^{(d-1)(k+1)}\right),
+\label{eq:smolyak-error}
+\end{equation}
+against the tensor-product rate $O(n^{-k/d})$ --- the curse of dimensionality is
+reduced from an exponent to a logarithmic factor.
+
+\subsection{Anisotropic refinement}
+\label{sec:anisotropic}
+
+The isotropic budget in \eqref{eq:multi-index} spends resolution equally on all seven
+states. That is wasteful here, because the states are economically very unequal: the
+sovereign-risk factor $s$ ranges over $\pm4.35$ in logit units and is where every
+non-linearity lives, whereas the two capital stocks move by a few percent over the
+ergodic set. Setting per-dimension caps $\ell_j$ --- the argument \code{mu\_vec} ---
+concentrates points where the curvature is:
+\begin{equation}
+\ell_{\text{vec}}=\bigl[\underbrace{1,1}_{K_\D,K_\F},
+\underbrace{1,1}_{P_\D,P_\F},\underbrace{1}_{B_\D},
+\underbrace{3}_{s},\underbrace{0}_{Z_\D}\bigr]
+\;\Longrightarrow\; n=259,\ \ k_{\max}=8 .
+\label{eq:mu-vec}
+\end{equation}
+The risk factor gets degree-8 resolution; TFP, which is never shocked in the risk
+experiment, gets a single node (a rule flat in $Z$); the remaining five states get
+the minimum non-trivial refinement.
+
+\trick{The anisotropic grid is not a cost-saving convenience --- it changes the
+answer. On the isotropic $\ell=1$ grid the long bond reprices by only $-1.3\%$ under
+the headline shock, because degree-2 resolution in $s$ cannot represent the convexity
+of the price in the risk factor. With $\ell_s=3$ it reprices by $-4.8\%$, the bond
+loss crashes intermediary net worth, and the multiplier $\mu$ spikes endogenously.
+The mechanism the model exists to measure is invisible at uniform resolution.}
+
+\warn{The opposite error is equally consequential. The variant
+$[0,0,1,1,0,3,0]$ (41 points) freezes $K_\D$, $K_\F$ and $B_\D$ at a single node,
+making the rules \emph{flat} in capital and debt. This runs in ten minutes instead of
+ninety, but it switches off the capital-accumulation channel entirely: measured, the
+impact credit-spread response is $+143$\,bp with capital live and $-27$\,bp with it
+frozen. A grid choice silently deleted the mechanism and flipped a sign.}
+
+\section{The collocation box}
+\label{sec:box}
+
+\subsection{\texorpdfstring{Mapping the economic domain to $[-1,1]^{d}$}
+                          {Mapping the economic domain to the unit box}}
+
+Chebyshev theory lives on $[-1,1]^{d}$; the model lives on an economic box
+$[\text{lo},\text{hi}]\subset\R^{7}$. The affine map and its inverse are
+\begin{equation}
+u_j(\bS)=2\,\frac{S_j-\text{lo}_j}{\text{hi}_j-\text{lo}_j}-1,
+\qquad
+S_j=\text{lo}_j+\tfrac12\bigl(u_j+1\bigr)\bigl(\text{hi}_j-\text{lo}_j\bigr),
+\label{eq:box-map}
+\end{equation}
+implemented as \code{to\_unit} and \code{from\_unit}. The box is centred on the
+steady state with per-state bands:
+\begin{equation}
+\begin{aligned}
+K_X&:\ \pm2\%, &\qquad P_\D&:\ \pm12\%, &\qquad P_\F&:\ \pm20\%,\\
+B_\D&:\ \pm8\%, &\qquad s&:\ \bar s\pm4.35, &\qquad Z_\D&:\ \pm3\% .
+\end{aligned}
+\label{eq:bands}
+\end{equation}
+
+\subsection{Why these bands, specifically}
+
+Band selection is one of the highest-leverage choices in the whole solve, and the
+values in \eqref{eq:bands} are measured rather than guessed.
+
+\paragraph{The $s$ band.} The half-width $4.35$ is Bocola's own coverage, equal to
+$\pm2.16$ unconditional standard deviations of the $s$ process
+($\sigma_s/\sqrt{1-\rho_s^{2}}=2.02$). This must be checked against the
+\emph{conditional} innovation, not just the unconditional spread, because the
+continuation states in the quadrature are clipped to the box: if the box is narrow in
+conditional standard deviations, the clip mean-reverts $s$ harder than $\rho_s$ does.
+An earlier calibration with $\sigma_s=1.5075$ made the box only $1.4$--$2.3$
+conditional standard deviations wide, which cut the \emph{effective} persistence of
+$s$ from $0.95$ to $0.80$ and removed roughly $62\%$ of the long bond's repricing ---
+silently. There is now a regression test for exactly this:
+
+\begin{lstlisting}[caption={Guarding against a box that distorts the shock process. \code{tests/test\_state\_grid.py}.}]
+    # and the clip must not distort the process in the ergodic core
+    x, w = np.polynomial.hermite_e.hermegauss(5)
+    w = w / w.sum()
+    grid_s = np.linspace(sp["s_star"] - unc, sp["s_star"] + unc, 21)
+    Ec = np.array([w @ np.clip((1 - sp["rho_s"]) * sp["s_star"] + sp["rho_s"] * s
+                               + sp["sigma_s"] * x, lo, hi) for s in grid_s])
+    rho_eff = np.polyfit(grid_s, Ec, 1)[0]
+    assert rho_eff > 0.93, f"box clip cuts effective rho_s to {rho_eff:.3f}"
+\end{lstlisting}
+
+\paragraph{The $P_\F$ band.} At the original $\pm8\%$ the sweep degraded from about
+the tenth iteration and $22$ of $41$ points stopped clearing permanently, leaving the
+fit anchored on frozen cold-start values with a worst residual of $9.6\times10^{-3}$.
+At $\pm20\%$ the entire grid clears to $1.1\times10^{-14}$ with zero failures, and
+$4.5\times$ faster. The reason is economic: foreign-side wealth is a documented
+quasi-unit-root state whose one-step image ran to $+20.6\%$ against a $\pm8\%$ box.
+\textbf{A box must be able to contain the image of its own points.}
+
+\paragraph{The $P_\D$ band.} Symmetric at $\pm12\%$, because the period map has no
+solution above roughly $P_\D+15\%$. An asymmetric $(0.20,0.12)$ pair was tried and is
+\emph{worse} (six failures): it shifts the box centre off the steady state, so the
+steady state stops being a collocation node --- and a solution that is not exact at
+its own rest point is a poor starting point for everything else.
+
+\subsection{Invariance and the rotated box}
+
+Ideally the box would be \emph{one-step invariant}: the image of every point under
+the transition law would lie inside it. Measured at the steady state, the Jacobian of
+the deposit-obligation block is
+\begin{equation}
+J=\frac{\partial\bigl(P'_\D,P'_\F\bigr)}{\partial\bigl(P_\D,P_\F\bigr)}
+=\begin{pmatrix}1.076 & -0.310\\ 2.016 & -1.252\end{pmatrix},
+\qquad
+\mathrm{eig}(J)=\{0.766,\,-0.942\} .
+\label{eq:Pjacobian}
+\end{equation}
+The dynamics are stable --- both eigenvalues are inside the unit circle --- but $J$
+is strongly non-normal (singular values $2.61$ and $0.28$). Invariance of an
+axis-aligned box requires $|J|\,b\le b$ componentwise for some positive half-width
+vector $b$, where $|J|$ is the entrywise absolute value. Here
+$\rho(|J|)=1.96>1$, so by Perron--Frobenius \textbf{no axis-aligned box centred on
+the steady state is one-step invariant, at any bandwidth}. On the eigenbasis, by
+contrast, the map is diagonal with $|\lambda|<1$ and every box is invariant.
+
+The code therefore supports collocating on rotated coordinates $z=R(\bS-\bar\bS)$
+(Bocola's $V$-transform), with the box drawn on $z$ while every public method still
+speaks natural coordinates:
+
+\begin{lstlisting}[caption={Rotated box coordinates. \code{state\_grid.py}, \code{SmolyakGrid}.}]
+def _fwd(self, x):
+    # NATURAL -> ROTATED BOX COORDINATES (identity when rot is None).
+    x = np.atleast_2d(x)
+    return x if self.rot is None else (x - self.centre) @ self.rot.T
+
+def clip(self, x):
+    # PROJECT POINTS INTO THE BOX (SIMULATION USE; EXPLICIT, NOT SILENT).
+    # Clipping happens in the ROTATED coordinates the box is drawn on, so a
+    # rotated box projects onto its own faces, not onto an axis-aligned hull.
+    return self._bwd(np.clip(self._fwd(x), self.lo, self.hi))
+\end{lstlisting}
+
+\warn{The rotation is correct in theory and \emph{measures worse}: $11$ of $41$
+points fail and the worst residual is $1.2\times10^{-2}$, against zero failures and
+$1.1\times10^{-14}$ for the axis-aligned box. The reason is instructive. A rotated
+box is a parallelogram in natural coordinates, and its corners reach $P_\F$ states at
+which the period map has no equilibrium at all. Invariance was simply not the binding
+constraint; \emph{feasibility of the collocation points} was. The facility is kept,
+tested, and off by default (\code{ROTATE\_P = False} in \code{main.py}).}
+
+\subsection{The alternative: ergodic-set grids}
+
+When the box approach fails outright --- as it does at $\ell=2$, where $40$--$50\%$ of
+the collocated corners are infeasible --- the structural fix is to stop collocating on
+a box at all. The \code{eds.py} module implements the Maliar--Maliar
+$\varepsilon$-distinguishable-set method: simulate the model to obtain the ergodic
+cloud, keep a well-spaced subset by farthest-point sampling, and fit by
+complete-polynomial least squares on that cloud. The solver then only ever visits
+states the model actually reaches. \code{EDSGrid} is a drop-in replacement exposing
+the same \code{points / n / d / fit / eval / basis / clip} interface, so
+\code{RuleSet}, \code{point\_map} and the time-iteration driver are reused unchanged
+--- an illustration of why the grid abstraction is worth the indirection.
+
+%%=====================================================================
+\clearpage
+\section*{Part 2. From theory to the residual function}
+\addcontentsline{toc}{section}{Part 2. From theory to the residual function}
+%%=====================================================================
+
+\section{Assembling the residual}
+\label{sec:residual}
+
+\subsection{What gets parameterised}
+
+Seventeen functions are approximated on the grid, in each of two default regimes ---
+$34$ coefficient vectors in total. They fall into three groups:
+
+\begin{table}[htbp]
+\centering\small
+\caption{The approximated rules. Source: \code{decision\_rules.py}.}
+\label{tab:rules}
+\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{3.5cm}p{7.0cm}@{}}
+\toprule
+Group & Members & Role \\
+\midrule
+\code{SOLVE7}   & \code{N\_D}, \code{N\_F}, \code{Kp\_D}, \code{Kp\_F},
+                  \code{rdep\_D}, \code{rdep\_F}, \code{p}
+                & The pointwise Newton unknowns $\bx$: solved at every node from the
+                  seven market-clearing residuals. \\
+\addlinespace
+\code{DERIVED} (valuations) & \code{alpha\_D}, \code{alpha\_F},
+                  \code{Q\_bD}, \code{Q\_bF}, \code{r\_wc\_D}, \code{r\_wc\_F}
+                & Banker valuations $\varphi_X$, bond prices $q^{X}$ and the lending
+                  rate: \emph{read off} the Euler recursions given the frozen
+                  continuation, not solved for. \\
+\addlinespace
+\code{DERIVED} (household) & \code{C\_D}, \code{C\_F}, \code{A\_D}, \code{A\_F}
+                & Aggregate consumption and deposits, from the budget identity and
+                  quantity clearing. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The split between ``solved'' and ``read off'' is a design choice with real
+consequences, discussed in \S\ref{sec:knot}: solving for all seventeen jointly at
+each node would be a $17\times17$ non-linear system per point instead of $7\times7$,
+and --- more importantly --- would reintroduce a simultaneity between the bond price
+and next period's state that the frozen-continuation device removes.
+
+\subsection{The seven equilibrium conditions}
+
+At a node $(d,\bS)$, given a frozen continuation rule set $\Gamma$, the residual
+function is
+\begin{equation}
+R:\R^{7}\to\R^{7},
+\qquad
+R\bigl(\bx;\,d,\bS,\Gamma\bigr)=0,
+\label{eq:R-def}
+\end{equation}
+with components as in Table~\ref{tab:seven}. Each row states the economics, the
+residual as coded, and --- crucially --- the \emph{normalisation}.
+
+\begin{table}[htbp]
+\centering\small
+\caption{The residual vector. Source: \code{point\_map.py}, \code{point\_residuals}.}
+\label{tab:seven}
+\begin{tabular}{@{}clp{6.4cm}c@{}}
+\toprule
+\# & Condition & Residual as coded & Pins \\
+\midrule
+1 & Capital Euler, $\D$ &
+$\bigl(\E[\Omega_\D(r^{k\prime}_\D-r_\D)]-\lambda_K\mu_\D\bigr)\big/\E[\Omega_\D]$ & $K'_\D$\\
+2 & Capital Euler, $\F$ &
+$\bigl(\E[\Omega_\F(r^{k\prime}_\F-r_\F)]-\lambda_K\mu_\F\bigr)\big/\E[\Omega_\F]$ & $K'_\F$\\
+3 & Labour market, $\D$ &
+$\bigl(\chi_\D N_\D^{1/\nu}-w_\D/P^{c}_\D\bigr)\big/\bigl(w_\D/P^{c}_\D\bigr)$ & $N_\D$\\
+4 & Labour market, $\F$ &
+$\bigl(\chi_\F N_\F^{1/\nu}-w_\F/P^{c}_\F\bigr)\big/\bigl(w_\F/P^{c}_\F\bigr)$ & $N_\F$\\
+5 & Deposit Euler, $\D$ &
+$x_\D^{-\sigma}\big/\bigl(\tilde\beta_\D\,\E[(1+r^{c\prime}_\D)x_\D'^{-\sigma}]\bigr)-1$ & $r_\D$\\
+6 & Deposit-UIP &
+$(1+r_\D)-(1+r_\F)\E[p']/p+\kappa_{\rm nfa}(P_\D-P_\F)/\bar Y_\D$ & $r_\F$\\
+7 & Goods market, $\D$ &
+$\bigl(Y_\D-P^{c}_\D C_\D-I_\D-NX_\D-G_\D\bigr)\big/\bar Y_\D$ & $p$\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\trick{\textbf{Normalisation is not cosmetic.} A Newton solver measures convergence
+by $\|R\|_\infty$, so residuals in wildly different units make the tolerance
+meaningless and the step direction dominated by whichever equation happens to be
+measured in the largest units. Every residual above is therefore rendered
+dimensionless: Euler conditions are divided by the discount kernel $\E[\Omega]$ so
+they read in \emph{return} units, the labour conditions by the real wage, and the
+goods market by steady-state output. Note the choice \emph{not} made: dividing the
+capital Euler by $\lambda_K\bar\mu$ instead of $\E[\Omega]$ would amplify it roughly
+$130\times$ relative to the others and wrecks the solver step.}
+
+\subsection{Structure of one residual evaluation}
+
+A single call to \code{point\_residuals} performs the following, in order. This is
+the innermost loop of the entire solve, executed hundreds of times per node per
+sweep, so its structure is worth reading carefully.
+
+\begin{enumerate}
+\item \textbf{Unpack} the trial vector $\bx$ and the state $\bS$.
+\item \textbf{Firms and capital, current period.} Evaluate the production and
+      capital blocks: output, the frictionless wage, $mpk$, Tobin's
+      $q$, investment and capital-producer rents, in each country.
+\item \textbf{Government.} Apply the fiscal rule to the surviving stock, compute the
+      coupon, and forward-integrate the debt stock to $B'$.
+\item \textbf{Balance sheets.} Compute asset payoffs $\mathcal{X}_X$, gross wealth
+      $n^{g}_X=\mathcal{X}_X-P_X$, end-of-period assets $\mathcal{A}_X$, net worth
+      $n_X$, deposits, and the next-period obligation $P'_X$.
+\item \textbf{Continuations.} Build the next-period state vector
+      $\bS'$ for every quadrature node, clip it into the box, and evaluate
+      \emph{all} rules in each regime (\code{cont.eval\_all}).
+\item \textbf{Branch kernels.} Form $\Lambda^{(d')}$, $\varphi^{(d')}$ and hence
+      $\Omega^{(d')}$ on each branch; take the three-branch expectations.
+\item \textbf{Banker block.} The closed-form multiplier $\mu_X$, the franchise value
+      $\varphi_X$, bond prices $q^{X}$, the lending rate $r^{wc}_X$.
+\item \textbf{Household block.} Dividends, income, consumption from the budget, the
+      deposit Euler.
+\item \textbf{Trade.} Import demand, net exports.
+\item \textbf{Assemble} the seven residuals and return them together with a
+      dictionary \code{out} of every derived object, which becomes the next iterate's
+      rule values.
+\end{enumerate}
+
+The returned pair \code{(res, out)} is the reason one function serves both purposes:
+the solver consumes \code{res}, and the sweep stores \code{out}.
+
+\subsection{The occasionally-binding constraint inside the residual}
+
+The multiplier is not a Newton unknown. It is computed \emph{inside} the residual
+evaluation from Proposition~1 of the companion document,
+\begin{equation}
+\mu_{X}=\min\left\{\max\left\{1-\frac{\E[\Omega_X]\,(1+r_X)\,n_X}{\lambda\mathcal{A}_X},\;0\right\},\;
+\bar\mu\right\},
+\qquad \bar\mu=0.95,
+\label{eq:mu-closed-form}
+\end{equation}
+and the capital Euler (rows 1--2 of Table~\ref{tab:seven}) is then the equation that
+pins $K'$. This is the recursive-stable form of the same KKT system that the older
+path-based solver imposed as a Fischer--Burmeister complementarity,
+\begin{equation}
+\Psi^{FB}(\mu,\mathrm{slack})=\mu+\mathrm{slack}-\sqrt{\mu^{2}+\mathrm{slack}^{2}}=0
+\;\Longleftrightarrow\;
+\mu\ge0,\ \mathrm{slack}\ge0,\ \mu\cdot\mathrm{slack}=0 .
+\label{eq:FB}
+\end{equation}
+Both encode \eqref{eq:kkt} exactly. The difference is numerical: the FB form is a
+smooth-except-at-the-origin residual added to a stacked system, whereas
+\eqref{eq:mu-closed-form} is an explicit, bounded formula evaluated pointwise.
+
+\begin{lstlisting}[caption={The KKT switch (hard) inside a smoothed cap. \code{point\_map.py}.}]
+    # closed-form mu in [0, mu_cap]: the lower max is Bocola's KKT switch (hard, as in
+    # his residual_model.m -- it IS the complementarity, not a numerical guard); the
+    # upper cap keeps alpha = E_Om R/(1-mu) finite when a default-regime net worth n
+    # goes negative, and is SMOOTHED because unlike the KKT switch it is a guard that
+    # would otherwise plant a plateau in a fitted object.
+    _MU_CAP = 0.95
+    mu_D = float(_smin(max(1.0 - E_Om_D * (1.0 + rdep_D) * n_D / lev_D, 0.0),
+                       _MU_CAP, _GUARD_EPS))
+\end{lstlisting}
+
+\warn{The distinction in that comment is the single most important line of
+implementation philosophy in the solver. The \emph{lower} \code{max} is economics ---
+it is the complementarity condition itself --- and must stay hard, because smoothing
+it would blur the regime boundary the model is about. The \emph{upper} \code{min} is
+a numerical guard against a diverging recursion, and must be smoothed, because a hard
+cap plants a plateau inside an object that is subsequently fitted by a global
+polynomial. Kinks that are economics stay; kinks that are numerics get smoothed. See
+\S\ref{sec:smoothing}.}
+
+\section{Computing expectations: quadrature over a continuum and a fork}
+\label{sec:quadrature}
+
+\subsection{Gauss--Hermite quadrature}
+
+Every conditional expectation in the model is an integral against the standard normal
+density,
+\begin{equation}
+\E_t\bigl[g(\varepsilon')\bigr]
+=\int_{-\infty}^{\infty}g(\varepsilon)\,\frac{1}{\sqrt{2\pi}}e^{-\varepsilon^{2}/2}\,d\varepsilon .
+\label{eq:expectation-integral}
+\end{equation}
+Gaussian quadrature approximates this by a weighted sum at optimally-chosen nodes,
+\begin{equation}
+\E_t\bigl[g(\varepsilon')\bigr]\;\approx\;\sum_{m=1}^{M}w_m\,g(\varepsilon_m),
+\label{eq:gh-rule}
+\end{equation}
+where the nodes $\varepsilon_m$ are the roots of the degree-$M$ orthogonal polynomial
+for the weight function and the weights $w_m$ are chosen to integrate low-order
+polynomials exactly. The defining property is remarkable: an $M$-node Gaussian rule
+is exact for all polynomials of degree $\le 2M-1$. With $M=5$ nodes the rule
+integrates polynomials up to degree nine exactly, which for smooth integrands is
+far more accurate than a $5$-point Monte Carlo draw (whose error falls only as
+$M^{-1/2}$).
+
+\subsection{The probabilists' versus physicists' trap}
+
+There are two conventions for Hermite polynomials, and confusing them silently
+rescales the shock.
+
+\begin{itemize}
+\item \textbf{Physicists' Hermite} $H_n$ is orthogonal with respect to
+      $e^{-x^{2}}$, so its rule approximates
+      \[\textstyle\int g(x)\,e^{-x^{2}}\,dx\;\approx\;\sum_m \tilde w_m\,g(x_m).\]
+      Recovering an $N(0,\sigma^{2})$ expectation then requires the map
+      $\varepsilon=\sqrt{2}\,\sigma x_m$ and weights $\tilde w_m/\sqrt{\pi}$.
+\item \textbf{Probabilists' Hermite} $He_n$ is orthogonal with respect to
+      $e^{-x^{2}/2}$. Its nodes are already in standard-deviation units, so
+      $\varepsilon=\sigma x_m$ with weights normalised to sum to one.
+\end{itemize}
+This code uses the probabilists' rule, so the natural map $s'=\text{mean}+\sigma_s x_m$
+is exact:
+
+\begin{lstlisting}[caption={Quadrature nodes. \code{point\_map.py}, \code{gh\_nodes}.}]
+def gh_nodes(n=7):
+    # GAUSS-HERMITE NODES/WEIGHTS FOR ONE STANDARD-NORMAL INNOVATION.
+    # hermegauss is the PROBABILISTS' rule (weight exp(-x^2/2)), so the nodes are
+    # already in standard-deviation units and s' = mean + sigma*node is exact.
+    # (Bocola's GaussHermite.m returns the PHYSICISTS' rule and then uses the same
+    # sigma*node map, which silently rescales his innovation by 1/sqrt(2).)
+    x, w = np.polynomial.hermite_e.hermegauss(n)
+    return x, w / w.sum()
+\end{lstlisting}
+
+\warn{The parenthetical is a real, documented discrepancy with the reference
+implementation, and it is worth understanding as a cautionary tale. Applying the
+$\sigma\times\text{node}$ map to physicists' nodes implicitly divides the innovation
+standard deviation by $\sqrt2$. The reference model's \emph{reported} parameter is
+$\sigma_s=0.63$, but the model it actually solves contains
+$\sigma_s^{\text{eff}}=0.63/\sqrt2=0.4455$. To reproduce those numbers exactly one
+must set \code{cal["sigma\_s"] = 0.4455} here --- reproducing the solved model, not
+the reported parameter. Two lines of quadrature convention change the effective
+volatility of the driving process by $29\%$.}
+
+\subsection{Mixing a continuous shock with a discrete fork}
+
+The expectation is not over $\varepsilon'$ alone. Next period the sovereign either
+does not default ($d'=0$), or defaults and the central-bank backstop is honoured, or
+defaults and the backstop is reneged. The measure is therefore a product of the
+Gauss--Hermite rule with a three-point discrete distribution, giving $3M$ evaluation
+nodes:
+\begin{equation}
+\boxed{\;
+\E_t\bigl[g\bigr]=\sum_{m=1}^{M}w_m
+\Bigl\{\underbrace{(1-\pi^{d})}_{w^{\rm nd}}g\bigl(0,\bS'_m\bigr)
++\underbrace{\pi^{d}\varkappa}_{w^{\rm hon}}g^{\rm hon}\bigl(\bS'_m\bigr)
++\underbrace{\pi^{d}(1-\varkappa)}_{w^{\rm ren}}g\bigl(1,\bS'_m\bigr)\Bigr\}\;}
+\label{eq:three-branch}
+\end{equation}
+with $\pi^{d}=\pi^{d}(s_t)$ the current logistic default probability and $\varkappa$
+the priced backstop-activation probability. The implementation folds the branch
+probabilities directly into the quadrature weight vectors, so a branch expectation is
+a pair of dot products:
+
+\begin{lstlisting}[caption={Branch weights and the expectation operators. \code{point\_map.py}.}]
+    w_nd, w_def = wq * (1.0 - pd), wq * pd
+    a_tpi = float(cal.get("tpi_activation", 0.0))
+    w_hon, w_ren = w_def * a_tpi, w_def * (1.0 - a_tpi)
+
+    def _E(v0, v1):
+        # TWO-BRANCH EXPECTATION (no-default vs default) -- F-safe legs.
+        return float(np.dot(w_nd, v0) + np.dot(w_def, v1))
+
+    def _E3(v0, vh, vr):
+        # THREE-BRANCH EXPECTATION: no-default / default-honoured / default-reneged.
+        return float(np.dot(w_nd, v0) + np.dot(w_hon, vh) + np.dot(w_ren, vr))
+\end{lstlisting}
+
+\trick{\textbf{Exact nesting by construction.} Setting $\varkappa=0$ makes
+$w^{\rm hon}\equiv0$ in exact floating-point arithmetic, so
+\eqref{eq:three-branch} collapses to the two-branch case with no residual
+contamination --- not approximately, but bit-for-bit. Likewise $\pi^{d}\equiv0$ makes
+$w^{\rm def}\equiv0$ and recovers the risk-neutral model exactly. This is what makes
+the nesting regression test (\code{tests/test\_recursive\_nesting.py}) a meaningful
+check rather than a tolerance comparison, and it is why the branch probabilities are
+multiplied into the weights rather than branched on with an \code{if}.}
+
+\subsection{Evaluating the continuation}
+
+Each of the $M$ quadrature nodes needs a full next-period state. These are assembled
+as a single $(M\times7)$ array and the rules are evaluated on all of them in one
+vectorised call --- one basis-matrix construction and one matrix multiply per regime,
+rather than $M$ scalar interpolations:
+
+\begin{lstlisting}[caption={Vectorised continuation evaluation. \code{point\_map.py}, \code{\_cont}.}]
+    def _cont(d_next):
+        # CONTINUATION RULE VALUES + NEXT-PERIOD CAPITAL RETURN, REGIME d_next.
+        Sn = np.empty((m, 7))
+        Sn[:, IK_D] = Kp_D; Sn[:, IK_F] = Kp_F
+        Sn[:, IP_D] = Pp_D; Sn[:, IP_F] = Pp_F
+        Sn[:, IB_D] = Bp_D
+        Sn[:, IS] = s_next
+        Sn[:, IZ] = Z_next
+        r = cont.eval_all(d_next, cont.grid.clip(Sn))
+        # guard continuation outputs before they enter fractional powers / sqrt
+        # (a deep default-regime iterate can push N, p, C negative -> NaN)
+        for k in ("N_D", "N_F"):
+            r[k] = np.maximum(r[k], 0.05)
+        for k in ("C_D", "C_F"):
+            r[k] = np.maximum(r[k], 1e-3)
+        r["p"] = np.maximum(r["p"], 1e-2)
+\end{lstlisting}
+
+Note the ordering: only $s'$ varies across quadrature nodes; the endogenous states
+$K'$, $P'$, $B'$ are common to all $M$ of them, because they are chosen at $t$ and
+are therefore deterministic given $\bx$. The array is broadcast accordingly.
+
+\subsection{The honoured branch as a blend}
+
+The backstop-honoured continuation is not a separately solved regime --- there is no
+third coefficient set. It is a convex blend of the two solved regimes' rules,
+governed by the ``real shield'' parameter $\varsigma$:
+\begin{equation}
+g^{\rm hon}(\bS')=(1-\varsigma)\,g\bigl(1,\bS'\bigr)+\varsigma\,g\bigl(0,\bS'\bigr),
+\label{eq:blend}
+\end{equation}
+implemented as a dictionary comprehension over all rules at once:
+
+\begin{lstlisting}[caption={The honoured branch. \code{point\_map.py}.}]
+    # honoured continuation = d'=1 recession blended toward d'=0 by `shield`
+    rh = {k: (1.0 - shield) * r1[k] + shield * r0[k] for k in r1}
+\end{lstlisting}
+
+This is an approximation --- a genuinely separate backstop regime would require a
+third solve --- but a disciplined one: at $\varsigma=1$ the honoured branch is exactly
+the no-default economy, at $\varsigma=0$ it is exactly the default economy, and
+intermediate values interpolate. The baseline sets $\varsigma=0.5$ because at
+$\varsigma=1$ full activation neutralises risk entirely and tips the barely-binding
+constraint into a slack-branch slip.
+
+\subsection{Quadrature order}
+
+The solve uses $M=5$ nodes (\code{N\_GH = 5} in \code{recursive\_experiment.py}). The
+order is \emph{stamped onto the solved rule set}:
+
+\begin{lstlisting}[caption={Recording the quadrature order. \code{decision\_rules.py}, \code{RuleSet}.}]
+        # quadrature order the rules were SOLVED under; time_iteration stamps it and
+        # every reader (IRFs, decompositions, accuracy) uses it, so a solve at n_gh=5
+        # is never read back at n_gh=7 and charged the difference as approximation error
+        self.n_gh = None
+\end{lstlisting}
+
+\trick{This is a small piece of bookkeeping that prevents a subtle and embarrassing
+class of bug. If rules are solved with $M=5$ and then read back with $M=7$, the
+residuals evaluated at the solution will not be zero --- and the difference is pure
+quadrature mismatch, not approximation error. Every downstream reader (impulse
+responses, decompositions, the accuracy report) takes its order from
+\code{rules.n\_gh}, so the reported accuracy is the accuracy of the object that was
+actually solved.}
+
+%%=====================================================================
+\clearpage
+\section*{Part 3. Code architecture and implementation}
+\addcontentsline{toc}{section}{Part 3. Code architecture}
+%%=====================================================================
+
+\section{Architecture}
+\label{sec:architecture}
+
+\subsection{Module map}
+
+The solver is deliberately layered, with the economics kept solver-agnostic. The
+call structure of a production run is:
+
+\begin{center}\small
+\begin{tabular}{@{}llp{7.4cm}@{}}
+\toprule
+Layer & Module & Responsibility \\
+\midrule
+Driver        & \code{main.py}                     & Steady state $\to$ TFP $\to$ risk $\to$ TPI experiments \\
+              & \code{recursive\_experiment.py}    & Grid choice, warm-start chain, homotopy, IRF readers \\
+              & \code{tpi\_recursive\_experiment.py} & Backstop-activation comparison \\
+\addlinespace
+Solver        & \code{recursive\_main.py}          & \code{time\_iteration}, \code{\_sweep}, \code{solve\_point} \\
+              & \code{point\_map.py}               & \code{point\_residuals}: the residual $R(\bx;d,\bS,\Gamma)$ \\
+\addlinespace
+Approximation & \code{state\_grid.py}              & \code{SmolyakGrid}, box construction, the $s$ process \\
+              & \code{decision\_rules.py}          & \code{RuleSet}: coefficients, transforms, evaluation \\
+              & \code{eds.py}                      & Ergodic-set grid (drop-in alternative) \\
+\addlinespace
+Economics     & \code{blocks/*.py}                 & Bank, firms, capital, trade, government, household \\
+              & \code{config/*.py}                 & Calibration and the two-stage steady-state solve \\
+\addlinespace
+Diagnostics   & \code{accuracy.py}                 & Euler errors on the ergodic set, box escapes \\
+              & \code{recursive\_residual.py}      & Per-point $\mu$/slack/residual maps \\
+              & \code{output\_decomposition.py}    & Factor decomposition of $d\log Y$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The dependency direction is strict: \code{blocks/} knows nothing about grids,
+quadrature or solvers; \code{point\_map.py} calls \code{blocks/} but does not know
+about time iteration; \code{recursive\_main.py} knows about grids and residuals but
+contains no economics. This is what allowed the entire perfect-foresight solver stack
+to be deleted without touching a single economic block, and what allows
+\code{EDSGrid} to substitute for \code{SmolyakGrid} unchanged.
+
+\subsection{The \code{RuleSet} abstraction}
+
+A \code{RuleSet} holds, for each of the $17$ rules and each of the two regimes, both
+the point values on the grid and the fitted coefficients. Its interface is small:
+
+\begin{lstlisting}[caption={The rule container. \code{decision\_rules.py}.}]
+class RuleSet:
+    # COEFFICIENTS AND POINT VALUES FOR EVERY RULE IN BOTH REGIMES.
+    def __init__(self, grid):
+        self.grid = grid
+        self.vals = {k: [np.empty(grid.n), np.empty(grid.n)] for k in ALL_RULES}
+        self.coef = {k: [None, None] for k in ALL_RULES}
+        self.n_gh = None
+
+    def set_values(self, name, d, values, weights=None, ridge=0.0):
+        # SET POINT VALUES FOR ONE RULE IN ONE REGIME AND REFIT ITS COEFFICIENTS.
+        self.vals[name][d] = np.asarray(values, dtype=float).copy()
+        y = to_fit(name, self.vals[name][d])
+        if weights is None and ridge == 0.0:
+            self.coef[name][d] = self.grid.fit(y)
+        else:
+            self.coef[name][d] = self.grid.fit_weighted(y, weights, ridge)
+
+    def eval_all(self, d, x):
+        # EVALUATE EVERY RULE IN REGIME d AT POINTS x -> DICT OF ARRAYS.
+        B = self.grid.basis(x)
+        return {k: from_fit(k, B @ self.coef[k][d]) for k in ALL_RULES}
+\end{lstlisting}
+
+\trick{\code{eval\_all} builds the basis matrix \emph{once} and reuses it across all
+seventeen rules. Since the basis evaluation is $O(n\cdot d\cdot k_{\max})$ and the
+subsequent projection is a single matrix-vector product per rule, this makes
+evaluating all rules barely more expensive than evaluating one. Given that
+\code{\_cont} is called two or three times per residual evaluation, and the residual
+is called dozens of times per Newton solve at each of $518$ node-regime pairs per
+sweep, this single design choice is worth an order of magnitude.}
+
+\subsection{Log-space collocation}
+
+Rules are \emph{stored} in levels but \emph{fitted} in transformed space:
+
+\begin{lstlisting}[caption={The fit transform. \code{decision\_rules.py}.}]
+LOG_RULES   = frozenset({"N_D", "N_F", "Kp_D", "Kp_F", "p", "alpha_D", "alpha_F",
+                         "Q_bD", "Q_bF", "C_D", "C_F", "A_D", "A_F"})
+GROSS_RULES = frozenset({"rdep_D", "rdep_F", "r_wc_D", "r_wc_F"})
+
+def to_fit(name, v):
+    # LEVELS -> THE QUANTITY ACTUALLY FITTED BY THE CHEBYSHEV COLLOCATION.
+    if name in GROSS_RULES:
+        return np.log(np.maximum(1.0 + np.asarray(v, dtype=float), _FIT_FLOOR))
+    if name in LOG_RULES:
+        return np.log(np.maximum(np.asarray(v, dtype=float), _FIT_FLOOR))
+    return np.asarray(v, dtype=float)
+
+def from_fit(name, y):
+    # FITTED QUANTITY -> LEVELS (the inverse of to_fit).
+    if name in GROSS_RULES:
+        return np.exp(np.clip(y, -50.0, 50.0)) - 1.0
+    if name in LOG_RULES:
+        return np.exp(np.clip(y, -50.0, 50.0))
+    return y
+\end{lstlisting}
+
+Three things are going on here, and each is a distinct trick.
+
+\begin{enumerate}
+\item \textbf{Positivity by construction.} Hours, capital, consumption, prices and
+      valuations must be positive. A polynomial fitted to levels can go negative
+      between nodes --- especially near a kink, where Gibbs oscillation overshoots ---
+      and a negative $N$ entering $N^{1/\nu}$ produces a NaN that propagates through
+      every subsequent expectation. Fitting $\log x$ and exponentiating makes
+      negativity \emph{impossible}, which removed a whole family of hard clips that
+      previously existed only to protect positivity.
+\item \textbf{No plateaus to represent.} Those hard clips were themselves harmful:
+      a clip is a plateau, a plateau is a kink, and the interpolant then has to
+      represent it. Removing them improves the fit for a second, independent reason.
+\item \textbf{Rates handled separately.} A net interest rate may legitimately be
+      negative, so $\log r$ is inadmissible. Rates are therefore carried as the
+      \emph{gross} rate $1+r$, which is positive --- the same device Bocola uses when
+      he parameterises policies as $\exp(\bar x+\gamma)$.
+\end{enumerate}
+
+The $\pm50$ clamp on the exponent is a last-resort finiteness guard: $\exp$ overflows
+to infinity around $709$, and one infinity poisons every expectation it enters. The
+range $e^{\pm50}$ spans $10^{-22}$ to $5\times10^{21}$ and is unreachable by any
+admissible economic value, so the clamp never binds on a converged solution --- it
+only keeps a diverging transient iterate finite long enough to be rejected.
+
+\section{Mathematics-to-code map}
+\label{sec:mapping}
+
+Table~\ref{tab:map} indexes every mathematical object in Parts 1--2 to the exact file,
+function and variable that implements it.
+
+\begin{longtable}{@{}p{4.6cm}p{4.4cm}p{5.4cm}@{}}
+\caption{Mathematics to code.}\label{tab:map}\\
+\toprule
+Mathematical object & Code location & Names \\
+\midrule
+\endfirsthead
+\multicolumn{3}{@{}l}{\emph{Table~\ref{tab:map}, continued}}\\
+\toprule
+Mathematical object & Code location & Names \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+$T_k(x)$, recurrence \eqref{eq:cheb-recurrence}
+  & \code{state\_grid.py} & \code{chebyshev\_basis\_1d(x, max\_deg)} \\
+Chebyshev extrema \eqref{eq:cheb-extrema}
+  & \code{state\_grid.py} & \code{\_level\_points(i)} \\
+New points $\Delta_i$
+  & \code{state\_grid.py} & \code{\_new\_points(i)} \\
+New degrees $\mathcal{K}_i$
+  & \code{state\_grid.py} & \code{\_new\_degrees(i)} \\
+Index set $\mathcal{I}(\ell)$ \eqref{eq:multi-index}
+  & \code{state\_grid.py} & \code{\_multi\_indices(d, mu, mu\_vec)} \\
+Sparse grid $\mathcal{H}(\ell)$ \eqref{eq:smolyak-grid}
+  & \code{state\_grid.py} & \code{SmolyakGrid.points}, \code{.points\_unit} \\
+Basis set $\mathcal{B}(\ell)$ \eqref{eq:smolyak-basis}
+  & \code{state\_grid.py} & \code{SmolyakGrid.degrees} \\
+Collocation matrix $\Phi$ \eqref{eq:phi-1d}
+  & \code{state\_grid.py} & \code{\_Phi}, \code{\_basis\_unit(u)} \\
+$c=\Phi^{-1}y$ \eqref{eq:fit-1d}
+  & \code{state\_grid.py} & \code{fit(values)} via \code{lu\_solve} \\
+Weighted ridge fit
+  & \code{state\_grid.py} & \code{fit\_weighted(values, w, ridge)} \\
+Box map $u(\bS)$ \eqref{eq:box-map}
+  & \code{state\_grid.py} & \code{to\_unit}, \code{from\_unit} \\
+Box construction \eqref{eq:bands}
+  & \code{state\_grid.py} & \code{build\_state\_box(...)} \\
+Rotation $z=R(\bS-\bar\bS)$
+  & \code{state\_grid.py} & \code{\_fwd}, \code{\_bwd}, \code{rot}, \code{centre} \\
+Clip \eqref{eq:clip}
+  & \code{state\_grid.py} & \code{clip(x)}, \code{outside(x)} \\
+Eigenbasis probe \eqref{eq:Pjacobian}
+  & \code{recursive\_main.py} & \code{p\_block\_rotation(...)} \\
+\addlinespace
+State vector $\bS$ \eqref{eq:state}
+  & \code{state\_grid.py} & \code{STATE\_NAMES}; indices \code{IK\_D...IZ} \\
+Unknowns $\bx$ \eqref{eq:policy-vector}
+  & \code{decision\_rules.py} & \code{SOLVE7} \\
+Read-off rules
+  & \code{decision\_rules.py} & \code{DERIVED} \\
+$\hat g(\bS;c)$ \eqref{eq:parameterisation}
+  & \code{decision\_rules.py} & \code{RuleSet.eval}, \code{.eval\_all} \\
+Log transform
+  & \code{decision\_rules.py} & \code{to\_fit}, \code{from\_fit} \\
+\addlinespace
+Residual $R(\bx;d,\bS,\Gamma)$ \eqref{eq:R-def}
+  & \code{point\_map.py} & \code{point\_residuals(S, d, x, cont, ...)} \\
+Closed-form $\mu$ \eqref{eq:mu-closed-form}
+  & \code{point\_map.py} & \code{mu\_D}, \code{mu\_F}, \code{lev\_D}, \code{lev\_F} \\
+Franchise value $\varphi$
+  & \code{point\_map.py} & \code{alpha\_D\_new}, \code{alpha\_F\_new} \\
+Bond prices $q^{X}$
+  & \code{point\_map.py} & \code{Q\_bD\_new}, \code{Q\_bF\_new} \\
+Lending spread $\lambda\mu/\E[\Omega]$
+  & \code{point\_map.py} & \code{r\_wc\_D}, \code{wedge\_sp\_D} \\
+GH nodes \eqref{eq:gh-rule}
+  & \code{point\_map.py} & \code{gh\_nodes(n)} \\
+Branch weights \eqref{eq:three-branch}
+  & \code{point\_map.py} & \code{w\_nd}, \code{w\_hon}, \code{w\_ren} \\
+Branch expectations
+  & \code{point\_map.py} & \code{\_E(v0,v1)}, \code{\_E3(v0,vh,vr)} \\
+Continuation states
+  & \code{point\_map.py} & \code{\_cont(d\_next)} \\
+Honoured blend \eqref{eq:blend}
+  & \code{point\_map.py} & \code{rh}, \code{shield} \\
+Smoothed guards
+  & \code{point\_map.py} & \code{\_smax}, \code{\_smin}, \code{\_sclip} \\
+\addlinespace
+Point solve
+  & \code{recursive\_main.py} & \code{solve\_point(S, d, cont, ..., x0)} \\
+One sweep
+  & \code{recursive\_main.py} & \code{\_sweep(rules, cont, ...)} \\
+Time iteration
+  & \code{recursive\_main.py} & \code{time\_iteration(rules, ...)} \\
+Warm-start chain, homotopy
+  & \code{recursive\_experiment.py} & \code{solve\_recursive(...)} \\
+IRF reader
+  & \code{recursive\_experiment.py} & \code{read\_at(...)} \\
+Euler errors
+  & \code{accuracy.py} & \code{simulate}, \code{euler\_errors}, \code{accuracy\_report} \\
+EGM / distribution kernels
+  & \code{fast\_kernels.py} & \code{hh\_backward}, \code{dist\_forward} \\
+\end{longtable}
+
+%%=====================================================================
+\clearpage
+\section*{Part 4. Computational tricks and optimisations}
+\addcontentsline{toc}{section}{Part 4. Computational tricks}
+%%=====================================================================
+
+\section{The outer algorithm: time iteration}
+\label{sec:timeiter}
+
+\subsection{Why time iteration rather than one big Newton}
+
+Given the parameterisation, the collocation conditions \eqref{eq:collocation} are a
+system of
+\begin{equation}
+\underbrace{7}_{\text{equations}}\times\underbrace{259}_{\text{nodes}}
+\times\underbrace{2}_{\text{regimes}}=3{,}626
+\label{eq:system-size}
+\end{equation}
+non-linear equations in as many unknowns. One could hand that to a Newton solver
+directly. The code does not, and the reason is the occasionally-binding constraint:
+a monolithic Newton must construct a $3626\times3626$ Jacobian by finite differences,
+and \emph{any} node whose perturbed evaluation crosses the KKT switch
+$\{\mu=0\}$ contaminates an entire column. With thousands of nodes, some node is
+almost always at the kink. The earlier \code{make\_collocation\_residual} approach
+did exactly this and was superseded.
+
+Instead the solver uses \textbf{time iteration} (a Coleman operator): treat the
+previous iterate's rules as a \emph{frozen continuation} $\Gamma$, and for each node
+independently solve the small $7\times7$ system $R(\bx;d,\bS,\Gamma)=0$. Formally,
+define the operator
+\begin{equation}
+\mathcal{T}\bigl[\Gamma\bigr](d,\bS)\;=\;\bigl\{\bx^{\star},\;\text{derived}\bigr\}
+\quad\text{where}\quad R\bigl(\bx^{\star};d,\bS,\Gamma\bigr)=0 ,
+\label{eq:coleman}
+\end{equation}
+and iterate $\Gamma_{k+1}=\mathcal{T}[\Gamma_k]$ to a fixed point. Three advantages
+follow immediately:
+
+\begin{enumerate}
+\item each node's solve is $7\times7$, so a kink at one node is confined to that node;
+\item nodes are independent, so a failure is \emph{localisable} and can be handled
+      (\S\ref{sec:masking}) rather than poisoning the global step;
+\item the fixed point of $\mathcal{T}$ is exactly the collocation solution, so
+      nothing is given up.
+\end{enumerate}
+
+\subsection{The sweep}
+
+One sweep loops over regimes and nodes, solving each and collecting the results:
+
+\begin{lstlisting}[caption={One time-iteration sweep. \code{recursive\_main.py}, \code{\_sweep}.}]
+def _sweep(rules, cont, cal, ss, sproc, regimes, no_default, n_gh, keep_tol=1e-3):
+    # ONE TIME-ITERATION SWEEP: SOLVE EVERY POINT, RETURN NEW RULE VALUE ARRAYS.
+    # A point whose solve does not clear (fn > keep_tol) RETAINS the previous
+    # iterate's values -- a failed corner must never poison the continuation.
+    n = rules.grid.n
+    new = {k: {d: np.empty(n) for d in regimes} for k in STORE()}
+    wt = {d: np.ones(n) for d in regimes}     # per-point fit weight (0 = failed corner)
+    worst, n_fail = 0.0, 0
+    for d in regimes:
+        for i in range(n):
+            S = rules.grid.points[i]
+            x0 = np.array([rules.vals[k][d][i] for k in SOLVE7])
+            x, out, fn = solve_point(S, d, cont, cal, ss, sproc, x0,
+                                     no_default=no_default, n_gh=n_gh, x_ss=x_ss)
+            worst = max(worst, fn if np.isfinite(fn) else 1e3)
+            if (not np.isfinite(fn)) or fn > keep_tol:   # retain old values, mask fit
+                n_fail += 1
+                wt[d][i] = 0.0
+                for k in STORE():
+                    new[k][d][i] = rules.vals[k][d][i]
+            else:
+                for j, k in enumerate(SOLVE7):
+                    new[k][d][i] = x[j]
+                for k in DERIVED:
+                    new[k][d][i] = out[k]
+    return new, worst, n_fail, wt
+\end{lstlisting}
+
+\subsection{Damping and the convergence test}
+
+The updated values are not adopted outright. They are damped,
+\begin{equation}
+\Gamma_{k+1}=\varpi\,\mathcal{T}[\Gamma_k]+(1-\varpi)\,\Gamma_k,
+\qquad \varpi=0.25,
+\label{eq:damping}
+\end{equation}
+and only then refitted. Damping is what keeps the fixed-point iteration stable when
+the operator is not a contraction --- which is exactly the situation near the
+constraint boundary, where a small change in the continuation can move $\mu$ across
+zero and produce a large change in policies. The cost is speed: with $\varpi=0.25$ the
+per-sweep contraction is at best $1-\varpi=0.75$, so a cold start needs $70$--$90$
+sweeps.
+
+The exit test is deliberately a \emph{conjunction}:
+
+\begin{lstlisting}[caption={Damping, refit and the two-part exit test. \code{recursive\_main.py}, \code{time\_iteration}.}]
+        for k in STORE():
+            for d in regimes:
+                old = rules.vals[k][d]
+                upd = damp * new[k][d] + (1.0 - damp) * old
+                change = max(change, np.max(np.abs(upd - old))
+                             / (np.max(np.abs(old)) + 1e-8))
+                weights = (np.where(wt[d] > 0.5, 1.0, fit_fw) if fit_mask else None)
+                rules.set_values(k, d, upd, weights=weights, ridge=fit_ridge)
+        if change < tol and worst < 1e-6:
+            return True, it + 1, worst, n_fail
+    return False, max_it, worst, n_fail
+\end{lstlisting}
+
+\warn{The condition is \code{change < tol AND worst < 1e-6}, and \code{n\_fail} is
+part of the return contract. The reason is a failure mode that occurred and went
+unnoticed: a sweep can look perfectly converged on \code{change} while a quarter of
+the grid is \emph{frozen} on its previous values and never clearing. The rules stop
+moving --- because the failing nodes stop moving by construction --- and a
+change-only test declares success on a solution that does not satisfy its own
+equations at $25\%$ of its collocation points. The caller must be able to see this,
+so the failure count is returned, and a non-converged stage prints a warning
+\emph{even when \code{verbose} is off}, because the TPI and decomposition experiments
+call the solver with \code{verbose=False} and silence there is exactly how a run
+reporting failure into \code{\_} went unnoticed.}
+
+\section{The inner solver}
+\label{sec:newton}
+
+\subsection{Powell's hybrid method}
+
+Each node's $7\times7$ system is solved by \code{scipy.optimize.root(method="hybr")},
+a modified Powell hybrid method (MINPACK's \code{hybrd}). It is a trust-region
+Newton variant: it takes a Gauss--Newton step when the model is trusted and a
+gradient-descent step otherwise, which makes it far more robust than pure Newton to
+the poor initial guesses that occur early in the iteration.
+
+The Jacobian is not supplied analytically --- deriving $\partial R/\partial\bx$
+through a three-branch quadrature over interpolated continuations would be an
+enormous and fragile undertaking --- so MINPACK builds it by forward differences with
+step $\sqrt{\epsilon_{\text{mach}}}\approx1.49\times10^{-8}$ relative to each
+component. \textbf{This finite-difference step size is the single number that governs
+every smoothing decision in \S\ref{sec:smoothing}}: a guard whose kink is narrower
+than $1.5\times10^{-8}$ is invisible to the solver in a bad way --- the difference
+quotient straddles it and returns a meaningless slope.
+
+\subsection{Dual starts and graceful failure}
+
+\begin{lstlisting}[caption={The point solve. \code{recursive\_main.py}, \code{solve\_point}.}]
+def solve_point(S, d, cont, cal, ss, sproc, x0, no_default=False, n_gh=7, x_ss=None):
+    # SOLVE THE 7 MARKET-CLEARING UNKNOWNS AT ONE POINT (FROZEN CONTINUATION).
+    # hybr from the warm start (the common case: one cheap solve near the fixed
+    # point); a single fallback from the SS guess only if that misses.
+    def f(x):
+        try:
+            return point_residuals(S, d, x, cont, cal, ss, sproc,
+                                   n_gh=n_gh, no_default=no_default)[0]
+        except (ValueError, RuntimeError, FloatingPointError):
+            return np.full(7, 10.0)
+
+    sol = root(f, x0, method="hybr", tol=1e-12)
+    best = (sol.x, np.max(np.abs(sol.fun)))
+    if best[1] > 1e-9 and x_ss is not None:
+        sol2 = root(f, x_ss, method="hybr", tol=1e-12)
+        if np.max(np.abs(sol2.fun)) < best[1]:
+            best = (sol2.x, np.max(np.abs(sol2.fun)))
+\end{lstlisting}
+
+Three techniques appear in these few lines.
+
+\paragraph{Exceptions as penalties.} An economically infeasible trial vector --- one
+that makes the Jermann inversion demand a negative bracket, say --- raises rather than
+returning a NaN. The wrapper catches it and returns a large constant residual
+$(10,\dots,10)$, which steers the trust region away from that region instead of
+crashing the sweep. The alternative, returning NaN, would poison the Jacobian.
+
+\paragraph{Warm starting.} The initial guess \code{x0} is the \emph{previous
+iterate's solved values at this same node}. Near the fixed point this is an excellent
+guess and the solve converges in a handful of iterations. This is the single largest
+speed factor in the whole algorithm.
+
+\paragraph{A second start, only if needed.} If the warm start misses ($\|R\|>10^{-9}$),
+one retry from the steady-state guess is attempted and the better of the two is kept.
+Attempting it unconditionally would double the cost for no benefit; not attempting it
+at all leaves nodes stranded when the warm start is in the wrong basin.
+
+Finally, if \emph{both} evaluations raise, the function returns a sentinel
+$\|R\|=10^{3}$ rather than propagating the exception, so \code{\_sweep} can mask the
+node and continue.
+
+\section{Continuation and homotopy}
+\label{sec:homotopy}
+
+\subsection{Breaking the simultaneity knot}
+\label{sec:knot}
+
+There is a genuine circularity in the model: the current bond price $q^{\D}_t$ enters
+the government's financing need, which determines $B'$, which is part of next
+period's state, which determines the continuation values that price $q^{\D}_t$. The
+same loop exists for the franchise value $\varphi$ and for the working-capital rate
+$r^{wc}$ (whose loan quantity depends on the wage, which depends on $r^{wc}$, which
+depends on $\mu$, which depends on the balance sheet).
+
+The solver cuts all three knots the same way: \textbf{take the circular object from
+the frozen previous iterate.}
+
+\begin{lstlisting}[caption={Knot-breaking with frozen valuations. \code{point\_map.py}.}]
+    # current-period bank valuations = FROZEN previous-iterate rules at this state
+    # (breaks the S'<->Q_b knot; coincide at the fixed point)
+    Sm = np.atleast_2d(S)
+    Q_bD_cur    = float(cont.eval("Q_bD",   d, Sm)[0])
+    alpha_D_cur = float(cont.eval("alpha_D", d, Sm)[0])
+    r_wc_D_cur  = float(cont.eval("r_wc_D", d, Sm)[0])
+\end{lstlisting}
+
+\trick{This is the defining idea of time iteration applied \emph{within} the period,
+and its correctness argument is simple: at the fixed point, the frozen value and the
+freshly computed value coincide by construction, so the converged solution satisfies
+the true simultaneous system. Away from the fixed point they differ, but that
+difference is just another dimension of the iteration error, which the convergence
+test measures. What it buys is that the $7\times7$ system stays $7\times7$ and stays
+solvable.}
+
+Note the internal consistency requirement this creates: the labour residual uses the
+\emph{contemporaneous} $r^{wc}$ (computed fresh from $\mu$), while the loan
+\emph{quantity} uses the frozen one. The two coincide at the fixed point; using the
+frozen value in both places would leave the labour condition unenforced.
+
+\subsection{Warm-start chaining across regimes}
+
+The default regime $d=1$ cannot be cold-started: it is a deep recession far from the
+steady state, and a cold Newton from steady-state values does not converge at any
+node. The driver therefore chains:
+
+\begin{enumerate}
+\item Solve $d=0$ at $\pi^{d}\equiv0$ (the risk-neutral economy) from a steady-state
+      cold start. This is the easiest problem in the family.
+\item Copy the converged $d=0$ values into the $d=1$ slots as an initial guess.
+\item Solve $d=1$ by homotopy in the recovery rate (below).
+\item Solve both regimes \emph{jointly} with risk priced, which is the first stage in
+      which the two regimes see each other.
+\end{enumerate}
+
+\subsection{Homotopy in the recovery rate}
+
+Step 3 is a continuation method. Rather than jumping to the calibrated haircut, the
+solver walks the recovery rate down in four steps, re-solving at each:
+
+\begin{lstlisting}[caption={Haircut homotopy. \code{recursive\_experiment.py}, \code{solve\_recursive}.}]
+    # d=1 (post-default) via a HAIRCUT HOMOTOPY: warm-start from d=0, then lower
+    # the recovery from ~1 (=no default, identical to d=0) down to the calibrated
+    # value in steps, re-solving each -- so the deep recession is reached by
+    # continuation, not cold-started (which does not converge).
+    for k in STORE_RULES:
+        rules.set_values(k, 1, rules.vals[k][0].copy())
+    for rec in (0.85, 0.70, 0.55, rec_target):
+        cal["recovery_rate_D"] = rec
+        ok1, it1, w1, f1 = time_iteration(rules, cal, ss, sproc, regimes=(1,),
+                                          no_default=False, damp=0.25, tol=1e-6,
+                                          max_it=80, n_gh=N_GH)
+\end{lstlisting}
+
+Formally, let $\varrho\in[\varrho_{\text{target}},1]$ index a family of problems
+$\mathcal{P}(\varrho)$, with $\mathcal{P}(1)$ the trivial no-haircut problem whose
+solution is known (it is the $d=0$ solution) and $\mathcal{P}(0.45)$ the one wanted.
+The homotopy traces the solution path
+$\varrho\mapsto\Gamma^{\star}(\varrho)$ by using the solution at each step as the
+initial guess for the next. It works whenever the path is continuous and the steps
+are small enough that each solution lies in the next problem's basin of attraction.
+
+\trick{Homotopy is the standard remedy when a non-linear solve fails from a cold
+start but the problem embeds in a family with a known easy member. The recovery rate
+is the natural parameter here precisely because $\varrho=1$ makes the default branch
+\emph{identical} to the no-default branch --- a perfect known solution at the end of
+the path, not merely an approximate one.}
+
+\section{Robustness of the fit}
+\label{sec:masking}
+
+\subsection{Failed nodes must not enter the fit}
+
+Some collocation nodes have no equilibrium at all --- in the default regime, corners
+that combine a deep haircut with already-low net worth are genuinely infeasible.
+Since the fit \eqref{eq:fit-1d} is a \emph{global} least-squares/interpolation
+problem, a single garbage value at one node moves the polynomial \emph{everywhere},
+including at the ergodic centre where the answer is read. Measured: one saturated
+node moves the interpolant at the ergodic centre by about $26\%$ and can drive it
+negative.
+
+Two defences are layered. First, a failed node retains its previous values, so the
+value entering the fit is at least economically sensible. Second, the fit itself can
+be switched from exact square collocation to a masked, ridge-regularised weighted
+least squares:
+
+\begin{lstlisting}[caption={Robust weighted ridge fit. \code{state\_grid.py}, \code{fit\_weighted}.}]
+def fit_weighted(self, values, w=None, ridge=0.0):
+    # RIDGE-REGULARISED WEIGHTED LEAST-SQUARES FIT: the fix for global-fit corner
+    # poisoning at mu=2. w in [0,1] per point (0 = point EXCLUDED from the fit, so
+    # an unsolvable/frozen corner cannot leak into the coefficients); the ridge
+    # penalises high-degree coefficients (damps the Gibbs wiggle at the kink) with
+    # a small uniform floor for invertibility when points are masked.
+    values = np.asarray(values, dtype=float)
+    if w is None and ridge == 0.0:
+        return lu_solve(self._lu, values)
+    w = np.ones(self.n) if w is None else np.asarray(w, dtype=float)
+    A = self._Phi.T * w                                    # Phi^T @ diag(w)
+    lhs = A @ self._Phi                                    # Phi^T W Phi
+    diag_scale = float(np.mean(np.diag(lhs))) + 1e-12
+    td = self.degrees.sum(axis=1).astype(float)            # total degree per basis fn
+    reg = diag_scale * (ridge * td / max(td.max(), 1.0) + 1e-6)
+    lhs[np.diag_indices_from(lhs)] += reg
+    return np.linalg.solve(lhs, A @ values)
+\end{lstlisting}
+
+The estimator is
+\begin{equation}
+c=\Bigl(\Phi^{\top}W\Phi+\Lambda\Bigr)^{-1}\Phi^{\top}W\,y,
+\qquad
+\Lambda_{bb}=\bar\Phi\left(\rho\,\frac{|k_b|_1}{\max_b|k_b|_1}+10^{-6}\right),
+\label{eq:ridge}
+\end{equation}
+with $|k_b|_1=\sum_j k_{b,j}$ the total degree of basis function $b$. Two design
+details are worth noting.
+
+\paragraph{Degree-graded ridge.} The penalty is proportional to the total degree, so
+low-order (economically meaningful) terms are barely penalised while high-order terms
+--- exactly those that produce Gibbs oscillation near a kink --- are damped hard. A
+uniform ridge would shrink the level and slope of the rule, which is not the problem.
+
+\paragraph{Soft rather than hard masking.} The default failure weight is $0.1$, not
+$0$. Hard masking (weight zero) collapses the fit when a sweep has many failures ---
+$\Phi^{\top}W\Phi$ loses rank --- so failed corners are kept as weak anchors: they
+still constrain the fit enough to keep it full-rank and sane, but their poisoning is
+cut roughly tenfold. The $10^{-6}$ uniform floor guarantees invertibility regardless.
+
+\section{Smoothing, guards and bounds}
+\label{sec:smoothing}
+
+\subsection{The smoothing primitives}
+
+Wherever a bound must be imposed on a quantity that is subsequently \emph{fitted} or
+that enters a finite-difference Jacobian, the hard operator is replaced by its smooth
+counterpart:
+\begin{align}
+\mathrm{smax}(x,\underline{x};\epsilon)
+&=\underline{x}+\tfrac12\Bigl[(x-\underline{x})
+   +\sqrt{(x-\underline{x})^{2}+\epsilon^{2}}\Bigr],
+\label{eq:smax}\\[2pt]
+\mathrm{smin}(x,\bar x;\epsilon)
+&=\bar x-\tfrac12\Bigl[(\bar x-x)
+   +\sqrt{(\bar x-x)^{2}+\epsilon^{2}}\Bigr].
+\label{eq:smin}
+\end{align}
+
+\begin{lstlisting}[caption={Smoothing primitives. \code{point\_map.py}.}]
+def _smax(x, floor, eps=1e-3):
+    # SMOOTH MAX(x, floor) -- differentiable everywhere so the FD-Jacobian stays valid.
+    return floor + 0.5 * ((x - floor) + np.sqrt((x - floor) ** 2 + eps ** 2))
+
+def _sclip(x, lo, hi, eps=None):
+    # SMOOTH clip: the guards below must not be plateaus. A hard np.clip on a value
+    # that is then FITTED puts a kink inside the box, and one saturated node moves the
+    # interpolant at the ergodic centre by ~26% and can drive it negative (measured).
+    return _smin(_smax(x, lo, eps or _GUARD_EPS), hi, eps or _GUARD_EPS)
+\end{lstlisting}
+
+\subsection{\texorpdfstring{Calibrating $\epsilon$: the two-sided argument}
+                          {Calibrating epsilon: the two-sided argument}}
+
+The smoothing scale is not arbitrary. It is squeezed between two requirements.
+
+\paragraph{Upper bound (bias).} Away from the bound, $\mathrm{smax}$ differs from
+$\max$ by approximately $\epsilon^{2}/(4\,\text{gap})$, where ``gap'' is the distance
+to the bound. Since the steady state must remain an exact rest point of the recursive
+system to within the acceptance tolerance, $\epsilon$ must be small enough that this
+bias is negligible there. At $\epsilon=10^{-5}$ the induced steady-state error is
+about $10^{-11}$ --- three orders of magnitude below acceptance.
+
+\paragraph{Lower bound (visibility).} The smoothing exists to hide the kink from the
+finite-difference Jacobian, whose step is $\approx1.5\times10^{-8}$
+(\S\ref{sec:newton}). If $\epsilon$ were comparable to or smaller than that step, the
+difference quotient would straddle the smoothed region and see the kink anyway. At
+$\epsilon=10^{-5}$ the smoothing is roughly three decades wider than the FD step.
+
+\begin{equation}
+\underbrace{1.5\times10^{-8}}_{\text{FD step}}\;\ll\;
+\underbrace{\epsilon=10^{-5}}_{\code{\_GUARD\_EPS}}\;\ll\;
+\underbrace{\sqrt{4\,g\,\tau}}_{\text{bias limit}} .
+\label{eq:eps-window}
+\end{equation}
+
+The net-worth floor keeps its own larger $\epsilon=10^{-3}$, because it operates on a
+quantity of order $n_{ss}$ rather than on an $O(1)$ ratio.
+
+\subsection{Inventory of guards}
+
+\begin{table}[htbp]
+\centering\small
+\caption{Every bound in the residual, and its status.}
+\label{tab:guards}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{2.9cm}l>{\raggedright\arraybackslash}p{7.5cm}@{}}
+\toprule
+Guard & Value & Status and rationale \\
+\midrule
+KKT switch $\max\{\cdot,0\}$ on $\mu$ & --- &
+\textbf{Hard.} It is the complementarity condition, i.e.\ economics. Smoothing it
+would blur the regime boundary. \\
+$\mu$ cap & $0.95$ &
+\textbf{Smoothed.} Keeps $\varphi=\E[\Omega]R/(1-\mu)$ finite when default-regime net
+worth goes negative. \\
+$\varphi$ cap & $40$ &
+\textbf{Smoothed.} The $\varphi$ recursion has slope $\beta(1-f)R/(1-\mu)$, which
+exceeds one once $\mu>1-\beta(1-f)R\approx0.04$; above that the cap is what arrests a
+divergent fixed point, not cosmetics. Tunable via \code{cal["alpha\_cap"]}. \\
+Net-worth floor & $0.15\,n_{ss}$ &
+\textbf{Smoothed}, $\epsilon=10^{-3}$. Bocola's own $\max\{\cdot,0.65\}$ device.
+Inactive in the ergodic region ($\code{nw\_floor\_frac}=0$ reproduces the baseline);
+catches only deep default corners. \\
+Bond price bounds & $[0.2,\,1.2]$ &
+\textbf{Smoothed.} Numerical backstops, never binding in the ergodic region (the
+reference solution bottoms at $0.639$). \\
+Consumption bounds & $[0.3,\,2.0]\times C_{ss}$ &
+\textbf{Smoothed}, with $\epsilon$ scaled by $C_{ss}$ so the relative tightness
+matches the $O(1)$ guards. \\
+Continuation floors & $N\ge0.05$, $C\ge10^{-3}$, $p\ge10^{-2}$ &
+\textbf{Hard} --- but applied to continuation \emph{inputs} before fractional powers,
+not to fitted outputs, so no plateau is collocated. \\
+Jermann bracket & $>0$ &
+\textbf{Raises.} An infeasible investment rate throws \code{ValueError}, which the
+solver wrapper converts into a penalty residual. \\
+Exponent clamp & $\pm50$ &
+\textbf{Hard.} Finiteness only; unreachable by admissible values. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\warn{The cap interaction in row three is a real bug that was found and fixed, and it
+illustrates why guards must be designed jointly. An older hard clip of $\varphi$ at
+$8.0$ bound \emph{first} --- at $\mu\approx0.76$ --- and bit exactly where the
+net-worth floor puts the deep default corner: $n=0.15\,n_{ss}$ implies
+$\mu\approx0.85$ and $\varphi\approx13$, and the reference solution legitimately
+reaches $\varphi/\bar\varphi=13.6$. Two guards intended to be slack were in fact
+contradicting each other and truncating a region the model genuinely visits.}
+
+\section{Vectorisation and low-level performance}
+\label{sec:performance}
+
+\subsection{Where the time goes}
+
+A production risk-stage solve is roughly $90$ minutes: $259$ nodes $\times$ $2$
+regimes $\times$ $\sim$$100$ sweeps $\times$ $\sim$$30$ residual evaluations per
+Newton solve $\approx1.5$ million residual evaluations, each containing two or three
+continuation evaluations of $17$ rules at $5$ quadrature nodes. The optimisations
+below target that innermost product.
+
+\subsection{Vectorisation}
+
+\begin{itemize}
+\item \textbf{Basis matrices, not scalar interpolations.} \code{eval\_all} builds one
+      $(M\times n)$ basis matrix and applies it to all $17$ coefficient vectors
+      (\S\ref{sec:architecture}).
+\item \textbf{One LU factorisation for all fits.} $\Phi$ is factorised at grid
+      construction; every one of the $34$ fits per sweep is a back-substitution.
+\item \textbf{Quadrature as dot products.} Branch probabilities are folded into the
+      weight vectors so an expectation is \code{np.dot}, with no Python-level loop
+      over nodes or branches.
+\item \textbf{Broadcast continuation states.} Only $s'$ varies across quadrature
+      nodes; the endogenous states are assigned by broadcast into the $(M\times7)$
+      array.
+\item \textbf{Single \code{bincount} in the distribution step.} The Young lottery
+      scatter is done with one \code{np.bincount} over flattened $(a,e)$ indices
+      rather than a per-state \code{np.add.at} --- roughly $4\times$ faster.
+\end{itemize}
+
+\subsection{JIT compilation with an exact fallback}
+
+The two hot loops of the heterogeneous-agent block --- EGM backward induction and the
+distribution forward iteration --- are inherently sequential and cannot be vectorised
+away. They are compiled with numba:
+
+\begin{lstlisting}[caption={JIT with a transparent fallback. \code{fast\_kernels.py}.}]
+try:
+    from numba import njit
+    HAVE_NUMBA = True
+except ImportError:                                   # pragma: no cover
+    HAVE_NUMBA = False
+    def njit(*args, **kwargs):
+        # NO-OP STAND-IN FOR numba.njit WHEN NUMBA IS UNAVAILABLE.
+        def wrap(f):
+            return f
+        return wrap
+
+@njit(cache=True)
+def hh_backward(a_grid, Pi_T, r_path, y_path, c_terminal, beta, sigma, a_min, vN_path):
+    # EGM BACKWARD INDUCTION OVER THE PATH (MIRRORS household.egm_step EXACTLY).
+\end{lstlisting}
+
+\trick{Three details make this safe. (i) The decorator is \emph{stubbed} when numba
+is absent, so the module imports and runs identically without the dependency ---
+slowly, but correctly. (ii) The kernels replicate the numpy reference operation for
+operation, and the equivalence is regression-tested
+(\code{tests/test\_fast\_kernels.py}), so the fast path can never silently diverge
+from the reference semantics. (iii) \code{cache=True} persists the compiled
+artefacts, which matters because spawned worker processes would otherwise each pay
+the JIT compilation cost.}
+
+Note in particular that \code{np.searchsorted} is hand-written as an explicit binary
+search inside the JIT kernel, because numba's coverage of numpy's search routines
+does not extend to the exact call signature used; the hand-rolled version is what
+makes the kernel compile in \code{nopython} mode.
+
+\subsection{The spawn guard}
+
+On macOS, Python's \code{multiprocessing} uses the \emph{spawn} start method, which
+re-imports the parent module in every worker. Any unguarded top-level code therefore
+runs once per worker. This produced a real and initially baffling symptom --- ``SS
+solved'' printed nine times --- and the rule is now absolute: every standalone script
+that may fan out is wrapped in
+
+\begin{lstlisting}
+if __name__ == "__main__":
+    main()
+\end{lstlisting}
+
+The recursive solver's pointwise solves are serial, so the hazard is currently
+latent; the guard is kept regardless, since the modules are importable and the cost of
+the guard is zero.
+
+\section{Diagnosing the solution}
+\label{sec:accuracy}
+
+\subsection{Why residuals at the nodes are not enough}
+
+By construction, collocation drives $R$ to zero \emph{at the nodes}. Reporting that
+$\max_b\|R(\bS_b)\|=10^{-14}$ therefore says almost nothing about solution quality ---
+it is close to a tautology. The meaningful question is how large the residual is
+where the model actually spends its time, which is generally \emph{not} at the
+collocation nodes.
+
+\subsection{Euler errors on the ergodic set}
+
+The diagnostic simulates the solved rules forward under drawn innovations and, at
+every visited state, evaluates the seven equilibrium conditions \emph{at the
+rule-implied policy} --- with no re-solving. The distribution of
+$\log_{10}|R|$ per equation is the accuracy report.
+
+\begin{lstlisting}[caption={Simulating the solved rules. \code{accuracy.py}, \code{simulate}.}]
+    for t in range(T + burn):
+        Sm = np.atleast_2d(S)
+        x = np.array([float(rules.eval(k, 0, Sm)[0]) for k in SOLVE7])
+        _, o = point_residuals(S, 0, x, rules, cal, ss, sproc, n_gh=ngh, ...)
+        ...
+        Sn = S.copy()
+        Sn[0], Sn[1] = x[2], x[3]                       # K' = Kp
+        Sn[2], Sn[3] = o["Pp_D"], o["Pp_F"]
+        Sn[4] = o["Bp_D"]
+        Sn[5] = ((1.0 - sproc["rho_s"]) * sproc["s_star"] + sproc["rho_s"] * S[5]
+                 + sproc["sigma_s"] * rng.standard_normal())
+        S = rules.grid.clip(Sn)[0]
+\end{lstlisting}
+
+Note that the endogenous states are advanced by the \emph{period map's own}
+end-of-period values, so the simulated path is the model's, not the grid's.
+
+\subsection{Box escapes}
+
+The same routine reports how often, and by how much, the simulated path leaves the
+collocation box --- per state dimension, as a fraction of box width:
+
+\begin{lstlisting}[caption={Reporting box violations. \code{state\_grid.py} and \code{accuracy.py}.}]
+def outside(self, x):
+    # PER-DIMENSION BOX VIOLATION IN ROTATED COORDS, AS A FRACTION OF BOX WIDTH.
+    z = self._fwd(x)
+    return np.maximum(np.maximum(self.lo - z, z - self.hi), 0.0) / (self.hi - self.lo)
+\end{lstlisting}
+
+\trick{This turns the box-invariance discussion of \S\ref{sec:box} from theory into a
+measurement. States are deliberately \emph{not} clipped before being recorded ---
+leaving the box is a result to be reported, not a condition to be silently enforced.
+If the ergodic path spends a material fraction of periods outside the box, the
+reported impulse responses are partly extrapolation, and the bands must widen.}
+
+\subsection{Reading impulse responses off the rules}
+
+There is one subtlety in how results are read, and it is worth stating because the
+obvious alternative is wrong.
+
+\begin{lstlisting}[caption={Reading the solution, not re-solving it. \code{recursive\_experiment.py}, \code{read\_at}.}]
+def read_at(rules, cal, ss, sproc, S):
+    # READ THE CONVERGED RULES AT STATE S (binding branch), returning the implied
+    # allocation + the point residual there (accuracy). Evaluating the period map
+    # at the rules' OWN policy values stays on the binding branch -- re-solving
+    # with a root finder can slip onto the nearby slack equilibrium at the barely-
+    # binding SS. This is the standard way to read a global solution's IRF.
+\end{lstlisting}
+
+\warn{Re-solving at each impulse-response date is tempting --- it would drive the
+labour-FOC residual to zero --- but it is wrong at a barely-binding steady state.
+Measured at $\ell=1$, the Newton step slips onto the \emph{slack} equilibrium in $49$
+of $60$ periods: $\mu_\D$ walks from $0.103$ to $0$ and the entire path turns
+expansionary ($Y_\D$ $+2.5\%$ on impact against $-0.004\%$ for the rule read). The
+residual seen when reading the rules is genuine approximation error, and the cure is
+a finer grid --- not re-solving the current period, which changes which equilibrium
+branch is selected.}
+
+\section{\texorpdfstring{The known failure: why $\ell=2$ does not converge}
+                       {The known failure: why level 2 does not converge}}
+\label{sec:mu2}
+
+Documenting what does \emph{not} work is part of the specification. The production
+solve runs at $\ell=1$ with anisotropic refinement in $s$; the isotropic $\ell=2$
+grid does not converge, and the reasons are understood.
+
+\paragraph{Reason 1: the multiplier loses its bite.} At $\ell=2$ the sign of the
+output response can flip. The mechanism is that a coarser or differently-weighted
+representation lets $\E[\Omega]$ rise where it should fall, which by
+\eqref{eq:mu-closed-form} drives $\mu\to0$ --- the constraint goes slack precisely
+when it should bind. A separate study established that binding harder at the steady
+state (raising $f$ and the target spread so that $\bar\mu=0.057$) fixes the sign, but
+that this is a calibration change, not a numerical fix, and it was not adopted.
+
+\paragraph{Reason 2: corner poisoning.} Even with the sign repaired, the joint
+residual remains of order one. At $\ell=2$ some $40$--$50\%$ of collocated corners are
+infeasible: a wide box is forced by the near-unit-root capital states, and the
+post-default $d=1$ regime simply has no equilibrium at its cross-corners. Those
+points cannot be fitted, tightened, or masked away in sufficient number --- with that
+many failures, hard masking collapses the fit and soft masking still leaks.
+
+\paragraph{The structural fix.} The corners must not be \emph{collocated} at all,
+which is what the ergodic-set grid of \code{eds.py} implements: fit on the simulated
+cloud, where every point is feasible by construction, using a low complete-degree
+basis that cannot produce Gibbs oscillation. This is the documented next step rather
+than a completed result.
+
+\trick{The general lesson transfers to any projection solve of a model with an
+occasionally-binding constraint and a discrete regime: \textbf{a global polynomial
+basis is only as good as the feasibility of its collocation set}. Refining the grid
+increases accuracy only if the added points are points at which the model has a
+solution. Where they are not, refinement makes things strictly worse --- which is the
+opposite of the intuition carried over from one-dimensional numerical analysis.}
+
+%%=====================================================================
+\clearpage
+\appendix
+\section{Reproducing the results}
+%%=====================================================================
+
+All commands are run from \code{code/global/} with plain \code{python3} (numpy,
+scipy, matplotlib; numba optional).
+
+\begin{center}\footnotesize
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{6.9cm}>{\raggedright\arraybackslash}p{7.8cm}@{}}
+\toprule
+Command & What it does \\
+\midrule
+\code{python3 main.py} &
+Full pipeline: steady state, TFP experiment, sovereign-risk pass-through, accuracy
+report, TPI activation overlay. $\sim$2\,h. \\
+\code{python3 -m}\newline
+\code{\ \ solver\_recursive.}\newline
+\code{\ \ recursive\_experiment} &
+Sovereign-risk stage only. \\
+\code{python3 -m}\newline
+\code{\ \ solver\_recursive.}\newline
+\code{\ \ tpi\_recursive\_experiment} &
+OMT/TPI activation comparison at $0/50/100\%$. \\
+\code{python3 tests/test\_state\_grid.py} &
+Smolyak counts, collocation exactness, quadratic exactness, box coverage of the $s$
+process, rotated-box round trip. \\
+\code{python3 tests/test\_recursive\_nesting.py} &
+Steady state is a rest point; $\pi^{d}=0$ nests the risk-neutral model. \\
+\code{python3 tests/test\_fast\_kernels.py} &
+numba/numpy kernel equivalence. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The principal solver switches live at the top of \code{main.py}: \code{MU} (TFP grid
+level), \code{RISK\_MU\_VEC} (the anisotropic risk grid), \code{NW\_FLOOR},
+\code{ROTATE\_P}, \code{RUN\_TPI} and \code{TPI\_ACTIVATIONS}.
+
+\section{Glossary of numerical terms}
+
+\begin{center}\small
+\begin{tabular}{@{}lp{9.6cm}@{}}
+\toprule
+Term & Meaning in this document \\
+\midrule
+Projection method & Replace an unknown function by a finite basis expansion and
+impose the functional equation in a weighted-residual sense. \\
+Collocation & The projection variant that sets the residual to zero exactly at $n$
+chosen nodes. \\
+Chebyshev extrema & The Gauss--Lobatto nodes \eqref{eq:cheb-extrema}; nested, endpoint-inclusive. \\
+Smolyak grid & Sparse union of small tensor products under a total-level budget
+\eqref{eq:multi-index}. \\
+Approximation level $\ell$ & The Smolyak budget (\code{mu} in code); higher means more
+points and higher degree. \\
+Anisotropic level $\ell_j$ & Per-dimension budget (\code{mu\_vec}); concentrates
+resolution on chosen states. \\
+Time iteration & Fixed-point iteration on decision rules using the previous iterate as
+a frozen continuation (a Coleman operator). \\
+Frozen continuation & The previous iterate's rules, held fixed while the current
+period is solved; coincides with the solution at the fixed point. \\
+Homotopy / continuation & Solving a hard problem by tracing a path from an easy member
+of a parameterised family. \\
+Damping & Convex combination of the new and old iterates,
+$\varpi\mathcal{T}[\Gamma]+(1-\varpi)\Gamma$. \\
+Gauss--Hermite quadrature & Optimal node/weight rule for Gaussian integrals; exact for
+polynomials of degree $\le2M-1$. \\
+Ridge / Tikhonov & Penalised least squares; here graded by basis total degree to damp
+high-order oscillation. \\
+Gibbs oscillation & Spurious ringing of a global polynomial near a kink or
+discontinuity. \\
+Euler error & Residual of an equilibrium condition evaluated at the approximate policy;
+the standard accuracy metric. \\
+EDS grid & $\varepsilon$-distinguishable set: a well-spaced subsample of the simulated
+ergodic cloud, used as collocation points. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\end{document}

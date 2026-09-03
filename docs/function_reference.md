@@ -1,5 +1,20 @@
 # Runtime Function Reference — `code/global/`
 
+> **STALE — documents machinery that no longer exists.** This reference was written for
+> the perfect-foresight pipeline (`transition.py`, `risk_branch.py`, `solvers.py`), which
+> was **deleted in commit `b1f0b81`**, and for the mechanical CB price floor
+> (`_cb_price_floor`, `psi_cb_D`, `cb_buy_D`, `Q_floor_D`, `Q_bD_free`, `recap_D`,
+> `recap_path`), removed on 2026-08-30 with the TPI rework. Anything below describing
+> those objects is history, not current behaviour.
+>
+> For what actually runs, read `CLAUDE.md` and the module headers under
+> `code/global/solver_recursive/`. In particular the TPI backstop is now a **one-sided
+> yield peg with real purchases** (`phi_tpi`, `Q_peg_D`, the `x_cb` unknown, the `b_cb`
+> state and the `rem_cb_D` remittance in `point_map.py`), not a portfolio-balance price
+> floor. The sections below on `Q_floor_D` / `cb_buy_D` / `psi_cb_D` describe the
+> superseded design.
+
+
 **Scope.** This document is a practical reference for the principal functions on the
 main execution path of the two-country HANK–GK monetary-union model
 (`python3 code/global/main.py`). It covers the `transition`, `risk_branch`, `bank`,

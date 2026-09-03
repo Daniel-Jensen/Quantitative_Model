@@ -59,8 +59,21 @@ def test_calibration_targets():
     # THE BOCOLA CALIBRATION ANCHORS DOCUMENTED IN calibration.py MUST BE HIT.
     cal, ss = get_ss()
     bk = ss["ss_bank_D"]
-    exposure = ss["Q_bD_ss"] * ss["b_D_D_ss"] / bk["n_ss"]
-    assert 0.7 < exposure < 1.1, f"sov exposure/net worth = {exposure:.2f}"
+    # THE CALIBRATION TARGET IS EXPOSURE AS A SHARE OF BANK ASSETS: Bocola's exp^bg =
+    # 7.6% (Table B1, 160/2093), which is what B_gov_D_ss is set to deliver. This used
+    # to assert 0.7-1.1 on exposure/NET WORTH, a threshold left over from the 3.722
+    # B_gov misreading ("93% of bank EQUITY" read as a debt/GDP ratio); it has been red
+    # at 0.36 ever since B_gov was corrected -- and 0.36 is right, since 7.6% of assets
+    # at leverage 5 IS 0.38 of net worth (Bocola's own q*b/n = 0.38).
+    assets = bk["theta_ss"] * bk["n_ss"]
+    exposure = ss["Q_bD_ss"] * ss["b_D_D_ss"] / assets
+    assert 0.06 < exposure < 0.09, \
+        f"D-sovereign exposure/assets = {exposure:.4f} (target 0.076, Bocola Table B1)"
+    # the F bank is sz times bigger, so its OWN book carries b_D_F_ss/sz of the D bond
+    sz = cal["size_F"] / cal["size_D"]
+    assets_F = ss["ss_bank_F"]["theta_ss"] * ss["ss_bank_F"]["n_ss"]
+    exp_F = ss["Q_bF_ss"] * ss["b_F_F_ss"] / assets_F
+    assert 0.06 < exp_F < 0.11, f"F-sovereign exposure/assets = {exp_F:.4f}"
     # λ and ω_ent are calibrated to hit leverage and credit-spread targets
     for c in ("D", "F"):
         bkc = ss[f"ss_bank_{c}"]

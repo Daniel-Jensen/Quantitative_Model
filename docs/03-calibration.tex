@@ -1,0 +1,395 @@
+% =============================================================================
+%  3. Quantitative analysis  --  CORRECTED against code/global/ (2026-08-22)
+%  Notation follows 02-model.tex.  Two deliberate notation changes are flagged
+%  in the accompanying change list:
+%    (i)  the intermediation wedge is written \bar\varsigma, not \bar\sigma,
+%         because \sigma_X is risk aversion and \sigma_s the risk-process
+%         innovation s.d. in 02-model.tex;
+%    (ii) the entrant transfer is \omega_X throughout (02-model.tex writes
+%         \omega_X^f in eq. (nw-lom) and \omega_X in eq. (bank-div)).
+%  Bibliography keys used: bocola2016pass, gertler2011model, gertlerkiyotaki2010,
+%  Hatchondo2009, neumeyer2005business, jermann1998asset, bohn1998behavior,
+%  zettelmeyer2013, rouwenhorst1995.
+%  [TBC] marks a number whose source must be filled before circulation.
+% =============================================================================
+\section{Empirical Analysis}
+\label{sec:analysis}
+
+The model is calibrated at a quarterly frequency to the euro-area
+periphery--core pair on the eve of the sovereign debt crisis, with country $D$
+standing for Greece and $F$ for the core. Three groups of parameters should be
+kept apart. Most are set directly, from the literature or from pre-crisis
+euro-area data. The agency friction of the intermediary block is not assigned but
+\emph{solved}, so that the steady state reproduces a leverage ratio and an
+intermediation wedge. The remainder are normalisations or equilibrium outcomes,
+the household discount factor above all, which is solved so that private saving
+clears the deposit market at the calibrated risk-free rate.
+
+\subsection{Calibration strategy}
+\label{sec:calibration}
+
+Throughout, the two countries carry \emph{identical} parameters; asymmetry
+enters through shocks alone, in that $D$'s sovereign is default-risky and $F$'s
+is safe, and only $D$ is shocked. Symmetry is imposed rather than incidental: it
+delivers $\bar p=1$ with zero cross-border deposit and net foreign asset
+positions, and since $p$ is only weakly identified by external balance at a trade
+elasticity below one, an asymmetric steady state moves $\bar p$ off unity and
+opens a residual in the goods market. Two normalisations complete the picture:
+$\chi_X$ is set so that $\bar N_X=1$ and $\bar Z_X$ so that $\bar Y_X=1$, so all
+quantities below are shares of quarterly steady-state output. Parameter values
+and empirical targets are collected in the appendix.
+
+\paragraph{Households.}
+Four features of \eqref{eq:hh-objective}--\eqref{eq:hh-borrowing} map the
+functional forms directly into calibration choices. First, GHH preferences
+eliminate wealth effects on labour supply: the intratemporal condition is
+$\chi_X n_{it}^{1/\nu_X}=(w_{X,t}/P^{c}_{X,t})e_{it}$, so $\nu_X$ is the Frisch
+elasticity and $\chi_X$ a pure scale normalisation. We set $\nu_X=2$, the value
+implied by the inverse Frisch elasticity of $0.5$ in \citet{bocola2016pass}, and
+normalise $\chi_X$ to $\bar N_X=1$. Second, we set $\sigma_X=1$, so that
+period utility is logarithmic in the consumption--labour composite $x_{it}$;
+this is the preference specification of \citet{bocola2016pass}, and it is the
+convention under which the bankers' kernel discussed below satisfies
+$\beta^{\rm int}(1+\bar r)=1$ at the steady state. Third, idiosyncratic labour productivity follows an
+AR(1) in logs with persistence $\rho_e=0.9$ and innovation standard deviation
+$\sigma_e=0.2$, discretised by the \citet{rouwenhorst1995} procedure into an
+$n_e$-state Markov chain $(\mathsf{e},\Pi_X)$ whose grid is normalised so that
+$\sum_e\pi^{\ast}(e)\,\mathsf{e}(e)=1$, where $\pi^{\ast}$ is the stationary
+distribution of $\Pi_X$. We use $n_e=2$: what the household block has to deliver
+here is an aggregate deposit supply schedule, not the shape of the wealth
+distribution, and a coarse chain keeps it cheap inside a global projection solve.
+Fourth,
+with $\underline a_X=0$ the stationary wealth distribution is pinned down jointly
+by $\beta_X$ and $\{e_{it}\}$; assets are discretised on a $250$-point grid,
+curved towards the borrowing constraint.
+
+The discount factor $\beta_X$ is \emph{not} calibrated to a liquid-wealth target.
+It is solved, in the second stage of the steady state, so that aggregate
+household savings equal the intermediaries' deposit funding need at the
+calibrated deposit rate,
+\begin{equation}
+A_X(\beta_X;\bar r)\;=\;\overline{\mathrm{dep}}_X\;=\;(\bar\theta_X-1)\,\bar n_X ,
+\label{eq:beta-clearing}
+\end{equation}
+with the right-hand side delivered by the intermediary block. This gives
+$\beta_D=\beta_F=0.9945$, hence $\beta_X(1+\bar r)=0.9975<1$ as incomplete markets
+require. The implied liquid-wealth ratio is therefore an output, not a target,
+and it is large --- deposits are $2.07$ times annual output --- because deposits
+are the only store of value and intermediaries hold the entire capital stock. It
+is not comparable to a household-survey measure of liquid wealth; matching such a
+target instead would make the deposit rate the equilibrium object.
+
+\paragraph{Production and capital.}
+The production block takes standard values: a capital share $\alpha_X=0.30$, a
+quarterly depreciation rate $\delta_X=0.025$, and a retail demand elasticity
+$\epsilon_X=6$, so that the flexible-price markup is $20\%$ and real marginal
+cost is $mc_X=5/6$. The one non-standard parameter is the elasticity of Tobin's
+$q$ with respect to the investment rate, $\xi_X=0.42$, which we take from the
+posterior mean of \citet{bocola2016pass} rather than from a calibration target of
+our own; it governs how much of a shift in the intermediaries' required return on
+capital shows up as a price rather than as a quantity.
+
+The two remaining adjustment-cost coefficients, $\gamma_{0,X}$ and
+$\gamma_{1,X}$, are not free. We discipline them by requiring that adjustment
+costs be \emph{inactive} at the non-stochastic steady state: the price of
+installed capital is exactly one, $\bar Q_X=1$, and steady-state investment
+exactly replaces depreciation, $\bar\iota_X=\delta_X$, so that
+$K_{X,t+1}=K_{X,t}$. Imposing both conditions on \eqref{eq:capital-lom} and
+\eqref{eq:tobins-q} pins the coefficients as functions of $\delta_X$ and $\xi_X$
+alone:
+\begin{equation}
+\gamma_{0,X}=\frac{\delta_X^{\;\xi_X}}{1-\xi_X},
+\qquad
+\gamma_{1,X}=-\frac{\delta_X\,\xi_X}{1-\xi_X}.
+\label{eq:jermann-coeffs}
+\end{equation}
+The steady state that results is a check on the block rather than a target of it:
+at $\bar r^{k}=0.32\%$ per quarter (see below) the implied capital--output ratio
+is $2.22$ in annual terms and the investment share is
+$\delta_X\bar K_X/\bar Y_X=22.2\%$, against a Greek average of $24.3\%$ of GDP
+over $1999$--$2007$.\footnote{FRED series \texttt{GRCGFCFQDSMEI} and
+\texttt{GRCGDPNQDSMEI}, both in current prices.}
+
+Firms pre-finance a fraction $\zeta_X$ of the wage bill, \eqref{eq:loan-demand};
+we set $\zeta_X=1$. Since \eqref{eq:labour-demand} is the only channel from the
+credit spread to output on impact, $\zeta_X$ scales the impact output response
+one-for-one and $\zeta_X=0$ nests the model without it exactly. It leaves bond
+prices, net worth and the spread untouched on impact, so the model's robust
+predictions are not the ones this parameter governs.
+
+\paragraph{Trade.}
+The Armington aggregator \eqref{eq:ces-aggregator} carries a home bias
+$\varpi=0.85$ and a trade elasticity $\eta=0.5$. The import share of $15\%$ is in
+line with the euro-area periphery, and the trade elasticity is in the range
+conventional in the international real business cycle literature, which is well
+below the elasticities estimated on trade data. The value matters for the
+identification of $p$ rather than for the transmission mechanism: at $\eta<1$
+external balance identifies the terms of trade only weakly, which is one of the
+reasons the steady state is imposed symmetrically.
+
+\paragraph{Financial intermediation.}
+The block contributes the exit/payout share $f_X$, the divertability parameter
+$\lambda_X$, the entrant transfer $\omega_X$ and the bankers' discount factor
+$\beta^{\rm int}_X$, alongside the deposit rate $\bar r$ it shares with the
+household problem. Only the first and last are set directly: $f_X=0.04$, an
+expected banker horizon of $25$ quarters, and
+$\beta^{\rm int}_X=1/(1+\bar r)=0.9970$. The latter is the level term of the
+banker's kernel \eqref{eq:branch-sdf}, whose state contingency --- and hence the
+risk premium in \eqref{eq:bond-decomposition} --- comes entirely from the
+branch-contingent GHH composite; it is not the household discount factor, which
+satisfies $\beta_X(1+\bar r)<1$. Since $\bar\varphi$ falls below unity once
+$\beta^{\rm int}\ll1/(1+\bar r)$, muting the franchise channel, it has to move
+with $\bar r$ rather than be fixed independently.
+
+The pair $(\lambda_X,\omega_X)$ is not assigned but solved, so that the steady
+state reproduces two targets: leverage $\bar\theta$ and the intermediation wedge
+$\bar\varsigma\equiv\bar r^{k}-\bar r=\lambda_X\bar\mu/\bar\Omega$. With
+\eqref{eq:IC} binding, Proposition~\ref{prop:mu} and the net-worth recursion
+\eqref{eq:nw-lom} collapse onto
+\begin{align}
+\bar\varphi&=\frac{\bar\Omega(1+\bar r)}{1-\bar\mu},
+&
+\bar\Omega&=\beta^{\rm int}\bigl[f+(1-f)\bar\varphi\bigr],
+&
+\bar\mu&=\frac{\bar\Omega\,\bar\varsigma\,\bar\theta}{\bar\varphi} ,
+\label{eq:ss-system}
+\end{align}
+which is triangular: $\bar\varphi$ and $\bar\Omega$ cancel from the third
+equation, so the targets pin the multiplier and the franchise value is linear in
+it. Imposing $\beta^{\rm int}(1+\bar r)=1$,
+\begin{align}
+\bar\mu&=\frac{\bar\varsigma\bar\theta}{1+\bar r+\bar\varsigma\bar\theta},
+&
+\bar\varphi&=\frac{f}{f-\bar\mu},
+&
+\lambda_X&=\frac{\bar\varphi}{\bar\theta},
+&
+\omega_X&=\frac{\mathcal{D}}{\bar\theta}-(1-f)\,\bar\varsigma,
+\label{eq:ss-closedform}
+\end{align}
+with $\mathcal{D}\equiv1-(1-f)(1+\bar r)$ the discount in the net-worth
+accumulation identity. Three implications are worth recording. The multiplier
+depends only on the product $\bar\varsigma\bar\theta$, the excess return on
+intermediary equity, so leverage and the wedge are not separately identified by
+it. Stationary net worth requires $\mathcal{D}>0$, i.e.\ $f>\bar r/(1+\bar r)$.
+And $\omega_X>0$ bounds the admissible target space,
+$\bar\varsigma\bar\theta<\mathcal{D}/(1-f)$, here $3.87\%$ per quarter against a
+calibrated $0.10\%$.
+
+The single-$\lambda$ assumption \citep[eq.~3]{bocola2016pass} gives a check on
+the solved steady state. Every class earns the same excess return
+$\lambda_X\bar\mu/\bar\Omega=\bar\varsigma$, so the net worth implied by the
+binding constraint, $\lambda_X\bar{\mathcal A}/\bar\varphi$, and the net worth
+implied by accumulation,
+$\mathcal{D}^{-1}\sum_j[(1-f)(\bar R_j-\bar R)+\omega_X]\bar a_j$, are both
+proportional to the divertable base. Their equality is then a scalar equation in
+$\bar r^{k}$, independent of the scale \emph{and} the composition of the balance
+sheet, and solving it returns $\bar r^{k}=\bar r+\bar\varsigma$ and
+$\bar\theta_{ss}=\bar\theta$ to machine precision for any portfolio.
+
+\paragraph{The two targets.}
+Leverage is set to $\bar\theta=5$ and, as stated, $f=0.04$, both posterior means
+of \citet{bocola2016pass}. Neither has a clean accounting counterpart: the
+intermediary here holds the entire capital stock, the domestically-held
+sovereign, a cross-border sovereign position and the working-capital book, so
+$\bar\theta$ is leverage on that consolidated portfolio rather than the book
+assets-to-equity ratio of the observed banking system, and $f$ is a payout rate,
+not an exit frequency.
+
+The wedge $\bar\varsigma$ is the least identified parameter of the model and we
+treat it as such. In the deterministic steady state used for calibration the
+default probability is off, so $\bar\varsigma$ is the \emph{entire} spread of the
+sovereign yield over the risk-free rate, and any measured spread is an upper
+bound on it. The Greek--German ten-year differential averaged $50$ basis points
+over $1999\text{Q}1$--$2007\text{Q}4$.\footnote{FRED series
+\texttt{IRLTLT01GRM156N} and \texttt{IRLTLT01DEM156N}; the $2010\text{Q}1$--$2012\text{Q}2$
+average is $1{,}248$ basis points, peaking at $2{,}924$ in February 2012.} We set
+$\bar\varsigma=8$ basis points per annum following \citet{bocola2016pass},
+implying an excess return on intermediary equity
+$\bar\varsigma\bar\theta=40$ basis points per annum and a barely-binding
+constraint, $\bar\mu=0.0010$.
+
+Two qualifications. First, the calibration target and the model's average spread
+are different objects: at the stochastic rest point $\pi^{d}(\bar s)=0.1\%$ per
+quarter is priced, which at $\varrho_D=0.45$ adds some $22$ basis points per
+annum of default compensation, taking the rest-point spread to roughly $30$ basis
+points before the covariance premium of \eqref{eq:bond-decomposition}. It is that
+object, not $\bar\varsigma$, that the pre-crisis differential should be compared
+to. Second, $\bar\varsigma\bar\theta$ is the rate at which intermediaries rebuild
+equity out of retained earnings and therefore governs the persistence of any
+balance-sheet shock: at $\bar\varsigma=200$ basis points the excess return on
+equity reaches $10\%$ per annum, the equity loss generated by our risk experiment
+is recouped within about two quarters, and the output response turns positive
+from the third year. The small wedge is what makes transmission run through the
+level of net worth and the price of the sovereign claim. Its corollary is that at
+$\bar\mu=0.0010$ the steady state sits near the boundary of the
+occasionally-binding region and the constraint goes slack some four quarters into
+the experiment, so the sustained contraction is carried by $q^{D}$ and $n_D$
+rather than by a persistently elevated credit spread. We report sensitivity to
+$\bar\varsigma$ in Section~[\textsc{tbc}].
+
+\paragraph{Interest rates.}
+The risk-free rate is the euro-area real short rate: deflating the three-month
+interbank rate by headline HICP inflation over
+$1999\text{Q}1$--$2007\text{Q}4$ gives $1.11\%$ per annum, and we set
+$\bar r=0.003$ per quarter ($1.20\%$ p.a.).\footnote{FRED series
+\texttt{IR3TIB01DEM156N} and \texttt{CP0000EZ19M086NEST}. The pre-crisis window
+is the relevant one: the $2010\text{Q}1$--$2012\text{Q}2$ average real rate is
+$-1.19\%$ p.a. and does not represent the stationary rate around which the crisis
+experiment is run.} Deposits are own-good claims at national rates tied by
+$(1+r_{D,t})=(1+r_{F,t})p_{t+1}/p_t$, the flexible-price image of one union
+policy rate with national inflation differentials; the cross-border deposit
+position this permits is the margin along which national saving and investment
+decouple, and it is zero at the symmetric steady state.
+
+With a single $\lambda_X$ every class must deliver the same excess return, so the
+steady-state cross-section of returns collapses onto $\bar r$ and
+$\bar\varsigma$:
+\begin{equation}
+\bar r^{k}=\bar r^{b}_{D}=\bar r^{b}_{F}=\bar r^{wc}=\bar r+\bar\varsigma
+=1.28\%\ \text{p.a.},
+\qquad
+\bar q^{X}=\frac{\delta_b}{\bar r+\delta_b+\bar\varsigma}=0.9459 ,
+\label{eq:rate-structure}
+\end{equation}
+with $\bar r^{n}=\bar r+\bar\theta\bar\varsigma=1.60\%$ per annum on
+intermediary equity. The model thus matches one average spread and generates no
+term premium, which is why the observed sovereign differential is not a clean
+counterpart to $\bar\varsigma$.
+
+\paragraph{The sovereign claim.}
+Both governments issue \citet{Hatchondo2009} perpetuities whose stock decays at
+rate $1-\delta_b$, so that Macaulay duration is
+$(1+\bar r^{b})/(\bar r^{b}+\delta_b)$ quarters, evaluated at the bond's own
+yield. Setting $\delta_b=0.056$ delivers a duration of $16.9$ quarters, or $4.2$
+years, matching the duration of Greek marketable central-government debt on the
+eve of the crisis [\textsc{tbc}].\footnote{Public Debt Management Agency,
+\emph{Public Debt Bulletin}; duration, not average residual maturity, is the
+correct counterpart: it is the elasticity of the bond price to the discount rate,
+and it is that elasticity which governs the mark-to-market loss intermediaries
+take when risk is priced. The long duration is load-bearing: at $\delta_b=0.25$
+the repricing of the stock shrinks by roughly a factor of six and the
+pass-through mechanism largely disappears.}
+
+The \emph{size} of the sovereign position is disciplined by intermediary exposure
+rather than by the public debt-to-GDP ratio: only the bank-intermediated portion
+of the debt appears in the model. We set the
+outstanding stock $\bar B_X=0.98$ --- $24.5\%$ of annual output at face value,
+$23.2\%$ at market value --- which puts domestic sovereign holdings at $7.1\%$ of
+the domestic intermediary's assets and total sovereign holdings, including the
+cross-border leg, at $8.9\%$ [\textsc{tbc}].\footnote{The exposure share is the
+figure reported by \citet{bocola2016pass}; replacing it with the corresponding
+Greek supervisory disclosure (European Banking Authority, 2011 EU-wide stress test
+and capital exercise) is a first-order change, because the exposure share scales
+the entire balance-sheet channel linearly.} Each country's intermediary holds
+$80\%$ of its own sovereign and $20\%$ of the other's, the cross-border leg along
+which the shock travels. The distinction is decisive: reading the exposure ratio
+against GDP rather than against intermediary assets overstates the position
+roughly threefold, enough for the fiscal relief from a default to outweigh
+intermediaries' losses and reverse the sign of the mechanism. The rest of the
+balance sheet is capital ($85.5\%$ of assets) and the working-capital book
+($5.6\%$).
+
+Government purchases are set to $G_X=0$, so the fiscal block finances only the
+coupon net of new issuance; steady-state taxes are correspondingly small at
+$0.30\%$ of quarterly output. The Bohn rule \eqref{eq:bohn} is imposed as a
+constant elasticity of the tax level with respect to the surviving debt stock,
+with $\gamma_\tau=1$, the value in \citet{bocola2016pass}. The elasticity form
+matters for the default event: written instead as a response to the debt
+\emph{level}, a $55\%$ haircut would hand households a tax windfall worth tens of
+percent of GDP and again invert the sign of the mechanism.
+
+\paragraph{The default event.}
+The recovery rate in the feared event is taken from the realised restructuring.
+The March 2012 PSI exchange imposed a face-value reduction of $53.5\%$, and
+\citet{zettelmeyer2013} estimate the net-present-value haircut at $59$--$65\%$
+depending on the discount rate. We set the recovery rate to $\varrho_D=0.45$, at
+the conservative end of that range, applied to the coupon and to the continuation
+value alike as in \eqref{eq:bond-payoff}. There is no exogenous output cost of
+default, no capital-quality loss and no recapitalisation rule: the default-state
+recession comes entirely from \eqref{eq:ng}--\eqref{eq:mu-closed} operating on a
+smaller asset base. The severity of the default state is thus an outcome of the
+intermediary block, and the risk premium cannot be tuned through it.
+
+\paragraph{The sovereign risk process.}
+The latent factor $s_t$ in \eqref{eq:s-process} is calibrated so that the
+rest-point default probability is $\pi^{d}(\bar s)=0.1\%$ per quarter, i.e.\
+$\bar s=\log(0.001/0.999)=-6.91$, with persistence $\rho_s=0.95$ and innovation
+standard deviation $\sigma_s=0.63$, both posterior means from
+\citet{bocola2016pass}; the unconditional standard deviation of $s$ is
+$\sigma_s/\sqrt{1-\rho_s^{2}}=2.02$. The process is calibrated to a level and a
+persistence, not to a one-quarter jump: at $\rho_s=0.95$ crisis-level default
+probabilities are reached by wandering, and asking a single innovation to lift
+$\pi^{d}$ from $0.1\%$ to $2\%$ would require $\sigma_s\approx1.5$, outside both
+the estimated process and any workable collocation box.
+
+The baseline experiment sets the priced probability $\pi^{d}_t>0$ with the
+realised indicator $d_t\equiv0$ throughout: risk is priced but never realised,
+and all dynamics are generated by the anticipation of an event that does not
+occur. The impulse we report raises $\pi^{d}$ on impact from $0.10\%$ to $1.98\%$
+per quarter --- a shift of $3.0$ in $s$, or about $1.5$ unconditional standard
+deviations --- after which it decays at $\rho_s$. For comparison we also report a
+productivity experiment, a $1\%$ innovation to $Z_D$ decaying at $\rho_z=0.9$.
+
+\begin{table}[t]
+\centering
+\caption{Implied steady-state objects}
+\label{tab:ss-implied}
+\begin{tabular}{lcl}
+\hline\hline
+Object & Value & Determined by \\
+\hline
+Divertable share $\lambda_X$              & $0.2051$ & solved, \eqref{eq:ss-closedform} \\
+Entrant transfer $\omega_X$               & $0.0072$ & solved, \eqref{eq:ss-closedform} \\
+Franchise value $\bar\varphi$             & $1.0254$ & solved, \eqref{eq:ss-closedform} \\
+IC multiplier $\bar\mu$                   & $0.0010$ & solved, \eqref{eq:ss-closedform} \\
+Household discount factor $\beta_X$       & $0.9945$ & deposit clearing, \eqref{eq:beta-clearing} \\
+Bond price $\bar q^{X}$                   & $0.9459$ & \eqref{eq:rate-structure} \\
+Return on equity $\bar r^{n}$ (p.a.)      & $1.60\%$ & $\bar r+\bar\theta\bar\varsigma$ \\
+Capital--output ratio (annual)            & $2.22$   & firm FOC at $\bar r^{k}$ \\
+Investment share $\delta\bar K/\bar Y$    & $22.2\%$ & firm FOC at $\bar r^{k}$ \\
+Deposits / annual output                  & $2.07$   & $(\bar\theta-1)\bar n$ \\
+Sovereign share of intermediary assets    & $7.1\%$  & calibration target on $\bar B$ \\
+\hline\hline
+\end{tabular}
+
+\smallskip
+\begin{minipage}{0.92\textwidth}
+\footnotesize \emph{Note.} None of these objects is assigned; each is implied by
+the parameters of Section~\ref{sec:calibration} and reported at the symmetric
+steady state, in which $\bar p=1$, $\bar N_X=1$ and $\bar Y_X=1$.
+\end{minipage}
+\end{table}
+
+\subsection{Solution Method}
+\label{sec:solution}
+
+The model is solved globally, as recursive decision rules: neither the kink in
+\eqref{eq:mu-closed} nor the covariance premium in
+\eqref{eq:bond-decomposition} survives a local approximation.
+
+The aggregate state is the seven-dimensional vector
+$\bigl[K_D,K_F,P_D,P_F,B_D,s,Z_D\bigr]$: the two capital stocks, the two
+intermediaries' gross obligation states \eqref{eq:P-state}, the risky debt stock,
+the sovereign-risk factor and the productivity state. Decision rules are
+approximated by Chebyshev polynomials on a Smolyak sparse grid over a box centred
+on the steady state, with half-widths of $3\%$ on the capital stocks and on
+$Z_D$, $25\%$ on the obligation states, $30\%$ on the debt stock, and $\pm4.35$
+on $s$ --- the last being $\pm2.16$ unconditional standard deviations of the risk
+process, matching the coverage in \citet{bocola2016pass}. The baseline risk
+experiment uses an isotropic Smolyak level $\mu=1$, i.e.\ $15$ collocation
+points; the productivity experiment, which has no risk dimension to resolve, uses
+$\mu=2$ ($113$ points).
+
+At each collocation point the seven market-clearing unknowns
+$[N_D,N_F,K_D',K_F',r_D,r_F,p]$ are solved given the previous iterate's rules as
+the continuation, with the multiplier taken from its closed form
+\eqref{eq:mu-closed}; the solver then iterates on the rules to convergence. The
+conditional expectation \eqref{eq:expectation} is evaluated as a genuine
+multi-branch quadrature: a seven-node Gauss--Hermite rule over the innovation to
+$s$, crossed with the default fork, with the default branch evaluated on the same
+fitted decision rules at a reachable next-period state rather than on a frozen
+stand-in economy. Setting $\pi^{d}\equiv0$ recovers the risk-neutral model
+exactly, which we use as a regression test. Solution accuracy is reported as
+Euler errors along a long simulation of the ergodic set. [\textsc{tbc}: report the
+error statistics and the box-escape frequency here.]

@@ -13,23 +13,27 @@ def govt_steady_state(cal, rdep_ss, country):
 
     Q_B_ss = delta_b / (rdep_ss + delta_b)
     Tax_ss = G + delta_b * B_gov_ss * (1.0 - Q_B_ss)   # G + coupon = Tax + issuance
-    return dict(Q_B_ss=Q_B_ss, Tax_ss=Tax_ss, b_gov_ss=B_gov_ss)
+    # BOHN COEFFICIENT SOLVED FROM A TARGET DEBT ROOT. With B' = (1-delta_b)*x +
+    # (G + delta_b*x - Tax)/Q and Tax = Tax_ss + gamma*(x - B_ss) on the surviving
+    # stock x = B*surv, the debt root is dB'/dx = (1-delta_b) + (delta_b-gamma)/Q_B_ss.
+    # Inverting it makes the fiscal rule's STRENGTH the calibrated object instead of a
+    # coefficient whose implied persistence nobody reads off.
+    gamma_tau = delta_b - (cal[f"debt_root_{country}"] - (1.0 - delta_b)) * Q_B_ss
+    return dict(Q_B_ss=Q_B_ss, Tax_ss=Tax_ss, b_gov_ss=B_gov_ss, gamma_tau=gamma_tau)
 
 
 def govt_transition(cal, gs, Q_B_path, def_real_path, country, b_gov0=None,
-                    b_anchor=None, recap_path=None):
+                    b_anchor=None):
     # FORWARD-INTEGRATE THE DEBT STOCK UNDER THE BOHN TAX AT GIVEN BOND PRICES.
     delta_b       = cal[f"delta_b_{country}"]
     recovery_rate = cal.get(f"recovery_rate_{country}", 1.0)   # F never defaults
-    phi_lamb      = cal[f"phi_lamb_{country}"]
+    gamma_tau     = gs["gamma_tau"]
     G             = cal[f"G_{country}"]
     b_gov_ss      = gs["b_gov_ss"]
     T             = len(Q_B_path)
 
     if def_real_path is None:
         def_real_path = np.zeros(T)
-    if recap_path is None:
-        recap_path = np.zeros(T)   # branch bailout outlays, financed by issuance
 
     if b_anchor is None:
         b_anchor = b_gov_ss
@@ -49,10 +53,12 @@ def govt_transition(cal, gs, Q_B_path, def_real_path, country, b_gov0=None,
     for t in range(T):
         b_gov_bop[t] = b
         surv_t    = 1.0 - def_real_path[t] * (1.0 - recovery_rate)
-        # Bohn rule on the SURVIVING stock (pre-haircut would spike taxes ~31% GDP)
-        Tax[t]    = Tax_base + phi_lamb * (b * surv_t - b_anchor)
+        # Bohn/Bocola rule on the SURVIVING stock, LINEAR in the debt level with the
+        # coefficient solved from the target debt root (govt_steady_state). See
+        # point_map.py for why neither gamma_tau = 1 nor a high elasticity works here.
+        Tax[t]    = Tax_base + gamma_tau * (b * surv_t - b_anchor)
         coupon[t] = delta_b * b * surv_t
-        new_bonds = (G + recap_path[t] + coupon[t] - Tax[t]) / Q_B_path[t]
+        new_bonds = (G + coupon[t] - Tax[t]) / Q_B_path[t]
         net_iss[t] = Q_B_path[t] * new_bonds
         b = (1.0 - delta_b) * b * surv_t + new_bonds
         b_gov_eop[t] = b
