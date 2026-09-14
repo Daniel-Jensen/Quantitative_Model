@@ -91,7 +91,7 @@ OPTIONAL = ["G_D", "ra_D", "lambda_gk_D", "theta_D", "GINI_WEALTH", "GINI_C",
 SS_META  = ["q_b_D_ss:q_b_D", "b_D_D_ss:b_D_D", "b_gov_D_ss:b_gov_D", "Y_D_ss:Y_D",
             "C_D_ss:C_D", "I_D_ss:I_D", "NX_D_ss:NX_D", "n_inter_D_ss:n_inter_D",
             "K_D_ss:K_D", "TAX_D_ss:TAX_D", "P_CES_D_ss:P_CES_D",
-            "beta_D:beta_D", "beta_F:beta_F", "EL_price_D:EL_price_D",
+            "beta_D:beta_D", "beta_F:beta_F", "EL_load_D:EL_load_D",
             # schema 2: needed by E1's cb_pnl port and E2's identity
             # schema 3: delta_b_F is NOT delta_b_D (0.0568 vs 0.0777 — the two
             # countries' bank books have different measured durations). E1's
@@ -246,7 +246,7 @@ def build_caches(force=False):
     log(f"\n## Cache build (main model) — {datetime.datetime.now():%Y-%m-%d %H:%M:%S}")
     log(f"- calibration: psi_lambda_B={cal['psi_lambda_B_D']}, mv_rule={cal['mv_rule_D']}, "
         f"recovery_rate={cal['recovery_rate_D']}, kappa_cb_F={kappa_cb_F}")
-    log(f"- EL_price_D = {float(ss['EL_price_D']):.6f} (main recovery=0.30; NOT the ms-regime 0.102491 anchor)")
+    log(f"- EL_load_D = {float(ss['EL_load_D']):.6f} (endogenous expected-loss loading from bond_return_D; replaced the deleted EL_price_D anchor on 2026-08-18)")
 
     model = build_tpi_model_main(tpi, res["financial_solved_D"], res["financial_solved_F"])
 
@@ -263,11 +263,20 @@ def build_caches(force=False):
         f"(probe found -1.9455e-2 → expect match; A_cb<0 = backstop COMPRESSES on main)")
     np.savez_compressed(paths[psilam_live], **_extract(G28, ss28, T, dshock, psilam_live))
 
-    ss0 = _ss_tpi(ss, kappa_cb_F)
-    ss0.toplevel["psi_lambda_B_D"] = 0.0; ss0.toplevel["psi_lambda_B_F"] = 0.0
-    ss0.toplevel["psi_spread_D"]   = 0.0; ss0.toplevel["psi_spread_F"]   = 0.0
-    G0 = _solve_G(model, ss0, unk, tgt, T, "0.0")
-    np.savez_compressed(paths[0.0], **_extract(G0, ss0, T, dshock, 0.0))
+    # Since 2026-08-18 the live psi_lambda_B IS 0.0, so the counterfactual cache would be
+    # a bit-identical second solve of the same Jacobian (~4 min). Skip it; paths already
+    # collapsed to one entry, and load_cache(0.0) finds the file either way.
+    if psilam_live != 0.0:
+        ss0 = _ss_tpi(ss, kappa_cb_F)
+        # psi_lambda_B now enters ONLY through collateral_quality_D/F (Delta_*_eff), a
+        # genuine endogenous block, so patching the parameter alone is complete. The old
+        # warning that "only the psi_spread channel picks the patch up" is void: that
+        # anchor was deleted with the 2026-08-18 structural refactor.
+        ss0.toplevel["psi_lambda_B_D"] = 0.0; ss0.toplevel["psi_lambda_B_F"] = 0.0
+        G0 = _solve_G(model, ss0, unk, tgt, T, "0.0")
+        np.savez_compressed(paths[0.0], **_extract(G0, ss0, T, dshock, 0.0))
+    else:
+        log("- psi_lambda_B = 0 is LIVE; the counterfactual cache is the same solve, skipped")
 
     log(f"- caches written: {[os.path.basename(p) for p in paths.values()]}")
     return paths

@@ -1,0 +1,178 @@
+[2026-08-19 08:24:05] STEP 0: calibration flags
+[2026-08-19 08:24:05]   EBA_CALIBRATION=True  BANK_SCOPE=broad
+[2026-08-19 08:24:05] solving steady state (stages 2-4)...
+Solving initial steady state...
+Targeting portfolio shares (EBA 2011, 31 Dec 2010)...
+  size_F = 11.6967  (F/D GDP; every F variable is per F capita)
+  foreign-held share of the bank-held sovereign stock:  D = 0.1273 (EBA 0.1272)   F = 0.001299 (EBA 0.001301)
+  bank-held stock in own-country quarterly GDP:  B_D = 1.1370 (EBA 1.1160)   B_F = 0.4960 (EBA 0.4829)
+  D-bank: phi_bD_D = 0.456  phi_bF_D = 0.003  omega_K_D = 1.0000
+  F-bank: phi_bD_F = 0.007  phi_bF_F = 0.296  omega_K_F = 1.0000
+  over-identifying check (K from the measured balance sheet, target 10.8):  K_D = 10.800   K_F = 10.812
+Re-solving SS with new portfolio allocation...
+SS re-solved. beta_D=0.99948801  p=1.001508
+
+=== GK steady state: sovereign block ===
+             q_b  yield q/q   yield ann  def_rate  recovery   EL_load  delta_b  duration
+  D     0.981293   0.001481     59.25bp    0.0000      0.30  0.701037   0.0777     12.9q
+  F     0.974574   0.001481     59.25bp    0.0000      0.30  0.701037   0.0568     17.6q
+  SS spread (D-F) = -0.0020 bp annualised (zero is correct: def_rate_ss = 0 in both countries)
+
+        lambda_gk     Omega    theta   n_inter         K  q_b*b_own  q_b*b_cross
+  D        1.0191    5.0618   5.5107    2.1379   10.8003     0.9737       0.0073
+  F        0.4148    2.6539   6.9414    1.6271   10.8002     0.4828       0.0121
+
+  Portfolio FOC check   nu_i/nu_K  vs  Delta_i_eff
+  bank  leg       nu_i/nu_K   Delta_eff     residual   status
+  D     own        0.200000    0.200000   -7.133e-15       OK
+  D     cross      0.200007    0.200000    6.740e-06       OK
+  F     own        0.200000    0.200000   -4.663e-15       OK
+  F     cross      0.199993    0.200000   -6.740e-06       OK
+  D     ratio      0.999966    1.000000   -3.370e-05
+  F     ratio      1.000034    1.000000    3.370e-05
+  cross-border SS wedges (constant, def_rate-free):  F-in-D = +1.997e-03 bp/yr   D-in-F = -1.997e-03 bp/yr
+  psi_lambda_B = 0.0000/0.0000  zeta_writeoff = 1.0/1.0  writeoff_enabled = 0.0/0.0
+IC residual check (SS satisfies the multi-asset IC at the calibrated Delta):
+  D-bank:  Delta_own = 0.2000  Delta_cross = 0.2000   value = 5.241623  divertable_lev = 5.143585  residual = +1.776e-15
+  F-bank:  Delta_own = 0.2000  Delta_cross = 0.2000   value = 2.778661  divertable_lev = 6.698440  residual = +0.000e+00
+  depreciation iter 1: delta_D = 0.02240642  delta_F = 0.02240667  max|rk - target| = 1.906e-05
+  depreciation iter 2: delta_D = 0.02238736  delta_F = 0.02239312  max|rk - target| = 1.387e-07
+  depreciation iter 3: delta_D = 0.02238722  delta_F = 0.02239299  max|rk - target| = 1.010e-09
+  depreciation iter 4: delta_D = 0.02238722  delta_F = 0.02239299  max|rk - target| = 7.355e-12
+  depreciation iter 5: delta_D = 0.02238722  delta_F = 0.02239299  max|rk - target| = 5.358e-14
+Verified rk_D = 0.010000  (target 0.0100)
+Verified rk_F = 0.010000  (target 0.0100)
+Final beta_D  = 0.9995343360
+Final beta_F  = 0.9995353731
+
+beta_D=0.9995343360  beta_F=0.9995353731  p=1.001971
+rb_D=0.002000  rb_F=0.002000  rdep_D=0.000000  rdep_F=0.000000
+q_b_D=0.974906  q_b_F=0.965974
+SS goods residuals:
+  goods_mkt_D = -4.22811451933347e-07
+  goods_mkt_F = -4.181785814207778e-07
+  ca_res_D    = 1.6653345369377348e-16
+
+=== GK steady state: sovereign block ===
+             q_b  yield q/q   yield ann  def_rate  recovery   EL_load  delta_b  duration
+  D     0.974906   0.002000     80.00bp    0.0000      0.30  0.701400   0.0777     12.9q
+  F     0.965974   0.002000     80.00bp    0.0000      0.30  0.701400   0.0568     17.6q
+  SS spread (D-F) = -0.0000 bp annualised (zero is correct: def_rate_ss = 0 in both countries)
+
+        lambda_gk     Omega    theta   n_inter         K  q_b*b_own  q_b*b_cross
+  D        2.1087   10.3462   5.5107    2.1379   10.8067     0.9674       0.0073
+  F        0.6414    4.0379   6.9414    1.6271   10.8048     0.4785       0.0121
+
+  Portfolio FOC check   nu_i/nu_K  vs  Delta_i_eff
+  bank  leg       nu_i/nu_K   Delta_eff     residual   status
+  D     own        0.200000    0.200000   -1.624e-14       OK
+  D     cross      0.200000    0.200000    2.058e-13       OK
+  F     own        0.200000    0.200000   -4.746e-15       OK
+  F     cross      0.200000    0.200000   -2.268e-13       OK
+  D     ratio      1.000000    1.000000   -1.110e-12
+  F     ratio      1.000000    1.000000    1.110e-12
+  cross-border SS wedges (constant, def_rate-free):  F-in-D = +8.231e-11 bp/yr   D-in-F = -9.071e-11 bp/yr
+  psi_lambda_B = 0.0000/0.0000  zeta_writeoff = 1.0/1.0  writeoff_enabled = 0.0/0.0
+
+Block residual                                                   Value  Status
+-------------------------------------------------------------------------------------
+  IC_D: θ − θ_tgt                                         0.000000e+00  OK
+  IC_F: θ − θ_tgt                                         0.000000e+00  OK
+  P1_D: nu_K_res                                          0.000000e+00  OK
+  P1_D: nu_bh_res                                         0.000000e+00  OK
+  P1_D: nu_bx_res                                         0.000000e+00  OK
+  P1_D: eta_res                                           0.000000e+00  OK
+  P1_F: nu_K_res                                          0.000000e+00  OK
+  P1_F: nu_bh_res                                         0.000000e+00  OK
+  P1_F: nu_bx_res                                         0.000000e+00  OK
+  P1_F: eta_res                                           0.000000e+00  OK
+  ca_res_D                                                1.665335e-16  OK
+-------------------------------------------------------------------------------------
+All residuals < 1e-8  ✓
+[2026-08-19 08:25:50] steady state solved.
+[2026-08-19 08:25:50] STEP 0 key numbers:
+[2026-08-19 08:25:50]   ss.lambda_gk_D         = 2.108745763674537
+[2026-08-19 08:25:50]   ss.lambda_gk_F         = 0.641386691778482
+[2026-08-19 08:25:50]   ss.Omega_D             = 10.346180080803306
+[2026-08-19 08:25:50]   ss.Omega_F             = 4.037867105186291
+[2026-08-19 08:25:50]   ss.nu_K_D              = 0.10320475087383638
+[2026-08-19 08:25:50]   ss.nu_K_F              = 0.04027835059879345
+[2026-08-19 08:25:50]   ss.phi_own_D           = 0.45248932852499185
+[2026-08-19 08:25:50]   ss.phi_own_F           = 0.29407750727162807
+[2026-08-19 08:25:50]   ss.gk_margin_D         = 0.29656711600950253
+[2026-08-19 08:25:50]   ss.gk_margin_F         = 0.5917741252174545
+[2026-08-19 08:25:50] STEP 5: CB block SS neutrality
+[2026-08-19 08:25:50]   budget_residual_D_tpi: {'b_gov_D': 1.137033585178862, 'G_D': 0.08214336332079797, 'TAX_D': 0.08433546585861022, 'q_b_D': 0.9749060725100298, 'def_rate_D': 0.0, 'recovery_rate_D': 0.3, 'zeta_writeoff_D': 1.0, 'P_CES_D': 1.0002952418131537, 'delta_b_D': 0.07770055706859433, 'writeoff_enabled_D': 0.0, 'cb_buy_D': 0.0, 'kappa_cb_F': 0.929, 'b_gov_res_D': -4.163336342344337e-17, 'rem_cb_D': 0.0, 'cb_flow_D': 0.0}
+[2026-08-19 08:25:50]   budget_residual_F_tpi: {'b_gov_F': 0.495994658324439, 'G_F': 0.08318277792578103, 'TAX_F': 0.08414125500366162, 'q_b_F': 0.9659744865875028, 'def_rate_F': 0.0, 'recovery_rate_F': 0.3, 'zeta_writeoff_F': 1.0, 'p': 1.001970751142378, 'P_CES_F': 0.9999747396432228, 'delta_b_F': 0.056779421657665585, 'writeoff_enabled_F': 0.0, 'cb_flow_D': 0.0, 'kappa_cb_F': 0.929, 'size_F': 11.696650796880904, 'b_gov_res_F': -2.7755575615628914e-17, 'rem_cb_F': 0.0}
+[2026-08-19 08:25:50]   external_account_D_tpi: {'NX_D': 0.00026767011641889993, 'q_b_D': 0.9749060725100298, 'q_b_F': 0.9659744865875028, 'b_F_D': 0.007538986896364331, 'b_D_F': 0.012375326275958878, 'rb_actual_F': 0.001999999999991342, 'rb_actual_D': 0.0019999999999891216, 'cb_buy_D': 0.0, 'kappa_cb_F': 0.929, 'size_F': 11.696650796880904, 'nfa_D': -0.1338350582101086, 'ca_res_D': 1.6653345369377348e-16}
+[2026-08-19 08:25:50]   domestic_bond_clearing_tpi: {'b_gov_D': 1.137033585178862, 'b_gov_F': 0.495994658324439, 'b_D_F': 0.012375326275958878, 'b_F_D': 0.007538986896364331, 'cb_buy_D': 0.0, 'size_F': 11.696650796880904, 'b_D_D': 0.9922837152315064, 'b_F_F': 0.49535011596549516}
+[2026-08-19 08:25:50]   budget_residual_D: {'b_gov_D': 1.137033585178862, 'G_D': 0.08214336332079797, 'TAX_D': 0.08433546585861022, 'q_b_D': 0.9749060725100298, 'def_rate_D': 0.0, 'recovery_rate_D': 0.3, 'zeta_writeoff_D': 1.0, 'P_CES_D': 1.0002952418131537, 'delta_b_D': 0.07770055706859433, 'writeoff_enabled_D': 0.0, 'b_gov_res_D': -4.163336342344337e-17}
+[2026-08-19 08:25:50]   external_account_D: {'NX_D': 0.00026767011641889993, 'q_b_D': 0.9749060725100298, 'q_b_F': 0.9659744865875028, 'b_F_D': 0.007538986896364331, 'b_D_F': 0.012375326275958878, 'rb_actual_F': 0.001999999999991342, 'rb_actual_D': 0.0019999999999891216, 'size_F': 11.696650796880904, 'nfa_D': -0.1338350582101086, 'ca_res_D': 1.6653345369377348e-16}
+[2026-08-19 08:25:50]   domestic_bond_clearing: {'b_gov_D': 1.137033585178862, 'b_gov_F': 0.495994658324439, 'b_D_F': 0.012375326275958878, 'b_F_D': 0.007538986896364331, 'size_F': 11.696650796880904, 'b_D_D': 0.9922837152315064, 'b_F_F': 0.49535011596549516}
+[2026-08-19 08:25:50] building dynamic model + baseline Jacobian (this is the ~6 min leg)...
+Computing Jacobian G (T=500, 4 exogenous inputs)...
+  [H_Z zero-pad] no direct shock loading, rows restored as zero: ['nkpc_p_res_D', 'nkpc_p_res_F', 'tot_res', 'union_pi_res']
+G computed successfully.
+  shock persistences: rho_Z_D=0.8000, rho_def_D=0.9408
+
+=== Stability check: debt level at t=499 (should be near 0) ===
+  irfs_Z_D  ['b_gov_D'][499] = -0.000028
+  irfs_def_D['b_gov_D'][499] = 0.000030
+  ρ_b (partial-eq., NOT the stationarity test) = 0.8451   [measured boundary: phi_lamb_D in (0.07, 0.10)]
+
+=== Pledgeability along the default-shock path ===
+  Delta_bD_eff_D: [0.200000, 0.200000]  (SS 0.200000)
+  Delta_bF_eff_D: [0.200000, 0.200000]  (SS 0.200000)
+  Delta_bF_eff_F: [0.200000, 0.200000]  (SS 0.200000)
+  Delta_bD_eff_F: [0.200000, 0.200000]  (SS 0.200000)
+
+=== Impact signs (t=0, % of own SS) ===
+  variable          +1% TFP   +1pp default
+  Y_D              -0.0732%       -1.9742%
+  C_D              -2.8287%       -2.5108%
+  I_D               5.0004%       -3.0046%
+  N_D              -3.7118%       -3.0010%
+  w_D              -7.2599%       -5.9102%
+  n_inter_D         8.2670%      -11.4073%
+  K_D               0.1119%       -0.0673%
+  q_b_D             3.2248%       -5.9498%
+  Y_D -0.0732% on a +1% TFP shock: flat on impact, hours-driven (N_D -3.71%). Expected under sticky prices with no monetary accommodation; not a defect.
+  n_inter_D[0] on default shock = -11.4073% of SS  (level dev -24.3879; negative = doom loop correct sign)
+  Y_D[0]       on default shock = -1.9742% of SS  (level dev -1.9742; negative = correct sign)
+[2026-08-19 08:26:15] baseline done. running TPI...
+Computing G_tpi (T=500, 5 exogenous inputs)...
+  [H_Z zero-pad] no direct shock loading, rows restored as zero: ['nkpc_p_res_D', 'nkpc_p_res_F', 'tot_res', 'union_pi_res']
+G_tpi computed.
+Sanity check G_tpi[cb=0] vs baseline G: max |err| = 0.00e+00  (expect < 1e-8)
+  gamma =  0 ...  peak spread = +0.515 pp   max|ca_res_D| = 7.21e-08   max|goods_mkt_F| = 1.89e-10
+  gamma =  2 ...  peak spread = +0.483 pp   max|ca_res_D| = 5.55e-08   max|goods_mkt_F| = 1.96e-10
+  gamma =  5 ...  peak spread = +0.442 pp   max|ca_res_D| = 3.38e-08   max|goods_mkt_F| = 2.04e-10
+  gamma = 10 ...  peak spread = +0.386 pp   max|ca_res_D| = 1.47e-08   max|goods_mkt_F| = 2.15e-10
+Sanity check gamma=0 vs irfs_def_D: max |err| = 0.00e+00  (expect < 1e-8)
+Sign check (gamma=0): n_inter_D[0] = -2.439e-01, Y_D[0] = -1.974e-02  (both must be negative)
+
+    γ         W_D         W_F    ΔW_D vs γ=0    ΔW_F vs γ=0
+────────────────────────────────────────────────────────────
+    0     -2.6844      0.1722        +0.0000        +0.0000
+    2     -2.4887      0.1526        +0.1956        -0.0195
+    5     -2.1689      0.1240        +0.5155        -0.0482
+   10     -1.5554      0.0778        +1.1290        -0.0944
+────────────────────────────────────────────────────────────
+(Units: % of quarterly SS consumption, discounted over 100 quarters)
+
+ECB balance-sheet P&L (PV at beta_F over 100q; % of quarterly SS Y_D)
+Capital-key conduit: F share 0.929, D share 0.071 (two-country renormalised euro-area key)
+   γ  peak expos.  purch. PV      EL PV    prem PV  SS-carry PV     MTM PV  loading
+──────────────────────────────────────────────────────────────────────────────────
+   0       0.000%     0.000%    0.0000%    0.0000%      0.0000%    0.0000%      nan
+   2       0.942%     1.343%    0.0719%    0.0374%     -0.0000%    0.0245%     0.52
+   5       2.154%     3.218%    0.1603%    0.0808%     -0.0000%    0.0534%     0.50
+  10       3.762%     6.063%    0.2706%    0.1303%     -0.0000%    0.0869%     0.48
+──────────────────────────────────────────────────────────────────────────────────
+loading = prem PV / EL PV  — premium income the CB earns per unit of expected loss it absorbs. Measured from this run; no closed form, no target.
+  γ=2 : F bears EL PV = 0.0668% Y_D, receives prem PV = 0.0347% (memo at full euro-area key 26.1%: EL 0.0188%)
+  γ=5 : F bears EL PV = 0.1489% Y_D, receives prem PV = 0.0751% (memo at full euro-area key 26.1%: EL 0.0418%)
+  γ=10: F bears EL PV = 0.2513% Y_D, receives prem PV = 0.1211% (memo at full euro-area key 26.1%: EL 0.0706%)
+  closed-loop pole at gamma = 26.50; capping the effectiveness curve at gamma = 19.88 (0.75 x pole — beyond the pole is a different branch, and the approach to it is dominated by it)
+[2026-08-19 08:26:50] TPI done.
+[2026-08-19 08:26:54] WROTE probe_pipeline.npz / .json

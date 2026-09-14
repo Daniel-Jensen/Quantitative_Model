@@ -174,8 +174,21 @@ def get_calibration():
         #
         # Still UNIDENTIFIED: no EBA counterpart, no moment attached. The
         # feasibility inequality bounds them but does not pin a level.
+        #
+        # CROSS-BORDER Delta: 0.4 -> 0.2 on 2026-08-18 (structural GK refactor).
+        # NOT a fit exercise — it is forced. Once gk_cross_border_foc imposes the actual
+        # portfolio optimality condition nu_cross/nu_K = Delta_cross_eff, and the two
+        # own-sovereign FOCs pin q_b_D and q_b_F, the steady-state cross-border ratio is
+        # no longer free:
+        #     nu_bF_D/nu_K_D = (rb_exp_F - rdep_D)/(rk_D - rdep_D)
+        # and at a riskless SS (def_rate_ss = 0) with rk_D = rk_F = 0.01 (RK-1) and
+        # rdep_D = rdep_F = 0 (i_dep_ss = 0, pi_ss = 0) that equals Delta_bF_F = 0.20.
+        # Symmetrically for D-in-F. Holding 0.4 would leave an 80bp/yr constant wedge in
+        # gk_cross_border_foc, i.e. an unexplained cross-border pricing gap of the exact
+        # kind this refactor exists to remove. steady_state.report_gk_steady_state
+        # verifies the resulting residual numerically on every solve.
         'Delta_bD_D':   0.2,     'Delta_bF_F':   0.2,
-        'Delta_bF_D':   0.4,     'Delta_bD_F':   0.4,
+        'Delta_bF_D':   0.2,     'Delta_bD_F':   0.2,
         'lambda_BD_D':  0.06,    'lambda_BF_F':  0.06,
         'lambda_BF_D':  0.06,    'lambda_BD_F':  0.06,
         # EBA 2011 REBUILD (2026-07-31). Supersedes both the 2026-07-22 EBA build
@@ -251,8 +264,29 @@ def get_calibration():
         #   psi_lambda_B = 3.01 -> 149.93 bp   <- ADOPTED
         # Local secant slope 52.6 bp/unit. Residual 0.21 bp, comparable to the
         # 0.15 bp at which 2.92 was adopted.
-        'psi_lambda_B_D': 3.01 if EBA_CALIBRATION else 3.0,
-        'psi_lambda_B_F': 3.01 if EBA_CALIBRATION else 3.0,
+        # ── SET TO 0 ON 2026-08-18 (structural GK refactor) ───────────────────
+        # Everything above this line is the history of tuning psi_lambda_B to a 150bp
+        # peak-spread moment. That entire exercise was conditional on a MIS-SPECIFIED
+        # bond payoff: zeta_writeoff = 0 priced only the coupon, so the pledgeability
+        # dial (and the now-deleted psi_spread_D it fed) had to carry the missing
+        # principal loss. With the payoff corrected the dial is no longer needed to
+        # generate a spread, and the Greek 2010-12 episode provides NO independent
+        # observable that identifies a sovereign-specific haircut ELASTICITY -- only
+        # the level of the haircut, which Delta_bD_D already carries.
+        #
+        # The PREFERRED BASELINE is therefore 0: d(Delta_bD_eff)/d(def_rate) = 0.
+        # This does NOT remove collateral from the model. The bank still faces the GK
+        # incentive constraint, Greek bonds are still worse collateral than capital
+        # (Delta_bD_D = 0.20), and the transmission is
+        #     def_rate up -> q_b_D down -> MTM loss on the bank's sovereign book
+        #                 -> IC tightens -> K_D contracts -> rk_D up -> q_b_D down.
+        # psi_lambda_B > 0 adds a SECOND channel on top (the haircut itself widening
+        # with risk). experiments/ Arm 2 re-runs the model at 3.01 as a DIAGNOSTIC of
+        # what that channel is worth; it is not the baseline and the difference is a
+        # model counterfactual, not an empirical decomposition of the spread.
+        # Do not retune this to recover 150bp -- see docs/STATE.md.
+        'psi_lambda_B_D': 0.0,
+        'psi_lambda_B_F': 0.0,
         # Bank net worth = Core Tier 1 / own quarterly nominal GDP.
         # GR 22,778/55,898 = 0.4075; DE 114,317/653,815 = 0.1748.
         'n_inter_D':    eba_or('n_inter_D', 0.75*4),  'n_inter_F':    eba_or('n_inter_F', 0.75*4),
@@ -353,13 +387,23 @@ def get_calibration():
         # Gulati, PIIE WP13-8; 59-65% investor NPV loss). The pre-EBA value was 0.00,
         # i.e. 100% loss-given-default -- counterfactual for Greece, and the *harshest*
         # possible assumption rather than a neutral one.
-        # While writeoff_enabled=0 this is live ONLY through EL_price (the realized-
-        # haircut terms in bond_return/government_ss/budget_residual are gated by
-        # writeoff_enabled). EL_price = (1-rec)*delta_b/q_b: 0.1025 at rec=0.00 ->
-        # 0.0717 at rec=0.30. Against psi_spread=0.8385 that moves total default
-        # loading by only ~3.3%.
         'recovery_rate_D':  0.30,   'recovery_rate_F':  0.30,
-        'zeta_writeoff_D':  0.0,    'zeta_writeoff_F':  0.0,
+        # ── zeta_writeoff: 0 -> 1 on 2026-08-18 (structural GK refactor) ──────
+        # zeta_writeoff scales the haircut applied to the CONTINUATION VALUE of the
+        # perpetuity, alongside the coupon. At 0 a default wrote down only the current
+        # coupon, so the expected loss on a 12.9-quarter claim was
+        #     h*delta_b/q_b = 0.7*0.0777/0.975 = 0.0558
+        # per unit of default probability, against the true
+        #     h*[delta_b + (1-delta_b) q_b]/q_b = 0.7014  --  12.6x larger.
+        # That missing principal loss is what the free parameter psi_spread_D (0.615 at
+        # the last flex calibration) was silently standing in for, which is why the old
+        # decomposition read 8.4% "fundamental" / 91.6% "friction". With the payoff
+        # right, the loss is priced by bond_return_D/F -> rb_exp -> the GK Euler
+        # equation, and psi_spread_D is deleted rather than recalibrated.
+        # NOTE writeoff_enabled stays 0: the REALISED path still traces the no-default
+        # branch (S-1, the paper's pure risk-premium framing). zeta_writeoff governs what
+        # is PRICED; writeoff_enabled governs what is REALISED. They are independent.
+        'zeta_writeoff_D':  1.0,    'zeta_writeoff_F':  1.0,
         'writeoff_enabled_D': 0.0,  'writeoff_enabled_F': 0.0,
 
         # ── Shock processes ───────────────────────────────────────────────────

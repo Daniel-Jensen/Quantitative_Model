@@ -16,6 +16,25 @@ solve.
 """
 import numpy as np
 
+
+#: Fraction of the closed-loop pole treated as the strongest REPRESENTABLE intervention.
+#: Not 0.98. Measured on the post-2026-08-18 cache, the loading schedule is monotone
+#: decreasing in gamma up to 0.85*pole and turns at 0.90 — the singularity's influence
+#: bleeds in well below it, and at 0.98*pole the discounted consumption gains reach
+#: +12% of steady-state consumption, which is the pole talking, not the policy. 0.75
+#: keeps a clear margin (gamma = 19.88, cond(I - gamma*A_cb) = 1.4e3, 40.3% compression).
+POLE_SAFETY_FRACTION = 0.75
+
+
+class CompressionInfeasible(RuntimeError):
+    """A named-regime compression target is unreachable below the closed-loop pole.
+
+    Raised, not silently clamped: whether the model can represent an intervention
+    strong enough to hit a given compression is a result about the policy experiment,
+    and callers are expected to report the regime as infeasible.
+    """
+
+
 def shift_k(M, k):
     if k == 0:
         return M.copy()
@@ -32,6 +51,27 @@ def peak(x, n=100):
     """Signed max over the first n periods (not abs-max) — correct for the
     positive spread response this module targets."""
     return float(np.asarray(x)[:n].max())
+
+def closed_loop_pole(A_cb, lo=0.0, hi=60.0, n=241, cond_max=1.0e4):
+    """Smallest gamma at which (I - gamma*A_cb) is near-singular, or None.
+
+    The closed loop has a pole where 1/gamma hits an eigenvalue of A_cb. Past it the
+    peak-spread-vs-gamma curve jumps to a different branch, and any bisection that
+    brackets across it is meaningless — it reads two branches as one smooth decline.
+
+    Located by CONDITION NUMBER rather than by a monotonicity scan, because a scan can
+    step straight over a narrow pole and see nothing: on the post-2026-08-18 cache the
+    spike at gamma ~ 27.3 is one grid point wide on a 61-point scan of [0,40].
+    """
+    grid = np.linspace(lo, hi, n)
+    T = A_cb.shape[0]
+    for g in grid:
+        if g == 0.0:
+            continue
+        if np.linalg.cond(np.eye(T) - g * A_cb) > cond_max:
+            return float(g)
+    return None
+
 
 def gamma_for_compression(A_def, A_cb, eps, target, lo=0.0, hi=40.0, tol=1e-8):
     """Bisect for the gamma whose closed-loop peak spread is (1-target) x passive peak.
@@ -65,16 +105,49 @@ def gamma_for_compression(A_def, A_cb, eps, target, lo=0.0, hi=40.0, tol=1e-8):
     NOTE FOR THE PAPER: the aggressive regime now sits ~8 gamma-units below that
     singularity, where before the fixes it was at gamma~5.1 with the pole far away.
     How much intervention the model can represent is now a live constraint, not a
-    formality."""
+    formality.
+
+    THE POLE MOVED AGAIN — 2026-08-18, GK structural refactor. It is now at
+    gamma ~ 27.3 (cond 1.4e5), and the reachable compression below it tops out at
+
+        gamma      0     10     20     25     26     26.7  | 27.3 = POLE
+        peak bp  205.9  154.4  122.6  111.4  109.8  109.7  |
+        compress   0%    25%    40%    45.9%  46.7%  46.7% |
+
+    So the 25% (medium) target still solves cleanly at gamma ~ 10, and the **50%
+    (aggressive) target is INFEASIBLE** — the model cannot represent an intervention
+    strong enough to halve the peak spread without crossing a closed-loop singularity.
+    That is a result about the policy experiment's own parameterisation and is raised as
+    `CompressionInfeasible` for callers to report, NOT worked around by widening `hi`
+    past the pole. Widening it reads the far branch (which does reach 50% at
+    gamma ~ 27.9) as a continuation of the near one, which it is not.
+
+    `hi` is capped at 0.98*pole automatically, so the INFEASIBILITY VERDICT is measured
+    against the true reachable set. That is deliberately not the same as the FALLBACK
+    gamma a caller should then use: `common.named_regime_gammas` falls back to
+    `POLE_SAFETY_FRACTION * pole` = 0.75*pole, because the loading schedule is monotone
+    only up to ~0.85*pole and the responses at 0.98*pole are dominated by proximity to
+    the singularity. Verdict at the edge, reporting well inside it."""
+    pole = closed_loop_pole(A_cb, lo=lo, hi=max(hi, 60.0))
+    if pole is not None and pole <= hi:
+        hi = 0.98 * pole
     p0 = peak(closed_loop(A_def, A_cb, eps, 0.0)[0])
     grid = np.linspace(lo, hi, 61)
     peaks = np.array([peak(closed_loop(A_def, A_cb, eps, g)[0]) for g in grid])
     if not np.all(np.diff(peaks) < 0):
         bad = grid[1:][np.diff(peaks) >= 0]
         raise RuntimeError(f"peak spread not monotone in gamma near {bad[:5]} — "
-                           f"bisection invalid (spec §14 monotonicity check)")
+                           f"bisection invalid (spec §14 monotonicity check). "
+                           f"Nearest closed-loop pole: {pole}")
     f = lambda g: 1.0 - peak(closed_loop(A_def, A_cb, eps, g)[0]) / p0 - target
-    assert f(lo) < 0 < f(hi), f"target {target} not bracketed on [{lo},{hi}]"
+    if not (f(lo) < 0 < f(hi)):
+        raise CompressionInfeasible(
+            f"{100*target:.0f}% peak-spread compression is not reachable on "
+            f"[{lo}, {hi:.3f}]. Maximum attainable compression below the closed-loop "
+            f"pole ({'none found' if pole is None else f'gamma = {pole:.2f}'}) is "
+            f"{100*(1 - peaks.min()/p0):.2f}%. Report the regime as infeasible — do NOT "
+            f"widen the bracket past the pole, which splices a different branch onto "
+            f"this one.")
     while hi - lo > tol:
         mid = 0.5 * (lo + hi)
         lo, hi = (mid, hi) if f(mid) < 0 else (lo, mid)

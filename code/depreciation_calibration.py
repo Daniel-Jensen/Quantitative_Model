@@ -7,7 +7,7 @@ residual diagnostic.
 """
 import copy
 
-from steady_state import _apply_ss_anchors
+from steady_state import _apply_ss_anchors, report_gk_steady_state
 
 
 def calibrate_depreciation(ss_results):
@@ -20,17 +20,29 @@ def calibrate_depreciation(ss_results):
     rk_D_target = 0.01
     rk_F_target = 0.01
 
-    K_D_cur = float(ss['K_D']); K_F_cur = float(ss['K_F'])
-    Y_D_cur = float(ss['Y_D']); Y_F_cur = float(ss['Y_F'])
-
-    delta_D_cal = calibration_start['alpha_D'] * Y_D_cur / K_D_cur - rk_D_target
-    delta_F_cal = calibration_start['alpha_F'] * Y_F_cur / K_F_cur - rk_F_target
-    calibration_start.update({'delta_D': delta_D_cal, 'delta_F': delta_F_cal})
-
-    print(f"Depreciation calibration:  delta_D = {delta_D_cal:.6f}  delta_F = {delta_F_cal:.6f}")
-    print("Final SS re-solve with calibrated delta...")
-
-    ss = ha.solve_steady_state(calibration_start, unknowns_ss, targets_ss, solver='broyden_custom')
+    # ITERATED to a fixed point (2026-08-18). delta = alpha*Y/K - rk_target is exact
+    # only at the K and Y the NEXT solve returns, and re-solving moves both. That was
+    # tolerable while q_b was pinned outside the solver by the banker's SDF; since
+    # q_b_D/q_b_F became SS unknowns under the GK portfolio FOC the feedback
+    # delta -> K -> rk -> q_b -> balance sheet -> K is strong enough that one pass
+    # leaves rk_D at 0.009981 instead of 0.010000, and the residual drift shows up in
+    # goods_mkt_D at ~4e-7 against its 1e-14 acceptance threshold. Each extra pass is a
+    # cheap SS solve, and the loop exits as soon as rk is on target.
+    MAXIT, TOL = 12, 1e-12
+    for it in range(1, MAXIT + 1):
+        delta_D_cal = calibration_start['alpha_D'] * float(ss['Y_D']) / float(ss['K_D']) - rk_D_target
+        delta_F_cal = calibration_start['alpha_F'] * float(ss['Y_F']) / float(ss['K_F']) - rk_F_target
+        calibration_start.update({'delta_D': delta_D_cal, 'delta_F': delta_F_cal})
+        warm = {k: float(ss[k]) for k in unknowns_ss}
+        ss = ha.solve_steady_state(calibration_start, warm, targets_ss, solver='broyden_custom')
+        err = max(abs(float(ss['rk_D']) - rk_D_target), abs(float(ss['rk_F']) - rk_F_target))
+        print(f"  depreciation iter {it}: delta_D = {delta_D_cal:.8f}  "
+              f"delta_F = {delta_F_cal:.8f}  max|rk - target| = {err:.3e}")
+        if err <= TOL:
+            break
+    else:
+        print(f"  WARNING: depreciation calibration did not reach {TOL:.0e} in {MAXIT} passes; "
+              f"rk is off target by {err:.3e} and the SS goods residuals will show it.")
     _apply_ss_anchors(ss, calibration_start)
 
     print(f"Verified rk_D = {float(ss['rk_D']):.6f}  (target {rk_D_target:.4f})")
@@ -44,6 +56,10 @@ def calibrate_depreciation(ss_results):
     print("  goods_mkt_D =", ss['goods_mkt_D'])
     print("  goods_mkt_F =", ss['goods_mkt_F'])
     print("  ca_res_D    =", ss['ca_res_D'])
+
+    # This is the SS the dynamic model linearises around, so the GK portfolio FOCs are
+    # re-verified HERE, not only after the portfolio re-solve.
+    report_gk_steady_state(ss, calibration_start)
 
     cali_D = cali_F = ss
     ss_final = copy.deepcopy(ss)
@@ -109,8 +125,11 @@ def _run_ss_residual_diagnostic(ss, calibration_start):
         eta_c   = _get(f'eta_{c}')
         theta_c = _get(f'theta_{c}')
         Omega_p1 = f_c + (1 - f_c) * lam * theta_c
-        rb_h = _get('rb_actual_D' if c == 'D' else 'rb_actual_F')
-        rb_x = _get('rb_actual_F' if c == 'D' else 'rb_actual_D')
+        # rb_exp, not rb_actual: intermediation_P1_D/F price the EXPECTED payoff. The
+        # two coincide at SS (def_rate_ss = 0) but this diagnostic should mirror the
+        # block it is checking, not a numerically equal cousin.
+        rb_h = _get('rb_exp_D' if c == 'D' else 'rb_exp_F')
+        rb_x = _get('rb_exp_F' if c == 'D' else 'rb_exp_D')
         nu_K_c  = _get(f'nu_K_{c}')
         nu_bh_c = _get('nu_bD_D' if c == 'D' else 'nu_bF_F')
         nu_bx_c = _get('nu_bF_D' if c == 'D' else 'nu_bD_F')

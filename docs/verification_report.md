@@ -4,6 +4,15 @@
 **Scope:** verify fixes implemented + correct + regression-free; assess calibration. Not a re-audit.
 **Codebase verified:** branch `audit` (396cbd9 + 4c810e1), working tree. `main` is intentionally pre-fix.
 
+> **THRESHOLD CORRECTION, 2026-08-18.** The `goods_mkt_D ≤ 1e−16` figures below were measured
+> on the 2026-06-11 calibration and have **not** held since. Measured directly against a clean
+> worktree at `91ac778` (pre-GK-refactor `main`): `goods_mkt_D = −4.2493163257550925e−07`, and
+> the post-refactor branch prints `−4.2281e−07`. CLAUDE.md's acceptance threshold for this
+> residual has been corrected to `1e−6`. `ca_res_D` (~1e−16) is the residual that genuinely
+> reaches machine zero on the current calibration; use it, not `goods_mkt_D`, as the Walras
+> regression check. The drift is pre-existing and is **not** attributable to the GK structural
+> refactor — that was the point of measuring the baseline worktree.
+
 ---
 
 ## Finding status table

@@ -14,6 +14,29 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-09-14 — `main` merged into `gk-structural-foc` (PR #33)
+
+No code changes. `code/*.py` is byte-identical to `gk-structural-foc` and
+`code/global/` to `main`; verified by `git diff` against both parents.
+
+PR #32 put the global-projection solver on `main` and edited the three living
+docs in doing so, which is the whole of what conflicted here — `docs/STATE.md`,
+`docs/PROGRESS.md`, `docs/HANDOFF.md`. **No `code/` file conflicted**: PR #33
+touches only the sequence-space tree and PR #32 left it untouched.
+
+Resolutions. PROGRESS.md and STATE.md: both sides had prepended to the top of a
+newest-first log, so the entries were ordered rather than chosen between, and
+PR #33's 2026-08-18 status line replaces the 2026-08-07 one it was written to
+supersede. HANDOFF.md: PR #33 resolves "foreign banks do not retrench" and
+retitles that section historical, so its heading was kept over the stale copy
+carried down from PR #32's side. STATE.md keeps the Part I / Part II split, with
+PR #33's entries going into Part I.
+
+Verification: sequence-space fast tests 45 passed; global pipeline
+`test_ss_identities`, `test_bank_block`, `test_fast_kernels`, `test_state_grid`,
+`test_no_unbound_names` pass. `code/main.py` not re-run — its inputs are
+byte-identical to `gk-structural-foc`.
+
 ## 2026-09-14 — `bocola-rewrite` merged with `main`: the two solvers coexist (PR #32)
 
 No model changes in either pipeline. This is a reconciliation commit: the
@@ -64,6 +87,269 @@ Verification: sequence-space fast tests 42 passed
 pipeline `test_ss_identities`, `test_bank_block`, `test_fast_kernels`,
 `test_state_grid`, `test_no_unbound_names` all pass. `code/main.py` was not
 re-run: its inputs are byte-identical to `main`, where it was already verified.
+
+## 2026-08-24 — Paper introduction rewritten; motivation figures added (`gk-structural-foc`)
+
+**No model source changed.** `code/`, the calibration and every solved object are
+untouched; this entry covers `Empirics/` and the Overleaf project.
+
+- **`Empirics/motivation_figures.py`** (new). Emits two paper figures with captions
+  baked into the PNGs, per the repo's figure convention. Outputs to the gitignored
+  `Empirics/outputs/`; the tracked copies live in the Overleaf project at
+  `VIVA/figures/`.
+  - `fig_greece_motivation` — 2×2: Greek general government debt (€bn), debt/GDP,
+    the ten-year yield against the Bund with the spread shaded, and real GDP against
+    real investment indexed to 2007Q4.
+  - `fig_euro_yield_decoupling` — ITA/ESP/PRT/GRC ten-year yields against the Bund,
+    1995–2026, with ECB/OMT/TPI markers.
+  - Sources: Eurostat `gov_10q_ggdebt` (S13, `na_item=GD`) and `namq_10_gdp` (B1GQ,
+    P51G, CLV10_MEUR, SCA); the FRED yield panel already cached by
+    `Empirics/graph_spreads.py`.
+  - Palette is the existing Okabe–Ito order, validated for colour-vision separation
+    (worst adjacent pair ΔE 11.0 deutan, 15.6 normal). Germany is drawn in ink and
+    dashed rather than given a categorical hue, since it is the benchmark.
+
+- **Two facts the figures establish, both checked against the series.** Real
+  investment fell 69.7% from 2007Q4 to the 2015Q3 trough against a 27.4% fall in
+  GDP — the asymmetry that motivates an intermediary-constraint channel rather than
+  a demand or labour-wedge channel. And the March 2012 PSI cut €75bn and 33.7 points
+  of debt ratio, with the ratio back at its 2011Q4 level by 2013Q2 and the stock not
+  until 2021Q2.
+
+- **Introduction rewritten** (Overleaf `866a537`, `a0aeb1c`). Reframed from a
+  counterfactual-history question to three mechanism questions; TPI named as the
+  modelled instrument via the three design features the model uses; Bi–Foerster–Traum
+  separation expanded to three substantive points (CES portfolio aggregator vs.
+  equilibrium retrenchment; their reduced-form financing friction vs. no additive
+  component here; their joint fundamental/non-fundamental scope vs. our deliberate
+  narrowing). Distributional incidence promoted to the second reported finding.
+
+- **Two errors in the previous draft, corrected.** The "87% of the outstanding
+  stock" motivating statistic was a model share of model-issued paper and wrong as an
+  empirical claim by roughly five times; replaced with the EBA figures (€54bn against
+  €23bn of Core Tier 1, 2.4× equity). And `Delta` was glossed as *pledgeability*,
+  which is backwards relative to the proportionality identity — from
+  `intermediation_IC_D` it is the **divertable** share, so `Delta = 0.20` makes
+  sovereign paper better collateral than capital. **`CLAUDE.md` still carries the old
+  wording** ("makes Greek paper worse collateral than capital") and contradicts both
+  the code comment and the IC algebra; flagged, not yet changed.
+
+- **`psi_lambda_B` slated for DELETION** (decision, 2026-08-24). Not "0 in the baseline
+  with a diagnostic arm at 3.01" — the parameter goes, and with it the risk-sensitive
+  branch of `collateral_quality_D/F`. It is the analogue of Bi–Foerster–Traum's calibrated
+  liquidity-risk channel, which their Table 1 shows carrying most of both financial
+  moments, so removing it outright is the paper's sharpest separation from the nearest
+  published analogue. The introduction now asserts the absence. Until the deletion lands,
+  `code/` and the paper disagree — see STATE.md.
+
+- **`docs/referee_report_2.md`** (new, `8fc0786`) — hostile second-referee report on
+  the paper's motivation, ten findings. The introduction has been rewritten against
+  it; Sections 2–4, the abstract and the appendices are unaddressed.
+
+---
+
+## 2026-08-19 — Central-bank block audit; `docs/cb_mechanism.md` promoted to canonical (`gk-structural-foc`)
+
+Diagnose-and-report audit of the CB block against the refactored pricing. **No model source
+changed.** Evidence in `diagnostics/cb_audit/` (`run_log.md`, `VERDICT.md`,
+`recommended_fix.md`, four probes, a self-tested Prony estimator).
+
+- **The CB block survived the refactor untouched and is correct.** The four TPI blocks
+  (`domestic_bond_clearing_tpi`, `budget_residual_D/F_tpi`, `external_account_D_tpi`) are
+  byte-identical to their pre-refactor versions — they were written against the *payoff* in
+  coupon/survival form, never against the old FOC's price decomposition. All mark exclusively
+  at endogenous `q_b_D`; `cb_flow_D` matches `bond_return_D` term for term including
+  `zeta_writeoff_D` and `writeoff_enabled_D`. Zero live `psi_spread` references in the CB
+  block, clearing condition or residual equations.
+- **SS neutrality is exact, not approximate.** Every TPI block output is bit-identical
+  (difference `0.000e+00`) to its non-TPI counterpart at the steady state, and
+  `cb_flow_D = rem_cb_D = rem_cb_F = 0`.
+- **The mechanism, stated canonically.** With `psi_lambda_B = 0`, `SDF_banker` and `Omega_p1`
+  cancel in `nu_bD_D/nu_K_D`, leaving `rb_exp_D(+1) - rdep_D = 0.20*(rk_D(+1) - rdep_D)`
+  exactly. The CB has **no direct lever on the spread**; it compresses only by lowering
+  `rk_D`. TPI's spread effect and its investment effect are therefore ONE effect and must not
+  be reported as two.
+- **The 2x2 sovereign-holdings matrix (new decisive diagnostic, `probe_portfolio.py`).** Both
+  clearing identities close to <=1.2e-15 at 26 checkpoints. ~72% of the CB book (84% in pure
+  quantity, ~99% from t=1) is bought from **German** banks, 17% is new Greek issuance, only
+  10% comes off Greek banks. TPI at gamma=10 undoes 82.9% of the crisis rise in `phi_bD_D`,
+  and does it through the DENOMINATOR — numerator moves -0.4%, `n_inter_D` recovers +6.6%.
+  German banks' Greek exposure falls to 27% below SS. The ECB buys German banks out; it does
+  not share the exposure.
+- **The "closed-loop pole at gamma ~ 27.3" is a T=500 terminal-truncation artefact.** The
+  resonant eigenvector carries 0.0000 of its mass in the first 100 quarters and 0.9922 in
+  t=400-499; `||A_cb[:,499]|| = 3.86` against ~0.0065 for every interior column and
+  `A_cb[499,499] = +1.080` is the only positive diagonal in the matrix. Dropping five columns
+  removes every pole below gamma=36 and changes the reported peak spread by **nothing** at
+  gamma=2/5/10. The condition-number scan in `code/tpi.py` and
+  `lottery_math.closed_loop_pole` also steps clean over a nearer apparent singularity at
+  gamma=2.2116. No reported number is affected; the guard and the documented claim are wrong.
+  Fix proposed (R-1), **not implemented**.
+- **Reporting hazard recorded (F-1).** `writeoff_enabled = 0` means no credit loss ever flows
+  through the conduit, so the realised German transfer and the printed "F bears EL PV" are
+  different objects living in different places. They must never be netted.
+- Three `diagnostics/` scripts still execute against the deleted `psi_spread`;
+  `solve_configs.py` is the dangerous one — it does not crash, it silently produces a
+  `psi_lambda_B = 0` arm identical to its own baseline.
+
+---
+
+## 2026-08-18 — GK structural refactor stages 2–5: no sovereign spread wedge (`gk-structural-foc`)
+
+The sovereign spread is now generated by the bond's state-contingent payoff inside the genuine
+GK portfolio FOC. Full detail and numbers in `docs/STATE.md` -> *GK structural refactor*.
+
+- **Root cause was the PAYOFF, not the pricing block.** `zeta_writeoff_D = 0` wrote down only
+  the current coupon on default and left the perpetuity's continuation value whole,
+  understating the loss on a 12.9-quarter claim by `[delta_b + (1-delta_b)q_b]/delta_b = 12.6x`
+  (`EL 0.0561` against the contract's `0.7014`). `psi_spread_D = 0.615` was standing in for
+  almost exactly that gap. The stage-1 conclusion that the GK mechanism was too weak to
+  generate the spread was wrong — it was being fed the wrong payoff.
+- **Deleted, not recalibrated.** `psi_spread_D/F`; `EL_price_D/F` as a pricing wedge;
+  `divert_bond_foc_D/F`; `divert_portfolio_adj`; `bond_price_ss_D/F`; `domestic_bond_foc_D/F`;
+  `portfolio_adj_cost`; `excess_return_bD_D_ss`, `excess_return_bF_F_ss`,
+  `excess_return_F_D_ss`, `excess_return_D_F_ss`.
+- **`bond_return_D/F` is the single source of truth** for the payoff and emits three things:
+  `rb_exp` (expected — the only return the pricing equations read), `rb_actual` (realised
+  branch, still gated by `writeoff_enabled = 0`, so S-1's pure risk-premium framing stands),
+  and `EL_load` (diagnostic; read by `code/tpi.py`'s CB P&L and nothing else).
+  `zeta_writeoff_D/F = 1`.
+- **`gk_bond_foc_D/F`** impose `nu_own = Delta_own_eff * nu_K`, which with
+  `intermediation_P1_D/F` is `rb_exp(+1) - rdep = Delta_eff*(rk(+1) - rdep)`. `q_b_D`/`q_b_F`
+  became SS UNKNOWNS with `rb_D_res`/`rb_F_res` as their targets.
+- **`gk_cross_border_foc`** (in `equations_global.py`) states the same FOC on the two
+  cross-border legs plus the `psi_bF_D`/`psi_bD_F` stock cost, divided through by
+  `SDF_banker*Omega_p1` so those keep their calibrated units. This also removed a genuine
+  DOUBLE COUNT: from the 2026-08-17 draft the expected loss sat in both `intermediation_P1`
+  and `divert_portfolio_adj`, so the cross-border legs netted it twice while the own legs
+  netted it once. `Omega_p1_D/F` are now exported from `P1` rather than duplicated.
+- **`psi_lambda_B_D/F = 0` is the preferred baseline.** No independent Greek observable
+  identifies a sovereign-specific haircut *elasticity*. `3.01` is retained as a diagnostic arm
+  only.
+- **`Delta_bF_D`, `Delta_bD_F`: 0.40 -> 0.20, forced not fitted.** With the own legs pinning
+  both bond prices, and `rk_D = rk_F`, `rdep_D = rdep_F = 0` at a riskless SS, the cross-border
+  ratio `nu_cross/nu_K` is no longer free. Holding 0.40 leaves a constant 80bp/yr cross-border
+  wedge. Measured wedges at the live calibration: `8e-11` / `-9e-11` bp/yr.
+- **Pre-existing units bug fixed in `intermediation_P1_F`.** `q_b_D` and `q_b_F` are both
+  D-good prices, but `P1_F` compared an unconverted `rb_actual_F(+1)` with the F-good `rdep_F`
+  while the old cross-border block applied `p/p(+1)` to the same return. The conversion now
+  lives once, in `P1_F`. SS-neutral (`p` constant at SS); first-order relevant off it.
+- **Depreciation calibration is now ITERATED** to a fixed point (5 passes, `5e-14`). One pass
+  left `rk_D = 0.009981` once `q_b` joined the SS unknowns and the `delta -> K -> rk -> q_b -> K`
+  loop closed. `rk_D = rk_F = 0.010000` exactly, as RK-1 requires.
+- **New guard `steady_state.report_gk_steady_state`** prints the §13 diagnostic table and
+  RAISES if any of the four portfolio FOCs is violated or any `Delta_*_eff` leaves `[0,1]`.
+  Runs on every solved SS. Two new tests in `code/test_nkpc_blocks.py`: an AST scan that fails
+  if any deleted name reappears in live `code/*.py`, and a structural double-counting check
+  that no portfolio condition takes both a `nu` and a `def_rate`/`EL` object. 38 fast tests pass.
+- **Results, 1pp shock (nothing tuned to any moment).** Peak spread **205.9 bp**; German yield
+  **-16.2 bp** on impact (endogenous flight to quality, no F-side wedge); `b_DD` **+2.12%**
+  while `K_D` **-0.067%** (the intended balance-sheet crowding-out); `b_DF` **-2.10%** — German
+  banks now DO retrench, reversing the open problem in HANDOFF.md; `n_inter_D` **-11.41%**,
+  `Y_D` **-1.974%**, `C_D` **-2.511%**. `b_gov_D[499] = 3.0e-05`.
+- **TPI loading is 0.520 / 0.504 / 0.482 at gamma = 2/5/10 — BELOW 1.** The old 3.82/2.90
+  over-compensation headline is reversed, entirely through the denominator: the CB earns the
+  same premium but absorbs a 12.6x larger expected loss. The decline in gamma (the
+  self-extinguishing premium) survives. E3's 2026-08-06 `zeta_writeoff = 1` finding is no
+  longer a robustness variant; it is the baseline.
+- **Documentation fix, not a regression:** `goods_mkt_D` is `-4.23e-07`, and a clean worktree
+  at `91ac778` prints `-4.2493e-07` on the same pipeline. CLAUDE.md's `<= 1e-14` threshold for
+  that residual was never met on this calibration and has been corrected to `1e-6`.
+  `ca_res_D` (`1.7e-16`) is the residual that genuinely reaches machine zero.
+- **`experiments/` rebased.** `fig04_spread_decomposition` no longer draws an
+  `EL_price`/`psi_spread` share bar — that framing is forbidden in a linearised model and the
+  split was mostly a calibration artefact. It now plots the Greek yield under direct
+  expected-loss pricing (required return frozen at SS, bond price solved forward on the
+  model's own recursion) against the equilibrium Greek yield and the GR-DE spread.
+  **Finding: the intermediary channel is a QUANTITY amplifier, not a price amplifier** --
+  direct pricing alone gives 213.8bp against an equilibrium 189.7bp Greek yield, and the
+  spread exceeds the Greek yield only because the German leg falls 16.2bp. A first draft
+  plotted `EL_load_D*def_rate_D` (a one-period capital-loss rate) against `spread_rb` (a
+  coupon-equivalent yield); not commensurate, and it produced a spurious 0.62
+  "amplification factor". E3's variants
+  are rebased on `zeta = 1` (`e3a_realised_writeoff`, `e3b_coupon_only_pricing`). Cache key
+  `EL_price_D` -> `EL_load_D` in `diagnostics/regimes/regime_model.py` and
+  `experiments/e1_backstop_schedule.py`.
+- **The "aggressive" named regime is no longer 50% compression — it is 40.3%.** The closed
+  loop has a POLE at `gamma ~ 27.3`; max compression below it is 46.6% and the 50% target is
+  met only on the far branch. New `lottery_math.closed_loop_pole` locates it by CONDITION
+  NUMBER (a 61-point monotonicity scan of [0,40] steps straight over a pole this narrow and
+  reports a spurious non-monotonicity — exactly how the first regeneration attempt failed) and
+  `CompressionInfeasible` is raised. **The fallback is 0.75 x pole, not 0.98**: measured, the
+  loading schedule is monotone in gamma only up to ~0.85 x pole, and at 0.98 x pole the
+  discounted consumption gains hit +11..+12.4% of SS consumption and Greek output goes +1.15%
+  on impact — the singularity, not the policy. New shared constant
+  `lottery_math.POLE_SAFETY_FRACTION = 0.75`; `common.named_regime_gammas` falls back to
+  `gamma = 19.875` (40.3%), `e1.loading_schedule` and `code/tpi.py`'s effectiveness curve cap
+  their grids the same way. `medium` is unaffected at `gamma = 9.989` (25.0%).
+  `experiments/paper_outputs.py`'s second copy of the gamma solve now routes through
+  `common.named_regime_gammas` — one definition, not two. **Paper prose calling the aggressive
+  regime "50% compression" must be corrected to 40.3%.**
+- **`code/tpi_plots.py` figure-8 text was stale in four places and is now derived.** It
+  hard-coded "rho=0.8" (rho_def has been 0.9408 since 2026-08-06), a panel title
+  "Premium Peaks (gamma~26)" that no longer describes the shape, annotations written for
+  a schedule that STARTS above ell=1 ("timid intervention -> high loading (SMP-type)"),
+  and a caption asserting the loading falls "toward the fair-insurance limit ell=1" while
+  printing "from 0.5x to 0.5x". All four now read off the data; the caption states plainly
+  that the schedule sits BELOW 1 throughout. The 'actuarially fair' label also moved off
+  the subplot title it was overprinting.
+- **New impact-sign table on BOTH shocks in `build_and_solve`.** Added because
+  `fig_irf_overview_macro.png` looks like Y_D collapses under TFP; it does not — that is
+  the default shock's line. Measured: +1% TFP gives Y_D **-0.073%** (flat) with N_D -3.71%,
+  w_D -7.26%, I_D +5.00% — the standard sticky-price contractionary-technology result
+  under a phi_pi -> infinity normalisation and GHH labour supply. Not a defect; the guard
+  fires only below -0.5%.
+- **Two figure defects the pole caused, both fixed.** `fig02` plotted the loading spiking to
+  1.17 and collapsing to 0.38 across two grid points, and its caption's own two-branch test —
+  written for the old world where the loading STARTED above 1 — read that artefact as
+  "crossing below the actuarially fair benchmark of 1". `fig05` showed German exposure
+  plunging to -50% of `Y_D`. The caption now has a third branch and states plainly that the
+  loading stays BELOW 1 throughout, so over-compensation must not be asserted.
+- **STALE:** every E1–E4 artefact and `experiments/paper/fig0*.png`. The SS moved
+  (`q_b_D 0.968941 -> 0.974906`); rebuild the regime cache before the experiments, not after.
+- Old `diagnostics/psilam_*` and `diagnostics/substitution_v2/` scripts still reference
+  `psi_spread`/`EL_price` and will fail. They are one-off historical probes of the deleted
+  specification; superseded, not ported.
+
+## 2026-08-17 — GK structural refactor stage 1: bounded pledgeability (`gk-structural-foc`)
+
+Audit of the sovereign-risk-to-bank-financing block, then the first of five stages. Full
+detail in `docs/STATE.md` -> *GK structural refactor*.
+
+- **Audit finding.** The chain `p_def -> Delta_bD_eff -> IC -> lambda_gk/Omega -> P1 -> q_b_D`
+  is broken at the third arrow. `Delta_bD_eff` moves only `theta_D`; the Greek spread comes
+  entirely from `divert_bond_foc_D`, which touches no endogenous GK object and carries the
+  frozen `psi_spread_D`. `bond_price_ss_D`, `steady_auxilliary_D`, `smart_steady_D` are all
+  SS-only and absent from `build_block_list()`.
+- **GK portfolio optimality is violated at the SS.** `nu_bD_D/nu_K_D = 0.2491` against
+  `Delta_bD_D = 0.20`, and `nu_bD_D == nu_bF_D` bit-identically (0.02696043) while
+  `Delta_bD_D = 0.20` vs `Delta_bF_D = 0.40`. `steady_auxilliary_D` defines the marginal
+  values from returns and never restricts them; the portfolio FOCs are imposed nowhere. This
+  is *why* the wedges exist.
+- **Stage 1 (this commit).** New `collateral_quality_D/F` export the four `Delta_*_eff_*`
+  under a bounded map `Delta + (1-Delta)*z/(1+z)`, `z = psi_lambda_B*def_rate(+1)/(1-Delta)`.
+  Local slope is `psi_lambda_B` exactly (SSJ Jacobian: 3.0100000000), so IRFs are unchanged;
+  range `[Delta,1)` closes the domain hole at `def_rate(+1) > 0.266` where the old linear form
+  drove `1-Delta_eff` negative.
+- **New SSJ gotcha recorded.** `np.exp` in a `@simple` block raises
+  `TypeError: ... AccumulatedDerivative`. Simple blocks differentiate through a dual-number
+  type supporting arithmetic operators only. Hence the rational rather than exponential
+  saturation.
+- **Doc drift corrected.** `docs/eba_calibration.md` ledger said `Delta_own` committed at 0.80
+  and cross at 0.90; CLAUDE.md's GK-1 row said `Delta=0.85/0.90 -> lambda_gk_D=+0.927`. Live
+  values are **0.20 / 0.40** with `lambda_gk_D = 2.2129`. Both docs described the CT1-scope
+  world; GK-2's broad scope cut `phi_own` 2.39 -> 0.456, which satisfies feasibility at the
+  inherited `Delta`, so the raise was never adopted. ~4x error for anyone computing the
+  collateral channel from the old numbers.
+- **Verification.** `code/main.py` exit 0, bit-identical: `n_inter_D[0] = -6.7366%`,
+  `Y_D[0] = -0.8521%`, peak spread +0.375 pp, `goods_mkt_D = -4.2493163257550925e-07`,
+  `max abs(goods_mkt_F)` 2.06e-10..2.12e-10 across the gamma grid. 35 fast tests pass.
+- **Rejected en route.** A prior `writeoff-test` branch flipped `zeta_writeoff`/
+  `writeoff_enabled` to 1 to test whether realising the default loss cures the `n_inter_D`
+  overshoot (+3.14% at t=8). It does not: everything scales 3-4x (peak spread 538.5 bp,
+  `Y_D[0]` -3.68%) with timing untouched — `n_inter_D` still turns positive at t=4 and peaks
+  *higher*, +5.53%. Relative overshoot halves (peak/|trough| 0.465 -> 0.234), so it bites on
+  the right margin but nowhere near enough. Branch deleted, S-1 stands.
 
 ---
 

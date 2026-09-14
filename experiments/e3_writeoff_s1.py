@@ -1,54 +1,67 @@
-"""E3 — S-1: does the sovereign default produce realised bank losses?
+"""E3 — S-1 and the payoff specification.
 
-Two nested variants, because the two switches do different things:
+REBASED 2026-08-18 on the structural GK refactor. The baseline now PRICES the full
+default loss (`zeta_writeoff = 1`), so the old E3 question — "what if the principal
+were written down too?" — is the baseline, not a variant. Two questions remain, and
+the two switches answer one each.
 
-                     writeoff_enabled  zeta_writeoff   steady state
-  baseline                  0               0.0        --
-  E3a  coupon-only          1               0.0        STRICTLY INVARIANT
-  E3b  full writeoff        1               1.0        MOVES, via EL_price
+                              writeoff_enabled  zeta_writeoff   steady state
+  baseline                           0                1.0       --
+  e3a_realised_writeoff              1                1.0       STRICTLY INVARIANT
+  e3b_coupon_only_pricing            0                0.0       STRICTLY INVARIANT
 
-In bond_return_D / government_ss_D / bond_price_ss_D / budget_residual_D:
+`writeoff_enabled` selects which BRANCH the impulse response traces; `zeta_writeoff`
+governs what is PRICED. In bond_return_D / government_ss_D / budget_residual_D:
 
-    current_payoff = delta_b * (1 - def_rate*haircut*writeoff_enabled)
-    continuation   = (1-delta_b)*q_b * (1 - zeta*def_rate*haircut*writeoff_enabled)
+    realised coupon = delta_b * (1 - def_rate*haircut*writeoff_enabled)
+    realised cont.  = (1-delta_b)*q_b * (1 - zeta*def_rate*haircut*writeoff_enabled)
 
-Both legs carry def_rate, which is 0 at SS, so writeoff_enabled is SS-neutral. But
-zeta_writeoff ALSO appears in the EL_price anchor (code/steady_state.py:107-112),
-and there it is NOT gated by writeoff_enabled:
+Both legs carry def_rate, which is 0 at the steady state, so **e3a is exactly
+SS-neutral** — it is the clean S-1 test of whether realised (as opposed to priced)
+losses change the transmission.
 
-    EL_price = (1-recovery) * [delta_b + zeta*(1-delta_b)*q_b] / q_b
+**e3b is the §12 Arm-3 diagnostic**: the pre-refactor coupon-only payoff. Measured
+2026-08-18, it is ALSO exactly SS-neutral, and the reason is worth stating because it
+is not obvious. zeta multiplies the continuation-value haircut `zeta*def_rate*h`, and
+`def_rate_ss = 0` kills that term inside `rb_exp` just as it kills the realised one —
+so the priced and realised payoffs coincide at the steady state whatever zeta is, and
+`q_b_D = 0.974906` in every arm. zeta is allocation-neutral while still changing the
+LINEARISED bond pricing equation, and hence every dynamic result. Expected loss per
+unit of default probability falls from
 
-At the live calibration (recovery=0.30, delta_b_D=0.0777006, q_b_D=0.968941) that
-takes EL_price_D from 0.056134 to ~0.7017 — about 12.5x. EL_price is the loading's
-DENOMINATOR, so this lands directly on SPEC Live Claim 1. Reported, never re-tuned
-away.
+    (1-rec) * [delta_b + (1-delta_b) q_b] / q_b  ~ 0.7014     (zeta = 1)
+to  (1-rec) *  delta_b                   / q_b  ~ 0.0558     (zeta = 0),
 
-Recovery stays at 0.30 (EL-1's resolved Greek-PSI NPV value) rather than
-docs/STATE.md's older recovery=0.40 suggestion, which predates EL-1 and would move
-two dials at once.
+a factor of ~12.6. The gap is the principal/continuation loss on a 12.9-quarter
+claim, and it is what the deleted free parameter `psi_spread_D` used to stand in for.
+e3b is reported to size that contribution, NOT as an economic specification.
+
+Recovery stays at 0.30 (EL-1's resolved Greek-PSI NPV value).
 """
 import numpy as np
 
 from common import calibration_override, load_cache, provenance, write_results
 
 VARIANTS = {
-    "e3a_coupon_only": {"writeoff_enabled_D": 1.0, "writeoff_enabled_F": 1.0,
-                        "zeta_writeoff_D": 0.0, "zeta_writeoff_F": 0.0},
-    "e3b_full": {"writeoff_enabled_D": 1.0, "writeoff_enabled_F": 1.0,
-                 "zeta_writeoff_D": 1.0, "zeta_writeoff_F": 1.0},
+    "e3a_realised_writeoff": {"writeoff_enabled_D": 1.0, "writeoff_enabled_F": 1.0,
+                              "zeta_writeoff_D": 1.0, "zeta_writeoff_F": 1.0},
+    "e3b_coupon_only_pricing": {"writeoff_enabled_D": 0.0, "writeoff_enabled_F": 0.0,
+                                "zeta_writeoff_D": 0.0, "zeta_writeoff_F": 0.0},
 }
+SS_INVARIANT_VARIANT = "e3a_realised_writeoff"
 
 SS_INVARIANT_KEYS = ["q_b_D_ss", "Y_D_ss", "C_D_ss", "I_D_ss", "NX_D_ss",
                      "n_inter_D_ss", "K_D_ss", "TAX_D_ss", "P_CES_D_ss",
                      "b_gov_D_ss", "b_D_D_ss"]
 
 
-def expected_EL_price(cal, q_b_D):
-    """The closed form from code/steady_state.py:107-109.
+def expected_EL_load(cal, q_b_D):
+    """The closed form behind bond_return_D's EL_load_D output.
 
-    Note this must be evaluated at the VARIANT's own solved q_b_D, not the
-    baseline's: EL_price feeds the bond FOC, so under E3b the price moves and the
-    closed form has to be checked against the price the model actually settled on.
+    EL_load is ENDOGENOUS now — an output of the payoff block, not the deleted
+    EL_price_D anchor — so this is a cross-check of the block against its algebra.
+    Evaluate at the VARIANT's own solved q_b_D, not the baseline's: the priced loss
+    feeds the GK portfolio FOC, so a variant that changes zeta moves the price too.
     """
     return ((1.0 - cal["recovery_rate_D"])
             * (cal["delta_b_D"] + cal["zeta_writeoff_D"] * (1.0 - cal["delta_b_D"]) * q_b_D)
@@ -95,7 +108,7 @@ def summarise(cache, gammas):
     eps = np.asarray(cache["dShock_def_D"])
     Y_ss, n_ss = float(cache["Y_D_ss"]), float(cache["n_inter_D_ss"])
 
-    out = {"EL_price_D": float(cache["EL_price_D"]),
+    out = {"EL_load_D": float(cache["EL_load_D"]),
            "A_cb_impact": float(A_cb[0, 0]),
            "regimes": {}}
     for name, gamma in gammas.items():
@@ -160,7 +173,7 @@ def run():
 
     baseline_cache = load_cache()
     baseline_ss = {k: float(baseline_cache[k]) for k in SS_INVARIANT_KEYS}
-    baseline_EL = float(baseline_cache["EL_price_D"])
+    baseline_EL = float(baseline_cache["EL_load_D"])
 
     # Solved ONCE, on the baseline, then held fixed across every variant so the
     # comparison changes the model without also changing the policy.
@@ -168,12 +181,13 @@ def run():
 
     payload = {"provenance": provenance(),
                "gammas": gammas,
-               "gamma_note": "Solved on the BASELINE (0/25/50% peak-spread "
-                             "compression) and held fixed across variants, so a "
-                             "difference in the table is attributable to the writeoff "
-                             "switch alone. Under e3b_full the peak spread is not "
-                             "monotone in gamma, so these targets are not even "
-                             "well-defined there — see compression.",
+               "gamma_note": "Solved on the BASELINE and held fixed across variants, "
+                             "so a difference in the table is attributable to the "
+                             "switch alone. medium = 25% peak-spread compression; "
+                             "aggressive is NOT 50% -- that target sits beyond a "
+                             "closed-loop pole at gamma ~ 27.3, so it falls back to the "
+                             "maximum feasible intervention (~46.6%). See "
+                             "common.named_regime_gammas.",
                "baseline": summarise(baseline_cache, gammas),
                "compression": {"baseline": compression_feasible(baseline_cache)},
                "variants": {}, "checks": {}}
@@ -186,34 +200,38 @@ def run():
         with calibration_override(**overrides):
             cal = calibration.get_calibration()   # resolved at USE time, inside the override
         q_b_D = float(cache["q_b_D_ss"])
-        el_expected = expected_EL_price(cal, q_b_D)
-        el_actual = float(cache["EL_price_D"])
+        el_expected = expected_EL_load(cal, q_b_D)
+        el_actual = float(cache["EL_load_D"])
         assert abs(el_actual - el_expected) < 1e-12, (
-            f"{name}: EL_price_D={el_actual:.9f} != closed form {el_expected:.9f}. "
-            f"code/steady_state.py:107-109 no longer matches this experiment's model "
-            f"of it — reconcile before reporting.")
+            f"{name}: EL_load_D={el_actual:.9f} != closed form {el_expected:.9f}. "
+            f"code/equations_D.py bond_return_D no longer matches this experiment's "
+            f"model of it — reconcile before reporting.")
 
         drift = {k: float(cache[k]) - baseline_ss[k] for k in SS_INVARIANT_KEYS}
         max_drift = max(abs(v) for v in drift.values())
-        payload["checks"][name] = {"EL_price_expected": el_expected,
-                                   "EL_price_actual": el_actual,
-                                   "EL_price_vs_baseline_ratio": el_actual / baseline_EL,
+        payload["checks"][name] = {"EL_load_expected": el_expected,
+                                   "EL_load_actual": el_actual,
+                                   "EL_load_vs_baseline_ratio": el_actual / baseline_EL,
                                    "max_ss_drift": max_drift,
                                    "ss_drift": drift}
 
-        if name == "e3a_coupon_only":
+        if name == SS_INVARIANT_VARIANT:
             # writeoff_enabled multiplies terms that already carry def_rate_ss = 0,
-            # and zeta is unchanged, so the SS must be bit-identical. Drift is a bug.
+            # and zeta is unchanged from baseline, so the SS must be bit-identical.
             assert max_drift < 1e-10, (
-                f"E3a moved the steady state (max drift {max_drift:.3e}). "
+                f"{name} moved the steady state (max drift {max_drift:.3e}). "
                 f"writeoff_enabled is supposed to be SS-neutral — every writeoff term "
                 f"is multiplied by def_rate_ss=0. Investigate before reporting.")
         else:
-            # E3b DOES move the SS, through EL_price. Asserting invariance here would
-            # be wrong; the closed-form check above is the check that applies. What we
-            # do assert is that the override reached the solve at all.
+            # e3b is SS-neutral too (zeta multiplies def_rate_ss = 0 inside rb_exp), so
+            # assert BOTH: the allocation does not move, and the priced loading does.
+            # The second half is what proves the override actually reached the solve.
+            assert max_drift < 1e-10, (
+                f"{name} moved the steady state (max drift {max_drift:.3e}). zeta is "
+                f"allocation-neutral: it multiplies def_rate_ss = 0 in both rb_exp and "
+                f"rb_actual. Investigate before reporting.")
             assert abs(el_actual - baseline_EL) > 1e-6, (
-                f"E3b's EL_price ({el_actual:.9f}) is indistinguishable from baseline "
+                f"{name}'s EL_load ({el_actual:.9f}) is indistinguishable from baseline "
                 f"({baseline_EL:.9f}) — the zeta override did not reach the SS solve.")
 
     write_results("e3_writeoff_s1", payload)
@@ -222,7 +240,7 @@ def run():
 
 if __name__ == "__main__":
     res = run()
-    print(f"\n{'setting':>18} {'EL_price':>10} {'peak bp (passive)':>18} "
+    print(f"\n{'setting':>24} {'EL_load':>10} {'peak bp (passive)':>18} "
           f"{'loading (medium)':>17} {'loading (aggr.)':>16}")
     print("-" * 84)
     rows = [("baseline", res["baseline"])] + list(res["variants"].items())
@@ -230,13 +248,13 @@ if __name__ == "__main__":
         def ld(reg):
             v = r["regimes"][reg]["loading"]
             return "n/a" if v is None else f"{v:.2f}"
-        print(f"{name:>18} {r['EL_price_D']:>10.4f} "
+        print(f"{name:>24} {r['EL_load_D']:>10.4f} "
               f"{r['regimes']['passive']['peak_spread_bp_ann']:>18.1f} "
               f"{ld('medium'):>17} {ld('aggressive'):>16}")
     print("-" * 84)
     for name, c in res["checks"].items():
-        print(f"{name}: EL_price {c['EL_price_actual']:.6f} (closed form "
-              f"{c['EL_price_expected']:.6f}, {c['EL_price_vs_baseline_ratio']:.2f}x "
+        print(f"{name}: EL_load {c['EL_load_actual']:.6f} (closed form "
+              f"{c['EL_load_expected']:.6f}, {c['EL_load_vs_baseline_ratio']:.2f}x "
               f"baseline), max SS drift {c['max_ss_drift']:.3e}")
 
     print(f"\n{'setting':>18} {'compression targeting':>22} {'peak@g=0':>10} "
@@ -251,6 +269,7 @@ if __name__ == "__main__":
     print("Where compression targeting is INFEASIBLE the named regimes are undefined "
           "(no unique gamma delivers a given compression), so all rows above are "
           "evaluated at the BASELINE's gammas held fixed.")
-    print("\npsi_lambda_B was tuned to 150bp with realised losses OFF. Any overshoot "
-          "here is a REPORTABLE FACT about whether the target survives S-1, not a "
-          "number to re-tune away.")
+    print("\nThe baseline no longer tunes any parameter to a 150bp moment — psi_lambda_B "
+          "is 0 and psi_spread is deleted. Whatever peak spread these variants produce "
+          "is a REPORTABLE FACT about the payoff specification, not a number to re-tune "
+          "away.")

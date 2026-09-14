@@ -238,7 +238,9 @@ def _caption_fig02(gammas, loading, peak_bp, payload):
     g_lo, g_hi = float(gammas[ok][0]), float(gammas[ok][-1])
     l_lo, l_hi = float(np.asarray(loading)[ok][0]), float(np.asarray(loading)[ok][-1])
     falling = _monotone(loading, -1)
-    above_one = bool(np.all(np.asarray(loading)[ok] > 1.0))
+    arr = np.asarray(loading)[ok]
+    above_one = bool(np.all(arr > 1.0))
+    below_one = bool(np.all(arr < 1.0))
 
     named = {k: v["loading"] for k, v in payload["regimes"].items()
              if v["loading"] is not None}
@@ -248,9 +250,16 @@ def _caption_fig02(gammas, loading, peak_bp, payload):
              "falls on net but not monotonically" if l_hi < l_lo else
              "does NOT fall — the self-extinguishing-premium claim fails at this "
              "calibration and must not be asserted")
+    # Three cases, not two. The old two-branch version assumed the loading STARTS above
+    # 1 and asked only whether it crosses; since the 2026-08-18 payoff repair it starts
+    # at 0.53 and is below 1 throughout, which the "crossing below ... before the grid
+    # ends" wording described backwards.
     floor = (" and stays above the actuarially fair benchmark of 1 throughout"
              if above_one else
-             ", crossing below the actuarially fair benchmark of 1 before the grid ends")
+             " and stays BELOW the actuarially fair benchmark of 1 throughout — the ECB "
+             "is under-compensated at every intervention intensity, so the paper must "
+             "NOT assert over-compensation" if below_one else
+             ", crossing the actuarially fair benchmark of 1 within the grid")
     peak_txt = (f"peak spread compresses {peak_bp[0]:.0f}bp → {peak_bp[-1]:.0f}bp "
                 f"over the same grid")
     return (f"KEY FIGURE — the ECB's compensation per unit of expected loss {shape} from "
@@ -566,12 +575,15 @@ def fig08_deciles():
     A_def, A_cb = d["spread_rb__shock_def_D"], d["spread_rb__cb_buy_D"]
     mass_ss, c_ss = d["qnt_mass_ss"], d["qnt_c_ss"]
 
-    # gamma solved on THIS cache, so the regimes mean the same thing they do
-    # everywhere else in the paper (0/25/50% peak-spread compression).
-    from lottery_math import gamma_for_compression
-    gam = {"passive": 0.0,
-           "medium": float(gamma_for_compression(A_def, A_cb, eps, target=0.25)),
-           "aggressive": float(gamma_for_compression(A_def, A_cb, eps, target=0.50))}
+    # gamma solved on THIS cache, so the regimes mean the same thing they do everywhere
+    # else in the paper. Routed through common.named_regime_gammas rather than calling
+    # gamma_for_compression directly: since 2026-08-18 the aggressive target is
+    # unreachable below the closed-loop pole and falls back to the maximum feasible
+    # intervention, and a second copy of the solve here would silently skip that
+    # handling and raise. One definition of the regimes, not two.
+    from common import named_regime_gammas as _nrg
+    gam = _nrg({"spread_rb__shock_def_D": A_def, "spread_rb__cb_buy_D": A_cb,
+                "dShock_def_D": eps})
 
     H, beta = 40, float(d["beta_D_ss"])
     disc = beta ** np.arange(H)
@@ -684,60 +696,104 @@ def _caption_fig08(paths, pv, n_qnt, H):
             f"consumption to the lowest quintile against {g_hi:+.2f}% to the highest.")
 
 
-def fig04_spread_decomposition(cache, ss_tl):
-    el, ps = float(ss_tl["EL_price_D"]), float(ss_tl["psi_spread_D"])
-    total = el + ps
-    s_el, s_ps = 100 * el / total, 100 * ps / total
+def fig04_spread_decomposition(cache, ss_tl, regimes):
+    """Spread path against the expected-loss pricing it starts from.
 
-    fig, ax = plt.subplots(figsize=(9, 2.9))
-    # 0.6pt surface gap between the segments so the boundary reads as a division
-    # rather than a colour change.
-    ax.barh([0], [s_el], color=BLUE, zorder=3, height=0.42,
-            label="fundamental expected loss", edgecolor="white", lw=1.2)
-    ax.barh([0], [s_ps], left=[s_el], color=ORANGE, zorder=3, height=0.42,
-            label="collateral-friction wedge", edgecolor="white", lw=1.2)
-    # The small segment cannot hold an inside label at 3% of the width — annotate
-    # it above with a leader instead of clipping text against the axis.
-    ax.annotate(f"{s_el:.1f}%", xy=(s_el / 2, 0.21), xytext=(s_el / 2, 0.52),
-                ha="center", fontsize=9.5, color=INK, weight="bold",
-                arrowprops=dict(arrowstyle="-", color=MUTED, lw=0.8))
-    ax.text(s_el + s_ps / 2, 0, f"{s_ps:.1f}%", ha="center", va="center",
-            fontsize=13, color="white", weight="bold")
-    ax.set_xlim(0, 100)
-    ax.set_ylim(-0.45, 0.78)
-    ax.set_yticks([])
-    ax.spines[["top", "right", "left"]].set_visible(False)
-    ax.spines["bottom"].set_color(MUTED)
-    ax.tick_params(colors=MUTED, labelsize=8)
-    ax.set_xlabel("share of the total default loading (%)", fontsize=9, color=MUTED)
-    ax.legend(frameon=False, fontsize=8.5, labelcolor=INK, ncol=2,
-              loc="lower center", bbox_to_anchor=(0.5, -0.62))
-    ax.set_title(f"Default loading per unit of default probability  =  "
-                 f"EL_price {el:.4f}  +  ψ_spread {ps:.4f}",
-                 fontsize=9.5, color=INK, pad=12)
-    fig.tight_layout()
-    save(fig, "fig04_spread_decomposition", _caption_fig04(el, ps, s_el, s_ps))
-    return el, ps
+    REWRITTEN 2026-08-18. The previous version was a two-segment bar splitting the
+    default loading into `EL_price_D` and `psi_spread_D`, captioned "x% fundamental /
+    y% non-fundamental". Both objects are deleted, and the split was not
+    interpretable in the first place: `psi_spread_D` was a free parameter absorbing
+    the principal-loss term that `zeta_writeoff = 0` had left out of the bond payoff,
+    so the "friction share" was mostly a calibration artefact. In a linearised
+    equilibrium model there is no such thing as a fundamental/non-fundamental share of
+    an endogenous price anyway — every channel operates simultaneously.
 
+    What replaces it is a MECHANISM chart with no share arithmetic. Three series, all in
+    the same units (annualised bp of yield), all read off the same solved path:
 
-def _caption_fig04(el, ps, s_el, s_ps):
-    """The split is a ratio of two SOLVED steady-state objects, so derive it.
+    1. **Direct expected-loss pricing of the Greek yield.** The bond price path implied
+       by the realised `def_rate_D` path when the intermediary's required excess return
+       is held at its steady-state value `s0 = Delta_bD_D * (rk_ss - rdep_ss)`. Solved by
+       backward recursion on the model's OWN pricing condition,
 
-    Total default loading per unit of default probability, from the bond-pricing
-    FOC (`code/equations_D.py:566`):  EL_price_D + psi_spread_D. The first is the
-    fundamental expected loss, `(1-recovery)*delta_b/q_b`; the second is the
-    collateral-friction wedge, `lambda_gk * psi_lambda_B / (beta_inter * Omega)`
-    (`code/steady_state.py:104`) and is therefore LINEAR in `psi_lambda_B`. The
-    literal "3% / 97%" here was computed at `psi_lambda_B = 8.5` and had to be
-    re-derived when the sticky-price re-tune moved it to 7.85; it is now read off
-    the same two numbers the bar is drawn from and the title prints.
+           q_t = (1 - h*d_{t+1}) * [delta_b + (1-delta_b)*q_{t+1}] / (1 + s0),
+
+       terminating at `q_ss`, then read as `delta_b*(1/q_t - 1)`. Forward-consistent, so
+       it correctly reflects that the shock decays at `rho_def`.
+    2. **Equilibrium Greek yield** — the same object with the intermediary's required
+       return free to move.
+    3. **Equilibrium GR–DE spread**, which additionally contains the German leg.
+
+    UNITS TRAP THIS FIXES. A first draft plotted `EL_load_D * def_rate_D`, which is a
+    ONE-PERIOD expected capital-loss rate, against `spread_rb`, which is a per-period
+    COUPON-EQUIVALENT yield. They are not commensurate: it read 331bp against a 206bp
+    spread, i.e. an "amplification factor" of 0.62, which is an artefact of the mismatch
+    and not a mechanism. The recursion above puts both on the yield measure.
+
+    WHAT THE CHART ACTUALLY SHOWS, which is not what the old figure claimed. Direct
+    expected-loss pricing accounts for essentially the whole Greek yield response
+    (213.8bp against an equilibrium 189.7bp on impact). The intermediary channel is a
+    modest OFFSET at the price — general-equilibrium movement in `rk_D` and `rdep_D`
+    lowers the required return slightly — while being a large amplifier for QUANTITIES
+    (`n_inter_D` -11.4%, `Y_D` -1.97%). The spread exceeds the Greek yield because the
+    German leg falls (flight to quality), not because of amplification on the Greek leg.
     """
-    return (f"Only {s_el:.1f}% of the sovereign default loading is fundamental expected "
-            f"loss (EL_price = {el:.4f}); the other {s_ps:.1f}% is the collateral-friction "
-            f"wedge charged by a constrained intermediary (ψ_spread = {ps:.4f}, linear in "
-            f"the one free amplification parameter). That is why the risk is priced far "
-            f"above fair value, and why moving it to an unconstrained holder is an "
-            f"efficiency gain rather than a transfer.")
+    irf = regimes["passive"][1]
+    H, T = 40, 200
+    t = np.arange(H)
+    q_ss = float(ss_tl["q_b_D"])
+    db = float(ss_tl["delta_b_D"])
+    h = 1.0 - float(ss_tl["recovery_rate_D"])
+    s0 = db * (1.0 / q_ss - 1.0)          # SS required excess return (rdep_ss = 0)
+    d = np.asarray(irf["def_rate_D"])[:T]  # deviation == level, def_rate_ss = 0
+
+    q = np.full(T + 1, q_ss)
+    for i in range(T - 1, -1, -1):
+        dn = d[i + 1] if i + 1 < T else 0.0
+        q[i] = (1.0 - h * dn) * (db + (1.0 - db) * q[i + 1]) / (1.0 + s0)
+    y0 = db * (1.0 / q_ss - 1.0)
+    direct = (db * (1.0 / q[:H] - 1.0) - y0) * BP_ANN
+    y_D = np.asarray(irf["rb_D"])[:H] * BP_ANN
+    spread = np.asarray(irf["spread_rb"])[:H] * BP_ANN
+
+    fig, ax = plt.subplots(figsize=(9, 3.8))
+    ax.fill_between(t, 0, direct, color=BLUE, alpha=0.28, zorder=1)
+    ax.plot(t, direct, color=BLUE, lw=1.6, ls="--", zorder=3,
+            label="Greek yield under direct expected-loss pricing\n"
+                  "(required return held at steady state)")
+    ax.plot(t, y_D, color=INK, lw=2.2, zorder=4, label="equilibrium Greek yield")
+    ax.plot(t, spread, color=ORANGE, lw=2.0, zorder=4,
+            label="equilibrium GR–DE spread (adds the German leg)")
+    ax.set_xlim(0, H - 1)
+    ax.set_xlabel("quarters after the 1pp Greek default-probability shock",
+                  fontsize=9, color=MUTED)
+    ax.set_ylabel("bp, annualised", fontsize=9, color=MUTED)
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.spines[["bottom", "left"]].set_color(MUTED)
+    ax.tick_params(colors=MUTED, labelsize=8)
+    ax.legend(frameon=False, fontsize=8, labelcolor=INK, loc="upper right")
+    ax.set_title("Where the Greek spread comes from: the bond payoff, priced by the "
+                 "intermediary", fontsize=9.5, color=INK, pad=10)
+    fig.tight_layout()
+    peak_sp = float(spread.max())
+    save(fig, "fig04_spread_decomposition",
+         _caption_fig04(float(ss_tl["EL_load_D"]), peak_sp, float(direct.max()),
+                        float(y_D.max())))
+    return float(ss_tl["EL_load_D"]), peak_sp
+
+
+def _caption_fig04(el_load, peak_sp, peak_dir, peak_yD):
+    """Derived from the solved path, not from any parameter."""
+    return (f"The sovereign spread is generated by the bond's state-contingent payoff "
+            f"inside the intermediary's portfolio optimality condition, not by any spread "
+            f"parameter. Pricing the expected loss on the perpetuity — coupon *and* "
+            f"continuation value, {el_load:.4f} per unit of default probability — at a "
+            f"required return frozen at its steady-state level already accounts for "
+            f"{peak_dir:.0f}bp of Greek yield, against an equilibrium {peak_yD:.0f}bp: the "
+            f"intermediary channel is a modest offset at the price while being a large "
+            f"amplifier for quantities. The {peak_sp:.0f}bp spread exceeds the Greek yield "
+            f"because the German leg falls in a flight to quality. These are joint "
+            f"mechanisms along one equilibrium path, not separable shares of the price.")
 
 
 def fig05_incidence(cache, payload, gammas):
@@ -907,9 +963,11 @@ def tables(cache, payload, ss_tl, el, ps, dist=None):
             ("n/a" if payload["regimes"][k]["loading"] is None
              else f"**{payload['regimes'][k]['loading']:.2f}**") for k in payload["regimes"]) + " |",
         "",
-        f"Default loading decomposition: `EL_price = {el:.6f}`, `psi_spread = {ps:.6f}` → "
-        f"fundamental expected loss is **{100 * el / (el + ps):.1f}%** of the total and the "
-        f"collateral-friction wedge is **{100 * ps / (el + ps):.1f}%**.", "",
+        f"Sovereign-spread mechanism: expected loss on the perpetuity is `EL_load_D = "
+        f"{el:.6f}` per unit of default probability (coupon *and* continuation value, "
+        f"`zeta_writeoff = 1`), priced inside the GK portfolio FOC. Equilibrium peak "
+        f"spread is **{ps:.1f} bp** annualised. There is no separate spread parameter and "
+        f"no fundamental/non-fundamental share — see fig04.", "",
         "## Table 4 — Distributional incidence, by income quintile", "",
         "PV of the consumption response over 40 quarters, % of each quintile's own "
         "steady-state consumption. Bins are cut on the **exogenous income state**, whose "
@@ -952,7 +1010,7 @@ def main():
     fig01_transmission(cache, regimes)
     gammas, _loading, _peak = fig02_loading_schedule(cache, regimes, payload)
     fig03_dy_decomposition(cache, regimes)
-    el, ps = fig04_spread_decomposition(cache, ss_tl)
+    el, ps = fig04_spread_decomposition(cache, ss_tl, regimes)
     fig05_incidence(cache, payload, gammas)
     fig06_net_effects(cache, regimes)
     fig07_ms_regimes()
