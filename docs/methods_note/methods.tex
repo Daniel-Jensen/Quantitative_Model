@@ -1,0 +1,910 @@
+\documentclass[11pt]{article}
+
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{verbatim}
+\usepackage[colorlinks=true,linkcolor=blue!55!black,citecolor=blue!55!black,
+            urlcolor=blue!55!black]{hyperref}
+
+\definecolor{codecm}{RGB}{120,130,140}
+
+% render all verbatim code blocks in a smaller monospace font
+\makeatletter
+\renewcommand{\verbatim@font}{\normalfont\ttfamily\small}
+\makeatother
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}{Proposition}
+\newtheorem{definition}{Definition}
+\newtheorem{remark}{Remark}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Tcheb}{T}
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\half}{\tfrac{1}{2}}
+
+\title{\vspace{-1.2cm}\bfseries Chebyshev Collocation, Smolyak Sparse Grids,
+and Two-Branch Quadrature\\[4pt]
+\large A Textbook Companion to the Global Solver in \code{code/bocola2016/}}
+\author{Computational methods note --- Bocola (2016) replication package}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent This note explains, at a graduate textbook level, the numerical
+machinery that the \code{code/bocola2016/} package uses to solve a recursive
+competitive equilibrium with priced sovereign default risk. Three ideas do
+the work. \textbf{Chebyshev polynomial approximation} turns an unknown
+policy function into a short vector of coefficients with near-optimal,
+spectrally accurate interpolation on carefully chosen nodes.
+\textbf{Smolyak sparse grids} extend that construction to six state
+variables without paying the tensor-product ``curse of dimensionality.''
+And a \textbf{two-branch Gauss--Hermite quadrature} evaluates the
+conditional expectations inside the agents' Euler equations, splitting the
+future into a no-default and a default continuation weighted by a priced
+probability. For each idea we give the underlying theory, the specific
+numerical hazards it carries, and the exact place in the code where it
+lives. The recurring theme is that every one of these tools is a controlled
+approximation whose error is well understood only inside a region the model
+actually visits---and that respecting that region (clipping, rotation,
+smoothing, best-iterate tracking) is what separates a working global solver
+from a diverging one.
+\end{abstract}
+
+\tableofcontents
+
+\vspace{0.5cm}
+\section{The problem being solved}
+\label{sec:problem}
+
+The model is a detrended recursive competitive equilibrium. The aggregate
+state is the six-vector
+\[
+S \;=\; (\,\underbrace{K,\;B,\;P}_{\text{endogenous}},\;
+\underbrace{\Delta z,\;g,\;s}_{\text{exogenous}}\,)\in\R^{6},
+\]
+capital $K$, the sovereign bond stock $B$, banks' promised deposit payment
+$P$, the technology growth innovation $\Delta z$, the fiscal shock $g$, and
+the \emph{risk factor} $s$ that governs the priced probability of a
+sovereign default next period. A solution is not a number or a finite path;
+it is a set of \emph{decision rules}---functions of the state---for
+consumption $C(S)$, the deposit rate $R(S)$, the bond price $Q_B(S)$, and
+the banker's marginal value of wealth $\alpha(S)$ (written \code{av} in the
+code). These functions must satisfy, at \emph{every} point of the state
+space, a system of functional equations: three Euler equations (deposits,
+capital, sovereign bonds), the recursion for $\alpha(S)$, and an
+occasionally-binding leverage constraint.
+
+Two facts force a \emph{global, nonlinear} method rather than a local
+(perturbation) one. First, the leverage constraint binds only
+occasionally---it is slack in normal times and tightens sharply in
+stress---so the policy functions have a \emph{kink} that a Taylor expansion
+around the balanced-growth path cannot capture. Second, the object of
+interest is precisely the behaviour far from that path (a sovereign-risk
+crisis). A global method represents each unknown function by a finite basis
+expansion and pins down the coefficients by forcing the residual of the
+functional equations to zero at a finite set of \emph{collocation nodes}.
+This is the \emph{projection} (or \emph{weighted-residual}) approach. Three
+questions organize the rest of the note:
+
+\begin{enumerate}
+\item \textbf{Which basis and which nodes?} $\;\to\;$ Chebyshev polynomials
+      on Chebyshev--Lobatto nodes (\S\ref{sec:cheb}).
+\item \textbf{How to do this in six dimensions?} $\;\to\;$ Smolyak sparse
+      grids (\S\ref{sec:smolyak}).
+\item \textbf{How to evaluate the expectations that make the equations
+      \emph{Euler} equations?} $\;\to\;$ two-branch Gauss--Hermite quadrature
+      (\S\ref{sec:branch}).
+\end{enumerate}
+
+\noindent Section~\ref{sec:risks} is devoted entirely to the numerical
+\emph{risks}---the ways each tool fails, and how the code defends against
+them.
+
+
+\section{Univariate Chebyshev approximation}
+\label{sec:cheb}
+
+Everything multidimensional in this code is built from one univariate
+object, so we start there. The goal is to approximate a smooth function
+$f:[-1,1]\to\R$ by a polynomial $p_n$ of degree $n$ such that (i) the error
+is as small as possible, (ii) the map from function values to coefficients
+is well conditioned, and (iii) both are cheap to evaluate.
+
+\subsection{Chebyshev polynomials of the first kind}
+
+\begin{definition}
+The Chebyshev polynomials of the first kind are defined on $[-1,1]$ by
+\[
+\Tcheb_k(x) \;=\; \cos\!\big(k\arccos x\big), \qquad k=0,1,2,\dots
+\]
+\end{definition}
+
+\noindent The definition looks trigonometric but $\Tcheb_k$ is a genuine
+polynomial of degree $k$: with $x=\cos\theta$, $\cos(k\theta)$ expands into
+powers of $\cos\theta$. Equivalently, and this is exactly how the code
+computes them, they obey the three-term recurrence
+\begin{equation}
+\Tcheb_0(x)=1,\qquad \Tcheb_1(x)=x,\qquad
+\Tcheb_{k}(x)=2x\,\Tcheb_{k-1}(x)-\Tcheb_{k-2}(x).
+\label{eq:recur}
+\end{equation}
+This recurrence is the entire content of \code{chebyshev\_basis\_1d} in
+\code{smolyak.py}:
+\begin{verbatim}
+def chebyshev_basis_1d(x, max_deg):
+    T = np.empty((x.size, max_deg + 1))
+    T[:, 0] = 1.0
+    if max_deg >= 1:
+        T[:, 1] = x
+    for k in range(2, max_deg + 1):
+        T[:, k] = 2.0 * x * T[:, k - 1] - T[:, k - 2]
+    return T
+\end{verbatim}
+The recurrence is used rather than the monomial form $\sum a_k x^k$ because
+the monomial (Vandermonde) representation is catastrophically
+ill-conditioned---the basis functions $x^k$ become nearly linearly
+dependent as $k$ grows---whereas \eqref{eq:recur} is numerically stable.
+
+\begin{proposition}[Orthogonality]
+Under the weight $w(x)=(1-x^2)^{-1/2}$,
+\[
+\int_{-1}^{1}\frac{\Tcheb_j(x)\,\Tcheb_k(x)}{\sqrt{1-x^2}}\,dx
+=\begin{cases}0 & j\neq k,\\ \pi & j=k=0,\\ \pi/2 & j=k\ge 1.\end{cases}
+\]
+\end{proposition}
+This is the change of variables $x=\cos\theta$ applied to the elementary
+orthogonality of $\{\cos k\theta\}$ on $[0,\pi]$. Orthogonality is what makes
+a Chebyshev expansion a \emph{cosine series in disguise}: approximating
+$f(x)$ by $\sum_k c_k \Tcheb_k(x)$ is the same as approximating the even,
+$2\pi$-periodic function $f(\cos\theta)$ by a Fourier cosine series. All the
+good behaviour of Fourier series on periodic functions transfers, without
+their bad behaviour at non-periodic endpoints.
+
+\subsection{The nodes: why not equispaced?}
+\label{sec:runge}
+
+A degree-$n$ interpolant is pinned by $n+1$ nodes. The naive choice---evenly
+spaced points---is a disaster for polynomial interpolation. The classic
+counterexample is Runge's function $f(x)=1/(1+25x^2)$: as the degree rises,
+the equispaced interpolant develops ever-larger oscillations near
+$x=\pm1$ and \emph{diverges} in the sup norm, even though $f$ is perfectly
+smooth (Figure~\ref{fig:runge}, left). This is the \emph{Runge phenomenon},
+and it reflects a deep fact: interpolation on equispaced nodes is
+exponentially ill-conditioned.\footnote{See the discussion of
+Runge/Lebesgue in Trefethen's \emph{Approximation Theory and Approximation
+Practice}, and the survey references collected at the end of this note.}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{runge.pdf}
+\caption{Degree-14 polynomial interpolation of Runge's function. Equispaced
+nodes (left) oscillate wildly near the endpoints; Chebyshev--Lobatto nodes
+(right) track the function. Same degree, same function---only the node
+placement differs.}
+\label{fig:runge}
+\end{figure}
+
+The cure is to cluster nodes toward the endpoints. The \emph{Chebyshev
+extrema}, also called \emph{Chebyshev--Lobatto} or \emph{Clenshaw--Curtis}
+points, do exactly this:
+\begin{equation}
+x_k \;=\; -\cos\!\Big(\frac{\pi k}{m-1}\Big),\qquad k=0,\dots,m-1,
+\label{eq:extrema}
+\end{equation}
+which are the projections onto the $x$-axis of $m$ equally spaced points on
+the upper unit semicircle (Figure~\ref{fig:nodes}). This is the
+\code{\_level\_points} routine in \code{smolyak.py}. Their density near
+$\pm1$ scales like $(1-x^2)^{-1/2}$---exactly the Chebyshev weight---so the
+interpolation problem becomes well conditioned.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.72\textwidth]{nodes.pdf}
+\caption{The Chebyshev--Lobatto nodes \eqref{eq:extrema} are equally spaced
+\emph{angles} on the semicircle projected down onto $[-1,1]$; the projection
+clusters them near the endpoints, which is what tames the Runge
+phenomenon.}
+\label{fig:nodes}
+\end{figure}
+
+\subsection{The Lebesgue constant: near-optimality}
+\label{sec:lebesgue}
+
+The quality of a set of nodes is measured by the \emph{Lebesgue constant}
+$\Lambda_n$, the operator norm of the interpolation map from
+$C[-1,1]$ to itself. It bounds how far interpolation can be from the best
+possible polynomial approximation $p_n^\star$:
+\begin{equation}
+\|f-p_n\|_\infty \;\le\; \big(1+\Lambda_n\big)\,\|f-p_n^\star\|_\infty .
+\label{eq:lebesgue}
+\end{equation}
+A small $\Lambda_n$ means ``interpolating is almost as good as doing the best
+you possibly could.'' The contrast is stark:
+\[
+\Lambda_n^{\text{equispaced}} \sim \frac{2^{n+1}}{e\,n\log n}
+\quad(\text{exponential}),
+\qquad
+\Lambda_n^{\text{Chebyshev}} \sim \frac{2}{\pi}\log n
+\quad(\text{logarithmic}).
+\]
+Chebyshev nodes are not \emph{exactly} optimal---the minimizing nodes have
+no closed form---but they capture essentially all of the available accuracy,
+with a Lebesgue constant that grows so slowly ($\log n$) that it is
+irrelevant in practice. This is the precise sense of the phrase ``Chebyshev
+interpolation is near-minimax.''
+
+\subsection{Convergence rate: spectral accuracy}
+\label{sec:spectral}
+
+How fast does the error fall as we add degrees? The answer depends entirely
+on the smoothness of $f$:
+
+\begin{theorem}[Rate governed by smoothness]
+Let $p_n$ be the degree-$n$ Chebyshev interpolant of $f$ on $[-1,1]$.
+\begin{itemize}
+\item If $f$ has $\nu$ continuous derivatives with bounded variation, then
+      $\|f-p_n\|_\infty = O(n^{-\nu})$ (\emph{algebraic}).
+\item If $f$ is analytic in a Bernstein ellipse with parameter $\rho>1$
+      around $[-1,1]$, then $\|f-p_n\|_\infty = O(\rho^{-n})$
+      (\emph{geometric / spectral}).
+\end{itemize}
+\end{theorem}
+
+\noindent Figure~\ref{fig:conv} shows both regimes on Chebyshev nodes: the
+analytic target $e^{\sin 3x}$ hits machine precision by degree $\sim30$
+(straight line on a log scale = geometric decay), while the kinked target
+$|x-0.2|$ crawls down algebraically. This dichotomy is the single most
+important fact for the model at hand. Where its policy functions are smooth,
+a handful of Chebyshev degrees delivers near-machine accuracy. But the
+occasionally-binding leverage constraint injects a kink into the true
+policy, and \emph{at that kink the spectral rate collapses to algebraic}---a
+polynomial basis chasing a non-smooth target produces Gibbs-type ringing.
+This is not a coding defect; it is a theorem about polynomials, and it
+motivates the smoothing devices of \S\ref{sec:risks}.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.62\textwidth]{convergence.pdf}
+\caption{Maximum interpolation error versus polynomial degree on Chebyshev
+nodes. Analytic functions converge geometrically (spectral accuracy); a
+kink forces algebraic convergence. The model's occasionally-binding
+constraint puts a kink in the policy, so the second curve is the relevant
+warning.}
+\label{fig:conv}
+\end{figure}
+
+\subsection{Collocation as a linear solve}
+\label{sec:collocation}
+
+Fix the degrees $\{0,1,\dots,n\}$ and the nodes $\{x_k\}_{k=0}^{n}$. Writing
+the interpolant as $p(x)=\sum_{j} c_j \Tcheb_j(x)$ and demanding
+$p(x_k)=f(x_k)$ at every node gives the square linear system
+\begin{equation}
+\underbrace{\big[\Tcheb_j(x_k)\big]_{k,j}}_{\text{basis matrix }\Phi}
+\; c \;=\; f,
+\label{eq:collocation}
+\end{equation}
+so the coefficients are $c=\Phi^{-1}f$. Because $\Phi$ depends only on the
+grid, not on $f$, the code factorizes it \emph{once} (an LU factorization)
+and reuses it every time it needs coefficients from values. In
+\code{SmolyakGrid} this is the pair \code{fit} (solve for $c$) and
+\code{eval} (form $\Phi(x)c$ at arbitrary points), with the LU factor
+\code{self.\_lu} built in the constructor. Two consequences worth
+internalizing:
+
+\begin{itemize}
+\item \textbf{Interpolation is exact at the nodes by construction.} The
+      interpolant reproduces $f$ at every collocation point to rounding
+      error; all approximation error lives \emph{between} nodes.
+\item \textbf{Evaluating the interpolant outside $[-1,1]$ is extrapolation},
+      and Chebyshev extrapolation grows like $|\Tcheb_n(x)|\sim
+      |x+\sqrt{x^2-1}|^{\,n}$---explosively. This is the single most
+      dangerous property of the whole scheme and is treated in
+      \S\ref{sec:risk-extrap}.
+\end{itemize}
+
+Finally, the code maps the model's natural state box $[\ell,h]$ onto the
+reference interval by the affine transform
+$u=2(x-\ell)/(h-\ell)-1$ (\code{to\_unit}/\code{from\_unit}); all Chebyshev
+machinery lives in the $u\in[-1,1]$ coordinates.
+
+
+\section{Smolyak sparse grids}
+\label{sec:smolyak}
+
+Section \ref{sec:cheb} solved the one-dimensional problem. The model has
+six state dimensions. The obvious extension---a \emph{tensor product} of
+one-dimensional grids---is computationally fatal, and the fix is Smolyak's
+1963 construction, brought into economics by Krueger and Kubler (2004) and
+refined by Judd, Maliar, Maliar and Valero (2014).
+
+\subsection{The tensor-product curse}
+
+A tensor grid with $m$ points per dimension has $m^{d}$ points in $d$
+dimensions. With a modest $m=5$ and the model's $d=6$ that is
+$5^6=15{,}625$ collocation nodes---and every node requires solving the
+agents' nonlinear system and a full expectation, at every outer iteration.
+At $m=9$ it is over half a million. The count grows \emph{geometrically in
+the dimension}: this is Bellman's \emph{curse of dimensionality}
+(Figure~\ref{fig:growth}, grey line). Tensor grids are simply not an option
+past three or four states.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.6\textwidth]{growth.pdf}
+\caption{Node count versus state dimension. A tensor product explodes
+geometrically; the Smolyak grids at levels $\mu=2,3$ grow polynomially.
+At the model's $d=6$ the Smolyak grid has $85$ ($\mu{=}2$) or $389$
+($\mu{=}3$) nodes---versus tens of thousands for a comparable tensor grid.}
+\label{fig:growth}
+\end{figure}
+
+\subsection{Nested one-dimensional levels}
+
+The Smolyak idea rests on a sequence of \emph{nested} one-dimensional grids.
+Define level $i$ to have $m_i$ Chebyshev--Lobatto points, with
+\begin{equation}
+m_1=1,\qquad m_i = 2^{\,i-1}+1 \ \ (i\ge2)\ \Rightarrow\ m=1,3,5,9,17,\dots
+\label{eq:levels}
+\end{equation}
+The doubling rule \eqref{eq:levels} makes the grids \emph{nested}: every
+point of level $i$ is also a point of level $i{+}1$
+(\code{\_level\_points}). Nestedness is what lets Smolyak add resolution
+without recomputing anything, and it is why Clenshaw--Curtis/Chebyshev
+extrema (rather than, say, Gauss points) are the natural building block. The
+code works with the \emph{incremental} sets---the points and the polynomial
+degrees that are \emph{new} at level $i$:
+\begin{verbatim}
+def _new_points(i):        # points introduced at level i (disjoint across i)
+    if i == 1: return np.array([0.0])
+    if i == 2: return np.array([-1.0, 1.0])
+    return _level_points(i)[1::2]     # odd positions absent from level i-1
+
+def _new_degrees(i):       # Chebyshev degrees introduced at level i
+    if i == 1: return np.array([0])
+    if i == 2: return np.array([1, 2])
+    return np.arange(2**(i-2)+1, 2**(i-1)+1)
+\end{verbatim}
+Crucially $|\,$new points$\,|=|\,$new degrees$\,|$ at every level. This is
+the bookkeeping that keeps the eventual multidimensional basis matrix
+\emph{square}.
+
+\subsection{The Smolyak combination rule}
+\label{sec:combination}
+
+In $d$ dimensions, index a tensor block by a multi-index
+$\mathbf{i}=(i_1,\dots,i_d)$ of per-dimension levels. A full tensor grid at
+level $\mu{+}1$ would take \emph{all} blocks with each $i_j\le\mu{+}1$.
+Smolyak instead keeps only the blocks whose \emph{total} level is bounded:
+\begin{equation}
+\text{keep } \mathbf{i}
+\quad\Longleftrightarrow\quad
+\sum_{j=1}^{d}\big(i_j-1\big)\;\le\;\mu ,
+\label{eq:smolyak}
+\end{equation}
+where $\mu\ge0$ is the \emph{approximation level}. The grid is the union of
+the tensor products of the \emph{new-point} sets over all kept $\mathbf{i}$;
+the basis is the union of the tensor products of the \emph{new-degree} sets
+over the same $\mathbf{i}$. This is precisely \code{\_multi\_indices} +
+the assembly loop in \code{SmolyakGrid.\_\_init\_\_}:
+\begin{verbatim}
+for i_vec in _multi_indices(d, mu, mu_vec):
+    axes_p = [_new_points(i)  for i in i_vec]      # nested points
+    axes_d = [_new_degrees(i) for i in i_vec]      # matching degrees
+    pts.append(cartesian_product(axes_p))          # tensor of the *new* sets
+    degs.append(cartesian_product(axes_d))
+\end{verbatim}
+Because points and degrees are added in lock-step, the assembled basis
+matrix $\Phi=\big[\prod_j \Tcheb_{\text{deg}_j}(u_j)\big]$ evaluated at the
+grid points is \emph{square and invertible}: the interpolant is \emph{exact
+at every Smolyak node}, and \code{fit}/\code{eval} are again a single
+LU solve. Selecting only ``low total level'' blocks is exactly what drops
+the expensive high-resolution-in-many-dimensions-at-once corners that a
+tensor grid wastes its budget on. In two dimensions the effect is visible
+directly (Figure~\ref{fig:2d}): the Smolyak grid is a sparse cross-shaped
+subset of the full tensor grid.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{smolyak2d.pdf}
+\caption{In two dimensions: the full $9\times9$ tensor grid (left) versus
+the Smolyak grids at $\mu=2$ ($13$ nodes) and $\mu=3$ ($29$ nodes). The
+sparse grids keep the axes and low-order cross terms and discard the
+dense interior---the source of the savings.}
+\label{fig:2d}
+\end{figure}
+
+\subsection{What Smolyak approximates, and anisotropy}
+
+The resulting interpolant is exact for the \emph{hyperbolic-cross} polynomial
+space---all monomials $\prod_j x_j^{a_j}$ with a bounded weighted total
+degree---rather than the full tensor space. Practically, $\mu=2$ captures
+all quadratic cross terms (a complete second-order approximation plus
+selected higher terms); $\mu=3$ adds cubic interactions. The package's gate
+tests confirm exactly this: on-grid exactness to $10^{-10}$, complete
+quadratic exactness including cross terms, and geometric error decay
+$10^{-1}\!\to\!10^{-2}\!\to\!5\times10^{-4}$ as $\mu$ runs $2,3,4$ on a
+smooth 6-D test function.
+
+The code also supports \emph{anisotropic} levels through \code{mu\_vec}: a
+per-dimension cap $i_j-1\le \mu_j$ in \code{\_multi\_indices}. This is the
+Judd--Maliar--Valero refinement---spend resolution on the dimensions where
+the policy actually curves and economize on the rest. The model does not
+lean on anisotropy heavily, but the hook is there.
+
+\subsection{The PCA-rotated grid}
+\label{sec:rotated}
+
+One more construction deserves mention because it is where sparse-grid
+practice meets the specific economics. A box aligned with the physical axes
+$(K,B,P)$ badly overcovers the state space: the ergodic cloud is elongated
+along a diagonal (more capital $\Rightarrow$ more deposits $\Rightarrow$
+higher obligations), so an axis-aligned box has deeply \emph{infeasible}
+anti-correlated corners (low assets, high obligations) that the model never
+visits but that the collocation fit is nonetheless forced to represent.
+\code{RotatedGrid} (\code{rotated\_grid.py}) diagonalizes the ergodic
+covariance of $(K,B,P)$, builds the Smolyak box in the principal-component
+coordinates, and presents a physical-coordinate interface so the rest of the
+code is unchanged. Rotating cut the infeasible-corner fraction from
+$\sim48\%$ to $\sim16\%$ and delivered machine precision on-grid. It is a
+concrete instance of the general lesson in \S\ref{sec:risks}: a global
+polynomial basis is only as good as the region you ask it to cover.
+
+
+\section{Numerical risks in the computation}
+\label{sec:risks}
+
+Chebyshev--Smolyak collocation is powerful but not forgiving. This section
+catalogues the ways it goes wrong and the specific defenses in the code. A
+PhD reader should treat this as the ``what will bite you'' section.
+
+\subsection{Extrapolation blow-up}
+\label{sec:risk-extrap}
+
+The gravest hazard. Outside the box, Chebyshev polynomials grow like
+$\rho^{\,n}$; a rule fitted on $[-1,1]$ and evaluated at $u=1.2$ can return
+a \emph{negative} consumption or a nonsensical bond price, which then feeds
+back through the expectation and produces \code{NaN}s. The danger is acute
+here because the expectation step evaluates next-period rules at
+\emph{stochastically generated} future states that can wander outside the
+current box. The defense is to \emph{clip} the evaluation point back into
+the box before every interpolation:
+\begin{verbatim}
+S_eval = grid.clip(S_next)          # never extrapolate the Chebyshev rule
+Cn  = np.maximum(grid.eval(coef["C"],  S_eval), 1e-8)
+QBn = np.maximum(grid.eval(coef["QB"], S_eval), 1e-4)
+\end{verbatim}
+Clipping is a \emph{documented, deliberate} projection (\code{clip} is a
+public method, not a silent guard), and the numeric floors
+($10^{-8}$, $10^{-4}$) are a second line of defense against the residual
+overshoot near the boundary. The cost is a small bias when the true state
+genuinely leaves the box; the package controls it by choosing the box wide
+enough that the ergodic path is $99.3\%$ interior, so clipping essentially
+never binds on a simulated path.
+
+\subsection{Conditioning and the sparse-grid Lebesgue constant}
+
+The one-dimensional Lebesgue constant is a gentle $\log n$
+(\S\ref{sec:lebesgue}), but on Smolyak grids it grows faster---roughly
+$(\log n)^{d}$-like behaviour in $d$ dimensions---so the amplification of
+interpolation error, and the conditioning of the basis matrix $\Phi$,
+degrade as the level $\mu$ or the dimension rises. In practice this is why
+the code lives at $\mu=2$ (occasionally $\mu=3$): high levels buy formal
+accuracy but a worse-conditioned solve. The stable Chebyshev
+\emph{recurrence} (not the monomial basis) and the once-and-for-all LU
+factorization keep the conditioning as good as the node set allows, but they
+cannot repair an intrinsically hard node set---hence the preference for
+modest levels plus a well-placed box over brute-force refinement.
+
+\subsection{Aliasing and non-interpolatory error}
+
+A sparse grid is exact only on the hyperbolic-cross polynomial space. Any
+content of the true policy outside that space is \emph{aliased}---
+misattributed to the retained basis functions. For a smooth policy this is
+negligible (the aliased content is tiny), but two situations amplify it:
+(i) high-frequency features from a near-kink, and (ii) using the same sparse
+construction for \emph{integration}, where the Smolyak/Clenshaw--Curtis
+weights can be \emph{negative}, so a sparse quadrature of a sharply peaked
+integrand can return a value outside the range of the integrand. The code
+sidesteps (ii) entirely by \emph{not} using the sparse grid to integrate:
+expectations are done with a dedicated Gauss--Hermite tensor rule
+(\S\ref{sec:branch}), whose weights are strictly positive.
+
+\subsection{The residual curse of dimensionality}
+
+Smolyak defeats the \emph{geometric} curse but not all cost growth. The node
+count still rises polynomially in $d$ (Figure~\ref{fig:growth}), and
+Krueger--Kubler and Malin--Krueger--Kubler document that beyond roughly
+twenty state variables even sparse grids become expensive. Six states is
+comfortably inside the sweet spot; the point for the reader is that
+``Smolyak breaks the curse'' is a statement about the \emph{exponent}, not a
+claim of free lunch.
+
+\subsection{Non-smoothness: kinks, Gibbs, and Fischer--Burmeister}
+\label{sec:risk-kink}
+
+This is the model-specific hazard. The occasionally-binding leverage
+constraint,
+\[
+\mu \;=\; \max\!\Big\{\,1-\frac{\E[\hat\Lambda']\,R\,N}{\lambda\,(Q_KK'+Q_BB')}\,,\;0\Big\},
+\]
+puts a $\max$-kink into the policy. Two distinct problems follow.
+First, as a matter of \emph{approximation theory}, a global polynomial
+basis converges only algebraically at a kink and produces Gibbs oscillations
+nearby (\S\ref{sec:spectral})---the sparse grid \emph{cannot} represent the
+constraint boundary sharply. Second, as a matter of \emph{solving}, the
+$\max$ makes the finite-difference Jacobian of the outer nonlinear solve
+noisy and stalls Newton. The code's answer, imported from the two-country
+solver, is \emph{Fischer--Burmeister} complementarity smoothing: make $\mu$
+an explicit unknown and replace the $\max$ with the equation
+\begin{equation}
+\varphi(\mu,\text{slack}) \;=\; \mu+\text{slack}-\sqrt{\mu^2+\text{slack}^2}\;=\;0,
+\label{eq:fb}
+\end{equation}
+which is zero exactly when $\mu\ge0$, $\text{slack}\ge0$, and
+$\mu\cdot\text{slack}=0$---the complementarity conditions---and is smooth
+everywhere except the single point $(0,0)$ (\code{\_fb} in
+\code{newton\_collocation.py}). A companion trick smooths a second kink
+\emph{inside} the expectation: the hard investment floor
+$\mathbf{1}\{I'>0\}$ is replaced by a softplus that equals $I'$ for feasible
+investment to $10^{-12}$ and bends smoothly to a floor only near $I'=0$, so
+the Jacobian stays well-defined at the quadrature nodes. The general
+principle---any new $\max/\min/\mathbf{1}\{\cdot\}$ on a Newton-solved
+quantity needs FB-style smoothing or the finite-difference Jacobian
+stalls---is a recurring rule in this codebase.
+
+\subsection{Boundary infeasibility and near-unit-root states}
+
+The model's capital has a near-unit-root ($\sim0.98$) dynamic, so the
+ergodic set is \emph{wide}. A box wide enough to contain it necessarily
+includes corner states that are economically infeasible (negative net
+worth, $\mu\to1$, the banker value function undefined). There, the
+pointwise nonlinear solve has no sensible solution, and if those garbage
+values enter the global fit they poison the interpolant \emph{everywhere}
+through the coupling of the collocation system. The code deploys three
+countermeasures, each addressing one facet:
+\begin{itemize}
+\item \textbf{Anchoring} (\code{make\_residual}, \code{feasible\_mask}):
+      infeasible corners are held at their warm-start values via an anchor
+      residual $V-\text{target}$ so the square system stays well conditioned
+      while Newton polishes the feasible interior.
+\item \textbf{Rejection} (\code{MU\_ACCEPT}): a pointwise solution whose
+      implied $\mu$ exceeds a physical threshold is rejected and the prior
+      value kept, so a spurious ``maximal-binding'' trial cannot corrupt the
+      fit. (The threshold is $0.10$ in the no-default model where $\mu$ is
+      truly tiny, raised to $0.85$ in the default regime where a $55\%$
+      haircut makes the constraint bind hard for real.)
+\item \textbf{Rotation} (\S\ref{sec:rotated}): reshaping the box to the
+      ergodic cloud removes most infeasible corners at the source.
+\end{itemize}
+The honest limitation, documented in the replication notes, is that these
+mitigate but do not eliminate the problem: a residual $\sim40$--$60\%$ of
+axis-aligned corners must be anchored, and their frozen values floor the
+achievable residual of the \emph{global} fit. This is intrinsic to a
+\emph{global} polynomial basis on a wide box---corner errors are non-local---
+and is the reason the notes flag a local/finite-element basis as the
+principled next step.
+
+\subsection{Interaction with the outer fixed point}
+
+Finally, the approximation error interacts with the solution algorithm.
+Time iteration is successive approximation on the policy; its contraction
+rate equals the model's persistence ($\sim0.98$), so it crawls and can
+\emph{oscillate}---reaching a good near-fixed-point and then drifting away,
+because the two-regime near-unit-root iteration is not globally contractive.
+The code's defenses are outer \emph{damping} (update
+$V\leftarrow(1-\text{damp})V+\text{damp}\,V^{\text{new}}$), convergence
+measured on rule \emph{values} rather than coefficients (the kink makes
+coefficients cycle even when values settle), and \emph{best-iterate
+tracking} in \code{time\_iterate\_full} (keep the iterate with the fewest
+infeasible points and smallest update, not the last). The alternative
+Newton solver on the stacked collocation residual
+(\code{newton\_collocation.py}) trades the eigenvalue-limited linear rate
+for quadratic convergence, at the cost of the kink-handling above.
+
+
+\section{The branch computation}
+\label{sec:branch}
+
+We now come to the piece the reader specifically asked about: how the code
+computes ``the branch.'' The term refers to the \emph{two-branch quadrature}
+that evaluates the conditional expectations inside the agents' Euler
+equations, splitting next period into a no-default branch and a default
+branch. Conceptually this is where the priced sovereign risk enters the
+model, and it is the reason a \emph{global} solution was built in the first
+place.
+
+\subsection{The economic object}
+
+An Euler equation is an equilibrium condition of the form
+``price today $=$ expected discounted payoff tomorrow.'' The expectation is
+over next period's shocks \emph{and} over whether the sovereign defaults.
+Formally, for any payoff $X'$ the banker's/household's condition needs
+\begin{equation}
+\E_t\big[X'\big] \;=\;
+\int\!\!\int\!\!\int
+\Big[(1-p^d)\,X'^{\,(d'=0)} + p^d\,X'^{\,(d'=1)}\Big]\;
+d\Phi(\epsilon_z)\,d\Phi(\epsilon_g)\,d\Phi(\epsilon_s),
+\label{eq:expect}
+\end{equation}
+with two ingredients to approximate: the integral over the three Gaussian
+innovations $(\epsilon_z,\epsilon_g,\epsilon_s)$, and the discrete default
+lottery $d'\in\{0,1\}$. Bocola's key modeling point---and the reason the
+representative-branch shortcut in the sister \code{code/global/} model
+failed---is that this is a genuine \emph{distribution over a discrete future
+event}, not a point mass. Sovereign risk raises the \emph{probability weight}
+$p^d$ on a low-payoff branch; it does not merely shift a mean.
+
+\subsection{Gauss--Hermite quadrature over the innovations}
+
+The three innovations are independent standard normals, so the integral
+over them is done by \emph{Gauss--Hermite} quadrature---the exact tool for
+Gaussian weights. An $n$-node Gauss--Hermite rule integrates polynomials up
+to degree $2n-1$ exactly against the normal density; the code uses the
+probabilists' variant \code{hermegauss} and tensorizes it over the three
+shocks:
+\begin{verbatim}
+def gauss_hermite_3d(n=3):
+    x, w = np.polynomial.hermite_e.hermegauss(n)   # E[f], eps ~ N(0,1)
+    w = w / w.sum()
+    xz, xg, xs = np.meshgrid(x, x, x, indexing="ij")
+    wz, wg, ws = np.meshgrid(w, w, w, indexing="ij")
+    return xz.ravel(), xg.ravel(), xs.ravel(), (wz*wg*ws).ravel()
+\end{verbatim}
+With $n=3$ nodes per shock this is $3^3=27$ quadrature nodes---and, note,
+this is a \emph{tensor} rule with strictly positive weights, deliberately
+kept separate from the Smolyak grid (\S\ref{sec:risks}). Three nodes suffice
+because the integrand, once the policy rules are smooth, is well
+approximated by a low-degree polynomial in the shocks; the AR(1) laws of
+motion map each quadrature node to a next-period exogenous state:
+\begin{equation}
+\Delta z' = (1-\rho_z)\gamma+\rho_z\Delta z+\sigma_z\epsilon_z,\quad
+s' = (1-\rho_s)s^\star+\rho_s s+\sigma_s\epsilon_s, \ \dots
+\label{eq:ar1}
+\end{equation}
+(\code{next\_exog\_full}).
+
+\subsection{Splitting into branches}
+\label{sec:branch-split}
+
+The default lottery is the discrete part of \eqref{eq:expect}. The priced
+probability of default next period is a \emph{logistic} function of the risk
+factor (Bocola's equation 11):
+\begin{equation}
+p^d(s)\;=\;\frac{1}{1+e^{-s}} .
+\label{eq:pd}
+\end{equation}
+The code computes the future integrand \emph{once per branch} and then takes
+the probability-weighted combination. The heart of it is
+\code{expect\_pieces\_full} in \code{expectations\_full.py}:
+\begin{verbatim}
+pd = default_prob(s)                          # weight on the default branch
+inv0, lh0, rk0, rb0 = _branch_pieces(S_next, 0, grid, coef, cal)  # d'=0
+inv1, lh1, rk1, rb1 = _branch_pieces(S_next, 1, grid, coef, cal)  # d'=1
+w0, w1 = (1.0 - pd) * wq, pd * wq             # branch x quadrature weights
+return (np.dot(w0, inv0) + np.dot(w1, inv1),  # E[1/C']
+        np.dot(w0, lh0)  + np.dot(w1, lh1),   # E[w'/C']
+        np.dot(w0, rk0)  + np.dot(w1, rk1),   # capital-return integrand
+        np.dot(w0, rb0)  + np.dot(w1, rb1))   # bond-return integrand
+\end{verbatim}
+Read this carefully, because it is the whole mechanism. \code{w0} and
+\code{w1} are outer products of the Gauss--Hermite weights \code{wq} with the
+scalar branch probabilities $1-p^d$ and $p^d$: each of the $27$ shock nodes
+is duplicated into a no-default copy and a default copy, and the two weight
+vectors sum to the full expectation. The four returned numbers are exactly
+the conditional-expectation ``pieces'' that the Euler residuals need---
+$\E[1/C']$, $\E[w'/C']$, and the capital- and bond-return integrands---
+evaluated over the joint distribution of shocks \emph{and} default.
+
+\subsection{What differs across branches}
+
+The two branches share the same next-period \emph{shock} nodes but evaluate
+different objects. \code{\_branch\_pieces} makes the distinction precise:
+\begin{verbatim}
+def _branch_pieces(S_next, d_next, grid, coef, cal):
+    S_eval = grid.clip(S_next)                       # never extrapolate
+    Cn  = np.maximum(grid.eval(coef["C"][d_next],  S_eval), 1e-8)
+    QBn = np.maximum(grid.eval(coef["QB"][d_next], S_eval), 1e-4)
+    ...
+    surv  = 1.0 - d_next * cal["haircut"]            # 1 if d'=0, 1-D if d'=1
+    RBpay = surv * (pi + (1-pi)*(iota + QBn))        # haircut bond payoff
+    ...
+\end{verbatim}
+Three things branch:
+\begin{enumerate}
+\item \textbf{The rules used.} Decision rules carry a \emph{separate
+      coefficient vector per regime}, \code{coef[rule] = (coef\_d0,
+      coef\_d1)}. Next period's policy is read from whichever regime $d'$
+      realizes---so the default branch continuation uses the crisis-regime
+      rules, the no-default branch the normal-regime rules.
+\item \textbf{The bond payoff.} In the default branch the survival share is
+      $\text{surv}=1-D$ with $D=0.55$ (the Greek PSI haircut), so the bond
+      pays only $45\%$ of its promise. This haircut, weighted by $p^d(s)$,
+      is the direct channel by which higher priced risk lowers today's bond
+      price $Q_B$.
+\item \textbf{The current-period statics.} The \emph{current} regime
+      $d_{\text{cur}}$ (distinct from next period's $d'$) enters the current
+      period map through the same $\text{surv}$ factor---a haircut on bonds
+      held \emph{into} a default period.
+\end{enumerate}
+Re-default is allowed: $d'$ is drawn independently of the current regime, so
+both current regimes share the same two-branch continuation. This is the
+``distribution, not a point mass'' structure spelled out in the file header.
+
+\subsection{From branch pieces to prices and the multiplier}
+
+The four expectation pieces close the model. Back in
+\code{point\_block\_full}, they are scaled by the discount factor
+$\beta\,C\,e^{-\Delta z}$ into $\E[\Lambda']$, $\E[\hat\Lambda']$ and the two
+return integrands, and combined into three unit-free Euler residuals plus
+the closed-form multiplier
+\begin{equation}
+\mu \;=\; \max\!\Big\{\,1-\frac{\E[\hat\Lambda']\,R\,N}{\lambda(Q_KK'+Q_BB')}\,,\;0\Big\}
+\qquad(\code{mu\_closed\_form}),
+\label{eq:mu}
+\end{equation}
+which is Bocola's Proposition-1 formula. The economic pass-through lives
+entirely in \eqref{eq:pd}--\eqref{eq:mu}: a rise in the risk factor $s$
+raises $p^d$, which raises the weight \code{w1} on the haircut branch, which
+lowers the bond-return integrand \code{rb}, which lowers the equilibrium
+bond price $Q_B$ that clears the bond Euler; the resulting mark-to-market
+loss on bank balance sheets lowers net worth $N$, which through \eqref{eq:mu}
+tightens the constraint ($\mu\uparrow$), which widens lending spreads. The
+replication reproduces exactly this signature: at Bocola's $2.5\%$ default
+probability the bond price falls $-12\%$ and net worth falls
+(Figure~\ref{fig:branch}), the correct contractionary sign.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{branch.pdf}
+\caption{\emph{Left:} the two-branch quadrature. The current state is pushed
+through the AR(1) laws to $27$ Gauss--Hermite shock nodes, each of which
+splits into a no-default continuation (weight $1-p^d$) and a haircut default
+continuation (weight $p^d$); the expectation is the probability- and
+quadrature-weighted sum. \emph{Right:} the priced default probability
+$p^d(s)=1/(1+e^{-s})$ that sets the branch weights, from its
+balanced-growth value $s^\star=-7.06$ up to the stress region.}
+\label{fig:branch}
+\end{figure}
+
+\subsection{Why the branch structure is the whole point}
+
+It is worth stating plainly why this machinery exists. The sister
+two-country model in \code{code/global/} approximates the same risk with a
+single \emph{representative} post-default branch computed once and reused---a
+point-mass shortcut. That approximation gets the sign \emph{wrong}: it makes
+the crisis-state bank lever \emph{into} capital, so sovereign risk comes out
+expansionary. Bocola's model has no separate ``branch'' to bolt on: the bad
+state is \emph{the same decision rules evaluated at a different point of the
+state space}, reached with probability $p^d(s)$. Representing that
+faithfully requires (i) a global solution defined over the whole state
+space---hence Chebyshev--Smolyak---and (ii) the genuine two-branch
+quadrature above. The two halves of this note are therefore not independent:
+the sparse-grid interpolation exists precisely so that
+\eqref{eq:expect}--\eqref{eq:pd} can be evaluated at arbitrary future
+states, and the branch quadrature is what turns those interpolated rules
+into the priced-risk pass-through.
+
+
+\section{Assembling the solver}
+\label{sec:assemble}
+
+To place the pieces in the full loop, the solve is a fixed point over the
+rule coefficients:
+\begin{enumerate}
+\item \textbf{Seed.} Start from a first-order perturbation solution (a smooth,
+      globally-roughly-correct guess), fitted onto the Smolyak grid. A
+      constant-guess seed instead leaves a third of points infeasible.
+\item \textbf{Inner solve.} At each of the $85$ (or $389$) grid points, and
+      each regime $d\in\{0,1\}$, solve the $3$-equation Euler system for
+      $(C,R,Q_B)$ by bounded least squares, using the two-branch quadrature
+      of \S\ref{sec:branch} to form the expectations against the
+      \emph{current} coefficient vectors.
+\item \textbf{Fit.} Convert the updated point values back to Chebyshev
+      coefficients with the cached LU factor (\code{grid.fit}).
+\item \textbf{Damp and iterate.} Damp the update, measure convergence on
+      rule values, track the best iterate, and repeat until the update norm
+      falls below tolerance. Optionally polish with the FB-smoothed Newton
+      solver.
+\item \textbf{Validate.} Simulate the solved rules forward to trace the
+      ergodic set, and report the Euler residual \emph{along the path the
+      model actually visits}. The accepted accuracy standard---Bocola's
+      own---is accuracy on the ergodic set, which the package meets (mean
+      $\log_{10}$ residual $\approx-3.1$, i.e.\ $\sim0.1\%$), even though a
+      wide-box global fit cannot be uniformly machine-accurate in the
+      never-visited infeasible corners.
+\end{enumerate}
+
+
+\section{Summary}
+\label{sec:summary}
+
+The computation rests on three theorems and one modeling insight.
+\emph{Chebyshev interpolation} on Lobatto nodes is near-minimax and
+spectrally accurate for smooth functions---so a policy function becomes a
+short, stable coefficient vector---while being explosively wrong under
+extrapolation and only algebraically accurate at kinks. \emph{Smolyak sparse
+grids} lift that construction to six dimensions at polynomial rather than
+geometric cost, by keeping only low-total-level tensor blocks of nested
+Chebyshev levels, at the price of a faster-growing Lebesgue constant and
+exactness on only the hyperbolic-cross polynomial space. \emph{Gauss--Hermite
+quadrature} evaluates the Gaussian expectations exactly to high polynomial
+degree with positive weights. And the \emph{two-branch structure} is the
+economic heart: sovereign risk is a probability weight $p^d(s)$ on a
+haircut-default continuation, evaluated by interpolating the crisis-regime
+rules at stochastically generated future states. The recurring discipline
+that makes all of this work is respect for the region the model actually
+visits---clip before you extrapolate, rotate the box onto the ergodic cloud,
+smooth every kink the Jacobian sees, anchor the infeasible corners, and
+judge accuracy on the ergodic set. Each safeguard in the code maps to a
+specific failure mode in the theory above.
+
+
+\section*{Where to read the code}
+\addcontentsline{toc}{section}{Where to read the code}
+\begin{center}
+\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+Concept & File / function \\
+\midrule
+Chebyshev recurrence, nodes & \code{smolyak.py}: \code{chebyshev\_basis\_1d}, \code{\_level\_points} \\
+Nested levels, new points/degrees & \code{smolyak.py}: \code{\_new\_points}, \code{\_new\_degrees} \\
+Smolyak combination rule & \code{smolyak.py}: \code{\_multi\_indices}, \code{SmolyakGrid.\_\_init\_\_} \\
+Fit / eval (LU-cached collocation) & \code{smolyak.py}: \code{SmolyakGrid.fit}, \code{.eval} \\
+Box mapping, clipping & \code{smolyak.py}: \code{to\_unit}/\code{from\_unit}, \code{clip} \\
+PCA-rotated grid & \code{rotated\_grid.py}: \code{RotatedGrid} \\
+Gauss--Hermite quadrature & \code{expectations\_full.py}: \code{gauss\_hermite\_3d} \\
+Two-branch expectation & \code{expectations\_full.py}: \code{expect\_pieces\_full}, \code{\_branch\_pieces} \\
+Logistic default probability & \code{expectations\_full.py}: \code{default\_prob} \\
+Euler residuals, $\mu$ closed form & \code{time\_iteration\_full.py}, \code{period\_map.py}: \code{mu\_closed\_form} \\
+Fischer--Burmeister smoothing & \code{newton\_collocation.py}: \code{\_fb}, \code{\_point\_residual\_fb} \\
+Outer fixed point, best iterate & \code{time\_iteration\_full.py}: \code{time\_iterate\_full} \\
+Ergodic simulation / box adapt & \code{simulate.py}, \code{simulate\_full.py} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+
+\section*{References and further reading}
+\addcontentsline{toc}{section}{References and further reading}
+\small
+\begin{itemize}
+\item L.\ Bocola (2016), ``The Pass-Through of Sovereign Risk,''
+      \emph{Journal of Political Economy} 124(4). The model and its
+      global-solution method (\S II.C, eqs.\ 11--12 for the default
+      process).
+\item S.\ A.\ Smolyak (1963), ``Quadrature and interpolation formulas for
+      tensor products of certain classes of functions,'' \emph{Soviet Math.\
+      Dokl.} 4. The original sparse-grid construction.
+\item D.\ Krueger and F.\ Kubler (2004), ``Computing equilibrium in OLG
+      models with stochastic production,'' \emph{J.\ Economic Dynamics \&
+      Control} 28. Introduced Smolyak sparse grids to economics; the nested
+      construction the code follows.
+\item K.\ Judd, L.\ Maliar, S.\ Maliar and R.\ Valero (2014), ``Smolyak
+      method for solving dynamic economic models: Lagrange interpolation,
+      anisotropic grid and adaptive domain,'' \emph{J.\ Economic Dynamics \&
+      Control} 44. Anisotropic levels and the efficient implementation.
+      \url{https://bfi.uchicago.edu/wp-content/uploads/Judd-Maliar-Valero-1.pdf}
+\item L.\ N.\ Trefethen (2013), \emph{Approximation Theory and Approximation
+      Practice}, SIAM. The definitive modern treatment of Chebyshev
+      interpolation, the Runge phenomenon, Lebesgue constants and spectral
+      convergence (Chebfun examples on Lebesgue constants:
+      \url{https://www.chebfun.org/examples/approx/LebesgueConst.html}).
+\item J.\ Brumm and S.\ Scheidegger (2017), ``Using adaptive sparse grids to
+      solve high-dimensional dynamic models,'' \emph{Econometrica} 85.
+      Adaptive/local sparse grids---the principled route past the
+      global-basis corner problem of \S\ref{sec:risks}.
+\item Package internal notes: \code{docs/bocola2016\_replication.md} (BGP
+      derivation, stage-by-stage accuracy, the corner/convergence
+      diagnostics summarized here).
+\end{itemize}
+
+\end{document}

@@ -14,6 +14,59 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-09-14 — `bocola-rewrite` merged with `main`: the two solvers coexist (PR #32)
+
+No model changes in either pipeline. This is a reconciliation commit: the
+sequence-space files are byte-identical to `main` and `code/global/` is
+byte-identical to `bocola-rewrite`. Verified by `git diff` against both parents
+over the two trees.
+
+**What the conflict actually was.** `bocola-rewrite` branched off the modular
+reorganisation and *deleted* the whole sequence-space pipeline (`code/*.py`),
+treating the global-projection solver as its replacement. `main` then put 33
+commits into those same deleted files (sticky prices, nominal deposits, the GK
+structural refactor, country-size asymmetry). Git surfaced this as ten
+modify/delete conflicts.
+
+**Resolution: both pipelines live.** The two solvers occupy non-overlapping
+paths — `code/*.py` versus `code/global/` — so nothing actually collided; the
+conflict existed only because one side deleted the other's files. All ten were
+resolved to `main`'s version. Retiring the sequence-space pipeline remains
+available as a separate, deliberate commit; it is not something a merge should
+do silently.
+
+**Two silent deletions caught and reverted.** `code/main.py` (the production
+orchestrator and the repo's structural regression test) and `code/irf_plots.py`
+were deleted by `bocola-rewrite` and did *not* conflict, because `main` had not
+touched them since the merge base. Git would have dropped both without comment.
+Both restored from `main`.
+
+Had the deletions stood, 17 files on `main` would have failed at import — all of
+`experiments/` (E1–E4), `diagnostics/regimes/` and the `paper_outputs.py` chain
+behind figures fig01–fig08.
+
+**Doc resolutions.** CLAUDE.md now documents two pipelines with two interpreters
+(the rewrite's claim that the `ssj` environment "no longer exists" was false once
+the merge restored it, and is removed). `docs/STATE.md` is split into Part I
+(sequence-space) and Part II (global projection), each branch's log kept
+verbatim, with a header warning that numbers are not comparable across the two.
+`.gitignore` unions both sides and exempts the tracked doc-sync hook from the
+rewrite's `.claude/` ignore rule, which would otherwise have shadowed the
+enforcement machinery.
+
+**Base correction.** `origin/main` was 33 commits behind local `main` — the
+sticky-price and GK-refactor work had never been pushed, so PR #32's base was
+stale and the same ten conflicts would have returned on the next push. `main`
+was fast-forwarded to `91ac778` first; the merge is against that.
+
+Verification: sequence-space fast tests 42 passed
+(`test_nkpc_blocks.py`, `test_eba_calibration.py`, `experiments/`); global
+pipeline `test_ss_identities`, `test_bank_block`, `test_fast_kernels`,
+`test_state_grid`, `test_no_unbound_names` all pass. `code/main.py` was not
+re-run: its inputs are byte-identical to `main`, where it was already verified.
+
+---
+
 ## 2026-08-07 — Fiscal rule and fiscal limit audited; `Empirics/fiscal_limit.py` added
 
 No model changes. Two existing mechanisms audited to see whether the fiscal block could

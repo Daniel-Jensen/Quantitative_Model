@@ -1,5 +1,25 @@
 # Handoff Notes
 
+## Read first: this repository now has TWO solvers (2026-09-14, PR #32)
+
+`bocola-rewrite` was merged with `main`. Both pipelines are live and neither
+supersedes the other:
+
+| | Sequence-space (SSJ) | Global projection |
+|---|---|---|
+| Path | `code/*.py` | `code/global/` |
+| Interpreter | `/opt/anaconda3/envs/ssj/bin/python` | plain `python3` |
+| Method | linearised, sequence-space Jacobians | nonlinear Chebyshev-Smolyak collocation |
+| Entry point | `code/main.py` | `cd code/global && python3 main.py` |
+| Carries | sticky prices, nominal deposits, GK structural refactor, `experiments/` E1-E4, the paper's current figures | occasionally-binding IC, exogenous priced default risk, LTRO backstop |
+
+They share no code, no calibration and no interpreter. **Their impulse
+magnitudes are not comparable** — say which pipeline a number came from before
+quoting it. `docs/STATE.md` is split into Part I and Part II accordingly.
+
+The open problem below, and everything else in this file, refers to the
+**sequence-space** pipeline.
+
 ## Open problem: foreign banks do not retrench
 
 On a 1pp default shock the F bank **increases** its Greek holdings (`b_D_F` rises;
