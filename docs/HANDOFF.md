@@ -1,5 +1,26 @@
 # Handoff Notes
 
+## Read first: this repository now has TWO solvers (2026-09-14, PR #32)
+
+`bocola-rewrite` was merged with `main`. Both pipelines are live and neither
+supersedes the other:
+
+| | Sequence-space (SSJ) | Global projection |
+|---|---|---|
+| Path | `code/*.py` | `code/global/` |
+| Interpreter | `/opt/anaconda3/envs/ssj/bin/python` | plain `python3` |
+| Method | linearised, sequence-space Jacobians | nonlinear Chebyshev-Smolyak collocation |
+| Entry point | `code/main.py` | `cd code/global && python3 main.py` |
+| Carries | sticky prices, nominal deposits, GK structural refactor, `experiments/` E1-E4, the paper's current figures | occasionally-binding IC, exogenous priced default risk, LTRO backstop |
+
+They share no code, no calibration and no interpreter. **Their impulse
+magnitudes are not comparable** — say which pipeline a number came from before
+quoting it. `docs/STATE.md` is split into Part I and Part II accordingly.
+
+Everything else in this file refers to the **sequence-space** pipeline. The
+reconciliation of the paper's Sections 2-4 against the sequence-space code, flagged
+below as the blocking item, is now a within-repository job: both models are here.
+
 ## Session status — 2026-08-24: paper, not model
 
 The last session touched **no model source**. Work was on the Overleaf project and

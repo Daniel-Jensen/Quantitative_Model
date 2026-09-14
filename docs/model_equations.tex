@@ -1,0 +1,1482 @@
+\documentclass[11pt]{article}
+
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage[colorlinks=true,linkcolor=blue!55!black,citecolor=blue!55!black,
+            urlcolor=blue!55!black]{hyperref}
+
+\allowdisplaybreaks
+\numberwithin{equation}{section}
+
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\one}{\mathbf{1}}
+\newcommand{\code}[1]{\texttt{\small #1}}
+\newcommand{\D}{\mathrm{D}}
+\newcommand{\F}{\mathrm{F}}
+
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}
+\theoremstyle{plain}
+\newtheorem{proposition}{Proposition}
+\newtheorem{lemma}{Lemma}
+\theoremstyle{remark}
+\newtheorem{remark}{Remark}
+
+\definecolor{notec}{RGB}{120,60,20}
+\newcommand{\impl}[1]{\par\smallskip\noindent\textcolor{notec}{$\blacktriangleright$}\;\emph{#1}\par\smallskip}
+
+\title{\vspace{-1.4cm}\bfseries Structural Equations of a Two-Country\\
+Monetary Union with Sovereign Risk and\\ Constrained Financial Intermediaries\\[6pt]
+\large A microfounded exposition of the model in \code{code/global/}}
+\author{Model documentation}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent This document states the full structural environment of the two-country
+heterogeneous-agent model of a monetary union solved in \code{code/global/}. The
+economy consists of two countries, $\D$ (the risky sovereign; Greece) and $\F$ (the
+core; Germany), each populated by incomplete-markets households, competitive
+producers, capital producers with adjustment costs, monopolistically competitive
+retailers, and Gertler--Karadi/Bocola financial intermediaries subject to an
+occasionally-binding incentive-compatibility constraint. Only $\D$'s sovereign
+debt carries default risk, and that risk is \emph{exogenous and priced}: following
+Bocola (2016, \emph{JPE}), an increase in the priced one-period default probability
+depresses long-duration bond prices, inflicts mark-to-market losses on intermediary
+net worth, tightens the leverage constraint, widens lending spreads and contracts
+output --- without default ever being realised along the baseline path. The
+document derives each block from primitives, states every first-order condition,
+gives the closed form of the leverage multiplier, defines the recursive competitive
+equilibrium and the exact market-clearing system that the projection solver imposes,
+and documents --- explicitly --- the approximations that separate the solved object
+from the primitive environment.
+\end{abstract}
+
+\tableofcontents
+
+%======================================================================
+\section{Environment, timing and notation}
+%======================================================================
+
+\subsection{Overview}
+
+Time is discrete and infinite, $t=0,1,2,\dots$, and a period is one quarter. The
+world consists of two countries, indexed $X\in\{\D,\F\}$, forming a monetary union.
+Each country produces a distinct traded good. Prices are fully flexible, so all
+equilibrium objects below are \emph{real}; the ``monetary union'' is modelled at the
+level at which it binds real allocations, namely a single union-wide funding market
+for intermediary liabilities together with real interest parity
+(Section~\ref{sec:money}).
+
+Each country hosts four types of agent:
+\begin{enumerate}
+\item a continuum of \textbf{households} facing uninsurable idiosyncratic labour-income
+      risk and a borrowing constraint, who save exclusively in bank deposits and supply
+      labour with GHH preferences;
+\item competitive \textbf{intermediate producers} who rent capital and hire labour, and
+      who must pre-finance a fraction of the wage bill with intra-period bank credit
+      (Neumeyer--Perri working capital);
+\item \textbf{capital producers} subject to Jermann (1998) adjustment costs, and
+      monopolistically competitive \textbf{retailers} with flexible prices;
+\item a representative \textbf{financial intermediary} (``bank'') that holds the
+      economy's productive capital, both sovereign bonds and the working-capital loan
+      book, funds itself with household deposits, and is subject to an agency friction
+      that generates an occasionally-binding leverage constraint.
+\end{enumerate}
+Each country also has a \textbf{government} issuing long-duration
+Hatchondo--Martinez perpetuities and levying taxes according to a Bohn-type rule, and
+the union has a \textbf{central bank} whose only instrument is a sovereign-bond
+backstop of the Transmission Protection Instrument (TPI/OMT) type.
+
+\subsection{Timing convention}
+
+Timing conventions are load-bearing in this model and are stated once, here.
+
+\begin{enumerate}
+\item \textbf{Capital is predetermined} (Bocola, 2016, eq.~6). The capital stock that
+      produces at $t$ was purchased and priced by banks at $t-1$. Denote by $K_{X,t}$
+      the stock \emph{producing} at $t$; the bank chooses $K_{X,t+1}$ at $t$. Impact
+      responses of output therefore run through hours alone.
+\item \textbf{The deposit rate is predetermined}. The gross rate paid on deposits held
+      from $t$ to $t+1$, $1+r_{X,t}$, is set at $t$. It is the return that appears in
+      the household Euler equation formed at $t$ and in the bank's funding cost at
+      $t+1$.
+\item \textbf{Default is realised at the beginning of a period}, before payoffs are
+      collected: a haircut applies to coupons and to the continuation value of the
+      whole outstanding claim.
+\item \textbf{Working-capital loans are intra-period}: extended at $t$, repaid at $t$
+      with interest, and settled inside the bank's carried obligation, so they never
+      appear as a separate state.
+\end{enumerate}
+
+\subsection{Notation}
+
+Table~\ref{tab:notation} fixes symbols. Two conventions deserve emphasis. First,
+$p_t$ is the terms of trade measured as \emph{units of the $\D$-good per unit of the
+$\F$-good}, so $p_t\uparrow$ is a real depreciation for $\D$. Second, $P_{X,t}$
+denotes the bank's \emph{gross deposit obligation} carried into $t$ (a state
+variable, following Bocola's notation), while $P^{c}_{X,t}$ denotes the CES
+\emph{consumption price index}. They are distinct objects.
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Notation. Country index $X\in\{\D,\F\}$ suppressed where unambiguous.}
+\label{tab:notation}
+\begin{tabular}{@{}ll@{\qquad}ll@{}}
+\toprule
+Symbol & Meaning & Symbol & Meaning \\
+\midrule
+$C_{X,t}$        & aggregate consumption (basket units) & $n_{X,t}$      & bank net worth (end of $t$)\\
+$N_{X,t}$        & aggregate hours                      & $n^{g}_{X,t}$  & gross bank wealth (start of $t$)\\
+$a_{it}$         & individual deposit holdings          & $\mathcal{A}_{X,t}$ & bank total assets (market value)\\
+$A_{X,t}$        & aggregate real deposits              & $P_{X,t}$      & gross deposit obligation (state)\\
+$e_{it}$         & idiosyncratic labour efficiency      & $\varphi_{X,t}$ & marginal value of bank net worth\\
+$Y_{X,t}$        & gross output                         & $\theta_{X,t}$  & bank leverage $\mathcal{A}/n$\\
+$K_{X,t}$        & capital \emph{producing} at $t$       & $\mu_{X,t}$     & IC multiplier (rescaled)\\
+$I_{X,t}$        & investment                           & $\lambda$       & divertable asset share\\
+$Q_{X,t}$        & Tobin's $q$ (capital price)          & $f$             & banker exit/payout share\\
+$w_{X,t}$        & real wage (post-wedge)               & $\omega$        & entrant endowment share\\
+$r_{X,t}$        & deposit rate set at $t$              & $\Lambda_{t,t+1}$ & household SDF\\
+$r^{k}_{X,t}$    & realised return on capital           & $\Omega_{t,t+1}$  & bank's augmented SDF\\
+$r^{wc}_{X,t}$   & working-capital lending rate         & $\zeta$         & working-capital share of wage bill\\
+$L_{X,t}$        & working-capital loans                & $\delta_b$      & bond amortisation rate\\
+$p_{t}$          & terms of trade ($\D$ per $\F$)       & $B_{t}$         & $\D$-sovereign stock (face)\\
+$P^{c}_{X,t}$    & CES consumption price index          & $q^{X}_{t}$     & sovereign bond price\\
+$IM_{X,t}$       & imports                              & $s_{t}$         & sovereign-risk factor\\
+$NX_{X,t}$       & net exports (own-good units)         & $\pi^{d}_{t}$   & priced default probability\\
+$Z_{X,t}$        & total factor productivity            & $d_{t}$         & realised default indicator\\
+$T^{\tau}_{X,t}$ & lump-sum taxes                       & $h_{t}$         & survival factor $1-d_t(1-\varrho)$\\
+$\mathrm{Div}_{X,t}$ & dividends to households          & $\varrho$       & recovery rate\\
+$\mathcal{S}_t$  & aggregate state vector               & $\varkappa_{\rm tpi}$ & priced TPI activation prob.\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%======================================================================
+\section{Households}
+%======================================================================
+
+\subsection{Preferences and the individual problem}
+
+Country $X$ is populated by a unit continuum of infinitely-lived households indexed
+by $i$. Preferences are of the Greenwood--Hercowitz--Huffman (GHH) form: the
+consumption--labour composite
+\begin{equation}
+x_{it}\;\equiv\;c_{it}-v(n_{it}),
+\qquad
+v(n)\;=\;\chi_X\,\frac{n^{\,1+1/\nu_X}}{1+1/\nu_X},
+\label{eq:ghh-composite}
+\end{equation}
+enters a CRRA felicity function, so that household $i$ solves
+\begin{equation}
+\max_{\{c_{it},\,n_{it},\,a_{i,t+1}\}}\;
+\E_0\sum_{t=0}^{\infty}\beta_X^{\,t}\,
+\frac{\bigl(c_{it}-v(n_{it})\bigr)^{1-\sigma_X}-1}{1-\sigma_X},
+\label{eq:hh-objective}
+\end{equation}
+subject to the flow budget constraint, expressed in units of the country's
+consumption basket,
+\begin{equation}
+c_{it}+a_{i,t+1}
+\;=\;
+\bigl(1+r^{c}_{X,t}\bigr)\,a_{it}
+\;+\;\frac{w_{X,t}}{P^{c}_{X,t}}\,e_{it}\,n_{it}
+\;+\;\frac{\mathrm{Div}_{X,t}-T^{\tau}_{X,t}}{P^{c}_{X,t}},
+\label{eq:hh-budget}
+\end{equation}
+and to the no-borrowing constraint
+\begin{equation}
+a_{i,t+1}\;\ge\;\underline{a}_X \;=\;0 .
+\label{eq:hh-borrowing}
+\end{equation}
+Here $a_{it}$ are real deposits carried into $t$, the only asset available to
+households, and
+\begin{equation}
+1+r^{c}_{X,t}\;\equiv\;\bigl(1+r_{X,t-1}\bigr)\,\frac{P^{c}_{X,t-1}}{P^{c}_{X,t}}
+\label{eq:hh-realreturn}
+\end{equation}
+is the realised real return on the deposit contract signed at $t-1$ --- the
+predetermined-rate convention of Section~1.2. Dividends $\mathrm{Div}_{X,t}$ are
+the consolidated payout of retailers, capital producers and exiting bankers
+(equation~\eqref{eq:dividends}); $T^{\tau}_{X,t}$ are lump-sum taxes.
+
+Idiosyncratic labour efficiency $e_{it}$ follows a stationary AR(1) in logs,
+\begin{equation}
+\log e_{i,t+1}=\rho_e\log e_{it}+\epsilon_{i,t+1},
+\qquad \epsilon\sim N(0,\sigma_e^2),
+\label{eq:income-ar1}
+\end{equation}
+discretised by the Rouwenhorst (1995) method into an $n_e$-state Markov chain
+$(\mathsf{e},\Pi)$ with grid normalised so that $\sum_e \pi^{\ast}(e)\,\mathsf{e}(e)=1$,
+where $\pi^{\ast}$ is the stationary distribution of $\Pi$. Idiosyncratic risk is
+uninsurable: markets are incomplete and the only self-insurance vehicle is the
+deposit account, subject to~\eqref{eq:hh-borrowing}.
+
+\subsection{First-order conditions}
+
+Let $\eta_{it}\ge0$ be the multiplier on the borrowing constraint. The
+intertemporal and intratemporal optimality conditions are
+\begin{align}
+x_{it}^{-\sigma_X}
+&\;=\;\beta_X\,\bigl(1+r_{X,t}\bigr)\,
+   \E_t\!\left[\Bigl(\tfrac{P^{c}_{X,t}}{P^{c}_{X,t+1}}\Bigr)\,x_{i,t+1}^{-\sigma_X}\right]
+   \;+\;\eta_{it},
+\qquad
+\eta_{it}\bigl(a_{i,t+1}-\underline{a}_X\bigr)=0,
+\label{eq:hh-euler}\\[4pt]
+\chi_X\,n_{it}^{1/\nu_X}
+&\;=\;\frac{w_{X,t}}{P^{c}_{X,t}}\;e_{it}.
+\label{eq:hh-labour}
+\end{align}
+Equation~\eqref{eq:hh-labour} is the defining analytical convenience of GHH
+preferences: the marginal rate of substitution between consumption and leisure is
+independent of $c_{it}$, hence of wealth. Labour supply per efficiency unit is
+therefore \emph{identical across households}, and aggregation over the wealth
+distribution is exact. Writing $N_{X,t}\equiv\int e_{it}n_{it}\,d\Phi_t$ for
+efficiency-weighted aggregate hours and using $\int e\,d\Phi=1$, the aggregate
+labour-supply schedule is
+\begin{equation}
+\boxed{\;\chi_X\,N_{X,t}^{1/\nu_X}\;=\;\frac{w_{X,t}}{P^{c}_{X,t}}\;}
+\label{eq:agg-labour}
+\end{equation}
+which is the object the equilibrium system imposes (residual 3--4 in
+Section~\ref{sec:system}). The same property implies that the intertemporal margin
+depends on the composite $x_{it}$ only, so \eqref{eq:hh-euler} can be solved by the
+endogenous grid method on $x$.
+
+\impl{GHH removes the wealth effect on labour supply. This is what allows a
+distribution-free aggregate labour block to coexist with a genuinely
+heterogeneous-agent savings block, but it also means that redistribution has no
+direct effect on hours --- a property that matters for how the working-capital
+financing income is routed (Section~\ref{sec:wc}).}
+
+\subsection{Distribution and aggregation}
+
+Let $\Phi_t(a,e)$ denote the joint distribution over deposits and efficiency, and
+$g^{a}_{X,t}(a,e)$, $g^{c}_{X,t}(a,e)$ the optimal savings and consumption policies
+implied by \eqref{eq:hh-euler}--\eqref{eq:hh-labour}. The distribution evolves under
+the standard forward operator
+\begin{equation}
+\Phi_{t+1}(a',e')\;=\;\sum_{e}\Pi(e,e')\int
+   \one\bigl\{g^{a}_{X,t}(a,e)=a'\bigr\}\,d\Phi_t(a,e),
+\label{eq:kfe}
+\end{equation}
+implemented numerically by the Young (2010) lottery: an off-grid choice
+$g^{a}\in[a_j,a_{j+1}]$ is split between the adjacent nodes with weights
+$1-\omega_j$ and $\omega_j=(g^{a}-a_j)/(a_{j+1}-a_j)$, which preserves the first
+moment exactly. Aggregates are
+\begin{equation}
+A_{X,t+1}=\int g^{a}_{X,t}\,d\Phi_t,
+\qquad
+C_{X,t}=\int g^{c}_{X,t}\,d\Phi_t .
+\label{eq:hh-aggregates}
+\end{equation}
+
+\subsection{The aggregate closure used in the recursive solution}
+\label{sec:hh-closure}
+
+The heterogeneous-agent block \eqref{eq:hh-objective}--\eqref{eq:kfe} is solved
+exactly at the steady state (it pins the discount factors $\beta_X$ from
+deposit-market clearing) and is used for the distributional/welfare overlays. In the
+recursive global solution, however, the household side is closed at the
+\emph{aggregate} level by a representative-agent Euler equation --- the first rung of
+a Krusell--Smith ladder, in which the cross-sectional distribution is carried by its
+mean alone. Three equations define this closure.
+
+\paragraph{(i) Quantity clearing of the deposit market.} Aggregate real household
+deposits equal aggregate bank funding, by construction:
+\begin{equation}
+A_{X,t}\;=\;\frac{\mathrm{dep}_{X,t}}{P^{c}_{X,t}} .
+\label{eq:dep-quantity}
+\end{equation}
+
+\paragraph{(ii) The aggregate budget constraint.} Consumption is the residual of the
+household budget, where the gross deposit \emph{claim} carried into $t$ is the bank's
+gross deposit \emph{obligation} state $P_{X,t}$:
+\begin{equation}
+C_{X,t}
+\;=\;\underbrace{\frac{P_{X,t}}{P^{c}_{X,t}}}_{\text{carried wealth}}
+\;+\;\underbrace{\frac{w_{X,t}N_{X,t}+\mathrm{Div}_{X,t}-T^{\tau}_{X,t}}{P^{c}_{X,t}}
+     +\bar{T}_X}_{\;\equiv\;\text{inc}_{X,t}}
+\;-\;A_{X,t}.
+\label{eq:hh-budget-agg}
+\end{equation}
+
+\paragraph{(iii) The aggregate deposit Euler equation.} With $x_{X,t}=C_{X,t}-v(N_{X,t})$,
+\begin{equation}
+\boxed{\;
+x_{X,t}^{-\sigma_X}
+=\tilde\beta_X\,
+\E_t\!\left[\bigl(1+r^{c}_{X,t+1}\bigr)\,x_{X,t+1}^{-\sigma_X}\right],
+\qquad
+1+r^{c}_{X,t+1}=\bigl(1+r_{X,t}\bigr)\frac{P^{c}_{X,t}}{P^{c}_{X,t+1}} \;}
+\label{eq:agg-euler}
+\end{equation}
+with $\tilde\beta_X=1/(1+\bar r_X)$, where $\bar r_X$ is the steady-state deposit
+rate. Equation~\eqref{eq:agg-euler} is the condition that determines the deposit
+\emph{rate} $r_{\D,t}$ in equilibrium (residual 5 of Section~\ref{sec:system}):
+quantities clear by \eqref{eq:dep-quantity}, and the rate is whatever makes
+households willing to hold exactly what banks fund.
+
+\begin{remark}[Two disclosed departures from the primitive environment]
+\label{rem:closure}
+The representative-agent stand-in is not the aggregate of
+\eqref{eq:hh-objective}: (a) $\tilde\beta_X=1/(1+\bar r_X)$ exceeds the
+heterogeneous-agent $\beta_X$ recovered at the steady state, because precautionary
+saving in the incomplete-markets block requires $\beta_X(1+\bar r_X)<1$; and (b) the
+constant $\bar T_X$ in \eqref{eq:hh-budget-agg} is an accounting anchor, calibrated
+so that the steady state is an exact rest point of the recursive system. It absorbs
+the working-capital repayment leg, which is netted out of the state $P_{X,t}$ (see
+equation~\eqref{eq:P-state}) but accrues to households. Both are stated here rather
+than buried: the recursive solution is exact in the aggregate but treats the wealth
+\emph{distribution} as a fixed shape.
+\end{remark}
+
+%======================================================================
+\section{Production, trade and capital}
+%======================================================================
+
+\subsection{Final goods and the terms of trade}
+
+The consumption basket of country $\D$ aggregates home and foreign goods with an
+Armington/CES aggregator,
+\begin{equation}
+C_{\D,t}=\Bigl[\varpi^{1/\eta}c_{\D\D,t}^{\frac{\eta-1}{\eta}}
++(1-\varpi)^{1/\eta}c_{\F\D,t}^{\frac{\eta-1}{\eta}}\Bigr]^{\frac{\eta}{\eta-1}},
+\label{eq:ces-aggregator}
+\end{equation}
+with home bias $\varpi$ and trade elasticity $\eta$. Normalising the price of the
+$\D$-good to one and letting $p_t$ be the relative price of the $\F$-good, cost
+minimisation gives the price index and the import demand schedule
+\begin{align}
+P^{c}_{\D,t}&=\Bigl[\varpi+(1-\varpi)\,p_t^{\,1-\eta}\Bigr]^{\frac{1}{1-\eta}},
+&
+IM_{\D,t}&=(1-\varpi)\Bigl(\frac{P^{c}_{\D,t}}{p_t}\Bigr)^{\eta}C_{\D,t},
+\label{eq:ces-D}\\[3pt]
+P^{c}_{\F,t}&=\Bigl[\varpi+(1-\varpi)\,p_t^{\,\eta-1}\Bigr]^{\frac{1}{1-\eta}},
+&
+IM_{\F,t}&=(1-\varpi)\bigl(P^{c}_{\F,t}\,p_t\bigr)^{\eta}C_{\F,t},
+\label{eq:ces-F}
+\end{align}
+where $P^{c}_{\F,t}$ is expressed in $\F$-good units and the $\D$-good costs $1/p_t$
+there. Net exports in own-good units are
+\begin{equation}
+NX_{\D,t}=IM_{\F,t}-p_t\,IM_{\D,t},
+\qquad
+NX_{\F,t}=IM_{\D,t}-\frac{IM_{\F,t}}{p_t}.
+\label{eq:nx}
+\end{equation}
+
+\subsection{Retailers and marginal cost}
+
+A unit continuum of retailers buys the homogeneous intermediate good, differentiates
+it costlessly, and sells under monopolistic competition to a CES final-goods
+aggregator with elasticity $\epsilon_X$. Prices are fully flexible, so every retailer
+charges the constant markup $\epsilon_X/(\epsilon_X-1)$ over marginal cost and real
+marginal cost is constant:
+\begin{equation}
+mc_X=\frac{\epsilon_X-1}{\epsilon_X}.
+\label{eq:mc}
+\end{equation}
+Retail profits $(1-mc_X)Y_{X,t}$ are rebated lump-sum to households.
+
+\subsection{Intermediate producers and the working-capital wedge}
+\label{sec:wc}
+
+The intermediate producer operates a Cobb--Douglas technology in the
+\emph{predetermined} capital stock and hours,
+\begin{equation}
+Y_{X,t}=Z_{X,t}\,K_{X,t}^{\alpha_X}\,N_{X,t}^{1-\alpha_X},
+\label{eq:production}
+\end{equation}
+where $K_{X,t}$ was purchased by banks at $t-1$. Following Bocola's own open-economy
+extension (his \S V.C), the firm must pre-finance a fraction $\zeta_X$ of its wage
+bill with intra-period bank credit at the gross rate $1+r^{wc}_{X,t}$. The static
+problem is
+\begin{equation}
+\max_{N_{X,t}}\;\;
+mc_X\,Z_{X,t}K_{X,t}^{\alpha_X}N_{X,t}^{1-\alpha_X}
+\;-\;\bigl(1+\zeta_X r^{wc}_{X,t}\bigr)\,w_{X,t}N_{X,t}
+\;-\;mpk_{X,t}K_{X,t},
+\label{eq:firm-problem}
+\end{equation}
+delivering the factor-demand conditions
+\begin{align}
+w_{X,t}&=\frac{mc_X(1-\alpha_X)\,Y_{X,t}/N_{X,t}}{1+\zeta_X\,r^{wc}_{X,t}},
+\label{eq:labour-demand}\\[3pt]
+mpk_{X,t}&=mc_X\,\alpha_X\,\frac{Y_{X,t}}{K_{X,t}},
+\label{eq:mpk}
+\end{align}
+and a loan demand of
+\begin{equation}
+L_{X,t}=\zeta_X\,w_{X,t}N_{X,t}.
+\label{eq:loan-demand}
+\end{equation}
+Note that $mpk_{X,t}$ in \eqref{eq:mpk} is the marginal product of the
+\emph{bank-held vintage}: firms rent exactly the stock banks financed one period
+earlier.
+
+\impl{Equation~\eqref{eq:labour-demand} is the \textbf{only} channel through which
+financial spreads reach output on impact. Setting $\zeta_X=0$ nests the model
+without it exactly, and doing so collapses the output response to a sovereign-risk
+shock to approximately zero even when bond prices fall by 30\%. The interest cost
+$\zeta_X r^{wc}wN$ is treated as a real resource cost in the baseline; a switch
+($\varsigma^{\rm reb}\in\{0,1\}$ in equation~\eqref{eq:dividends}) can instead rebate
+it to households, in which case, under GHH, the spread becomes a pure intra-period
+transfer with no offsetting wealth effect and hours \emph{rise} with the spread.}
+
+\subsection{\texorpdfstring{Capital producers, Tobin's $q$, and the return on capital}
+                          {Capital producers, Tobin's q, and the return on capital}}
+
+Capital producers convert the final good into installed capital subject to Jermann
+(1998) adjustment costs. With $\iota_{X,t}\equiv I_{X,t}/K_{X,t}$, the law of motion is
+\begin{equation}
+K_{X,t+1}=(1-\delta_X)K_{X,t}+\Phi_X(\iota_{X,t})\,K_{X,t},
+\qquad
+\Phi_X(\iota)=\gamma_{0,X}\,\iota^{\,1-\xi_X}+\gamma_{1,X},
+\label{eq:capital-lom}
+\end{equation}
+with the coefficients pinned so that the adjustment cost is inactive at the steady
+state ($\Phi_X(\delta_X)=\delta_X$, $\Phi_X'(\delta_X)=1$):
+\begin{equation}
+\gamma_{0,X}=\frac{\delta_X^{\;\xi_X}}{1-\xi_X},
+\qquad
+\gamma_{1,X}=-\frac{\delta_X\,\xi_X}{1-\xi_X}.
+\label{eq:jermann-coeffs}
+\end{equation}
+The producer solves $\max_{\iota}\;Q_{X,t}\Phi_X(\iota)K_{X,t}-\iota K_{X,t}$, whose
+first-order condition delivers marginal Tobin's $q$ and, inverting
+\eqref{eq:capital-lom}, the investment rate:
+\begin{equation}
+Q_{X,t}=\frac{1}{\Phi_X'(\iota_{X,t})}
+      =\frac{\iota_{X,t}^{\;\xi_X}}{\gamma_{0,X}(1-\xi_X)},
+\qquad
+\iota_{X,t}=\left[\frac{K_{X,t+1}/K_{X,t}-(1-\delta_X)-\gamma_{1,X}}
+                       {\gamma_{0,X}}\right]^{\frac{1}{1-\xi_X}} .
+\label{eq:tobins-q}
+\end{equation}
+Capital producers' rents, $\Pi^{k}_{X,t}=Q_{X,t}\bigl[K_{X,t+1}-(1-\delta_X)K_{X,t}\bigr]-I_{X,t}$,
+are rebated to households. The parameter $\xi_X$ is the elasticity of $Q$ with respect
+to $I/K$.
+
+The bank holds the capital, so the \emph{realised} gross return between $t$ and $t+1$
+on a unit of capital purchased at $t$ is
+\begin{equation}
+\boxed{\;1+r^{k}_{X,t+1}=\frac{mpk_{X,t+1}+(1-\delta_X)\,Q_{X,t+1}}{Q_{X,t}}\;}
+\label{eq:rk}
+\end{equation}
+which is the object that appears in the intermediary's capital Euler equation.
+
+Total factor productivity in $\D$ is carried as a state and follows a deterministic
+(perfect-foresight) AR(1),
+\begin{equation}
+\log Z_{\D,t+1}=(1-\rho_z)\log \bar Z_{\D}+\rho_z\log Z_{\D,t},
+\label{eq:tfp}
+\end{equation}
+while $Z_{\F,t}=\bar Z_{\F}$ throughout: country asymmetries enter through shocks
+only.
+
+%======================================================================
+\section{Financial intermediaries}
+\label{sec:banks}
+%======================================================================
+
+This is the core of the model. Each country hosts a representative bank that
+intermediates \emph{all} of the economy's productive capital, the sovereign bonds
+held domestically, a cross-border sovereign position, and the working-capital loan
+book. Its balance sheet is the transmission mechanism from sovereign risk to real
+activity.
+
+\subsection{The balance sheet}
+
+At the end of period $t$ the bank in country $\D$ holds capital $K_{\D,t+1}$ at
+price $Q_{\D,t}$, home sovereign bonds $b^{\D}_{\D,t+1}$ at price $q^{\D}_t$,
+foreign sovereign bonds $b^{\F}_{\D,t+1}$ at price $q^{\F}_t$ converted into
+$\D$-goods at the terms of trade $p_t$, and working-capital loans $L_{\D,t}$. These
+are funded by net worth $n_{\D,t}$ and deposits $\mathrm{dep}_{\D,t}$:
+\begin{equation}
+\underbrace{Q_{\D,t}K_{\D,t+1}
+   +q^{\D}_{t}b^{\D}_{\D,t+1}
+   +p_t\,q^{\F}_{t}b^{\F}_{\D,t+1}
+   +L_{\D,t}}_{\textstyle \equiv\;\mathcal{A}_{\D,t}\ \ (\text{total assets})}
+\;=\;n_{\D,t}+\mathrm{dep}_{\D,t}.
+\label{eq:balance-sheet}
+\end{equation}
+The mirror-image expression for $\F$ converts its cross-border leg by $1/p_t$. Bank
+leverage is $\theta_{X,t}\equiv\mathcal{A}_{X,t}/n_{X,t}$.
+
+\subsection{Gross wealth and the deposit-obligation state}
+
+Let $h_t\equiv1-d_t(1-\varrho_\D)$ denote the survival factor on $\D$-sovereign
+claims (Section~\ref{sec:sovrisk}). At the start of $t+1$ the bank collects
+\begin{equation}
+\mathcal{X}_{\D,t+1}
+=\bigl[mpk_{\D,t+1}+(1-\delta_\D)Q_{\D,t+1}\bigr]K_{\D,t+1}
++\Xi^{\D}_{t+1}\,b^{\D}_{\D,t+1}
++p_{t+1}\,\Xi^{\F}_{t+1}\,b^{\F}_{\D,t+1},
+\label{eq:asset-payoff}
+\end{equation}
+where the per-unit bond payoffs are (Section~\ref{sec:sovrisk})
+\begin{equation}
+\Xi^{\D}_{t+1}=h_{t+1}\bigl[\delta_b+(1-\delta_b)q^{\D}_{t+1}\bigr],
+\qquad
+\Xi^{\F}_{t+1}=\delta_b+(1-\delta_b)q^{\F}_{t+1}.
+\label{eq:bond-payoff}
+\end{equation}
+Against this it owes its predetermined obligation. Because the working-capital loan
+is extended and repaid \emph{within} the period at the rate locked at $t$, the
+obligation the bank carries forward is net of the loan receivable:
+\begin{equation}
+\boxed{\;P_{X,t+1}\;=\;\bigl(1+r_{X,t}\bigr)\,\mathrm{dep}_{X,t}
+\;-\;\bigl(1+r^{wc}_{X,t}\bigr)L_{X,t}\;}
+\label{eq:P-state}
+\end{equation}
+so that gross bank wealth at the start of $t+1$ is simply
+\begin{equation}
+n^{g}_{X,t+1}=\mathcal{X}_{X,t+1}-P_{X,t+1}.
+\label{eq:ng}
+\end{equation}
+This is exactly the algebraic device that makes $P_{X}$ a \emph{sufficient} state for
+the bank's liability side: neither deposits, nor the loan book, nor the loan rate
+need to be carried separately.
+
+Substituting \eqref{eq:balance-sheet} into \eqref{eq:ng} and using the return
+definitions gives the excess-return representation used throughout:
+\begin{equation}
+n^{g}_{X,t+1}
+=\sum_{j\in\mathcal{J}}\bigl(R_{j,t+1}-R_{X,t}\bigr)\,a_{j,t}
+\;+\;R_{X,t}\,n_{X,t},
+\qquad R_{X,t}\equiv1+r_{X,t},
+\label{eq:ng-excess}
+\end{equation}
+where $\mathcal{J}=\{K,\,b^{\D},\,b^{\F},\,L\}$ indexes asset classes, $a_{j,t}$ is
+the market value of position $j$, and $R_{j,t+1}$ its gross return. The
+working-capital leg is riskless as of $t$: $R_{L,t+1}=1+r^{wc}_{X,t}$.
+
+\subsection{The banker's problem and the franchise value}
+
+Each period a fraction $f$ of bankers exits and pays its net worth out as dividends;
+the remaining $1-f$ continue. Entrants receive a startup transfer equal to a fraction
+$\omega$ of the aggregate asset base. A continuing banker maximises the expected
+discounted value of terminal net worth, discounting with the household stochastic
+discount factor $\Lambda_{t,t+1}$ of the country it operates in. Writing the value
+function of a banker with net worth $n$ as $V_t(n)$, the Bellman equation is
+\begin{equation}
+V_t(n_{X,t})
+=\max_{\{a_{j,t}\}}\;
+\E_t\Bigl\{\Lambda_{X,t,t+1}\bigl[
+   f\,n^{g}_{X,t+1}+(1-f)\,V_{t+1}\bigl(n^{g}_{X,t+1}\bigr)\bigr]\Bigr\}.
+\label{eq:bank-bellman}
+\end{equation}
+Because \eqref{eq:ng-excess} is linear in $n$ and the constraint below is linear in
+assets, the value function is linear, $V_t(n)=\varphi_{X,t}\,n$, where
+$\varphi_{X,t}$ is the \textbf{marginal value of one unit of intermediary net
+worth} (the franchise value). Defining the bank's \textbf{augmented stochastic
+discount factor}
+\begin{equation}
+\boxed{\;
+\Omega_{X,t,t+1}\;\equiv\;\Lambda_{X,t,t+1}\Bigl[\,f+(1-f)\,\varphi_{X,t+1}\Bigr]\;}
+\label{eq:omega}
+\end{equation}
+the objective collapses to $\E_t\bigl[\Omega_{X,t,t+1}\,n^{g}_{X,t+1}\bigr]$. The
+weight on the franchise value is the \emph{survival} probability $1-f$; the weight
+$f$ is the exit/payout share.
+
+\subsection{The agency friction and the incentive-compatibility constraint}
+
+After raising deposits, the banker can abscond with a fraction $\lambda$ of assets,
+in which case depositors recover the rest and the bank is liquidated. Deposits are
+forthcoming only if the franchise is worth at least as much as the divertable
+proceeds:
+\begin{equation}
+\boxed{\;\varphi_{X,t}\,n_{X,t}\;\ge\;\lambda_X\,\mathcal{A}_{X,t}\;}
+\label{eq:IC}
+\end{equation}
+Following Bocola (2016, eq.~3), \emph{all} asset classes carry the same divertability
+$\lambda_X$ --- capital, home bonds, cross-border bonds and working-capital loans
+alike. Equation~\eqref{eq:IC} is an endogenous leverage ceiling:
+$\theta_{X,t}\le\varphi_{X,t}/\lambda_X$.
+
+\begin{remark}[Why a single $\lambda$]
+Allowing $\lambda_K\ne\lambda_{b^{\D}}$ re-opens a portfolio-substitution margin
+along which a fall in sovereign bond prices \emph{relaxes} the constraint (the bank
+shifts into the now-cheaper divertability class), which makes sovereign risk
+expansionary. The single-$\lambda$ restriction is therefore not a simplification but
+a structural choice inherited from Bocola.
+\end{remark}
+
+\subsection{First-order conditions and the closed-form multiplier}
+
+Attach the multiplier $\tilde\mu_{X,t}\ge0$ to \eqref{eq:IC} and write the
+Lagrangian of the banker's problem as
+\begin{equation}
+\mathcal{L}
+=\bigl(1+\tilde\mu_{X,t}\bigr)\,
+  \E_t\bigl[\Omega_{X,t,t+1}\,n^{g}_{X,t+1}\bigr]
+  \;-\;\tilde\mu_{X,t}\,\lambda_X\,\mathcal{A}_{X,t},
+\label{eq:bank-lagrangian}
+\end{equation}
+using $V_t(n)=\E_t[\Omega\,n^{g}_{t+1}]$ on the left of \eqref{eq:IC}. It is
+convenient to rescale the multiplier onto the unit interval,
+\begin{equation}
+\mu_{X,t}\;\equiv\;\frac{\tilde\mu_{X,t}}{1+\tilde\mu_{X,t}}\;\in\;[0,1).
+\label{eq:mu-rescale}
+\end{equation}
+Differentiating \eqref{eq:bank-lagrangian} with respect to each position $a_{j,t}$
+and using \eqref{eq:ng-excess} gives the \textbf{unified asset-pricing condition}
+\begin{equation}
+\boxed{\;\E_t\Bigl[\Omega_{X,t,t+1}\bigl(R_{j,t+1}-R_{X,t}\bigr)\Bigr]
+\;=\;\lambda_X\,\mu_{X,t},
+\qquad j\in\{K,\;b^{\D},\;b^{\F},\;L\}\;}
+\label{eq:foc-general}
+\end{equation}
+together with the Karush--Kuhn--Tucker complementarity
+\begin{equation}
+\mu_{X,t}\ge0,
+\qquad
+\mathrm{slack}_{X,t}\equiv\varphi_{X,t}n_{X,t}-\lambda_X\mathcal{A}_{X,t}\ge0,
+\qquad
+\mu_{X,t}\cdot\mathrm{slack}_{X,t}=0 .
+\label{eq:kkt}
+\end{equation}
+Every asset class earns the \emph{same} shadow excess return $\lambda_X\mu_{X,t}$:
+the constraint prices scarce intermediary equity, not asset-specific risk.
+
+\begin{proposition}[Franchise value and the closed-form multiplier; Bocola 2016, Prop.~1]
+\label{prop:mu}
+At an optimum the franchise value satisfies the recursion
+\begin{equation}
+\varphi_{X,t}\;=\;\frac{\E_t\bigl[\Omega_{X,t,t+1}\bigr]\,R_{X,t}}{1-\mu_{X,t}},
+\label{eq:phi-recursion}
+\end{equation}
+and, whenever the incentive constraint binds, the multiplier admits the closed form
+\begin{equation}
+\mu_{X,t}
+=\max\left\{\,1-\frac{\E_t\bigl[\Omega_{X,t,t+1}\bigr]\,R_{X,t}\;n_{X,t}}
+                     {\lambda_X\,\mathcal{A}_{X,t}}\;,\;0\right\}.
+\label{eq:mu-closed}
+\end{equation}
+\end{proposition}
+
+\begin{proof}
+Evaluate the objective at the optimum using \eqref{eq:ng-excess} and
+\eqref{eq:foc-general}:
+\begin{align*}
+\varphi_{X,t}n_{X,t}
+&=\E_t\bigl[\Omega\,n^{g}_{t+1}\bigr]
+ =\sum_j \E_t\bigl[\Omega(R_{j,t+1}-R_{X,t})\bigr]a_{j,t}
+  +\E_t[\Omega]\,R_{X,t}n_{X,t}\\
+&=\mu_{X,t}\,\lambda_X\mathcal{A}_{X,t}+\E_t[\Omega]\,R_{X,t}n_{X,t}.
+\end{align*}
+If the constraint binds, $\lambda_X\mathcal{A}_{X,t}=\varphi_{X,t}n_{X,t}$, so
+$\varphi_{X,t}n_{X,t}(1-\mu_{X,t})=\E_t[\Omega]R_{X,t}n_{X,t}$, which is
+\eqref{eq:phi-recursion}; substituting \eqref{eq:phi-recursion} back into the binding
+constraint and solving for $\mu$ gives \eqref{eq:mu-closed}. If the constraint is
+slack, $\mu_{X,t}=0$ and \eqref{eq:phi-recursion} still holds, because the excess-return
+terms vanish by \eqref{eq:foc-general}. The $\max\{\cdot,0\}$ operator is exactly the
+complementarity \eqref{eq:kkt}.
+\end{proof}
+
+\impl{Equation~\eqref{eq:mu-closed} is the analytical heart of the transmission
+mechanism. A fall in sovereign bond prices reduces $n_{X,t}$ through
+\eqref{eq:ng}, which \emph{mechanically} raises $\mu_{X,t}$: scarcer equity, a
+tighter constraint, higher required excess returns on every asset class, and --- via
+\eqref{eq:rwc} --- a higher cost of working capital and lower hours. The premium is
+endogenous and requires no ad hoc spread rule.}
+
+\subsection{The three pricing conditions in explicit form}
+
+Specialising \eqref{eq:foc-general} to each class yields the equations imposed
+in equilibrium.
+
+\paragraph{Capital.} With $R_{K,t+1}=1+r^{k}_{X,t+1}$ from \eqref{eq:rk}:
+\begin{equation}
+\E_t\Bigl[\Omega_{X,t,t+1}\bigl(r^{k}_{X,t+1}-r_{X,t}\bigr)\Bigr]
+=\lambda_X\,\mu_{X,t}.
+\label{eq:capital-euler}
+\end{equation}
+This is the equation that pins down the capital stock $K_{X,t+1}$ carried into the
+next period (residuals 1--2 of Section~\ref{sec:system}).
+
+\paragraph{Sovereign bonds.} With $R_{b,t+1}=\Xi_{t+1}/q_t$, condition
+\eqref{eq:foc-general} rearranges into an explicit pricing formula,
+\begin{align}
+q^{\D}_{t}&=\frac{\E_t\bigl[\Omega_{\D,t,t+1}\,\Xi^{\D}_{t+1}\bigr]}
+                 {\E_t\bigl[\Omega_{\D,t,t+1}\bigr]R_{\D,t}+\lambda_\D\,\mu_{\D,t}},
+&
+q^{\F}_{t}&=\frac{\E_t\bigl[\Omega_{\F,t,t+1}\,\Xi^{\F}_{t+1}\bigr]}
+                 {\E_t\bigl[\Omega_{\F,t,t+1}\bigr]R_{\F,t}+\lambda_\F\,\mu_{\F,t}} .
+\label{eq:bond-pricing}
+\end{align}
+The denominator makes the \emph{liquidity} (constraint) component of the yield
+explicit: even a default-free bond trades below its risk-neutral present value by the
+factor $\lambda\mu$. The numerator carries the default risk.
+
+\paragraph{Working capital.} The loan rate is set at $t$ and is riskless, so
+$\E_t[\Omega](1+r^{wc}_{X,t}-R_{X,t})=\lambda_X\mu_{X,t}$, i.e.
+\begin{equation}
+\boxed{\;
+r^{wc}_{X,t}\;=\;r_{X,t}\;+\;\underbrace{\frac{\lambda_X\,\mu_{X,t}}
+                                               {\E_t\bigl[\Omega_{X,t,t+1}\bigr]}}
+                                        _{\text{lending spread}}\;}
+\label{eq:rwc}
+\end{equation}
+Equation~\eqref{eq:rwc} is the model's \textbf{credit spread}. It is the single
+quantity that links the financial block to the real block, through
+\eqref{eq:labour-demand}.
+
+\subsection{Net worth accumulation, entry and exit}
+
+Aggregating over bankers, net worth carried out of period $t$ is the retained wealth
+of surviving bankers plus the endowment of entrants:
+\begin{equation}
+\boxed{\;n_{X,t}\;=\;(1-f)\,n^{g}_{X,t}\;+\;\omega_X\,\mathcal{A}_{X,t}\;}
+\label{eq:nw-lom}
+\end{equation}
+with $n^{g}_{X,t}=\mathcal{X}_{X,t}-P_{X,t}$ from \eqref{eq:ng}, and the corresponding
+net payout to households is
+\begin{equation}
+\mathrm{div}^{\rm bank}_{X,t}=f\,n^{g}_{X,t}-\omega_X\,\mathcal{A}_{X,t}.
+\label{eq:bank-div}
+\end{equation}
+Deposits are then the residual funding need, $\mathrm{dep}_{X,t}=\mathcal{A}_{X,t}-n_{X,t}$,
+and the obligation state evolves by \eqref{eq:P-state}. Total dividends received by
+households consolidate retail profits, capital-producer rents, and the banking sector:
+\begin{equation}
+\mathrm{Div}_{X,t}=(1-mc_X)\,Y_{X,t}+\Pi^{k}_{X,t}+\mathrm{div}^{\rm bank}_{X,t}
++\varsigma^{\rm reb}\,\zeta_X r^{wc}_{X,t}w_{X,t}N_{X,t},
+\label{eq:dividends}
+\end{equation}
+where $\varsigma^{\rm reb}\in\{0,1\}$ is the working-capital rebate switch discussed
+in Section~\ref{sec:wc} (baseline: $\varsigma^{\rm reb}=0$).
+
+\subsection{Steady-state calibration of the agency friction}
+\label{sec:bankcal}
+
+At the steady state the constraint binds with equality and the system
+\eqref{eq:phi-recursion}--\eqref{eq:mu-closed} collapses to a scalar fixed point.
+Given a target leverage $\bar\theta$ and a target credit spread
+$\bar\sigma\equiv \bar r^{k}-\bar r$, the pair $(\lambda_X,\omega_X)$ is solved from
+\begin{align}
+\bar\varphi&=\frac{\bar\Omega\,(1+\bar r)}{1-\bar\mu},
+&
+\bar\Omega&=\beta^{\rm int}\bigl[f+(1-f)\bar\varphi\bigr],
+&
+\bar\mu&=\frac{\bar\Omega\,\bar\sigma\,\bar\theta}{\bar\varphi},
+\label{eq:ss-fixedpoint}\\[4pt]
+\lambda_X&=\frac{\bar\varphi}{\bar\theta},
+&
+\omega_X&=\frac{\mathcal{D}}{\bar\theta}-(1-f)\,\bar\sigma,
+&
+\mathcal{D}&\equiv1-(1-f)(1+\bar r),
+\label{eq:ss-lambda-omega}
+\end{align}
+where $\beta^{\rm int}$ is the bankers' discount factor, set to $1/(1+\bar r)$ so that
+$\beta^{\rm int}R=1$ at the steady state. The scalar fixed point
+\eqref{eq:ss-fixedpoint} can \emph{fold}: for high spread/leverage combinations the
+map has no low root and the calibration is infeasible. The solver selects the least
+root, which is also the one value iteration from below converges to.
+
+Two internal consistency conditions define the steady state of the bank block: the
+level of net worth implied by the binding constraint,
+$\bar n^{IC}=\lambda\bar{\mathcal{A}}/\bar\varphi$, must equal the level implied by the
+accumulation identity \eqref{eq:nw-lom},
+\begin{equation}
+\bar n^{ACC}
+=\frac{1}{\mathcal{D}}
+ \sum_{j\in\mathcal{J}}\Bigl[(1-f)\bigl(\bar R_{j}-\bar R\bigr)+\omega_X\Bigr]\bar a_j ,
+\label{eq:ss-nw}
+\end{equation}
+and this equality is what pins the steady-state return on capital $\bar r^{k}_X$
+in the first stage of the steady-state solve.
+
+%======================================================================
+\section{Sovereign risk and the default event}
+\label{sec:sovrisk}
+%======================================================================
+
+\subsection{Debt instrument}
+
+Both governments issue Hatchondo--Martinez/Chatterjee--Eyigungor perpetuities: a unit
+of the stock pays a coupon $\delta_b$ this period and $(1-\delta_b)$ units of the same
+bond survive into the next. Duration is approximately $1/\delta_b$ quarters. The
+ex-coupon payoff to a unit of stock is $\Xi_{t+1}$ of equation~\eqref{eq:bond-payoff}.
+
+\impl{Long duration is essential, not cosmetic. Because the price
+$q_t$ capitalises the entire expected future path of default risk, a persistent
+increase in $\pi^{d}$ produces a large mark-to-market loss on bank balance sheets.
+Shortening duration to $\delta_b=0.25$ cuts the repricing by roughly a factor of six
+and reverses the sign of the output response.}
+
+\subsection{The exogenous, priced risk process}
+
+Following Bocola (2016, eqs.~11--12), default risk is \textbf{exogenous}: it is a
+priced probability, never a function of the debt stock or of any endogenous state.
+A latent risk factor $s_t$ follows
+\begin{equation}
+s_{t+1}=(1-\rho_s)\,\bar s+\rho_s\,s_t+\sigma_s\,\varepsilon_{t+1},
+\qquad \varepsilon_{t+1}\sim N(0,1),
+\label{eq:s-process}
+\end{equation}
+and the one-quarter-ahead priced probability of default is the logistic transform
+\begin{equation}
+\pi^{d}_t\;=\;\pi^{d}(s_t)\;=\;\frac{1}{1+e^{-s_t}},
+\qquad \bar s=\log\frac{0.001}{0.999}\ \ \text{so that}\ \ \pi^{d}(\bar s)=0.1\%.
+\label{eq:pd}
+\end{equation}
+
+Two distinct objects must be kept separate:
+\begin{itemize}
+\item the \textbf{priced} probability $\pi^{d}_t$, which enters bond pricing
+      \eqref{eq:bond-pricing} and every expected-return condition
+      \eqref{eq:foc-general};
+\item the \textbf{realised} indicator $d_t\in\{0,1\}$, which enters realised payoffs
+      \eqref{eq:asset-payoff} and the government's flow budget.
+\end{itemize}
+The baseline experiment sets $\pi^{d}_t>0$ with $d_t\equiv0$: risk is priced but
+never realised. This is precisely Bocola's ``pass-through'' design --- the entire
+contraction is generated by the \emph{anticipation} of an event that does not occur.
+
+\subsection{The default event}
+
+The feared event is a single deterministic pure haircut: a write-down of the whole
+$\D$-claim to a recovery value $\varrho_\D$, applied to coupon and continuation value
+alike, so the survival factor is
+\begin{equation}
+h_t=1-d_t\,(1-\varrho_\D),
+\qquad \varrho_\D=0.45 \ \ \text{(the 2012 Greek PSI; Bocola's $D=0.55$)} .
+\label{eq:haircut}
+\end{equation}
+There are no exogenous scarring costs: no output cost of default, no capital-quality
+shock, no bank recapitalisation. The recession in the default state arises
+\emph{endogenously}, through the same balance-sheet mechanism
+\eqref{eq:ng}--\eqref{eq:mu-closed} operating on a smaller asset base. The
+$\F$-sovereign never defaults, so $\F$-bonds are safe in both states.
+
+\subsection{The expectation operator}
+
+The conditional expectations in \eqref{eq:omega}, \eqref{eq:foc-general},
+\eqref{eq:bond-pricing} and \eqref{eq:agg-euler} are genuine multi-dimensional
+integrals over (i) the innovation to $s$ and (ii) the discrete default fork. Let
+$\{\varepsilon_m,w_m\}_{m=1}^{M}$ be the Gauss--Hermite nodes and weights of the
+probabilists' Hermite rule, so that
+$s_{t+1}^{(m)}=(1-\rho_s)\bar s+\rho_s s_t+\sigma_s\varepsilon_m$, and let
+$d'\in\{0,1\}$ index the regime. For any function $g$ of next period's state,
+\begin{equation}
+\boxed{\;
+\E_t\bigl[g\bigr]
+=\sum_{m=1}^{M}w_m\Bigl\{
+   \bigl(1-\pi^{d}_t\bigr)\,g\bigl(0,\mathcal{S}^{(m)}_{t+1}\bigr)
+   \;+\;\pi^{d}_t\,\Bigl[
+      \varkappa_{\rm tpi}\,g^{\rm hon}\bigl(\mathcal{S}^{(m)}_{t+1}\bigr)
+      +\bigl(1-\varkappa_{\rm tpi}\bigr)\,g\bigl(1,\mathcal{S}^{(m)}_{t+1}\bigr)
+   \Bigr]\Bigr\}\;}
+\label{eq:expectation}
+\end{equation}
+where $g(d',\cdot)$ evaluates the equilibrium decision rules of regime $d'$ at a
+\emph{reachable} next-period state --- never a frozen stand-in economy --- and
+$g^{\rm hon}$ is the backstop-honoured branch of Section~\ref{sec:tpi}. Setting
+$\varkappa_{\rm tpi}=0$ collapses \eqref{eq:expectation} to the two-branch
+(no-backstop) case, and $\pi^{d}\equiv0$ nests the risk-neutral model exactly.
+
+\subsection{Branch stochastic discount factors and the endogenous premium}
+
+The banker discounts with the household kernel of its own country, evaluated
+branch-by-branch on the GHH composite:
+\begin{equation}
+\Lambda^{(d')}_{X,t,t+1}
+=\beta^{\rm int}_X
+ \left(\frac{x_{X,t}}{x^{(d')}_{X,t+1}}\right)^{\sigma_X},
+\qquad
+\Omega^{(d')}_{X,t,t+1}
+=\Lambda^{(d')}_{X,t,t+1}\Bigl[f+(1-f)\varphi^{(d')}_{X,t+1}\Bigr].
+\label{eq:branch-sdf}
+\end{equation}
+Because consumption is lower in the default branch, $x^{(1)}<x^{(0)}$ and hence
+$\Omega^{(1)}>\Omega^{(0)}$: the bank values wealth more in the bad state. This is
+what makes the bond carry a genuine \emph{risk premium} rather than a pure
+actuarial discount, and it is what makes $\E_t[\Omega]$ in \eqref{eq:mu-closed}
+\emph{fall} when risk rises --- tightening the constraint.
+
+\impl{A constant discount factor on the no-default branch (i.e.
+$\Lambda^{(0)}\equiv\beta^{\rm int}$) cannot fall when risk rises, so
+$\E_t[\Omega]$ climbs with $\varphi'$ and the constraint counterfactually
+\emph{loosens}. The state-contingent kernel \eqref{eq:branch-sdf} is required for
+the constraint to tighten with risk.}
+
+The bond price \eqref{eq:bond-pricing} then decomposes into three pieces:
+\begin{equation}
+q^{\D}_t
+=\underbrace{\frac{\E_t[\Xi^{\D}_{t+1}]}{R_{\D,t}}}_{\text{expected payoff}}
+\;+\;\underbrace{\frac{\mathrm{Cov}_t\bigl(\Omega,\Xi^{\D}_{t+1}\bigr)}
+                       {\E_t[\Omega]R_{\D,t}}}_{\text{risk premium}\;(<0)}
+\;-\;\underbrace{\frac{\lambda_\D\mu_{\D,t}}
+     {\E_t[\Omega]R_{\D,t}+\lambda_\D\mu_{\D,t}}\;q^{\D}_t}_{\text{liquidity/constraint discount}} .
+\label{eq:bond-decomposition}
+\end{equation}
+
+%======================================================================
+\section{Government and policy}
+%======================================================================
+
+\subsection{The consolidated government budget constraint}
+
+The government of country $X$ finances an exogenous expenditure stream $G_X$, coupon
+payments on the surviving stock, and any bailout outlay, with lump-sum taxes and new
+issuance. In own-good units,
+\begin{equation}
+\boxed{\;
+G_X+\delta_b\,B_{X,t}\,h_t
+\;=\;T^{\tau}_{X,t}
+\;+\;q^{X}_{t}\Bigl[\,B_{X,t+1}-(1-\delta_b)\,B_{X,t}\,h_t\Bigr]\;}
+\label{eq:govt-budget}
+\end{equation}
+so that the debt stock evolves as
+\begin{equation}
+B_{X,t+1}=(1-\delta_b)\,B_{X,t}\,h_t
+\;+\;\frac{G_X+\delta_b B_{X,t}h_t-T^{\tau}_{X,t}}{q^{X}_{t}} .
+\label{eq:debt-lom}
+\end{equation}
+Because $q^{X}_t$ falls when risk rises, \eqref{eq:debt-lom} contains the standard
+\emph{financing} amplification: the same primary deficit requires more face value to
+be placed when the sovereign is under stress. The end-of-period stock is
+forward-integrated \emph{inside} every equilibrium evaluation and absorbed by banks;
+clearing against a fixed $\bar B$ instead opens a Walras leak of order $0.5\%$ of GDP
+per $5\%$ debt deviation.
+
+\subsection{The fiscal rule}
+
+Taxes follow a Bohn (1998) rule in the form Bocola estimates, i.e. as a constant
+\emph{elasticity} of the tax level with respect to the surviving debt stock:
+\begin{equation}
+\boxed{\;
+T^{\tau}_{X,t}=\bar T^{\tau}_X
+\left(\frac{B_{X,t}\,h_t}{\bar B_X}\right)^{\gamma_\tau},
+\qquad \gamma_\tau=1 \;}
+\label{eq:bohn}
+\end{equation}
+with the steady-state anchor $\bar T^{\tau}_X=G_X+\delta_b\bar B_X(1-\bar q^{X})$
+obtained from \eqref{eq:govt-budget} at a constant stock.
+
+\begin{remark}[Elasticity, not level]
+Reading $\gamma_\tau$ as a coefficient on the debt \emph{level} rather than as an
+elasticity turns a $55\%$ haircut into a fiscal windfall on the order of $50\%$ of
+GDP, which makes the default event expansionary and renders most of the $d=1$ region
+unsolvable. Under \eqref{eq:bohn} a haircut to $\varrho_\D=0.45$ delivers
+$B'/\bar B=0.451$, as it should: the fiscal-relief leg of default is real but
+second-order relative to the bank-loss leg at the calibrated exposure.
+\end{remark}
+
+\subsection{The monetary block of the union}
+\label{sec:money}
+
+Prices are fully flexible and there is no nominal rigidity, so the model contains no
+Taylor rule and no nominal interest rate to set. What a monetary union \emph{does}
+impose on real allocations is modelled directly, in two parts.
+
+\paragraph{(i) A single union-wide funding market.} The two national deposit-market
+clearing conditions are replaced by one union-wide clearing condition (in $\D$-good
+units) together with a no-arbitrage condition across national deposit legs. Deposits
+are own-good claims remunerated at national rates, and a frictionless union interbank
+market equalises their real returns:
+\begin{equation}
+\boxed{\;
+\bigl(1+r_{\D,t}\bigr)
+\;=\;\bigl(1+r_{\F,t}\bigr)\,\frac{\E_t\bigl[p_{t+1}\bigr]}{p_t}
+\;-\;\kappa_{\rm nfa}\,\frac{P_{\D,t}-P_{\F,t}}{\bar Y_\D}\;}
+\label{eq:uip}
+\end{equation}
+This \textbf{deposit-UIP} condition is the flexible-price image of a single nominal
+policy rate plus national inflation differentials, i.e. the Backus--Kehoe--Kydland /
+Baxter--Crucini single-traded-bond margin. Together with \eqref{eq:agg-euler} for
+$\D$ it determines both national deposit rates. Because pass-through through the
+union interbank is zero-profit, the cross-border deposit position is the absorption
+margin that breaks the national saving-equals-investment trap; imposing the literal
+condition $r_{\D,t}=r_{\F,t}$ on own-good legs instead is \emph{incorrect}, because
+it leaves an unassigned real-exchange-rate valuation profit and opens a Walras leak.
+
+\paragraph{(ii) A stationarity-inducing external premium.} The last term of
+\eqref{eq:uip} is the Schmitt-Grohé--Uribe debt-elastic premium on the net external
+position (Bocola's only foreign friction), proxied here by the cross-country wealth
+imbalance $P_{\D,t}-P_{\F,t}$. It is exactly zero at the symmetric steady state, so
+it is undistorting there and only induces stationarity off-steady-state.
+$\kappa_{\rm nfa}=0$ nests frictionless parity.
+
+\subsection{The TPI/OMT backstop}
+\label{sec:tpi}
+
+% STALE AS OF 2026-08-30. This section describes the earlier three-branch design, in
+% which the DEFAULT fork split into backstop-honoured and reneged and the central bank
+% bought nothing. The implemented policy is now a ONE-SIDED YIELD PEG WITH REAL
+% PURCHASES: with per-period probability phi the central bank is in the D-sovereign
+% market and buys until the price reaches Q*, it holds what it buys (a state, running
+% off at delta_b), it is funded by household claims rather than bank reserves, and it
+% remits the carry to the treasury. Rewrite this section from point_map.py before the
+% draft goes out.
+
+
+The union's central bank operates a sovereign backstop of the OMT/TPI type. Two
+formulations are implemented; both are \emph{announcement}, not rate, instruments.
+
+\paragraph{(a) Priced activation (the production formulation).} The default fork of
+\eqref{eq:expectation} splits into a \textbf{backstop-honoured} and a
+\textbf{backstop-reneged} branch, weighted by the priced activation probability
+$\varkappa_{\rm tpi}\in[0,1]$. In the honoured branch the central bank (i) redeems
+the $\D$-bond at a near-par value $\varrho^{\rm tpi}$ and (ii) averts a fraction
+$\varsigma$ of the recession, so that the honoured continuation is a blend of the two
+regimes' decision rules:
+\begin{align}
+g^{\rm hon}(\mathcal{S}')&=(1-\varsigma)\,g\bigl(1,\mathcal{S}'\bigr)
+                          +\varsigma\,g\bigl(0,\mathcal{S}'\bigr),
+\label{eq:tpi-blend}\\[3pt]
+\Xi^{\D,\rm hon}_{t+1}&=\varrho^{\rm tpi}\Bigl[\delta_b+(1-\delta_b)q^{\D,\rm hon}_{t+1}\Bigr],
+\qquad
+\Xi^{\D,\rm ren}_{t+1}=\varrho_\D\Bigl[\delta_b+(1-\delta_b)q^{\D,(1)}_{t+1}\Bigr].
+\label{eq:tpi-payoffs}
+\end{align}
+At $\varrho^{\rm tpi}=\varsigma=1$ a honoured backstop fully neutralises the event,
+so the effective default probability becomes $\pi^{d}_t(1-\varkappa_{\rm tpi})$ ---
+the textbook reading that a fully credible backstop removes the risk premium at zero
+purchases. At $\varkappa_{\rm tpi}=0$ or $\varsigma=0$ the two-branch solve is nested
+exactly.
+
+\paragraph{(b) A mechanical price floor (the Markov-switching formulation).} In the
+regime $\mathfrak{s}^{\rm tpi}_t=1$ the central bank supports the $\D$-bond at a
+floor that prices the \emph{same} expected payoff at the steady-state constraint
+spread, purchasing quantity $\mathcal{Q}^{cb}_t$ according to a portfolio-balance rule:
+\begin{equation}
+q^{\rm floor}_t=\frac{\E_t\bigl[\Xi^{\D}_{t+1}\bigr]}{1+r_{\D,t}+\bar\lambda\bar\mu/\bar\Omega},
+\qquad
+\mathcal{Q}^{cb}_t=\frac{\max\bigl\{0,\;q^{\rm floor}_t-q^{\D,\rm free}_t\bigr\}}{\psi_{cb}}
+\,\mathfrak{s}^{\rm tpi}_t,
+\qquad
+q^{\D}_t=q^{\D,\rm free}_t+\psi_{cb}\,\mathcal{Q}^{cb}_t .
+\label{eq:tpi-floor}
+\end{equation}
+The floor strips out the liquidity component of the yield while leaving default
+compensation intact. Any central-bank profit or loss is rebated to the fiscal
+authority, so \eqref{eq:govt-budget} continues to hold as a consolidated constraint.
+The $\max$ operator in \eqref{eq:tpi-floor} is smoothed in implementation, since it
+is non-differentiable exactly where the floor switches on.
+
+\subsection{Macroprudential policy}
+
+The model contains \textbf{no macroprudential rule}: this is a deliberate scope
+decision, not an omission of an implemented block. The natural policy object, were
+one to be added, is the divertability parameter $\lambda_X$ of \eqref{eq:IC},
+equivalently the leverage ceiling
+\begin{equation}
+\theta_{X,t}\;\le\;\bar\theta_{X,t}\;=\;\frac{\varphi_{X,t}}{\lambda_X},
+\label{eq:macropru}
+\end{equation}
+which a capital requirement would tighten. The comparative statics of such a policy
+are fully characterised in closed form by \eqref{eq:ss-fixedpoint}: a permanently
+tighter $\lambda$ lowers steady-state leverage one-for-one and, through
+$\bar\mu=\bar\Omega\bar\sigma\bar\theta/\bar\varphi$, raises the steady-state credit
+spread \eqref{eq:rwc} --- trading a smaller crisis amplification for a permanently
+higher cost of capital. Making $\lambda$ state-contingent (e.g.\ a countercyclical
+buffer $\lambda_t=\bar\lambda\,\exp\{-\phi_{\rm mp}\log(n_{X,t}/\bar n_X)\}$) would
+enter the system only through \eqref{eq:mu-closed} and would require no other change.
+
+%======================================================================
+\section{Equilibrium}
+\label{sec:equilibrium}
+%======================================================================
+
+\subsection{Market clearing}
+
+\paragraph{Goods markets.} Each country's good clears against domestic absorption
+and net exports,
+\begin{align}
+Y_{\D,t}&=P^{c}_{\D,t}C_{\D,t}+I_{\D,t}+G_\D+NX_{\D,t},
+\label{eq:goods-D}\\
+Y_{\F,t}&=P^{c}_{\F,t}C_{\F,t}+I_{\F,t}+G_\F+NX_{\F,t}.
+\label{eq:goods-F}
+\end{align}
+The term $P^{c}_{X,t}C_{X,t}$ is consumption expenditure valued in own-good units;
+subtracting imports and adding exports through $NX$ recovers the own-good content.
+By Walras' law, \eqref{eq:goods-F} and the current-account identity are implied by
+the remaining conditions and are therefore \emph{dropped} from the solved system and
+monitored as diagnostics.
+
+\paragraph{Deposit market (union-wide).} Household saving equals bank funding, by
+quantity, with the union interbank reallocating across countries:
+\begin{equation}
+A_{\D,t}P^{c}_{\D,t}+p_t\,A_{\F,t}P^{c}_{\F,t}
+=\mathrm{dep}_{\D,t}+p_t\,\mathrm{dep}_{\F,t},
+\qquad
+A_{X,t}=\frac{\mathrm{dep}_{X,t}}{P^{c}_{X,t}} ,
+\label{eq:deposit-clearing}
+\end{equation}
+with the cross-border deposit position $\mathrm{nfa}^{\rm dep}_{\D,t}$ as the
+absorption margin, and the rate structure pinned by \eqref{eq:agg-euler} and
+\eqref{eq:uip}.
+
+\paragraph{Sovereign bond markets.} Banks absorb the entire outstanding stock of each
+sovereign:
+\begin{equation}
+b^{\D}_{\D,t+1}+b^{\D}_{\F,t+1}=B_{\D,t+1},
+\qquad
+b^{\F}_{\F,t+1}+b^{\F}_{\D,t+1}=B_{\F,t+1}.
+\label{eq:bond-clearing}
+\end{equation}
+The cross-border split is held at its calibrated share in the projection solver
+($b^{\D}_{\F}/B_\D$ fixed at the EBA-based exposure); in the path-based
+implementation it is instead determined by the cross-border FOC with quadratic
+portfolio adjustment costs,
+\begin{equation}
+b^{\F}_{\D,t}=\bar b^{\F}_{\D}
++\frac{1}{\psi^{b}}\Bigl[\E_t\bigl[R^{\F}_{t+1}\bigr]-R_{\D,t}
+-\overline{\mathrm{exc}}-\lambda_\D\mu_{\D,t}/\E_t[\Omega_\D]\Bigr].
+\label{eq:xborder-foc}
+\end{equation}
+
+\paragraph{Capital and labour.} Capital market clearing is implicit in the
+intermediary's balance sheet --- banks hold the entire capital stock, and the
+capital Euler \eqref{eq:capital-euler} determines $K_{X,t+1}$. Labour clears at the
+wage satisfying \eqref{eq:agg-labour} and \eqref{eq:labour-demand} jointly.
+
+\paragraph{External account.} The current account identity
+\begin{equation}
+NX_{\D,t}+\bigl(\text{net cross-border factor income}\bigr)
+=\Delta\bigl(\text{net foreign asset position}\bigr)
+\label{eq:ca}
+\end{equation}
+holds as an implication and is monitored as a Walras diagnostic.
+
+\subsection{Recursive competitive equilibrium}
+
+\begin{definition}[Recursive competitive equilibrium]
+\label{def:rce}
+Let the aggregate state be
+\begin{equation}
+\mathcal{S}_t=\bigl(K_{\D,t},\,K_{\F,t},\,P_{\D,t},\,P_{\F,t},\,B_{\D,t},\,s_t,\,Z_{\D,t}\bigr)
+\;\in\;\R^{7},
+\qquad d_t\in\{0,1\},
+\label{eq:state}
+\end{equation}
+i.e.\ the two capital stocks, the two banks' gross deposit obligations, the risky
+debt stock, the sovereign-risk factor and TFP, together with the discrete default
+regime. A recursive competitive equilibrium consists of
+\begin{enumerate}
+\item decision rules
+$\bigl\{N_X(d,\mathcal{S}),\,K'_X(d,\mathcal{S}),\,r_X(d,\mathcal{S}),\,p(d,\mathcal{S})\bigr\}$;
+\item valuation rules
+$\bigl\{\varphi_X(d,\mathcal{S}),\,q^{X}(d,\mathcal{S})\bigr\}$
+and household aggregates $\bigl\{C_X(d,\mathcal{S}),\,A_X(d,\mathcal{S})\bigr\}$;
+\item multipliers $\mu_X(d,\mathcal{S})\ge0$ and a transition law
+$\mathcal{S}'=\mathcal{T}\bigl(d,\mathcal{S},d',\varepsilon'\bigr)$;
+\end{enumerate}
+such that, at every $(d,\mathcal{S})$: households optimise
+(\eqref{eq:agg-labour}, \eqref{eq:agg-euler}) subject to
+\eqref{eq:hh-budget-agg}; firms optimise
+(\eqref{eq:labour-demand}--\eqref{eq:mpk}) and capital producers satisfy
+\eqref{eq:tobins-q}; intermediaries optimise
+(\eqref{eq:foc-general}, \eqref{eq:phi-recursion}) subject to the incentive
+constraint \eqref{eq:IC} with complementarity \eqref{eq:kkt}; the government
+satisfies \eqref{eq:govt-budget}--\eqref{eq:bohn}; all markets clear
+(\eqref{eq:goods-D}, \eqref{eq:deposit-clearing}, \eqref{eq:bond-clearing},
+\eqref{eq:uip}); and expectations are formed under \eqref{eq:expectation} with
+$\mathcal{S}'$ generated by the same rules.
+\end{definition}
+
+\subsection{The solved system, equation by equation}
+\label{sec:system}
+
+At each point $(d,\mathcal{S})$ the equilibrium is characterised by seven equations
+in seven unknowns,
+\begin{equation}
+\mathbf{x}=\bigl(N_\D,\;N_\F,\;K'_\D,\;K'_\F,\;r_\D,\;r_\F,\;p\bigr),
+\label{eq:unknowns}
+\end{equation}
+listed in Table~\ref{tab:system}. The valuations $\varphi_X$, $q^{X}$ and the
+multiplier $\mu_X$ are \emph{read off} the recursions
+\eqref{eq:phi-recursion}, \eqref{eq:bond-pricing} and \eqref{eq:mu-closed} given the
+continuation, rather than solved for --- which is what breaks the simultaneity
+between the bond price and next period's state.
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{The seven market-clearing conditions and the unknown each pins down.}
+\label{tab:system}
+\begin{tabular}{@{}clll@{}}
+\toprule
+\# & Condition & Equation & Pins \\
+\midrule
+1 & Capital Euler, $\D$              & $\E[\Omega_\D(r^{k}_\D{}'-r_\D)]-\lambda_\D\mu_\D=0$ & $K'_\D$ \\
+2 & Capital Euler, $\F$              & $\E[\Omega_\F(r^{k}_\F{}'-r_\F)]-\lambda_\F\mu_\F=0$ & $K'_\F$ \\
+3 & Labour market, $\D$              & $\chi_\D N_\D^{1/\nu_\D}-w_\D/P^{c}_\D=0$            & $N_\D$   \\
+4 & Labour market, $\F$              & $\chi_\F N_\F^{1/\nu_\F}-w_\F/P^{c}_\F=0$            & $N_\F$   \\
+5 & Household deposit Euler, $\D$    & $x_\D^{-\sigma}-\tilde\beta_\D\E[(1+r^{c}_\D{}')x_\D'^{-\sigma}]=0$ & $r_\D$ \\
+6 & Deposit-UIP (union)              & $(1+r_\D)-(1+r_\F)\E[p']/p+\kappa_{\rm nfa}\Delta P/\bar Y=0$ & $r_\F$ \\
+7 & Goods market, $\D$               & $Y_\D-P^{c}_\D C_\D-I_\D-NX_\D-G_\D=0$               & $p$      \\
+\midrule
+\multicolumn{4}{@{}l@{}}{\emph{Dropped (Walras-redundant), monitored as diagnostics:} goods market $\F$; current account.}\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Definitions of the key endogenous variables}
+
+The objects reported in the experiments are defined as follows.
+
+\begin{align}
+\text{Credit / lending spread (annualised bp)}\quad
+&\mathrm{sp}_{X,t}=4\times10^{4}\cdot\frac{\lambda_X\,\mu_{X,t}}{\varphi_{X,t}},
+\label{eq:def-spread}\\[3pt]
+\text{Bank leverage}\quad
+&\theta_{X,t}=\frac{\mathcal{A}_{X,t}}{n_{X,t}}
+   \;\le\;\frac{\varphi_{X,t}}{\lambda_X},
+\label{eq:def-leverage}\\[3pt]
+\text{Sovereign yield / spread over the safe rate}\quad
+&y^{\D}_t=\frac{\delta_b+(1-\delta_b)q^{\D}_t}{q^{\D}_t}-1,
+\qquad
+\mathrm{spr}^{\D}_t=y^{\D}_t-y^{\F}_t,
+\label{eq:def-yield}\\[3pt]
+\text{Constraint slack}\quad
+&\mathrm{slack}_{X,t}=\varphi_{X,t}n_{X,t}-\lambda_X\mathcal{A}_{X,t}\;\ge\;0,
+\label{eq:def-slack}\\[3pt]
+\text{Real exchange rate}\quad
+&\mathrm{rer}_t=\frac{p_t\,P^{c}_{\F,t}}{P^{c}_{\D,t}},
+\qquad
+\text{Debt/GDP}\;=\;\frac{q^{\D}_tB_{\D,t}}{4Y_{\D,t}} .
+\label{eq:def-rer}
+\end{align}
+
+\subsection{Decomposition of the output response}
+
+Because production \eqref{eq:production} is Cobb--Douglas and capital is
+predetermined, the impact response of output is an exact identity in three terms:
+\begin{equation}
+d\log Y_{\D,t}=d\log Z_{\D,t}+\alpha_\D\,d\log K_{\D,t}+(1-\alpha_\D)\,d\log N_{\D,t}.
+\label{eq:decomp-Y}
+\end{equation}
+Substituting the labour-market condition \eqref{eq:agg-labour} together with
+\eqref{eq:labour-demand} and solving for hours,
+\begin{equation}
+\boxed{\;
+d\log N_{\D,t}
+=\Theta\Bigl[\,d\log Z_{\D,t}+\alpha_\D\,d\log K_{\D,t}
+-\!\!\underbrace{d\log\bigl(1+\zeta_\D r^{wc}_{\D,t}\bigr)}_{\text{financial wedge}}
+\!\!-\,d\log P^{c}_{\D,t}\Bigr],
+\quad
+\Theta=\frac{1}{1/\nu_\D+\alpha_\D}\;}
+\label{eq:decomp-N}
+\end{equation}
+and, using \eqref{eq:rwc}, the financial wedge splits additively into a
+\textbf{deposit-rate} leg and a \textbf{credit-spread} leg,
+$r^{wc}=r_{\D}+\lambda_\D\mu_\D/\E[\Omega_\D]$. The second is the Bocola channel:
+it is the only term through which an increase in the priced probability of sovereign
+default reaches output.
+
+%======================================================================
+\section{The steady state}
+%======================================================================
+
+The deterministic steady state is imposed to be \textbf{symmetric}: country
+asymmetries enter through shocks only, so $p_{ss}=1$ and every real quantity is
+common across countries. It is computed in two stages.
+
+\paragraph{\texorpdfstring{Stage 1: $\{\bar r^{k}_\D,\bar r^{k}_\F,\bar p\}$.}
+                          {Stage 1.}} Two capital-market
+conditions --- the equality of $\bar n^{IC}$ and $\bar n^{ACC}$ from
+Section~\ref{sec:bankcal}, one per country --- plus external balance,
+\begin{equation}
+NX_\D+\bigl(\text{net cross-border coupon income}\bigr)=0 ,
+\label{eq:ss-external}
+\end{equation}
+determine the two returns on capital and the terms of trade. TFP is then rescaled to
+normalise $\bar Y_X=1$ and $\bar N_X=1$, and $\chi_X$ is set from the GHH labour
+condition \eqref{eq:agg-labour}.
+
+\paragraph{\texorpdfstring{Stage 2: $\{\beta_\D,\beta_\F\}$.}
+                          {Stage 2.}} The heterogeneous-agent block is solved
+for each candidate discount factor and the deposit-market condition
+\begin{equation}
+A^{ss}_X\bigl(\beta_X\bigr)=\bigl(\bar\theta_X-1\bigr)\bar n_X
+\label{eq:ss-deposit}
+\end{equation}
+is inverted for $\beta_X$. Under the symmetric-steady-state doctrine
+$\beta_\F=\beta_\D$ and the $\F$ condition is verified rather than imposed --- at a
+symmetric steady state the union clearing coincides with each national market and the
+cross-border deposit position is zero.
+
+At the calibrated steady state the incentive constraint \textbf{binds}
+($\bar\mu\approx0.02$, $\mathrm{slack}=0$), which is a deliberate choice: Bocola's own
+posterior puts $\bar\mu\approx0.001$, i.e.\ exactly on the KKT kink, where any shock
+drives some period's multiplier across zero and the solver loses a valid Jacobian.
+The Gertler--Karadi (2011) robustly-binding calibration (leverage 4, a 200\,bp annual
+spread) keeps the constraint strictly binding through both experiments at the cost of
+smaller --- but correctly signed --- amplification.
+
+%======================================================================
+\section{Numerical solution}
+%======================================================================
+
+The model is solved \textbf{globally}, as recursive decision rules over the seven
+continuous states \eqref{eq:state} and the discrete regime $d$, with separate
+coefficient sets per regime.
+
+\paragraph{Approximation.} Every rule is a Chebyshev polynomial on a Smolyak sparse
+grid built from nested Chebyshev-extrema point sets (Krueger--Kubler): the grid is
+the union of tensor products of per-level ``new point'' sets over multi-indices $i$
+with $\sum_j(i_j-1)\le\ell$, and the basis uses the same index set over ``new
+degree'' sets, so the collocation matrix is square and interpolation is exact at the
+nodes. Anisotropic levels $\ell_j$ concentrate resolution on the risk factor $s$ and
+the two net-worth states, where the constraint boundary moves. Rules that must remain
+positive are collocated in logs; interest rates are carried as gross rates $1+r$.
+
+\paragraph{Algorithm (time iteration).} Each sweep freezes the previous iterate as
+the continuation, solves the seven residuals of Table~\ref{tab:system} pointwise by
+Newton's method at every grid node and in both regimes, reads the valuations off
+\eqref{eq:phi-recursion}--\eqref{eq:mu-closed}, then damps and refits the
+coefficients. Convergence requires \emph{both} a settled rule and every point
+clearing; nodes that fail to clear retain their previous values and are
+down-weighted in the fit, so a failed corner cannot poison the global basis.
+
+\paragraph{Smoothing of kinks.} Guards that would otherwise plant a plateau inside a
+fitted object --- the caps on $\mu$ and $\varphi$, the net-worth floor of
+\eqref{eq:nw-lom}, the $\max$ in \eqref{eq:tpi-floor} --- are replaced by the smooth
+counterparts $\mathrm{smax}(x,\underline{x})=\underline{x}+\tfrac12[(x-\underline{x})
++\sqrt{(x-\underline{x})^2+\epsilon^2}]$. The KKT switch in \eqref{eq:mu-closed} is
+\emph{not} smoothed: it is the complementarity itself, not a numerical guard.
+
+\paragraph{Known limitations.} The magnitudes reported at the baseline are indicative
+rather than estimated: the solve converges at approximation level $\ell=1$; $\ell=2$
+does not converge, because the near-unit-root corners of the $d'=1$ regime poison the
+global basis. The heterogeneous-agent distribution is carried by its mean
+(Remark~\ref{rem:closure}), the household deposit Euler does not price the default
+branch (households' deposits are riskless, faithful to Bocola), and the cross-border
+bond split is fixed at its calibrated share in the projection solver.
+
+%======================================================================
+\section{Calibration}
+%======================================================================
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Baseline quarterly calibration. Symmetric across countries unless noted.}
+\label{tab:calibration}
+\begin{tabular}{@{}llll@{}}
+\toprule
+Parameter & Symbol & Value & Source / target \\
+\midrule
+\multicolumn{4}{@{}l}{\emph{Households}}\\
+Inverse EIS                       & $\sigma$        & $1.0$    & Bocola \S II.A.1 (log utility)\\
+Frisch elasticity                 & $\nu$           & $2.0$    & Bocola Table 1 ($1/\nu=0.5$)\\
+Persistence of idiosyncratic risk & $\rho_e$        & $0.90$   & standard\\
+S.d.\ of idiosyncratic risk       & $\sigma_e$      & $0.20$   & standard\\
+Borrowing limit                   & $\underline{a}$ & $0$      & no borrowing\\
+\midrule
+\multicolumn{4}{@{}l}{\emph{Production and capital}}\\
+Capital share                     & $\alpha$        & $0.30$   & Bocola Table 1\\
+Depreciation                      & $\delta$        & $0.025$  & standard\\
+Elasticity of $q$ to $I/K$        & $\xi$           & $0.42$   & Bocola Table 2 (posterior mean)\\
+Demand elasticity                 & $\epsilon$      & $6.0$    & $20\%$ markup\\
+Working-capital share             & $\zeta$         & $1.0$    & Neumeyer--Perri; Bocola \S V.C\\
+\midrule
+\multicolumn{4}{@{}l}{\emph{Intermediaries}}\\
+Exit/payout share                 & $f$             & $0.04$   & Bocola Table 2 ($\psi=0.96$ survival)\\
+Bankers' discount factor          & $\beta^{\rm int}$ & $0.997$& $=1/R^{bg}$, Bocola Table 1\\
+Steady-state deposit rate         & $\bar r$        & $0.003$  & sample-average risk-free rate\\
+Target leverage                   & $\bar\theta$    & $4.0$    & Gertler--Karadi (2011)\\
+Target credit spread              & $\bar\sigma$    & $0.005$  & $200$\,bp p.a.\ (GK11)\\
+Implied multiplier                & $\bar\mu$       & $\approx0.02$ & strictly binding\\
+\midrule
+\multicolumn{4}{@{}l}{\emph{Sovereign debt and risk}}\\
+Amortisation rate                 & $\delta_b$      & $0.056$  & Bocola Table 1; duration $\approx$ 7\,y\\
+Debt stock                        & $\bar B$        & $0.98$   & bank exposure $=7.6\%$ of assets\\
+Recovery rate                     & $\varrho_\D$    & $0.45$   & Greek PSI 2012\\
+Persistence of $s$                & $\rho_s$        & $0.95$   & Bocola Table 2\\
+Innovation s.d.\ of $s$           & $\sigma_s$      & $0.63$   & Bocola Table 2\\
+Rest-point default probability    & $\pi^{d}(\bar s)$ & $0.1\%$ & normalisation\\
+\midrule
+\multicolumn{4}{@{}l}{\emph{Government, trade and policy}}\\
+Fiscal elasticity                 & $\gamma_\tau$   & $1.0$    & Bocola Table 1\\
+Government spending               & $G$             & $0$      & normalisation\\
+Home bias                         & $\varpi$        & $0.85$   & standard\\
+Trade elasticity                  & $\eta$          & $0.5$    & standard\\
+External premium                  & $\kappa_{\rm nfa}$ & $0$   & frictionless UIP nested\\
+TPI redemption value              & $\varrho^{\rm tpi}$ & $1.0$ & near-par floor\\
+TPI real shield                   & $\varsigma$     & $0.5$    & partial backstop\\
+TPI activation                    & $\varkappa_{\rm tpi}$ & $\{0,\,0.5,\,1\}$ & per experiment\\
+CB portfolio-balance elasticity   & $\psi_{cb}$     & $0.5$    & solver-feasible floor\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%======================================================================
+\appendix
+\section{Symbol-to-code map}
+%======================================================================
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Mapping between the notation of this document and \code{code/global/}.}
+\label{tab:codemap}
+\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{5.3cm}l@{}}
+\toprule
+Symbol & Code name & Location \\
+\midrule
+$\varphi_{X,t}$ (franchise value)      & \code{alpha\_D}, \code{alpha\_F}        & \code{point\_map.py}, \code{bank.py}\\
+$\mu_{X,t}$ (IC multiplier)            & \code{mu\_D}, \code{mu\_F}              & \code{point\_map.py}\\
+$\lambda_X$ (divertability)            & \code{lambda\_K}, \code{lambda\_bD}, \code{lambda\_bF} & \code{calibration.py}\\
+$\Omega_{X,t,t+1}$                     & \code{Om0\_D}, \code{Om1\_D}, \code{E\_Om\_D} & \code{point\_map.py}\\
+$\mathcal{A}_{X,t}$ (bank assets)      & \code{assets\_D}, \code{assets\_F}      & \code{point\_map.py}\\
+$\lambda\mathcal{A}$ (divertable base) & \code{lev\_D}, \code{lev\_F}            & \code{point\_map.py}\\
+$n^{g}_{X,t}$, $n_{X,t}$               & \code{ng\_D}, \code{n\_D}               & \code{point\_map.py}\\
+$P_{X,t}$ (deposit obligation state)   & \code{P\_D}, \code{Pp\_D}               & \code{point\_map.py}, \code{state\_grid.py}\\
+$P^{c}_{X,t}$ (CES price index)        & \code{P\_CES\_D}                        & \code{trade.py}\\
+$q^{\D}_t$, $q^{\F}_t$                 & \code{Q\_bD}, \code{Q\_bF}              & \code{point\_map.py}\\
+$Q_{X,t}$ (Tobin's $q$)                & \code{Q\_D}, \code{Q\_F}                & \code{capital.py}\\
+$h_t$ (survival factor)                & \code{surv}, \code{surv\_d}             & \code{point\_map.py}\\
+$\pi^{d}(s)$                           & \code{default\_prob(s)}                 & \code{state\_grid.py}\\
+$r^{wc}_{X,t}$                         & \code{r\_wc\_D}, \code{wedge\_sp\_D}    & \code{point\_map.py}\\
+$\varkappa_{\rm tpi},\varrho^{\rm tpi},\varsigma$ & \code{tpi\_activation}, \code{recovery\_tpi\_D}, \code{tpi\_real\_shield} & \code{calibration.py}\\[2pt]
+$\bar T_X$ (accounting anchor)         & \code{hh\_T\_D}, \code{hh\_T\_F}        & \code{recursive\_main.py}\\
+$\tilde\beta_X$                        & \code{beff\_D}, \code{beff\_F}          & \code{point\_map.py}\\
+$\mathcal{S}_t$ (state vector)         & \code{STATE\_NAMES}                     & \code{state\_grid.py}\\
+$\mathbf{x}$ (seven unknowns)          & \code{SOLVE7}                           & \code{decision\_rules.py}\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Summary of the transmission mechanism}
+
+For reference, the chain of equations through which an exogenous increase in the
+priced probability of sovereign default contracts real activity:
+\begin{enumerate}
+\item $s_t\uparrow$ raises $\pi^{d}_t$ through \eqref{eq:pd};
+\item the multi-branch expectation \eqref{eq:expectation} places more weight on the
+      haircut payoff $\Xi^{\D,\rm ren}$, so $q^{\D}_t$ falls through
+      \eqref{eq:bond-pricing} --- amplified by duration $1/\delta_b$;
+\item bank gross wealth $n^{g}_{\D}=\mathcal{X}_\D-P_\D$ falls in \eqref{eq:ng}
+      (mark-to-market loss), so $n_\D$ falls in \eqref{eq:nw-lom};
+\item simultaneously $\E_t[\Omega_\D]$ falls, because the state-contingent kernel
+      \eqref{eq:branch-sdf} puts weight on a low-consumption branch;
+\item both effects raise $\mu_{\D,t}$ in the closed form \eqref{eq:mu-closed}: the
+      incentive constraint tightens;
+\item the credit spread $\lambda_\D\mu_\D/\E[\Omega_\D]$ widens \eqref{eq:rwc},
+      raising the cost of working capital;
+\item the effective wage rises in \eqref{eq:labour-demand}, hours fall through
+      \eqref{eq:agg-labour}, and output falls by \eqref{eq:decomp-N};
+\item $\mu_\D\uparrow$ also raises the required return on capital
+      \eqref{eq:capital-euler}, so $K'_\D$ and investment fall, propagating the
+      contraction into subsequent periods;
+\item the government must place more face value at a lower price
+      \eqref{eq:debt-lom}, taxes rise through \eqref{eq:bohn}, and the loop repeats.
+\end{enumerate}
+No default is ever realised: $d_t\equiv0$ throughout. The entire contraction is the
+pass-through of \emph{priced} risk.
+
+\end{document}

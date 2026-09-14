@@ -1,0 +1,355 @@
+%=======================================================================
+%  Calibration: financial intermediation block
+%  Bibliography keys assumed: bocola2016, gertlerkaradi2011, gertlerkiyotaki2010,
+%  hatchondomartinez2009, zettelmeyer2013, neumeyerperri2005.
+%  Markers [\textsc{tbc}] flag numbers to be filled from the source named in
+%  the adjacent footnote before circulation.
+%=======================================================================
+
+\subsection{Financial intermediation}
+\label{sec:bankcal}
+
+The intermediary block contributes five parameters: the exit (payout) share $f$,
+the divertability parameter $\lambda_X$, the entrant transfer $\omega_X$, the
+bankers' discount factor $\beta^{\rm int}$, and, through the bond block, the
+coupon decay $\delta_b$ that fixes the duration of the sovereign claim. Of these,
+only $f$ and $\beta^{\rm int}$ are set directly. The agency parameters
+$(\lambda_X,\omega_X)$ are \emph{not} assigned: they are solved so that the
+steady state reproduces two targets --- a leverage ratio $\bar\theta$ and a
+steady-state intermediation wedge $\bar\sigma\equiv\bar r^{k}-\bar r$ --- which
+is the mapping we describe below. We first fix the objects that the data speak
+to directly, and then state precisely which target is not data-identified.
+
+\paragraph{Targets taken from the data.}
+The risk-free rate is the euro-area real short rate. Deflating the three-month
+interbank rate by headline HICP inflation over the pre-crisis single-currency
+sample $1999\text{Q}1$--$2007\text{Q}4$ gives an average of $1.11\%$ per annum,
+and we set $\bar r=0.003$ per quarter ($1.20\%$ p.a.).\footnote{FRED series
+\texttt{IR3TIB01DEM156N} (three-month interbank rate) and
+\texttt{CP0000EZ19M086NEST} (euro-area HICP). We use the pre-crisis window
+because the post-2008 average real rate is negative ($-1.19\%$ p.a. over
+$2010\text{Q}1$--$2012\text{Q}2$) and would not represent the stationary rate
+around which the crisis experiment is conducted.} The bankers' discount factor is
+then set to $\beta^{\rm int}=1/(1+\bar r)=0.9970$, so that $\beta^{\rm int}R=1$
+at the steady state. This is a normalisation rather than an estimate: bankers in
+this model are risk-neutral within the period and $\beta^{\rm int}$ stands in for
+a constant stochastic discount factor. It is \emph{not} the household discount
+factor, which in the incomplete-markets block satisfies
+$\beta_{hh}(1+\bar r)<1$ and is solved separately in the second stage of the
+steady state.
+
+The sovereign claim is a Hatchondo--Martinez perpetuity whose coupon decays at
+rate $1-\delta_b$ \citep{hatchondomartinez2009}, so its Macaulay duration is
+$(1+\bar r)/(\bar r+\delta_b)$ quarters. Setting $\delta_b=0.056$ delivers a
+duration of $16.9$ quarters, or $4.2$ years, matching the duration of Greek
+marketable central-government debt on the eve of the crisis
+[\textsc{tbc}].\footnote{Public Debt Management Agency, \emph{Public Debt
+Bulletin}; residual maturity of marketable debt. Duration, not average residual
+maturity, is the correct counterpart: it is the elasticity of the bond price to
+the discount rate, and it is that elasticity which governs the mark-to-market
+loss banks take when risk is priced. The long duration is load-bearing --- at
+$\delta_b=0.25$ the repricing of the stock shrinks by roughly a factor of six
+and the pass-through mechanism disappears.}
+
+The size of the sovereign position is disciplined by bank exposure rather than by
+the public debt-to-GDP ratio: what matters for the transmission mechanism is the
+share of intermediary assets exposed to the sovereign, and only the
+bank-intermediated portion of the debt appears in the model. We set
+$\bar B$ so that domestic sovereign holdings are $7.6\%$ of the domestic bank's
+total assets [\textsc{tbc}], which corresponds to $24.5\%$ of annual output in
+the calibrated steady state.\footnote{European Banking Authority, 2011 EU-wide
+stress test and 2011 capital exercise, sovereign-exposure disclosures for the
+Greek banking group. We note that the value currently used, $7.6\%$, is the
+Italian banking-sector ratio reported by \citet{bocola2016}; replacing it with
+the Greek disclosure is a first-order change, since the exposure share scales the
+entire balance-sheet channel.} The distinction matters quantitatively: a reading
+of this ratio against GDP rather than against bank assets overstates the exposure
+roughly threefold, which is enough to make the fiscal relief from a default
+outweigh the bank losses and reverse the sign of the mechanism.
+
+The recovery rate in the feared default event is taken from the realised
+restructuring. The March 2012 PSI exchange imposed a face-value reduction of
+$53.5\%$; \citet{zettelmeyer2013} estimate the net-present-value haircut at
+$59$--$65\%$ depending on the discount rate. We set the recovery rate to
+$\mathcal{R}=0.45$, at the conservative end of that range.
+
+\paragraph{The agency friction.}
+At the steady state the incentive constraint holds with equality, and the
+recursion for the franchise value $\bar\varphi$ collapses onto the closed-form
+system
+\begin{align}
+\bar\varphi&=\frac{\bar\Omega\,(1+\bar r)}{1-\bar\mu},
+&
+\bar\Omega&=\beta^{\rm int}\bigl[f+(1-f)\bar\varphi\bigr],
+&
+\bar\mu&=\frac{\bar\Omega\,\bar\sigma\,\bar\theta}{\bar\varphi}.
+\label{eq:ss-system}
+\end{align}
+The system in \eqref{eq:ss-system} is triangular rather than genuinely
+simultaneous: $\bar\varphi$ and $\bar\Omega$ cancel from the third equation, so
+the multiplier is pinned by the targets alone and the franchise value is then
+linear in it. Imposing $\beta^{\rm int}(1+\bar r)=1$,
+\begin{align}
+\bar\mu&=\frac{\bar\sigma\bar\theta}{1+\bar r+\bar\sigma\bar\theta},
+&
+\bar\varphi&=\frac{f}{f-\bar\mu},
+&
+\lambda_X&=\frac{\bar\varphi}{\bar\theta}=\frac{f}{\bar\theta\,(f-\bar\mu)},
+&
+\omega_X&=\frac{\mathcal{D}}{\bar\theta}-(1-f)\,\bar\sigma,
+\label{eq:ss-closedform}
+\end{align}
+with $\mathcal{D}\equiv1-(1-f)(1+\bar r)=f-\bar r(1-f)$ the discount in the
+net-worth accumulation identity. Three features of \eqref{eq:ss-closedform} are
+worth recording. First, the steady-state multiplier $\bar\mu$ depends only on the
+product $\bar\sigma\bar\theta$ --- the excess return on bank equity --- and is
+independent of both $f$ and $\beta^{\rm int}$; the leverage and spread targets
+are therefore not separately identified by $\bar\mu$, and it is their product
+that the data must discipline. Second, $\mathcal{D}>0$, i.e.\ $f>\bar
+r/(1+\bar r)$, is necessary for a stationary net-worth distribution: the exit
+share must exceed the risk-free rate, or retained earnings compound without
+bound. Third, the calibration is feasible only on a bounded region of target
+space,
+\begin{equation}
+\bar\sigma\,\bar\theta\;<\;\frac{\mathcal{D}}{1-f}
+\;=\;\frac{f-\bar r(1-f)}{1-f},
+\label{eq:feasible}
+\end{equation}
+which is the condition $\omega_X>0$: beyond it the entrant transfer required to
+sustain the targeted leverage turns negative. Condition \eqref{eq:feasible} is
+strictly tighter than the condition $\bar\mu<f$ under which $\bar\varphi$ in
+\eqref{eq:ss-closedform} is finite and positive, the two differing by
+$\bar r/(1-f)$. At our parameters the binding bound is $\bar\sigma\bar\theta<
+3.87\%$ per quarter, equivalently an excess return on bank equity below
+$15.5\%$ per annum; the calibrated value $\bar\sigma\bar\theta=0.10\%$ per
+quarter lies well inside it.
+
+\paragraph{Internal consistency.}
+Two expressions for steady-state net worth must agree. The binding incentive
+constraint implies $\bar n^{IC}=\lambda_X\bar{\mathcal{A}}/\bar\varphi$, where
+$\bar{\mathcal{A}}$ is the divertable asset base; the accumulation identity
+\eqref{eq:nw-lom} implies
+\begin{equation}
+\bar n^{ACC}
+=\frac{1}{\mathcal{D}}
+ \sum_{j\in\mathcal{J}}\Bigl[(1-f)\bigl(\bar R_{j}-\bar R\bigr)+\omega_X\Bigr]\bar a_j .
+\label{eq:ss-nw}
+\end{equation}
+Because a single $\lambda_X$ applies to all asset classes
+\citep[eq.~3]{bocola2016}, every class earns the same excess return
+$\bar R_j-\bar R=\lambda_X\bar\mu/\bar\Omega=\bar\sigma$, so both expressions are
+proportional to $\bar{\mathcal{A}}$ and the requirement $\bar n^{IC}=\bar
+n^{ACC}$ reduces to a scalar equation in $\bar r^{k}$ that is independent of the
+scale \emph{and} the composition of the balance sheet. Solving it in the first
+stage of the steady state returns $\bar r^{k}=\bar r+\bar\sigma$ and
+$\bar\theta_{ss}=\bar\theta$ exactly. This is the inverse of the calibration map
+in \eqref{eq:ss-closedform} rather than an independent restriction, and we use it
+as a numerical check: the solved steady state reproduces both targets to machine
+precision for any portfolio composition. The single-$\lambda$ assumption is what
+makes this work, and it is not innocuous --- allowing divertability to differ
+across capital, domestic bonds and foreign bonds re-opens a
+portfolio-substitution margin that can render sovereign risk expansionary.
+
+\paragraph{Targets not identified by the data.}
+Two targets remain. Leverage is set to $\bar\theta=5$ and the exit share to
+$f=0.04$, implying an expected banker horizon of $25$ quarters. Neither has a
+clean accounting counterpart: $\bar\theta$ is leverage on the divertable asset
+base, not the book assets-to-equity ratio of the banking system, which was
+substantially higher over this period; and $f$ governs the payout rate at which
+franchise value is dissipated rather than an observable exit frequency. We adopt
+the posterior means of \citet{bocola2016}, which are close to the values used by
+\citet{gertlerkiyotaki2010}.
+
+The intermediation wedge $\bar\sigma$ is the parameter we can least discipline
+directly, and we treat it explicitly as such. In the model's steady state the
+default probability is zero, so $\bar\sigma$ is the \emph{entire} steady-state
+spread of the sovereign yield over the risk-free rate; any measured spread is
+therefore an upper bound on it, since observed spreads also compensate credit
+risk. Over $1999\text{Q}1$--$2007\text{Q}4$ the Greek ten-year yield exceeded the
+German by $50$ basis points on average.\footnote{FRED series
+\texttt{IRLTLT01GRM156N} and \texttt{IRLTLT01DEM156N}. For comparison the average
+over $2010\text{Q}1$--$2012\text{Q}2$ is $1{,}248$ basis points, peaking at
+$2{,}924$ in February 2012.} We set $\bar\sigma=8$ basis points per annum,
+following \citet{bocola2016}, which implies a steady-state excess return on bank
+equity of $\bar\sigma\bar\theta=40$ basis points per annum and a barely-binding
+constraint, $\bar\mu=0.0010$.
+
+This choice is consequential and we report it plainly. Because
+$\bar\sigma\bar\theta$ is the rate at which intermediaries rebuild equity out of
+retained earnings, it governs the persistence of any balance-sheet shock. At
+$\bar\sigma=200$ basis points --- the value that a naive reading of pre-crisis
+sovereign spreads might suggest --- the excess return on equity reaches $10\%$
+per annum, an equity loss of the size generated by our risk shock is earned back
+within two quarters, and the response of output turns positive from the third
+year onward. The small value of $\bar\sigma$ is what makes the transmission
+mechanism operate through the level of net worth and the price of the sovereign
+claim rather than through a rapidly self-correcting spread. The corollary is that
+the steady state sits close to the boundary of the occasionally-binding region:
+with $\bar\mu=0.0010$ the constraint binds only marginally on average, and along
+the risk experiment it becomes slack after roughly four quarters, so the
+sustained contraction is carried by bond prices and net worth rather than by a
+persistently elevated credit spread. We report sensitivity to $\bar\sigma$ in
+Section~[\textsc{tbc}].
+
+\begin{table}[t]
+\centering
+\caption{Financial-intermediation parameters}
+\label{tab:bankcal}
+\begin{tabular}{llll}
+\hline\hline
+Parameter & Value & Target / moment & Source \\
+\hline
+\multicolumn{4}{l}{\emph{Set directly}}\\
+$\bar r$              & $0.0030$ & real 3M rate, $1.11\%$ p.a., 1999--2007 & FRED, own calculation \\
+$\beta^{\rm int}$     & $0.9970$ & $\beta^{\rm int}(1+\bar r)=1$            & normalisation \\
+$\delta_b$            & $0.056$  & duration $4.2$ years                     & PDMA [\textsc{tbc}] \\
+$\mathcal{R}$         & $0.45$   & PSI haircut $53.5\%$ (face)              & \citet{zettelmeyer2013} \\
+$\bar B/\text{assets}$& $0.076$  & bank sovereign exposure                  & EBA 2011 [\textsc{tbc}] \\
+$f$                   & $0.04$   & banker horizon, 25 quarters              & \citet{bocola2016} \\
+\multicolumn{4}{l}{\emph{Calibration targets}}\\
+$\bar\theta$          & $5.00$   & intermediary leverage                    & \citet{bocola2016} \\
+$\bar\sigma$          & $8$ bp p.a. & steady-state intermediation wedge     & \citet{bocola2016} \\
+\multicolumn{4}{l}{\emph{Solved from \eqref{eq:ss-closedform}}}\\
+$\lambda_X$           & $0.2051$ & divertable share                         & implied \\
+$\omega_X$            & $0.0072$ & entrant transfer                         & implied \\
+$\bar\varphi$         & $1.0257$ & franchise value                          & implied \\
+$\bar\mu$             & $0.0010$ & incentive-constraint multiplier          & implied \\
+\hline\hline
+\end{tabular}
+\end{table}
+
+%=======================================================================
+
+\subsection{Interest rates, bond prices, and the return on capital}
+\label{sec:ratecal}
+
+Five real rates appear in the model: the deposit rate $\bar r$, the yields on the
+two sovereign perpetuities $\bar r^{b}_{D}$ and $\bar r^{b}_{F}$, the return on
+bank-financed capital $\bar r^{k}$, and the rate on the working-capital loan
+$\bar r^{wc}$ \citep{neumeyerperri2005}. They are not five free parameters. Since
+a single divertability parameter $\lambda_X$ applies to every asset class, each
+class must deliver the same excess return in order for the intermediary to be
+willing to hold it, and the steady-state term structure collapses to
+\begin{equation}
+\bar r^{k}\;=\;\bar r^{b}_{D}\;=\;\bar r^{b}_{F}\;=\;\bar r^{wc}
+\;=\;\bar r+\frac{\lambda_X\bar\mu}{\bar\Omega}\;=\;\bar r+\bar\sigma ,
+\qquad
+\bar Q_b=\frac{\delta_b}{\bar r+\delta_b+\bar\sigma}.
+\label{eq:rate-structure}
+\end{equation}
+The calibration therefore has \emph{two} degrees of freedom in the rate block ---
+the level $\bar r$ and the single wedge $\bar\sigma$ --- and the entire
+cross-section of returns is a consequence of them. We record this explicitly
+because it bounds what the model can be asked to match: it reproduces one
+average spread, not the joint behaviour of sovereign, corporate and deposit
+rates.
+
+\paragraph{The deposit rate.}
+Deposits are the model's risk-free asset: households hold no other claim, and
+the deposit rate paid at $t$ is locked in at $t-1$, so it is predetermined with
+respect to the period's shocks. We set $\bar r=0.003$ per quarter, or $1.20\%$
+per annum in real terms, against a sample average of $1.11\%$ (Section
+\ref{sec:bankcal}). Two features are worth noting. First, the household
+discount factors $\beta_D$ and $\beta_F$ are not calibrated to this rate: they
+are solved, in the second stage of the steady state, so that household savings
+clear the union-wide deposit market at $\bar r$. They are equilibrium objects,
+and in the presence of idiosyncratic income risk and a borrowing constraint they
+satisfy $\beta(1+\bar r)<1$. Second, deposits are own-good claims remunerated at
+national rates, tied together by the real parity condition
+$(1+\bar r_{D})=(1+\bar r_{F})\,p'/p$, which is the flexible-price image of a
+single union policy rate with national inflation differentials. The cross-border
+deposit position that this parity permits is the margin through which national
+saving and investment decouple.
+
+\paragraph{The sovereign yield.}
+The perpetuity price in \eqref{eq:rate-structure} evaluates to $\bar Q_b=0.9459$
+and a yield of $1.28\%$ per annum. Because the priced default probability is zero
+at the steady state, this yield contains \emph{no} default premium: the entire
+sovereign risk premium studied in the paper is generated by the experiment, not
+built into the calibration. The steady-state yield is thus a pure intermediation
+object, and its data counterpart is a pre-crisis average taken before sovereign
+credit risk was priced in the euro area. Over $1999\text{Q}1$--$2007\text{Q}4$ the
+Greek ten-year yield, deflated by Greek HICP inflation, averaged $1.60\%$ per
+annum, against $1.28\%$ in the model.\footnote{FRED series
+\texttt{IRLTLT01GRM156N} and \texttt{CP0000GRM086NEST}.}
+
+The residual matters for the interpretation of $\bar\sigma$, and we state the
+tension rather than conceal it. Two independent readings of the data place the
+steady-state sovereign wedge near $50$ basis points per annum: the Greek--German
+ten-year differential averaged $50$ basis points over the same window, and the
+Greek real ten-year yield exceeded the real three-month rate by $49$ basis
+points. Both exceed the calibrated $\bar\sigma=8$ basis points by roughly a
+factor of six. Neither measure is a clean counterpart --- the model prices a
+$4.2$-year-duration claim with risk-neutral, constant-$\bar\Omega$ intermediaries
+and therefore generates no term premium, so the observed differentials conflate
+term, credit and intermediation components that \eqref{eq:rate-structure} forces
+onto a single number. We nevertheless regard $\bar\sigma$ as the least
+well-identified parameter of the block, for the reasons given at the end of
+Section~\ref{sec:bankcal}, and report sensitivity to it.
+
+\paragraph{The return on capital.}
+Capital is predetermined: the stock producing at $t$ was purchased and priced at
+$t-1$ \citep[eq.~6]{bocola2016}, so a shock moves impact output through hours
+alone and $\bar r^{k}$ is the return on the vintage the intermediary already
+holds. From the firm's first-order condition it is the marginal product net of
+depreciation, scaled by the inverse markup,
+\begin{equation}
+\bar r^{k}=\mathit{mc}\,\alpha\,\frac{\bar Y}{\bar K}-\delta,
+\qquad \mathit{mc}=\frac{\varepsilon-1}{\varepsilon},
+\label{eq:rk-foc}
+\end{equation}
+so that $\bar r^{k}$, $\delta$ and the effective capital share jointly pin the
+capital--output ratio. This gives a second, independent data check on the level
+of the rate block, one that does not run through any spread: at
+$\alpha=0.30$, $\varepsilon=6$, $\delta=0.025$ and $\bar r^{k}=0.0032$ the
+implied capital--output ratio is $2.22$ in annual terms and the investment share
+is $\delta\bar K/\bar Y=22.2\%$, against a Greek average of $24.3\%$ of GDP over
+$1999$--$2007$.\footnote{FRED series \texttt{GRCGFCFQDSMEI} and
+\texttt{GRCGDPNQDSMEI}, both in current prices.} The gross marginal product,
+$11.3\%$ per annum, is the object that must cover depreciation of $10\%$ per
+annum; the small \emph{net} return is a consequence of the high quarterly
+depreciation rate rather than of the small intermediation wedge.
+
+\paragraph{The return on intermediary equity.}
+The rate that governs the dynamics is neither $\bar r$ nor $\bar\sigma$
+separately but the return on the intermediary's own funds,
+\begin{equation}
+\bar r^{n}=\bar r+\bar\theta\,\bar\sigma=1.60\%\ \text{per annum},
+\label{eq:roe}
+\end{equation}
+of which $40$ basis points is the excess over the risk-free rate. This is the
+rate at which an intermediary rebuilds equity out of retained earnings, and it,
+rather than the spread itself, determines how persistent a balance-sheet shock
+is. Its smallness is the reason a mark-to-market loss on the sovereign portfolio
+propagates for years in this model instead of being earned back within a few
+quarters.
+
+\begin{table}[t]
+\centering
+\caption{Steady-state real rates: model and data}
+\label{tab:rates}
+\begin{tabular}{lccl}
+\hline\hline
+ & Model (\% p.a.) & Data (\% p.a.) & Data counterpart \\
+\hline
+Deposit / risk-free rate $\bar r$        & $1.20$ & $1.11$ & 3M interbank less HICP, 1999--2007 \\
+Sovereign yield $\bar r^{b}_D$           & $1.28$ & $1.60$ & GR 10Y less GR HICP, 1999--2007 \\
+Return on capital $\bar r^{k}$           & $1.28$ & ---    & implied $K/Y=2.22$, $I/Y=22.2$ vs $24.3$ \\
+Working-capital rate $\bar r^{wc}$       & $1.28$ & [\textsc{tbc}] & ECB MIR, NFC loans less HICP \\
+Return on bank equity $\bar r^{n}$       & $1.60$ & [\textsc{tbc}] & bank ROE less risk-free \\
+\hline
+Intermediation wedge $\bar\sigma$        & $0.08$ & $0.50$ & GR--DE 10Y differential, 1999--2007 \\
+Bond price $\bar Q_b$                    & \multicolumn{2}{c}{$0.9459$} & duration $4.2$ years \\
+\hline\hline
+\end{tabular}
+
+\smallskip
+\begin{minipage}{0.92\textwidth}
+\footnotesize \emph{Note.} All model rates are real and quarterly, reported at
+annual rates. The four asset returns coincide by construction: a single
+divertability parameter forces every class to carry the same excess return, so
+the model has one spread rather than a term structure. ECB MIR interest-rate
+statistics begin in January 2003, which is the binding constraint on the
+lending-rate window.
+\end{minipage}
+\end{table}
