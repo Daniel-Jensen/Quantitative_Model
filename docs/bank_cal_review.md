@@ -34,6 +34,8 @@
 
 ## Stability of the fixed model at bank-cal phi_lamb (the crux)
 
+> **UPDATE (resolved — see `docs/STATE.md` Finding F-1):** the re-map below was run. Porting the empirical long duration (`delta_b=0.036/0.038`) is **explosive at every `phi_lamb ∈ [0.02, 0.50]`** under both channels with the par-value rule — there is no stable in-between. The resolution is the **market-value fiscal rule** (`mv_rule=1`), which is stationary at `phi_lamb≈0.10` in the risk-premium framing. The section below is the original (pre-finding) reasoning.
+
 The empirical phi_lamb≈0.03 was tuned **on the buggy model**, where the T-2 deposit windfall accidentally stabilized debt. The fixed model removes that stabilizer.
 
 Probe (`audit_artifacts/bankcal_stability_test.py`, fixed model, psi_lambda_B=0 / def_scale=0.05 / psi_spread=0):

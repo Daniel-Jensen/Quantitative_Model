@@ -1,0 +1,147 @@
+
+---
+
+## Solve run — 2026-07-13 22:43:52
+- `2026-07-13 22:43:52` Importing pipeline modules from code/ (unmodified).
+- `2026-07-13 22:45:32` Step 1: get_calibration()
+- `2026-07-13 22:45:32` psi_lambda_B_D (baseline) = 3.0, writeoff_enabled_D = 0.0, T1_D = 0.0, mv_rule_D = 0.0
+- `2026-07-13 22:45:32` Step 2: solve_steady_state()
+Solving initial steady state...
+Targeting portfolio shares...
+  D-bank: phi_bD_D = 0.250  phi_bF_D = 0.150
+  F-bank: phi_bD_F = 0.150  phi_bF_F = 0.250
+Re-solving SS with new portfolio allocation...
+SS re-solved. beta_D=0.99940974  p=1.000000
+- `2026-07-13 22:46:40` Step 3: calibrate_ic_delta()
+IC Delta calibration:
+  D-bank:  Delta_bD_D = 0.7273  Delta_bF_D = 1.4545  (value=1.256474)
+  F-bank:  Delta_bF_F = 0.7273  Delta_bD_F = 1.4545  (value=1.256474)
+  WARNING (C-1): back-solved Delta > 1 — IC constraint is degenerate.
+  Consider hardcoding Delta_D=0.2, Delta_F=0.4 per bank-cal branch.
+- `2026-07-13 22:46:40` Step 4: calibrate_depreciation()  (final SS re-solve)
+Depreciation calibration:  delta_D = 0.022407  delta_F = 0.022407
+Final SS re-solve with calibrated delta...
+Verified rk_D = 0.010000  (target 0.0100)
+Verified rk_F = 0.010000  (target 0.0100)
+Final beta_D  = 0.9994621763
+Final beta_F  = 0.9994621763
+
+beta_D=0.9994621763  beta_F=0.9994621763  p=1.000000
+rb_D=0.002491  rb_F=0.002491  rdep_D=0.000000  rdep_F=0.000000
+q_b_D=0.975698  q_b_F=0.975698
+SS goods residuals:
+  goods_mkt_D = -3.897868541408167e-07
+  goods_mkt_F = -3.8978685477919495e-07
+  ca_res_D    = 0.0
+
+Block residual                                                   Value  Status
+-------------------------------------------------------------------------------------
+  IC_D: θ − θ_tgt                                         1.776357e-15  OK
+  IC_F: θ − θ_tgt                                         1.776357e-15  OK
+  P1_D: nu_K_res                                          0.000000e+00  OK
+  P1_D: nu_bh_res                                         0.000000e+00  OK
+  P1_D: nu_bx_res                                         0.000000e+00  OK
+  P1_D: eta_res                                           0.000000e+00  OK
+  P1_F: nu_K_res                                          0.000000e+00  OK
+  P1_F: nu_bh_res                                         0.000000e+00  OK
+  P1_F: nu_bx_res                                         0.000000e+00  OK
+  P1_F: eta_res                                           0.000000e+00  OK
+  ca_res_D                                                0.000000e+00  OK
+-------------------------------------------------------------------------------------
+All residuals < 1e-8  ✓
+
+### SS sanity checks (market clearing + key SS values)
+    goods_mkt_D      = -3.897868541408167e-07
+    goods_mkt_F      = -3.8978685477919495e-07
+    ca_res_D         = 0.0
+    deposit_mkt_D    = 1.0480505352461478e-13
+    deposit_mkt_F    = -1.7763568394002505e-15
+    psi_lambda_B_D   = 3.0
+    psi_lambda_B_F   = 3.0
+    psi_spread_D     = 0.777747203781219
+    psi_spread_F     = 0.777747203781219
+    q_b_D            = 0.9756984802086146
+    q_b_F            = 0.9756984802086146
+    rb_D             = 0.0024906792707301896
+    rb_F             = 0.0024906792707301896
+    n_inter_D        = 3.0
+    theta_D          = 4.0
+    beta_D           = 0.9994621763351645
+    beta_F           = 0.9994621763351645
+    p                = 0.9999999999999996
+    spread_rb (SS)   = 0.0   (expect ~0)
+
+- `2026-07-13 22:47:49` Building baseline Jacobian G (psi_lambda_B = 3.0) via build_and_solve()...
+Computing Jacobian G (T=500, 4 exogenous inputs)...
+G computed successfully.
+
+=== Stability check: debt level at t=499 (should be near 0) ===
+  irfs_Z_D  ['b_gov_D'][499] = -0.000070
+  irfs_def_D['b_gov_D'][499] = 0.000017
+  ρ_b (partial-eq.) = 0.8451  [target < 0.95]
+  n_inter_D[0] on default shock = -3.5198%  (negative = doom loop correct sign)
+  Y_D[0]       on default shock = -0.0254%  (negative = correct sign)
+- `2026-07-13 22:48:40` Baseline G computed. T=500. shock peaks: def=0.01, TFP=0.01
+
+- `2026-07-13 22:48:40` Building psi_lambda_B = 0 Jacobian G0 (zero psi_lambda_B_* and psi_spread_*)...
+- `2026-07-13 22:48:40` Confirming ss0 overrides: psi_lambda_B_D=0.0, psi_lambda_B_F=0.0, psi_spread_D=0.0, psi_spread_F=0.0
+- `2026-07-13 22:49:38` G0 computed.
+- `2026-07-13 22:49:39` Saved irfs_baseline.npz (42 series), irfs_psilam0.npz (42 series).
+- `2026-07-13 22:49:39` Wrote summary.json
+
+### Default shock (1pp): baseline vs psi_lambda_B=0
+
+| var | impact (base) | peak|·| (base) | impact (ψλ=0) | peak|·| (ψλ=0) | peak ratio ψλ0/base |
+|-----|--------------:|---------------:|--------------:|---------------:|--------------------:|
+| def_rate_D | 1.0000e-02 | 1.0000e-02 | 1.0000e-02 | 1.0000e-02 | 1.000e+00 |
+| q_b_D | -2.5980e-02 | 2.5980e-02 | 0.0000e+00 | 0.0000e+00 | 0.000e+00 |
+| q_b_F | 5.5558e-03 | 5.5558e-03 | 0.0000e+00 | 0.0000e+00 | 0.000e+00 |
+| rb_actual_D | -2.3965e-02 | 2.3965e-02 | 0.0000e+00 | 0.0000e+00 | 0.000e+00 |
+| rb_actual_F | 5.1248e-03 | 5.1248e-03 | 0.0000e+00 | 0.0000e+00 | 0.000e+00 |
+| spread_rb | 3.3127e-03 | 3.3127e-03 | 0.0000e+00 | 0.0000e+00 | 0.000e+00 |
+| n_inter_D | -3.5198e-02 | 3.5198e-02 | 0.0000e+00 | 0.0000e+00 | 0.000e+00 |
+| n_inter_F | 5.2398e-03 | 7.5425e-03 | 0.0000e+00 | 0.0000e+00 | 0.000e+00 |
+| theta_D | 3.4081e-02 | 3.4081e-02 | 0.0000e+00 | 0.0000e+00 | 0.000e+00 |
+| theta_F | -5.2042e-03 | 8.1125e-03 | 0.0000e+00 | 0.0000e+00 | 0.000e+00 |
+| K_D | -1.0864e-03 | 6.0273e-03 | 0.0000e+00 | 0.0000e+00 | 0.000e+00 |
+| I_D | -1.0864e-03 | 1.0864e-03 | 0.0000e+00 | 0.0000e+00 | 0.000e+00 |
+| Y_D | -2.5400e-04 | 2.7369e-04 | 0.0000e+00 | 0.0000e+00 | 0.000e+00 |
+| Y_F | 2.4404e-04 | 3.5603e-04 | 0.0000e+00 | 0.0000e+00 | 0.000e+00 |
+| C_D | -7.2250e-04 | 1.0852e-03 | 0.0000e+00 | 0.0000e+00 | 0.000e+00 |
+| C_F | 9.5321e-04 | 9.5321e-04 | 0.0000e+00 | 0.0000e+00 | 0.000e+00 |
+| w_D | 5.3693e-05 | 1.0307e-04 | 0.0000e+00 | 0.0000e+00 | 0.000e+00 |
+| b_gov_D | 4.7122e-03 | 9.5926e-03 | 0.0000e+00 | 0.0000e+00 | 0.000e+00 |
+| TAX_D | -1.4663e-03 | 1.7578e-03 | 0.0000e+00 | 0.0000e+00 | 0.000e+00 |
+| rdep_D | -1.2756e-03 | 1.2756e-03 | 0.0000e+00 | 0.0000e+00 | 0.000e+00 |
+| div_D | -4.7997e-03 | 4.7997e-03 | 0.0000e+00 | 0.0000e+00 | 0.000e+00 |
+
+### TFP shock (1%, CONTROL): baseline vs psi_lambda_B=0
+
+| var | impact (base) | peak|·| (base) | impact (ψλ=0) | peak|·| (ψλ=0) | peak ratio ψλ0/base |
+|-----|--------------:|---------------:|--------------:|---------------:|--------------------:|
+| def_rate_D | 0.0000e+00 | 6.1742e-03 | 0.0000e+00 | 4.2016e-03 | 6.805e-01 |
+| q_b_D | 3.9591e-02 | 4.4693e-02 | 7.6810e-03 | 9.3316e-03 | 2.088e-01 |
+| q_b_F | 3.3835e-04 | 6.0795e-03 | 4.4677e-03 | 5.5280e-03 | 9.093e-01 |
+| rb_actual_D | 3.6519e-02 | 3.6519e-02 | 7.0851e-03 | 7.0851e-03 | 1.940e-01 |
+| rb_actual_F | 3.1210e-04 | 1.2998e-03 | 4.1211e-03 | 4.1211e-03 | 3.171e+00 |
+| spread_rb | -4.1232e-03 | 4.4972e-03 | -3.3753e-04 | 4.0629e-04 | 9.034e-02 |
+| n_inter_D | 4.1124e-01 | 4.1124e-01 | 3.6622e-01 | 3.6622e-01 | 8.905e-01 |
+| n_inter_F | -1.2872e-02 | 1.2872e-02 | -3.6783e-03 | 3.6783e-03 | 2.858e-01 |
+| theta_D | -3.9704e-01 | 3.9704e-01 | -3.5328e-01 | 3.5328e-01 | 8.898e-01 |
+| theta_F | 1.2660e-02 | 1.2660e-02 | 3.5172e-03 | 4.2485e-03 | 3.356e-01 |
+| K_D | 1.9236e-02 | 7.0512e-02 | 1.7862e-02 | 6.4213e-02 | 9.107e-01 |
+| I_D | 1.9236e-02 | 1.9236e-02 | 1.7862e-02 | 1.7862e-02 | 9.286e-01 |
+| Y_D | 3.0152e-02 | 3.0152e-02 | 2.9755e-02 | 2.9755e-02 | 9.868e-01 |
+| Y_F | -5.3908e-05 | 8.4791e-04 | 3.4282e-04 | 3.6013e-04 | 4.247e-01 |
+| C_D | 1.2932e-02 | 1.2932e-02 | 1.1298e-02 | 1.1298e-02 | 8.736e-01 |
+| C_F | -6.7412e-04 | 1.3751e-03 | 9.6461e-04 | 1.0424e-03 | 7.581e-01 |
+| w_D | 1.3069e-02 | 1.3069e-02 | 1.3163e-02 | 1.3163e-02 | 1.007e+00 |
+| b_gov_D | -2.5629e-02 | 5.5880e-02 | -1.9722e-02 | 3.8027e-02 | 6.805e-01 |
+| TAX_D | 2.0135e-02 | 2.0135e-02 | 1.8193e-02 | 1.8193e-02 | 9.035e-01 |
+| rdep_D | 1.8351e-03 | 1.8351e-03 | 6.6663e-04 | 1.8015e-03 | 9.817e-01 |
+| div_D | 5.6079e-02 | 5.6079e-02 | 4.9940e-02 | 4.9940e-02 | 8.905e-01 |
+
+- `2026-07-13 22:49:39` SOLVE RUN COMPLETE.
+
+---
+

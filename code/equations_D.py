@@ -1,0 +1,623 @@
+import numpy as np
+import scipy.linalg
+import sequence_jacobian as sj
+from sequence_jacobian import simple
+from sequence_jacobian import grids
+from pathlib import Path
+
+try:
+    BASE_DIR_D = Path(__file__).resolve().parent
+except NameError:
+    BASE_DIR_D = Path.cwd()
+
+DATA_DIR_D = BASE_DIR_D / "Discretisation" / "Outputs"
+
+
+# ── HOUSEHOLD ─── #############################################################################################
+
+def hh_init_D(dep_D_grid, z_D, Rgross_D, eis_D, vphi_D, N_D, frisch_D):
+    coh_D  = Rgross_D * dep_D_grid[np.newaxis, :] + z_D[:, np.newaxis]
+    v_D    = vphi_D * N_D ** (1 + 1/frisch_D) / (1 + 1/frisch_D)
+    Vdep_D = Rgross_D * (coh_D - v_D) ** (-1 / eis_D)
+    return Vdep_D
+
+
+@sj.het(exogenous='Pi_D', policy='dep_D', backward='Vdep_D', backward_init=hh_init_D)
+def hh_D(Vdep_D_p, dep_D_grid, z_D, t_paid_D, Rgross_D, beta_D, eis_D, vphi_D, N_D, frisch_D):
+    # GHH composite: x = c - v(N), v(N) = vphi*N^(1+1/frisch)/(1+1/frisch)
+    v_D           = vphi_D * N_D ** (1 + 1/frisch_D) / (1 + 1/frisch_D)
+    uc_nextgrid_D = beta_D * Vdep_D_p
+    x_nextgrid_D  = uc_nextgrid_D ** (-eis_D)
+    coh_D         = Rgross_D * dep_D_grid[np.newaxis, :] + z_D[:, np.newaxis]
+
+    # EGM: x + a' = coh - v  →  endogenous grid x_nextgrid + a' matched to coh - v
+    dep_D = sj.interpolate.interpolate_y(x_nextgrid_D + dep_D_grid, coh_D - v_D, dep_D_grid)
+    sj.misc.setmin(dep_D, dep_D_grid[0])
+
+    x_D    = coh_D - v_D - dep_D   # GHH composite
+    c_D    = x_D + v_D              # total consumption = x + v(N)
+    uce_D  = x_D ** (-1 / eis_D)   # marginal utility of composite
+    Vdep_D = Rgross_D * uce_D
+
+    tax_D = t_paid_D[:, np.newaxis] + np.zeros_like(dep_D_grid[np.newaxis, :])
+
+    return Vdep_D, dep_D, c_D, uce_D, tax_D
+
+
+def make_grids_D(Depmax_D, nDep_D, nZ_D, rho_z_D, sigma_z_D):
+    dep_D_grid = grids.agrid(amax=Depmax_D, n=nDep_D)
+
+    if nZ_D == 19:
+        px_path_D = DATA_DIR_D / "Px_GMAR.txt"
+        x_path_D  = DATA_DIR_D / "x_vec.txt"
+        markov_ctstime_D = np.loadtxt(px_path_D)
+        e_grid_D         = np.loadtxt(x_path_D).flatten()
+        markov_distime_D = scipy.linalg.expm(markov_ctstime_D)
+        row_sums_D       = markov_distime_D.sum(axis=1)
+        Pi_D             = markov_distime_D / row_sums_D[:, None]
+    else:
+        e_grid_D, _, Pi_D = grids.markov_rouwenhorst(rho=rho_z_D, sigma=sigma_z_D, N=nZ_D)
+
+    return dep_D_grid, e_grid_D, Pi_D
+
+
+def income_D(e_grid_D, w_D, N_D, div_D, div_fund_D, profit_D, tau_D, lamb_D, P_CES_D, T_ls_D):
+    # div_fund_D: rebate from the passive capital fund (zero when omega_K_D=1).
+    # profit_D: markup rent, distributed in proportion to productivity e (see
+    # firm_profit_D). w_D*N_D*e + profit_D*e = (1-alpha)*Y_D*e exactly, so
+    # household income is identical to the flex model and the markup wedge acts
+    # only on the firm's hiring decision. Zero at SS.
+    y_pre_D  = (w_D * N_D * e_grid_D + profit_D * e_grid_D + div_D + div_fund_D) / P_CES_D
+    z_D      = lamb_D * (y_pre_D ** (1 - tau_D)) - T_ls_D
+    t_paid_D = y_pre_D - z_D
+    return z_D, t_paid_D
+
+
+hh_extended_D = hh_D.add_hetinputs([make_grids_D, income_D])
+
+
+@simple
+def deposit_rates_D(i_dep_D, pi_D):
+    # Deposits are NOMINAL euro contracts. i_dep_D is the nominal rate and is the
+    # unknown that clears deposit_mkt_D -- there is no policy rate pinning it, so
+    # no absorber or cross-border claim is needed and external_account_D is
+    # untouched.
+    #
+    # rdep_D keeps its existing meaning: the EX-ANTE real rate for the t -> t+1
+    # holding period, locked at t. That is exactly what intermediation_P1_D,
+    # divert_bond_foc_D and divert_portfolio_adj already mean by rdep_D, so those
+    # blocks need no changes.
+    #
+    # rdep_expost_D is the REALISED real rate at t on deposits placed at t-1. It
+    # contains the inflation surprise: a deflation raises the real value of the
+    # bank's nominal liabilities. Banks hold real assets against nominal
+    # liabilities, so they are net nominal debtors and this deepens the net-worth
+    # loss -- the Fisher-Bernanke channel.
+    #
+    # At SS pi_D = 0 and both equal i_dep_D, so the SS is bit-identical.
+    rdep_D        = (1 + i_dep_D) / (1 + pi_D(+1)) - 1
+    rdep_expost_D = (1 + i_dep_D(-1)) / (1 + pi_D) - 1
+    return rdep_D, rdep_expost_D
+
+
+@simple
+def deposit_return_D(i_dep_D, P_CES_D, pi_D):
+    # Bundle-real gross deposit return on a NOMINAL contract.
+    # P_c_D = P_D * P_CES_D is the nominal CPI, so
+    #   P_c_D(-1)/P_c_D = (P_CES_D(-1)/P_CES_D) / (1 + pi_D).
+    #
+    # T-2 is NOT reopened: the rate is still locked at t-1 (i_dep_D(-1)); only
+    # the deflator is period-t, which this block already did via P_CES. T-2 was
+    # about paying a period-t UNKNOWN rate on the t-1 deposit stock.
+    #
+    # At SS P_CES_D(-1)/P_CES_D = 1 and pi_D = 0, so Rgross_D = 1 + i_dep_D.
+    Rgross_D = (1 + i_dep_D(-1)) * P_CES_D(-1) / P_CES_D / (1 + pi_D)
+    return Rgross_D
+
+
+# ── STEADY STATE EQUATIONS ─── #############################################################################################
+
+@simple
+def smart_steady_D(theta_D, Y_D, n_inter_D, rdep_D, alpha_D, delta_D, f_D, N_D,
+                   rb_actual_D, rb_actual_F, b_D_D, b_F_D, Q_D, q_b_D, q_b_F,
+                   chi0_D, chi1_D, chi2_D, T0_D, T1_D, def_rate_D, omega_K_D,
+                   fund_rule_D, K_fund_D):
+    # Passive capital fund. fund_rule_D selects how the fund's holding responds:
+    #   0 = FIXED SHARE (legacy): fund holds (1-omega_K)·K, bank holds omega_K·K,
+    #       so omega_K·Q·K + bonds = theta·N  =>  K = (theta·N - bonds)/(omega_K·Q).
+    #   1 = FIXED QUANTITY: fund holds a constant K_fund, bank holds K - K_fund,
+    #       so Q·(K - K_fund) + bonds = theta·N  =>  K = (theta·N - bonds)/Q + K_fund.
+    # Both give the SAME steady state when K_fund = (1-omega_K)·K_ss, but very
+    # different dynamics: dK/dN is theta/omega_K under rule 0 and theta under
+    # rule 1. Rule 0 makes the passive fund mechanically mirror bank deleveraging,
+    # levering the accelerator by 1/omega_K (~8.5x at measured EBA net worth) --
+    # the root cause of the EBA dynamic instability. See docs/eba_calibration.md.
+    bank_assets_D = theta_D * n_inter_D - q_b_D * b_D_D - q_b_F * b_F_D
+    K_D          = ((1.0 - fund_rule_D) * bank_assets_D / (omega_K_D * Q_D)
+                    + fund_rule_D * (bank_assets_D / Q_D + K_fund_D))
+    phi_bD_D     = q_b_D * b_D_D / n_inter_D
+    phi_bF_D     = q_b_F * b_F_D / n_inter_D
+    kappa_D      = theta_D - phi_bD_D - phi_bF_D   # = Q·K_bank/N (bank capital share)
+    # Fund holding, consistent with fund_rule_D (equals (1-omega_K)·K at the SS).
+    K_fnd_D      = (1.0 - fund_rule_D) * (1.0 - omega_K_D) * K_D + fund_rule_D * K_fund_D
+    rk_D         = alpha_D * Y_D / K_D - delta_D
+    arg_D        = -rk_D * K_D / (K_D + chi0_D)
+    Phi_D        = (chi1_D / chi2_D) * (arg_D ** 2) ** (chi2_D / 2) * (K_D + chi0_D)
+    T_D          = (T0_D + T1_D * def_rate_D) * (b_D_D + b_F_D)
+    rn_D         = (kappa_D * (rk_D - rdep_D)
+                    + phi_bD_D * (rb_actual_D - rdep_D)
+                    + phi_bF_D * (rb_actual_F - rdep_D)
+                    + rdep_D)
+
+
+
+    # A-2 fix: P2 requires m = n(1-(1-f)(1+rn)) at SS; Phi and T are paid out of
+    # dividends (banker_div_res), not via the startup transfer. Including +Phi+T here
+    # made the SS not a rest point of intermediation_P2 whenever Phi or T != 0.
+    m_D          = n_inter_D * (1 - (1 - f_D) * (1 + rn_D))
+    k_inter_D    = K_D
+    I_D          = K_D * delta_D
+    # Total deposits (bank + passive capital fund) = Q·K + bonds - N. At omega_K=1
+    # this collapses to (theta-1)·N. The fund funds (1-omega_K)·Q·K with deposits.
+    D_supply_D   = Q_D * K_D + q_b_D * b_D_D + q_b_F * b_F_D - n_inter_D
+    # Capital fund's rebate to households: spread (rk - rdep) on its (1-omega_K)·Q·K.
+    div_fund_D   = (rk_D - rdep_D) * Q_D * K_fnd_D
+    Z_D          = Y_D / ((K_D ** alpha_D) * (N_D ** (1 - alpha_D)))
+    cap_profit_D = Q_D * (K_D - (1 - delta_D) * K_D(-1)) - I_D
+    return K_D, rk_D, rn_D, m_D, k_inter_D, I_D, D_supply_D, Z_D, cap_profit_D, Phi_D, T_D, div_fund_D, phi_bD_D, phi_bF_D
+
+@simple
+def market_clearing_D(Y_D, C_D, I_D, G_D, NX_D, DEP_D, D_supply_D, P_CES_D, Phi_D, T_D):
+    # D (P_D = 1): only C is in bundle units; I, G, Phi, T are in domestic goods.
+    goods_mkt_D   = Y_D - (P_CES_D * C_D + I_D + G_D + Phi_D + T_D) - NX_D
+    deposit_mkt_D = P_CES_D * DEP_D - D_supply_D
+    return goods_mkt_D, deposit_mkt_D
+
+
+@simple
+def ces_price_D(omega_D, epsilon_trade, p):
+    # omega was a SINGLE shared home-bias parameter until 2026-08-07. Under the
+    # country-size asymmetry that is untenable: a common import share with F
+    # 11.7x larger makes F's imports from D 11.7x too big. See equations_global.
+    P_CES_D = (omega_D + (1 - omega_D) * p ** (1 - epsilon_trade)) ** (1 / (1 - epsilon_trade))
+    return P_CES_D
+
+
+@simple
+def import_demand_D(C_D, omega_D, epsilon_trade, p, P_CES_D):
+    IM_D = (1 - omega_D) * (P_CES_D / p) ** epsilon_trade * C_D
+    return IM_D
+
+
+@simple
+def steady_auxilliary_D(theta_D, rk_D, rdep_D, delta_D, alpha_D, Y_D, K_D, N_D,
+                        beta_inter_D, ksi_D, rn_D, f_D,
+                        rb_actual_D, rb_actual_F,
+                        phi_bD_D, phi_bF_D, Delta_bD_D, Delta_bF_D):
+    iota_D       = delta_D
+    mpk_D        = alpha_D * (Y_D / K_D)
+    w_D          = (1 - alpha_D) * Y_D / N_D
+    # C-1 fix: lambda_gk solved from the MULTI-ASSET IC (bonds weighted by their
+    # own divertability Delta, vs capital at Delta=1), not the single-asset
+    # formula. D_target_D replaces theta_D's role in the original single-asset
+    # denominator; D_target_D == theta_D (recovering the line below exactly)
+    # iff Delta_bD_D == Delta_bF_D == 1. The old formula silently assumed full
+    # (Delta=1) bond divertability, which made the downstream Delta back-solve
+    # in ic_delta_calibration.py degenerate (>1) at realistic (EBA) portfolio
+    # concentration -- see docs/eba_calibration.md "Why C-1 forces Delta->1".
+    D_target_D   = theta_D - (1 - Delta_bD_D) * phi_bD_D - (1 - Delta_bF_D) * phi_bF_D
+    lambda_gk_D  = f_D / (D_target_D / (beta_inter_D * (1 + rn_D)) - (1 - f_D) * theta_D)
+    Omega_D      = f_D + (1 - f_D) * lambda_gk_D * theta_D
+    nu_K_D       = beta_inter_D * Omega_D * (rk_D        - rdep_D)
+    nu_bD_D      = beta_inter_D * Omega_D * (rb_actual_D - rdep_D)
+    nu_bF_D      = beta_inter_D * Omega_D * (rb_actual_F - rdep_D)
+    eta_D        = beta_inter_D * Omega_D * (1 + rdep_D)
+    gamma0_D     = delta_D ** ksi_D / (1 - ksi_D)
+    gamma1_D     = -delta_D * ksi_D / (1 - ksi_D)
+    return iota_D, mpk_D, w_D, Omega_D, lambda_gk_D, nu_K_D, nu_bD_D, nu_bF_D, eta_D, gamma0_D, gamma1_D
+
+
+@simple
+def banker_div_D(rn_D, n_inter_D, Phi_D, T_D):
+    # Consistent with banker_div_res_D: div = f·gross − m = rn·n − Phi − T at SS.
+    div_D = rn_D * n_inter_D - Phi_D - T_D
+    return div_D
+
+
+@simple
+def sdf_ss_D(beta_D):
+    SDF_D = beta_D
+    return SDF_D
+
+@simple
+def sdf_D(beta_D, X_D, eis_D):
+    # GHH: SDF uses composite x = c - v(N) instead of c
+    SDF_D = beta_D * (X_D(+1) / X_D) ** (-1 / eis_D)
+    return SDF_D
+
+@simple
+def sdf_banker_ss_D(beta_inter_D):
+    SDF_banker_D = beta_inter_D
+    return SDF_banker_D
+
+@simple
+def sdf_banker_D(beta_inter_D, X_D, eis_D):
+    SDF_banker_D = beta_inter_D * (X_D(+1) / X_D) ** (-1 / eis_D)
+    return SDF_banker_D
+
+
+@simple
+def ghh_composite_D(C_D, vphi_D, N_D, frisch_D):
+    # Aggregate GHH composite X = C - v(N); homogeneous v(N) → X = C - v(N) exactly
+    X_D = C_D - vphi_D * N_D ** (1 + 1/frisch_D) / (1 + 1/frisch_D)
+    return X_D
+
+
+@simple
+def government_ss_D(TAX_D, q_b_D, b_gov_D, P_CES_D, delta_b_D,
+                    def_rate_D, recovery_rate_D, zeta_writeoff_D, writeoff_enabled_D):
+    haircut_D      = 1.0 - recovery_rate_D
+    haircut_mult_D = writeoff_enabled_D
+    surv_cont_D    = 1.0 - zeta_writeoff_D * def_rate_D * haircut_D * haircut_mult_D
+    coupon_D       = delta_b_D * (1.0 - def_rate_D * haircut_D * haircut_mult_D) * b_gov_D
+    net_iss_D      = q_b_D * (1.0 - surv_cont_D * (1.0 - delta_b_D)) * b_gov_D
+    G_D            = P_CES_D * TAX_D + net_iss_D - coupon_D
+    return G_D
+
+
+@simple
+def labor_ss_D(w_D, N_D, frisch_D, mu_w_D, P_CES_D):
+    # GHH: UCE = x^(-1/eis) cancels from intratemporal FOC → vphi independent of UCE
+    vphi_D = (1 / mu_w_D) * (w_D / P_CES_D) / (N_D ** (1 / frisch_D))
+    return vphi_D
+
+@simple
+def bond_return_D(def_rate_D, recovery_rate_D, q_b_D, delta_b_D, zeta_writeoff_D, writeoff_enabled_D):
+    # writeoff_enabled_D = 0: pure sovereign risk shock, no haircuts on cash flows.
+    haircut_D        = 1.0 - recovery_rate_D
+    haircut_mult_D   = writeoff_enabled_D
+    current_payoff_D = delta_b_D * (1.0 - def_rate_D * haircut_D * haircut_mult_D)
+    continuation_D   = (1.0 - delta_b_D) * q_b_D * (1.0 - zeta_writeoff_D * def_rate_D * haircut_D * haircut_mult_D)
+    rb_actual_D      = (current_payoff_D + continuation_D) / q_b_D(-1) - 1.0
+    return rb_actual_D
+
+
+# ── OFF STEADY STATE EQUATIONS ─── #############################################################################################
+
+@simple
+def capital_adj_D(K_D, Q_D, I_D, Z_D, N_D, alpha_D, delta_D, gamma0_D, gamma1_D,
+                  ksi_D, omega_I_D, beta_D):
+    # Investment-flow adjustment cost S(I/I(-1)) = (omega_I/2)(I/I(-1) - 1)^2.
+    # S(1) = S'(1) = 0, so this is EXACTLY steady-state neutral and omega_I = 0
+    # reproduces the previous model identically.
+    #
+    # Motivation: without it, investment drops on impact and snaps straight back
+    # into a boom that drags output positive from q2. Penalising the CHANGE in
+    # investment turns that V into a slow U. This is the standard device
+    # (Bi-Foerster-Traum use omega_I = 2); the pre-existing chi1 cost penalises
+    # capital GROWTH instead and was measured to make the spike worse.
+    g_D      = I_D / I_D(-1)
+    g_p1     = I_D(+1) / I_D
+    S_D      = (omega_I_D / 2.0) * (g_D - 1.0) ** 2
+    Sp_D     = omega_I_D * (g_D - 1.0)
+    S_p1     = (omega_I_D / 2.0) * (g_p1 - 1.0) ** 2
+    Sp_p1    = omega_I_D * (g_p1 - 1.0)
+
+    I_eff_D  = (1.0 - S_D) * I_D
+    iota_D   = I_eff_D / K_D(-1)
+    # W-1 (author convention): mpk is the marginal product of current K_t,
+    # consistent with labor_D. Banks receive mpk on their K(-1) holdings via rk;
+    # the product of newly installed capital goes to the capital producer.
+    mpk_D    = alpha_D * Z_D * K_D ** (alpha_D - 1) * N_D ** (1 - alpha_D)
+    rk_D     = (mpk_D + (1 - delta_D) * Q_D) / Q_D(-1) - 1
+
+    # Marginal capital per unit of EFFECTIVE investment, this period and next.
+    mpi_D    = gamma0_D * (1 - ksi_D) * iota_D ** (-ksi_D)
+    iota_p1  = ((1.0 - S_p1) * I_D(+1)) / K_D
+    mpi_p1   = gamma0_D * (1 - ksi_D) * iota_p1 ** (-ksi_D)
+
+    # Investment FOC. At SS S = S' = 0 and this is Q*mpi - 1 = 0, i.e. today's
+    # q_res_D = Q - 1/mpi. Same root, so the SS is untouched. (The two forms
+    # differ by the factor mpi, an exact constant row scaling of the target at
+    # first order, so the linearised solution is invariant as well.)
+    #
+    # Discounted at constant beta rather than SDF_D, exactly as price_nkpc_D
+    # does and for the same two reasons. (i) It is first-order EXACT here:
+    # S'(1) = 0, so the SDF multiplies a term that is zero at SS, and only
+    # SDF_ss = beta survives linearisation -- the model is solved by linearised
+    # solve_jacobian. (ii) SDF_D is an output of sdf_D <- ghh_composite_D <-
+    # hh_D, and hh_D reads capital_fund_D which reads this block, so taking
+    # SDF_D here makes SSJ's topological sort fail with a cyclic dependency
+    # hh_D -> capital_fund_D -> capital_adj_D -> sdf_D -> ghh_composite_D.
+    q_res_D  = (Q_D * mpi_D * ((1.0 - S_D) - Sp_D * g_D)
+                + beta_D * Q_D(+1) * mpi_p1 * Sp_p1 * g_p1 ** 2
+                - 1.0)
+
+    capital_res_D = K_D - (1 - delta_D) * K_D(-1) - (gamma0_D * iota_D ** (1 - ksi_D) + gamma1_D) * K_D(-1)
+    return iota_D, mpk_D, rk_D, q_res_D, capital_res_D
+
+@simple
+def capital_producer_profit_D(Q_D, K_D, I_D, delta_D, mpk_D):
+    # W-1 fix under the K_t production convention: new capital installed at t is
+    # productive within t, and its marginal product mpk*(K - K(-1)) accrues to the
+    # capital producer. Banks earn mpk on K(-1) (via rk), so total capital income
+    # mpk*K(-1) + mpk*(K - K(-1)) = mpk*K = alpha*Y — factor payments exhaust
+    # output and Walras's law / CA = dNFA hold. Term vanishes at SS (K = K(-1)).
+    cap_profit_D = Q_D * (K_D - (1 - delta_D) * K_D(-1)) - I_D + mpk_D * (K_D - K_D(-1))
+    return cap_profit_D
+
+
+@simple
+def labor_D(N_D, Z_D, K_D, alpha_D):
+    # W-1 (author convention): production uses current K_t — investment is
+    # productive within the period. Accounting closes because the marginal
+    # product of new capital accrues to the capital producer (see
+    # capital_producer_profit_D); banks earn mpk only on K(-1).
+    Y_D = Z_D * K_D ** alpha_D * N_D ** (1 - alpha_D)
+    return Y_D
+
+
+@simple
+def labor_market_D(w_D, N_D, vphi_D, frisch_D, P_CES_D):
+    labor_mkt_res_D = w_D / P_CES_D - vphi_D * N_D ** (1 / frisch_D)
+    return labor_mkt_res_D
+
+
+@simple
+def labor_demand_D(w_D, Y_D, N_D, alpha_D, mu_p_D, mc_D):
+    # Firm FOC with a price markup: w = mu_p*mc*(1-alpha)*Y/N.
+    # The mu_p factor IS the production subsidy tau_s = 1 - 1/mu_p: at the SS
+    # markup mc = 1/mu_p this collapses to the competitive w = (1-alpha)Y/N
+    # identically, so the steady state is unchanged. Off SS the wedge shifts
+    # labour demand, which is what makes N -- and hence output -- respond to
+    # demand rather than being pinned by Z, K and P_CES alone.
+    # The rent (1 - mu_p*mc)(1-alpha)Y is routed by firm_profit_D.
+    w_res_D = w_D - mu_p_D * mc_D * (1 - alpha_D) * Y_D / N_D
+    return w_res_D
+
+
+@simple
+def firm_profit_D(Y_D, alpha_D, mu_p_D, mc_D):
+    # Markup rent. With sticky prices labour demand pays mu_p*mc*(1-alpha)*Y
+    # while capital still earns alpha*Y (capital_adj_D is unchanged), so off SS
+    # factor payments do not exhaust output. profit_D is that residual; leaving
+    # it unrouted is a Walras leak of the W-1/W-2 class.
+    #
+    # Distributed to households in proportion to productivity e (Auclert-Rognlie-
+    # Straub), NOT lump-sum: markups are countercyclical, so a lump-sum rebate
+    # would raise household income exactly when output falls. On the e rule,
+    # w*N*e + profit*e = (1-alpha)*Y*e -- identical to the flex model -- so the
+    # wedge affects the firm's hiring decision only, and because the share
+    # depends on type rather than hours the marginal wage is still w_D and
+    # labor_market_D is unchanged.
+    #
+    # Zero at SS, where mu_p*mc = 1.
+    profit_D = (1.0 - mu_p_D * mc_D) * (1.0 - alpha_D) * Y_D
+    return profit_D
+
+
+@simple
+def price_nkpc_D(pi_D, mc_D, mu_p_D, kappa_p_D, beta_D):
+    # Rotemberg NK Phillips curve in D producer-price inflation.
+    #
+    # The gap is a RATIO (mu_p*mc - 1), so it is unit-free and linearises to
+    # exactly mc_hat for any mu_p -- published Calvo slopes are directly usable
+    # for kappa_p with no SS rescaling, and mu_p is a free normalisation to
+    # first order under the subsidy neutralisation.
+    #
+    # Subsidy-neutralised: mc_ss = 1/mu_p, so the gap and pi are both exactly
+    # zero at the current SS and the SS is bit-identical to the flex model.
+    # kappa_p -> inf recovers flexible prices (mu_p*mc = 1).
+    #
+    # Discounted at constant beta rather than SDF_D: since pi_ss = 0 the SDF
+    # deviation multiplies a zero, so the two are identical to first order and
+    # the model is solved by linearised solve_jacobian.
+    nkpc_p_res_D = pi_D - beta_D * pi_D(+1) - kappa_p_D * (mu_p_D * mc_D - 1.0)
+    return nkpc_p_res_D
+
+
+@simple
+def intermediation_IC_D(nu_K_D, nu_bD_D, nu_bF_D, eta_D,
+                        Q_D, K_D, q_b_D, q_b_F, b_D_D, b_F_D, n_inter_D,
+                        lambda_gk_D, Delta_bD_D, Delta_bF_D, theta_D,
+                        def_rate_D,def_rate_F, psi_lambda_B_D, omega_K_D,
+                        fund_rule_D, K_fund_D):
+    K_bank_D     = ((1.0 - fund_rule_D) * omega_K_D * K_D
+                    + fund_rule_D * (K_D - K_fund_D))
+    kappa_D      = Q_D * K_bank_D / n_inter_D          # bank capital / net worth
+    phi_bD_D     = q_b_D * b_D_D / n_inter_D
+    phi_bF_D     = q_b_F * b_F_D / n_inter_D
+    # GK multi-asset IC: franchise value = lambda_gk·(divertable assets), where each
+    # bond class is weighted by its relative divertability Delta_i vs capital (=1).
+    # theta_tgt = value/lambda_gk + (1-Delta_bD)·phi_bD + (1-Delta_bF)·phi_bF.
+    # Delta=1 → single-lambda; Delta<1 → bond is better collateral → bank levers more.
+    # psi_lambda_B_D > 0: default risk raises bond divertability (worsens collateral).
+    Delta_bD_eff = Delta_bD_D + psi_lambda_B_D * def_rate_D(+1)
+    Delta_bF_eff = Delta_bF_D + psi_lambda_B_D * def_rate_F(+1)
+    value_D      = nu_K_D * kappa_D + nu_bD_D * phi_bD_D + nu_bF_D * phi_bF_D + eta_D
+    theta_tgt_D  = (value_D / lambda_gk_D
+                    + (1 - Delta_bD_eff) * phi_bD_D
+                    + (1 - Delta_bF_eff) * phi_bF_D)
+    ic_res_D     = theta_D - theta_tgt_D
+    return ic_res_D
+
+
+@simple
+def bank_return_D(theta_D, rk_D, rdep_expost_D, b_D_D, b_F_D, n_inter_D,
+                  rb_actual_D, rb_actual_F, q_b_D, q_b_F):
+    phi_bD_lag_D = q_b_D(-1) * b_D_D(-1) / n_inter_D(-1)
+    phi_bF_lag_D = q_b_F(-1) * b_F_D(-1) / n_inter_D(-1)
+    kappa_lag_D  = theta_D(-1) - phi_bD_lag_D - phi_bF_lag_D
+    # T-2 fix: funding cost on the t-1 balance sheet is the rate locked at t-1.
+    # Under nominal deposits that realised real cost is rdep_expost_D, which
+    # already carries the (-1) timing internally and contains the inflation
+    # surprise -- the Fisher revaluation on the bank's nominal liabilities.
+    rn_D = (kappa_lag_D  * (rk_D        - rdep_expost_D)
+            + phi_bD_lag_D * (rb_actual_D - rdep_expost_D)
+            + phi_bF_lag_D * (rb_actual_F - rdep_expost_D)
+            + rdep_expost_D)
+    return rn_D
+
+
+@simple
+def capital_fund_D(rk_D, rdep_expost_D, Q_D, K_D, omega_K_D, fund_rule_D, K_fund_D):
+    # Passive capital fund funded by deposits; rebates its spread on the lagged
+    # capital value to households. Same predetermined-rate timing as
+    # bank_return_D (T-2); rdep_expost_D is the realised real funding cost under
+    # nominal deposits. Zero when the fund is empty (omega_K_D=1, K_fund_D=0).
+    # fund_rule_D: 0 = fund holds (1-omega_K)·K, 1 = fund holds a constant K_fund.
+    K_fnd_lag_D = ((1.0 - fund_rule_D) * (1.0 - omega_K_D) * K_D(-1)
+                   + fund_rule_D * K_fund_D)
+    div_fund_D = (rk_D - rdep_expost_D) * Q_D(-1) * K_fnd_lag_D
+    return div_fund_D
+
+
+@simple
+def intermediation_P1_D(rk_D, rb_actual_D, rb_actual_F, rdep_D,
+                        nu_K_D, nu_bD_D, nu_bF_D, eta_D,
+                        lambda_gk_D, theta_D, SDF_banker_D, f_D):
+    Omega_p1_D    = f_D + (1 - f_D) * lambda_gk_D * theta_D(+1)
+    # T-2 fix: the deposit rate for the t->t+1 holding period is rdep_D (locked at t).
+    nu_K_res_D    = nu_K_D  - SDF_banker_D * Omega_p1_D * (rk_D(+1)        - rdep_D)
+    nu_bD_res_D   = nu_bD_D - SDF_banker_D * Omega_p1_D * (rb_actual_D(+1) - rdep_D)
+    nu_bF_res_D   = nu_bF_D - SDF_banker_D * Omega_p1_D * (rb_actual_F(+1) - rdep_D)
+    eta_res_D     = eta_D   - SDF_banker_D * Omega_p1_D * (1 + rdep_D)
+    return nu_K_res_D, nu_bD_res_D, nu_bF_res_D, eta_res_D
+
+
+@simple
+def k_balance_sheet_D(Q_D, theta_D, n_inter_D, K_D, b_D_D, b_F_D, q_b_D, q_b_F, omega_K_D,
+                      fund_rule_D, K_fund_D):
+    # Bank capital holding depends on fund_rule_D (see smart_steady_D).
+    K_bank_D = (1.0 - fund_rule_D) * omega_K_D * K_D + fund_rule_D * (K_D - K_fund_D)
+    K_res_D = Q_D * K_bank_D + q_b_D * b_D_D + q_b_F * b_F_D - theta_D * n_inter_D
+    return K_res_D
+
+
+
+@simple
+def cap_adj_cost_inter_D(K_D, rk_D, chi0_D, chi1_D, chi2_D):
+    # Auclert (2019) intermediary capital adjustment cost.
+    arg_D = (K_D - (1.0 + rk_D) * K_D(-1)) / (K_D(-1) + chi0_D)
+    Phi_D = (chi1_D / chi2_D) * (arg_D ** 2) ** (chi2_D / 2) * (K_D(-1) + chi0_D)
+    return Phi_D
+
+
+@simple
+def macro_pru_tax_D(b_D_D, b_F_D, def_rate_D, T0_D, T1_D):
+    # Macroprudential bond tax: T = (T0 + T1·ProbDefault) · total bond holdings
+    # (both D-bonds and F-bonds held by the D-bank).  Matches smart_steady_D.
+    tau_mp_D = T0_D + T1_D * def_rate_D
+    T_D      = tau_mp_D * (b_D_D + b_F_D)
+    return tau_mp_D, T_D
+
+
+@simple
+def intermediation_P2_D(rn_D, n_inter_D, m_D, f_D, cap_profit_D):
+    gross_income_D = (1 + rn_D) * n_inter_D(-1) + cap_profit_D
+    n_inter_val_D  = (1 - f_D) * gross_income_D + m_D - n_inter_D
+    return n_inter_val_D
+
+
+@simple
+def banker_div_res_D(rn_D, n_inter_D, div_D, m_D, f_D, cap_profit_D, Phi_D, T_D):
+    gross_income_D = (1 + rn_D) * n_inter_D(-1) + cap_profit_D
+    net_div_D      = f_D * gross_income_D - m_D - Phi_D - T_D
+    div_res_D      = div_D - net_div_D
+    return div_res_D
+
+
+@simple
+def intermediation_P3_D(Q_D, K_D, n_inter_D, b_D_D, b_F_D, q_b_D, q_b_F):
+    D_supply_D = Q_D * K_D + q_b_D * b_D_D + q_b_F * b_F_D - n_inter_D
+    return D_supply_D
+
+
+@simple
+def bond_price_ss_D(SDF_banker_D, def_rate_D, recovery_rate_D, delta_b_D, zeta_writeoff_D, writeoff_enabled_D):
+    haircut_D      = 1.0 - recovery_rate_D
+    haircut_mult_D = writeoff_enabled_D
+    surv_cont_D    = 1.0 - zeta_writeoff_D * def_rate_D * haircut_D * haircut_mult_D
+    q_b_D          = (
+        SDF_banker_D * delta_b_D * (1.0 - def_rate_D * haircut_D * haircut_mult_D)
+        / (1.0 - SDF_banker_D * (1.0 - delta_b_D) * surv_cont_D)
+    )
+    return q_b_D
+
+
+@simple
+def domestic_bond_foc_D(rb_actual_D, rdep_D, b_D_D, n_inter_D, q_b_D,
+                         phi_bD_D_ss, psi_bD_D, excess_return_bD_D_ss, tau_mp_D):
+    phi_bD_D = q_b_D * b_D_D / n_inter_D
+    rb_D_res = (rb_actual_D(+1) - rdep_D(+1)) - excess_return_bD_D_ss \
+               - psi_bD_D * (phi_bD_D - phi_bD_D_ss) \
+               - tau_mp_D
+    return rb_D_res
+
+
+# ==> GOVERMENT EQUATIONS
+@simple
+def government_default_D(shock_def_D, b_gov_D, Y_ss_D, b_gov_ss_D,
+                          def_scale_D, def_curvature_D, def_offset_D):
+    debt_ratio_D = b_gov_D(-1) / Y_ss_D
+    ss_ratio_D   = b_gov_ss_D  / Y_ss_D
+    def_rate_D   = shock_def_D + def_scale_D * (
+        (debt_ratio_D + def_offset_D) ** def_curvature_D
+      - (ss_ratio_D  + def_offset_D) ** def_curvature_D
+    )
+    return def_rate_D
+
+
+@simple
+def tax_rule_D(q_b_D, b_gov_D, b_gov_ss_D, mv_gov_ss_D, phi_lamb_D, mv_rule_D):
+    # Bohn fiscal rule. Switch mv_rule_D in {0,1}:
+    #   0 (default) = par/face-value debt gap (b_gov(-1) - b_gov_ss).
+    #   1           = market-value debt gap: inherited stock at current price,
+    #                 q_b·b_gov(-1) - mv_gov_ss, where mv_gov_ss = q_b_ss·b_gov_ss
+    #                 (set in build_and_solve from the solved SS). The MTM variant
+    #                 reacts to the current spread and is what restores stationarity
+    #                 with empirical long-duration bonds (risk-premium calibration).
+    par_gap = b_gov_D(-1) - b_gov_ss_D
+    mv_gap  = q_b_D * b_gov_D(-1) - mv_gov_ss_D
+    T_ls_D  = phi_lamb_D * ((1.0 - mv_rule_D) * par_gap + mv_rule_D * mv_gap)
+    return T_ls_D
+
+
+@simple
+def budget_residual_D(b_gov_D, G_D, TAX_D, q_b_D, def_rate_D, recovery_rate_D, zeta_writeoff_D, P_CES_D, delta_b_D, writeoff_enabled_D):
+    haircut_D      = 1.0 - recovery_rate_D
+    haircut_mult_D = writeoff_enabled_D
+    surv_cont_D    = 1.0 - zeta_writeoff_D * def_rate_D * haircut_D * haircut_mult_D
+    coupon_D       = delta_b_D * (1.0 - def_rate_D * haircut_D * haircut_mult_D) * b_gov_D(-1)
+    net_issuance_D = q_b_D * (b_gov_D - surv_cont_D * (1.0 - delta_b_D) * b_gov_D(-1))
+    b_gov_res_D    = coupon_D + G_D - P_CES_D * TAX_D - net_issuance_D
+    return b_gov_res_D
+
+
+@simple
+def divert_bond_foc_D(rb_actual_D, rdep_D, b_D_D, n_inter_D, q_b_D,
+                      phi_bD_D_ss, psi_bD_D, excess_return_bD_D_ss, tau_mp_D,
+                      psi_spread_D, EL_price_D, def_rate_D):
+    phi_bD_D   = q_b_D * b_D_D / n_inter_D
+    # IC-theory derived required spread: additive default loading independent of SS excess return.
+    # psi_spread_D = lambda_gk_D * psi_lambda_B_D / (beta_inter_D * Omega_D), computed in _apply_ss_anchors.
+    # macro-pru-fix: EL_price_D is the FUNDAMENTAL expected-loss loading (per unit default
+    # probability) priced by bondholders, INDEPENDENT of the psi_lambda_B collateral friction.
+    # It makes q_b_D fall on higher def_rate even when psi_lambda_B=0 (psi_spread=0); psi_lambda_B
+    # is now a pure amplifier on top. SS-neutral: multiplies def_rate(+1)=0 at SS.
+    # See diagnostics/recommended_fix.md.
+    req_spread = excess_return_bD_D_ss + (EL_price_D + psi_spread_D) * def_rate_D(+1)
+    # T-2 fix: compare t+1 bond return with rdep_D locked at t.
+    rb_D_res   = (rb_actual_D(+1) - rdep_D) - req_spread \
+                 - psi_bD_D * (phi_bD_D - phi_bD_D_ss) \
+                 - tau_mp_D
+    return rb_D_res
+
+
+@simple
+def welfare_agg_D(X_D, C_D_ss):
+    # GHH utility composite normalised by SS consumption.
+    # In IRFs the deviation ΔX_D/C_D_ss gives welfare change as a fraction of SS consumption.
+    U_D = X_D / C_D_ss
+    return U_D
+

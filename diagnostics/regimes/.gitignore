@@ -1,0 +1,7 @@
+# Large solved-Jacobian caches (regenerate via regime_model.py) and run scratch.
+# Only source (*.py), the committed narrative log, calibration json, and figures
+# are tracked — never the ~72MB npz caches or the _*.log evidence scratch.
+*.npz
+_*.log
+__pycache__/
+.pytest_cache/

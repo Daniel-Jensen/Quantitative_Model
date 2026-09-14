@@ -19,7 +19,7 @@
 
 ## Verification method
 1. Static: grep each fix on disk (done — all structural fixes present).
-2. Dynamic regression: `audit_artifacts/run_audit.py` reads live `equations_*.py` → `run4_kt_log.txt` is the regression test (leaks, signs, stationarity).
+2. Dynamic regression: `code/main.py` reads live `equations_*.py` and prints leaks, signs and stationarity. (Historically this step used `audit_artifacts/run_audit.py`, removed 2026-07-30 — it carried a hardcoded calibration and so tested a different model.)
 3. Calibration: diff `bank-cal` calibration vs current; test whether the *fixed* model is stable at bank-cal-style low-amplification params (`bankcal_stability_test.py`).
 
 Deliverables: `verification_report.md`, `bank_cal_review.md`, executive summary (below in report).

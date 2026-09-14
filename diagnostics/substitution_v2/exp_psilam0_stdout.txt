@@ -1,0 +1,63 @@
+
+## Experiment — output response at psi_lambda_B = 0 (EL_price ON) — 2026-07-14 12:26:05
+Solving initial steady state...
+Targeting portfolio shares...
+  D-bank: phi_bD_D = 0.250  phi_bF_D = 0.150
+  F-bank: phi_bD_F = 0.150  phi_bF_F = 0.250
+Re-solving SS with new portfolio allocation...
+SS re-solved. beta_D=0.99940974  p=1.000000
+IC Delta calibration:
+  D-bank:  Delta_bD_D = 0.7273  Delta_bF_D = 1.4545  (value=1.256474)
+  F-bank:  Delta_bF_F = 0.7273  Delta_bD_F = 1.4545  (value=1.256474)
+  WARNING (C-1): back-solved Delta > 1 — IC constraint is degenerate.
+  Consider hardcoding Delta_D=0.2, Delta_F=0.4 per bank-cal branch.
+Depreciation calibration:  delta_D = 0.022407  delta_F = 0.022407
+Final SS re-solve with calibrated delta...
+Verified rk_D = 0.010000  (target 0.0100)
+Verified rk_F = 0.010000  (target 0.0100)
+Final beta_D  = 0.9994621763
+Final beta_F  = 0.9994621763
+
+beta_D=0.9994621763  beta_F=0.9994621763  p=1.000000
+rb_D=0.002491  rb_F=0.002491  rdep_D=0.000000  rdep_F=0.000000
+q_b_D=0.975698  q_b_F=0.975698
+SS goods residuals:
+  goods_mkt_D = -3.897868541408167e-07
+  goods_mkt_F = -3.8978685477919495e-07
+  ca_res_D    = 0.0
+
+Block residual                                                   Value  Status
+-------------------------------------------------------------------------------------
+  IC_D: θ − θ_tgt                                         1.776357e-15  OK
+  IC_F: θ − θ_tgt                                         1.776357e-15  OK
+  P1_D: nu_K_res                                          0.000000e+00  OK
+  P1_D: nu_bh_res                                         0.000000e+00  OK
+  P1_D: nu_bx_res                                         0.000000e+00  OK
+  P1_D: eta_res                                           0.000000e+00  OK
+  P1_F: nu_K_res                                          0.000000e+00  OK
+  P1_F: nu_bh_res                                         0.000000e+00  OK
+  P1_F: nu_bx_res                                         0.000000e+00  OK
+  P1_F: eta_res                                           0.000000e+00  OK
+  ca_res_D                                                0.000000e+00  OK
+-------------------------------------------------------------------------------------
+All residuals < 1e-8  ✓
+Computing Jacobian G (T=500, 4 exogenous inputs)...
+G computed successfully.
+
+=== Stability check: debt level at t=499 (should be near 0) ===
+  irfs_Z_D  ['b_gov_D'][499] = -0.000354
+  irfs_def_D['b_gov_D'][499] = 0.000086
+  ρ_b (partial-eq.) = 0.8451  [target < 0.95]
+  n_inter_D[0] on default shock = -4.1714%  (negative = doom loop correct sign)
+  Y_D[0]       on default shock = -0.0321%  (negative = correct sign)
+- 2026-07-14 12:27:36 solving psi_lambda_B=0, psi_spread=0, EL_price=0.102491
+Traceback (most recent call last):
+  File "/Users/Adam/Documents/uni/phd/research/QUANTITATIVE_MODEL/diagnostics/substitution_v2/exp_psilam0.py", line 145, in <module>
+    main()
+  File "/Users/Adam/Documents/uni/phd/research/QUANTITATIVE_MODEL/diagnostics/substitution_v2/exp_psilam0.py", line 79, in main
+    NX = gg(d, "NX_D"); P = gg(d, "P_CES_D"); sp = d["spread_rb"]
+         ^^^^^^^^^^^^^
+  File "/Users/Adam/Documents/uni/phd/research/QUANTITATIVE_MODEL/diagnostics/substitution_v2/exp_psilam0.py", line 76, in gg
+    return store[k] if k in store.files else None
+                            ^^^^^^^^^^^
+AttributeError: 'dict' object has no attribute 'files'
