@@ -2,7 +2,7 @@
 
 Runs main.py's stages 1-5 plus run_tpi (NO figure generation, no source edits),
 then dumps everything the audit's Steps 0/4/5 need to
-diagnostics/cb_audit/probe_pipeline.npz + .json.
+Claude files/diagnostics/cb_audit/probe_pipeline.npz + .json.
 
 Audit-only. Reads the production modules; writes nothing outside cb_audit/.
 """
@@ -10,8 +10,8 @@ import os, sys, json, datetime
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(os.path.dirname(HERE))
-sys.path.insert(0, os.path.join(ROOT, "code"))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))   # repo root, from Claude files/diagnostics/cb_audit
+sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
 
 
@@ -24,12 +24,12 @@ def log(m):
 
 
 def main():
-    from calibration import get_calibration, EBA_CALIBRATION, BANK_SCOPE
-    from steady_state import solve_steady_state, gk_feasibility_margin
-    from ic_delta_calibration import calibrate_ic_delta
-    from depreciation_calibration import calibrate_depreciation
-    from full_model import build_and_solve
-    import tpi as tpi_mod
+    from calibration.ssj import get_calibration, EBA_CALIBRATION, BANK_SCOPE
+    from linear_ssj.solve.steady_state import solve_steady_state, gk_feasibility_margin
+    from linear_ssj.solve.ic_delta_calibration import calibrate_ic_delta
+    from linear_ssj.solve.depreciation_calibration import calibrate_depreciation
+    from linear_ssj.model.full_model import build_and_solve
+    from linear_ssj.solve import tpi as tpi_mod
 
     out = {"timestamp": ts(), "git_head": os.popen("git -C %s rev-parse HEAD" % ROOT).read().strip()}
     arrays = {}
@@ -125,8 +125,8 @@ def main():
             step5[name] = {"ERROR": repr(e)}
         log(f"  {name}: {step5[name]}")
     # and the NON-TPI counterparts, for the difference
-    from equations_D import budget_residual_D
-    from equations_global import external_account_D, domestic_bond_clearing
+    from linear_ssj.model.equations_D import budget_residual_D
+    from linear_ssj.model.equations_global import external_account_D, domestic_bond_clearing
     for name, blk in (("budget_residual_D", budget_residual_D),
                       ("external_account_D", external_account_D),
                       ("domestic_bond_clearing", domestic_bond_clearing)):

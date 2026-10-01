@@ -1,13 +1,13 @@
 """Order-selected Prony / linear-prediction eigenvalue estimator.
 
-The estimator docs/STATE.md refers to lived in the retired `audit_artifacts/`
+The estimator Claude files/docs/STATE.md refers to lived in the retired `audit_artifacts/`
 harness and is not in the working tree (checked 2026-08-19: no file in the repo
 matches /prony/i). Reimplemented here, self-contained, with the two properties
 the original was validated on:
 
   * order SELECTION rather than a fixed order — textbook AR/Prony overfits and
     manufactures spurious near-unit-circle roots once the model order exceeds
-    what the decay actually supports (docs/STATE.md round 2);
+    what the decay actually supports (Claude files/docs/STATE.md round 2);
   * a synthetic self-test (`_selftest`) that must recover known moduli.
 
 Used only to read the dominant modulus off an IRF tail. Never feeds a model.

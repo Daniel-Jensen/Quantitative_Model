@@ -4,16 +4,16 @@
 import sys, os
 import numpy as np
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
 
 from common import get_ss                                             # noqa: E402
-from solver_recursive.state_grid import (build_state_box, s_process_params,  # noqa: E402
-                                         SmolyakGrid, IS)
-from solver_recursive.decision_rules import RuleSet, STORE_RULES, SOLVE  # noqa: E402
-from solver_recursive.recursive_main import (calibrate_household_anchors,  # noqa: E402
+from global_projection.solver_recursive.state_grid import (build_state_box, s_process_params,  # noqa: E402
+                                         IS)
+from global_projection.solver_recursive.decision_rules import RuleSet, STORE_RULES, SOLVE  # noqa: E402
+from global_projection.solver_recursive.recursive_main import (calibrate_household_anchors,  # noqa: E402
                                              ss_state, ss_x, time_iteration)
-from solver_recursive.point_map import point_residuals                # noqa: E402
-from solver_recursive import collocation as C                         # noqa: E402
+from global_projection.solver_recursive.point_map import point_residuals                # noqa: E402
+from global_projection.solver_recursive import collocation as C                         # noqa: E402
 
 BOX = dict(k_band=0.02, p_band_D=0.04, p_band_F=0.04, b_band=0.12, w_band=0.04)
 
@@ -54,7 +54,7 @@ def test_identity_residuals_are_the_readoffs():
     F = C.make_residual(rules, cal, ss, sproc, regimes=(0,), no_default=True, n_gh=5,
                         no_cb=True)
     r = F(C.pack(rules, (0,))).reshape(rules.grid.n, C.N_RES)
-    from solver_recursive.decision_rules import DERIVED, to_fit
+    from global_projection.solver_recursive.decision_rules import DERIVED, to_fit
     for i in (0, rules.grid.n // 2, rules.grid.n - 1):
         S = rules.grid.points[i]
         x = np.array([rules.vals[k][0][i] for k in SOLVE])
@@ -113,7 +113,7 @@ def test_backstop_regimes_solve_and_relieve():
     # different claims: general equilibrium could in principle undo the relief -- banks
     # lever up into the looser constraint, which is the moral-hazard margin the policy
     # buys -- and if it undid it completely the instrument would be doing nothing.
-    from solver_recursive.recursive_experiment import solve_recursive
+    from global_projection.solver_recursive.recursive_experiment import solve_recursive
     cal, ss, sproc, _ = _setup()
     cal["phi_ltro"], cal["ltro_F"] = 0.5, 0.0
     rules = solve_recursive(cal, ss, sproc, mu=1, verbose=False, s_refine=0,

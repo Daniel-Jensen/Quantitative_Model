@@ -6,7 +6,7 @@ M[o][i] (i in {shock_def_D, cb_buy_D}) plus SS meta.
 REBUILT FOR MAIN (2026-07-23). Differs from the ms-regime version:
   * Main has no build_tpi_model helper — the TPI model is assembled inline here
     from main's block list (referenced via the `tpi` module namespace, which
-    imports every block), matching code/tpi.py's run_tpi exactly. Correctness is
+    imports every block), matching linear_ssj/solve/tpi.py's run_tpi exactly. Correctness is
     guarded by main's own G_tpi[cb=0] vs baseline-Jacobian sanity check (<1e-8).
   * Main's ECB capital-key conduit needs cb_flow_D and kappa_cb_F in the SS.
   * recovery_rate=0.30 on main, so EL_price is NOT 0.102491 — it is logged, not
@@ -22,7 +22,7 @@ import numpy as np
 import sequence_jacobian as sj
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), "code"))
+sys.path.insert(0, os.path.dirname(os.path.dirname(HERE)))
 LOG = os.path.join(HERE, "regimes_log.md")
 
 def _live_psilam():
@@ -30,9 +30,9 @@ def _live_psilam():
     provenance anchor, so it must track calibration.py rather than be hardcoded.
     Was hardcoded 1.1793 (the EBA-era 150bp-target value); after the 2026-07-30
     pre-EBA revert the live value is 3.0 and a hardcoded anchor silently pointed at
-    a stale cache built under a different model. (code/ is already on sys.path from
+    a stale cache built under a different model. (the repo root is already on sys.path from
     the module-level insert above.)"""
-    from calibration import get_calibration  # noqa: PLC0415 - dynamic sys.path
+    from calibration.ssj import get_calibration  # noqa: PLC0415 - dynamic sys.path
     return float(get_calibration()["psi_lambda_B_D"])
 
 
@@ -118,7 +118,7 @@ def _calibration_fingerprint():
     model from the pre-EBA one bearing the same filename). Any calibration change
     now yields a new filename, so a stale cache can never be picked up.
     """
-    from calibration import get_calibration  # noqa: PLC0415 - dynamic sys.path
+    from calibration.ssj import get_calibration  # noqa: PLC0415 - dynamic sys.path
     cal = get_calibration()
     payload = ";".join(f"{k}={float(v):.12g}" for k, v in sorted(cal.items())
                        if isinstance(v, (int, float)) and not isinstance(v, bool))
@@ -145,7 +145,7 @@ def cache_path(psilam, fingerprint=None):
 
 def build_tpi_model_main(tpi, financial_solved_D, financial_solved_F,
                          hh_D=None, hh_F=None):
-    """Assemble main's TPI-extended model — identical block list to code/tpi.py's
+    """Assemble main's TPI-extended model — identical block list to linear_ssj/solve/tpi.py's
     run_tpi (blocks referenced via the tpi module, which imports them all). The
     two financial_solved blocks are runtime-constructed, passed in.
 
@@ -155,7 +155,7 @@ def build_tpi_model_main(tpi, financial_solved_D, financial_solved_F,
     single place the model is defined — a second copy is how the retired
     audit_artifacts/ harness drifted into testing a different model."""
     t = tpi
-    from full_model import build_block_list
+    from linear_ssj.model.full_model import build_block_list
     return sj.create_model(
         build_block_list(financial_solved_D, financial_solved_F,
                          hh_D=hh_D, hh_F=hh_F,
@@ -174,7 +174,7 @@ def _ss_tpi(ss_final, kappa_cb_F):
 
 def _solve_G(model, ss_tpi, unk, tgt, T, label):
     log(f"- {datetime.datetime.now():%Y-%m-%d %H:%M:%S} solving G_tpi at psi_lambda_B={label} ...")
-    from full_model import solve_jacobian_padded
+    from linear_ssj.model.full_model import solve_jacobian_padded
     return solve_jacobian_padded(model, ss_tpi, unk, tgt,
                                  ["Z_D", "shock_def_D", "Z_F", "shock_def_F", "cb_buy_D"], T)
 
@@ -221,12 +221,12 @@ def build_caches(force=False):
     paths = {psilam_live: cache_path(psilam_live), 0.0: cache_path(0.0)}
     if not force and all(os.path.exists(p) for p in paths.values()):
         return paths
-    from calibration import get_calibration
-    from steady_state import solve_steady_state
-    from ic_delta_calibration import calibrate_ic_delta
-    from depreciation_calibration import calibrate_depreciation
-    from full_model import build_and_solve
-    import tpi
+    from calibration.ssj import get_calibration
+    from linear_ssj.solve.steady_state import solve_steady_state
+    from linear_ssj.solve.ic_delta_calibration import calibrate_ic_delta
+    from linear_ssj.solve.depreciation_calibration import calibrate_depreciation
+    from linear_ssj.model.full_model import build_and_solve
+    from linear_ssj.solve import tpi
 
     cal = get_calibration()
     assert cal["psi_lambda_B_D"] < PSILAM_BREAKDOWN, (

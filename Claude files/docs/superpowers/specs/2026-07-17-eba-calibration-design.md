@@ -123,7 +123,7 @@ Level moments (need nominal GDP → download):
   for every number). Pure, testable, no side effects beyond the JSON.
 - **`calibration.py`** — recalibrated in **stages**, each changed value commented with
   its EBA moment + `eba_moments.json` key.
-- **`docs/eba_calibration.md`** — maps every changed parameter to its EBA moment and
+- **`Claude files/docs/eba_calibration.md`** — maps every changed parameter to its EBA moment and
   records the GDP sources.
 
 ## Downloads (into `data/`, for user review)
@@ -150,5 +150,5 @@ After **each** stage: run `code/main.py`; assert `goods_mkt_D ≤ 1e-14`, `goods
 ## Deliverables
 
 `code/eba_calibration.py`, `data/eba_moments.json` + downloaded sources, recalibrated
-`code/calibration.py` (staged, provenance-commented), `docs/eba_calibration.md`,
-updated `docs/STATE.md`.
+`code/calibration.py` (staged, provenance-commented), `Claude files/docs/eba_calibration.md`,
+updated `Claude files/docs/STATE.md`.

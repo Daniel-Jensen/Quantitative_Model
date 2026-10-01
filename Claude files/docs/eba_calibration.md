@@ -695,7 +695,7 @@ calibration switch) -- treat all TPI welfare/loading numbers from before
   1 (2.54/2.14/1.74 at gamma=2/5/10, still declining), resolving the "loading
   <1" concern raised in a paper-direction hostile review the same day -- at
   roughly a third the magnitude of the stale "~7x" figure previously in
-  `docs/FRAMING_HANDOFF.md` (now retired; see `docs/SPEC.md`'s theoretical
+  `docs/FRAMING_HANDOFF.md` (now retired; see `Claude files/docs/SPEC.md`'s theoretical
   framing section, updated accordingly). **Re-tuned again same day to
   `psi_lambda_B=1.1793`** after resolving `recovery_rate` below (`EL_price`
   fell, pulling the spread response with it; re-verified 150.02bp).

@@ -10,10 +10,11 @@
 # positive on this package, and a checker that cries wolf is worse than none:
 #   `import x as y` binds y not x; tuple unpacking binds every target; a NESTED function
 #   sees its enclosing function's locals; and a LAMBDA is its own scope.
-import ast, builtins, os, pathlib, sys
+import ast, builtins, os, pathlib
 
-ROOT = pathlib.Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PKGS = ("solver_recursive", "blocks", "config", "reporting")
+# the global_projection package, from Claude files/global_projection/tests/
+ROOT = pathlib.Path(__file__).resolve().parents[3] / "global_projection"
+PKGS = ("solver_recursive", "blocks", "reporting")
 BUILTINS = set(dir(builtins))
 
 
@@ -97,7 +98,10 @@ def _scan(paths):
 
 def test_no_unbound_names():
     # EVERY MODULE ON THE EXECUTION PATH, not just the ones a test imports.
-    files = [str(ROOT / "main.py")]
+    # the pipeline itself lives in the repo-root run.py (compute_global / plot_global)
+    files = [str(ROOT.parent / "run.py"), str(ROOT.parent / "results_io.py"),
+             str(ROOT.parent / "compare.py"), str(ROOT / "steady_state.py"),
+             str(ROOT.parent / "calibration" / "global_projection.py")]
     for pkg in PKGS:
         files += [str(p) for p in sorted((ROOT / pkg).glob("*.py"))]
     bad = _scan(files)

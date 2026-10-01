@@ -1,13 +1,15 @@
 # FIGURES FOR THE RECURSIVE PROJECTION EXPERIMENTS.
-# Every figure is written to output/. The projection experiments print their
+# Every figure is written to OUTDIR -- results/GLOBAL/figures by default; run.py points
+# it at its own results directory before drawing. The projection experiments print their
 # own IRF tables; these are the figures they produce.
 import os
 
 import numpy as np
 import matplotlib.pyplot as plt
 
-# output/ lives at the package root (one level up from reporting/)
-OUTDIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "output")
+# repo root is two levels up from reporting/
+OUTDIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+                      "results", "GLOBAL", "figures")
 
 # CATEGORICAL palette for the output-decomposition channels (Okabe-Ito derived;
 # passes the lightness/chroma/CVD-separation/contrast checks in this fixed order --
@@ -25,7 +27,7 @@ INK, INK_MUTED = "#1A1A1A", "#5C5C5C"
 
 
 def _save(fig, filename):
-    # LAY OUT AND WRITE THE FIGURE TO output/.
+    # LAY OUT AND WRITE THE FIGURE TO OUTDIR.
     # tight_layout is skipped when the figure already has a layout engine. Figures
     # with a secondary_yaxis MUST use the constrained engine: tight_layout does not
     # see secondary axes at all, so it packs the panels as if they were absent and the

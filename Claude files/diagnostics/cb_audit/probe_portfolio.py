@@ -33,8 +33,8 @@ import os, sys, json, copy, datetime
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(os.path.dirname(HERE))
-sys.path.insert(0, os.path.join(ROOT, "code"))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))   # repo root, from Claude files/diagnostics/cb_audit
+sys.path.insert(0, ROOT)
 
 LEGS = ["b_D_D", "b_F_D", "b_D_F", "b_F_F", "b_gov_D", "b_gov_F",
         "q_b_D", "q_b_F", "n_inter_D", "n_inter_F", "cb_buy_D",
@@ -51,12 +51,12 @@ def log(m):
 
 
 def main():
-    from calibration import get_calibration
-    from steady_state import solve_steady_state
-    from ic_delta_calibration import calibrate_ic_delta
-    from depreciation_calibration import calibrate_depreciation
-    from full_model import build_and_solve
-    import tpi as tpi_mod
+    from calibration.ssj import get_calibration
+    from linear_ssj.solve.steady_state import solve_steady_state
+    from linear_ssj.solve.ic_delta_calibration import calibrate_ic_delta
+    from linear_ssj.solve.depreciation_calibration import calibrate_depreciation
+    from linear_ssj.model.full_model import build_and_solve
+    from linear_ssj.solve import tpi as tpi_mod
 
     cal = get_calibration()
     log("solving steady state...")
@@ -97,7 +97,7 @@ def main():
 
         Everything is a linearised deviation, so the market value moves as
         q*db + b*dq  (the dq*db cross term is second order and is dropped, in
-        line with cb_pnl's convention in code/tpi.py)."""
+        line with cb_pnl's convention in linear_ssj/solve/tpi.py)."""
         q, b = SS[PRICE[leg]], SS[leg]
         base = W[leg] * q * b
         if gam is None:
@@ -132,7 +132,7 @@ def main():
         print(s); L.append(s)
 
     p("# The 2x2 sovereign-holdings matrix, before and after TPI\n")
-    p(f"Generated {ts()} by `diagnostics/cb_audit/probe_portfolio.py`. "
+    p(f"Generated {ts()} by `Claude files/diagnostics/cb_audit/probe_portfolio.py`. "
       f"`size_F` = {sF:.6f}.\n")
     p("All entries are **aggregate market value in D goods**, `q_b * quantity`, with "
       "per-F-capita legs (`b_D_F`, `b_F_F`, `b_gov_F`) scaled by `size_F`. "

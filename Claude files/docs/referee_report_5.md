@@ -3,9 +3,9 @@
 ## On the introduction, read against a full audit of Section 2
 
 **Scope.** `VIVA/sections/01-introduction.tex` as of 2026-08-28, reviewed from scratch.
-This report differs from `docs/referee_report_3.md` in one respect that changes most of
+This report differs from `Claude files/docs/referee_report_3.md` in one respect that changes most of
 the findings: Section 2 has since been audited equation by equation
-(`docs/referee_report_4.md`), so every claim the introduction makes about the model can
+(`Claude files/docs/referee_report_4.md`), so every claim the introduction makes about the model can
 now be checked against what the model actually contains rather than against what
 Section 2 says about itself.
 
@@ -406,4 +406,4 @@ is worth confronting explicitly rather than resolving by vocabulary.
 Per the author's instruction, proof-level items are excluded: notation and
 sub/superscript consistency, citation-command choice, LaTeX mechanics, and the
 `references.bib` metadata. Those from Section 2 are recorded in
-`docs/referee_report_4.md`; the introduction has few.
+`Claude files/docs/referee_report_4.md`; the introduction has few.

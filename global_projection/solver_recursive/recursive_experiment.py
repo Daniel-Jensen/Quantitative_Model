@@ -13,19 +13,19 @@
 import numpy as np
 from scipy.optimize import root
 
-from config.calibration import get_calibration
-from config.steady_state import solve_steady_state
-from solver_recursive.state_grid import build_state_box, s_process_params, default_prob
-from solver_recursive.state_grid import (IK_D, IK_F, IP_D, IP_F, IBDD,
+from calibration.global_projection import get_calibration
+from global_projection.steady_state import solve_steady_state
+from global_projection.solver_recursive.state_grid import build_state_box, s_process_params, default_prob
+from global_projection.solver_recursive.state_grid import (IK_D, IK_F, IP_D, IP_F, IBDD,
                                           IBDF, IBFD, IV, IS, IZ, STATE_NAMES)
-from solver_recursive.decision_rules import RuleSet, STORE_RULES, regime_table
-from solver_recursive.collocation import solve_collocation
-from solver_recursive.recursive_main import (time_iteration, calibrate_household_anchors,
-                            ss_state, ss_x, p_block_rotation)
-from reporting.prints import (print_solve_stage, bp_ann, ann_pct, ann_prob,
+from global_projection.solver_recursive.decision_rules import RuleSet, SOLVE7, STORE_RULES, regime_table
+from global_projection.solver_recursive.collocation import solve_collocation
+from global_projection.solver_recursive.recursive_main import (time_iteration, calibrate_household_anchors,
+                            ss_state, p_block_rotation)
+from global_projection.reporting.prints import (bp_ann, ann_pct, ann_prob,
                               BOCOLA_IRF_CLOSED, BOCOLA_IRF_OPEN,
                               BOCOLA_EPISODE_LEVEL)
-from solver_recursive.point_map import point_residuals, SOLVE7
+from global_projection.solver_recursive.point_map import point_residuals
 
 
 # STATE NAMES, for the box-escape report in dynamic_irf -- taken from state_grid so a
@@ -71,7 +71,7 @@ REFINE_WARM_SWEEPS = 20
 # proves it), so the walk exists only because a LARGE envelope drives mu to zero over much
 # of the grid, which is a big move to ask of one Newton step from a seed where mu > 0
 # everywhere. At the shipped envelope (~1-1.5% of quarterly GDP, sized in
-# docs/ltro_backstop_plan.md S5 to HALVE the crisis multiplier rather than eliminate it)
+# Claude files/docs/ltro_backstop_plan.md S5 to HALVE the crisis multiplier rather than eliminate it)
 # a single rung is normally enough; the ladder is insurance for the oversized variants.
 # One rung at the shipped envelope: it is small (2% of quarterly GDP) and each facility
 # regime is seeded from its OWN no-facility twin, so the Newton starts close. Add rungs
@@ -116,7 +116,7 @@ def liquidity_ceiling_report(rules, cal, ss, sproc, target=None, regime=0,
     # the same claim priced with the LIQUIDITY premium removed and NOTHING else. The
     # expected loss and the risk premium are untouched by any amount of constraint relief
     # at a given continuation.
-    # This is the ceiling on channel (a) in docs/ltro_backstop_plan.md S3, and it is why
+    # This is the ceiling on channel (a) in Claude files/docs/ltro_backstop_plan.md S3, and it is why
     # the interesting question is channel (b): the ANNOUNCEMENT raises E[Om*payD] itself,
     # which moves the ceiling rather than approaching it. Measured at the 100 bp
     # calibration on the coarse grid, the liquidity premium is 0.2-0.7% of the price over
@@ -150,41 +150,8 @@ def liquidity_ceiling_report(rules, cal, ss, sproc, target=None, regime=0,
     return rows
 
 
-def solve_recursive(cal, ss, sproc, mu=1, verbose=True, mu_vec=None, rotate=False,
-                    s_refine=S_REFINE, backend="auto", with_cb=False,
-                    base=None, base_out=None):
-    # SOLVE EVERY REGIME BY GLOBAL COLLOCATION (Bocola's model_solution_mean.m).
-    #
-    # THE LADDER IS HIS. He warm-starts the 6-state default model from the solved
-    # 5-state no-default one, walks the haircut up in seven steps re-solving at each
-    # (rec = 0, 0.30, 0.35, 0.40, 0.45, 0.50, 0.55), and calls parsolve -- a damped
-    # Newton on the WHOLE coefficient vector -- at every step. Here:
-    #   1. coarse grid (isotropic mu = 1), d = 0 at pi = 0 with the facility off, Newton;
-    #   2. the default regime by haircut homotopy 0.85 -> 0.70 -> 0.55 -> recovery_rate_D;
-    #   3. the risk-priced baseline, still with the facility off -- the model the backstop
-    #      is measured against;
-    #   4. the facility regimes, each seeded from its OWN no-facility twin, walked up in
-    #      size (LTRO_LADDER). m = 0 is IDENTICALLY the no-facility model, so the first
-    #      rung is free; the walk only exists because a large facility drives mu to zero,
-    #      which is a big move for one Newton step;
-    #   5. joint polish over every regime;
-    #   6. if s_refine, rebuild on the s-refined grid, SEED from the coarse solution,
-    #      and re-run the joint Newton there.
-    # Every stage is a genuine root of the collocation system, not a damped fixed point.
-    #
-    # phi is a per-experiment SCALAR (cal["phi_ltro"]), not a state and not a stage:
-    # each activation intensity is its own solve, exact at its own phi.
-    #
-    # with_cb DEFAULTS TO FALSE, AND THAT DEFAULT IS LOAD-BEARING. The facility regimes
-    # DOUBLE the regime count, and the dense Jacobian is (unknowns+1) residual
-    # evaluations each costing points x regimes, so switching them on costs 4x -- at
-    # s_refine = 5 the risk solve goes from 3610 unknowns and ~29 min a Jacobian to 7220
-    # and ~114 min. Because phi_ltro = 0 nests the no-backstop model EXACTLY, a caller
-    # that gets the facility regimes by accident pays that 4x and gets an identical
-    # answer, with nothing in the output to say so. That is what happened when the
-    # default was True: main.py's headline risk experiment ran four regimes for hours.
-    # Only the backstop experiment should opt in.
-    #
+def _build_rules(cal, ss, sproc, mu, mu_vec, rotate, nreg, verbose):
+    # THE COARSE COLLOCATION BOX (OPTIONALLY P-ROTATED) AND AN SS COLD-START RULE SET.
     # rotate=True collocates the P block on the eigenbasis of its own transition
     # Jacobian (Bocola's V-transform). The theory says it should win -- rho(|J|) = 1.96,
     # so no axis-aligned box is one-step invariant -- but it MEASURES WORSE, because the
@@ -198,48 +165,133 @@ def solve_recursive(cal, ss, sproc, mu=1, verbose=True, mu_vec=None, rotate=Fals
         if verbose:
             print(f"  P-block rotation: |lambda| = {evs[0]:.3f}, {evs[1]:.3f}"
                   f"   rho(|J|) = {np.max(np.abs(np.linalg.eigvals(np.abs(J)))):.3f}")
-    nreg = 4 if with_cb else 2
     grid = build_state_box(ss, cal, mu=mu, mu_vec=mu_vec, rot=rot, centre=centre,
                            **box_kw)
     rules = RuleSet.from_ss(grid, ss, cal, n_regimes=nreg)
     rules.n_gh = N_GH
-    # REGIME INDICES BY MEANING, NEVER BY POSITION. With the facility available in the
-    # default state the table is (0,0),(0,1),(1,0),(1,1), so the pure-default regime is
-    # index 2 and NOT the last one -- reading it as nreg-1 would silently run the haircut
-    # homotopy on the facility regime instead.
-    reg = regime_table(nreg)
-    D_REG = next(j for j, (d, m) in enumerate(reg) if d and not m)
-    CB_REGS = [j for j, (d, m) in enumerate(reg) if m]
     if verbose:
         print(f"  coarse grid: mu={mu}, {grid.n} points x {nreg} regimes, n_gh={N_GH}")
+    return rules, dict(mu=mu, mu_vec=mu_vec, rot=rot, centre=centre, box_kw=box_kw)
 
-    # THE BASELINE STAGES DO NOT DEPEND ON phi. An activation sweep re-solves them once
-    # per point unless the caller hands them back in, which at eight activations is about
-    # an hour of identical arithmetic -- hence the `base` argument.
+
+def _solve_baseline(rules, cal, ss, sproc, D_REG, backend, verbose):
+    # THE phi-INDEPENDENT BASELINE: d = 0, THE HAIRCUT HOMOTOPY, THEN THE JOINT RISK SOLVE.
+    # Bocola's ladder: he warm-starts the default model from the solved no-default one
+    # and walks the haircut up re-solving at each step. The facility stays OFF throughout
+    # -- this is the model the backstop is measured against.
+    ok0, it0, w0 = _stage(rules, cal, ss, sproc, (0,), True, "d0", verbose,
+                          no_cb=True)
+    for k in STORE_RULES:                   # warm-start the default regime from d=0
+        rules.set_values(k, D_REG, rules.vals[k][0].copy())
+    rec_target = cal["recovery_rate_D"]
+    ok1, w1 = False, np.nan
+    for rec in (0.85, 0.70, 0.55, rec_target):
+        cal["recovery_rate_D"] = rec
+        ok1, it1, w1 = _stage(rules, cal, ss, sproc, (D_REG,), False,
+                              f"d1 rec={rec:.2f}", verbose, no_cb=True)
+    cal["recovery_rate_D"] = rec_target
+    okb, itb, wb = _stage(rules, cal, ss, sproc, (0, D_REG), False,
+                          "joint (no facility)", verbose, backend=backend,
+                          no_cb=True)
+    return (ok0, ok1, okb), (w0, w1, wb)
+
+
+def _solve_facility(rules, cal, ss, sproc, reg, backend, verbose):
+    # THE LTRO REGIMES, EACH SEEDED FROM ITS OWN NO-FACILITY TWIN, WALKED UP IN SIZE.
+    # (0,1) is seeded from (0,0) and (1,1) from (1,0), so the seed already carries the
+    # right default state and only the constraint has to move. m = 0 is IDENTICALLY the
+    # no-facility model, so the walk exists only because a large envelope drives mu to
+    # zero over much of the grid.
+    nreg = len(reg)
+    for j in [j for j, (d, m) in enumerate(reg) if m]:
+        twin = next(k for k, (d, m) in enumerate(reg) if d == reg[j][0] and not m)
+        for k in STORE_RULES:
+            rules.set_values(k, j, rules.vals[k][twin].copy())
+    m0 = (cal["ltro_D"], cal["ltro_F"])
+    for frac in LTRO_LADDER:
+        cal["ltro_D"], cal["ltro_F"] = frac * m0[0], frac * m0[1]
+        _stage(rules, cal, ss, sproc, tuple(range(nreg)), False,
+               f"ltro {100 * frac:.0f}% of envelope", verbose, backend=backend,
+               warm=4, maxit=12)
+    cal["ltro_D"], cal["ltro_F"] = m0
+
+
+def _refine_s(rules, cal, ss, sproc, box, s_refine, with_cb, backend, verbose):
+    # THE REFINEMENT LADDER: A DENSE CHEBYSHEV FACTOR IN s, SEEDED FROM THE LAST SOLVE.
+    # Same box each time -- one more continuation step in Bocola's style. Going straight
+    # from 3 nodes in s to 9 asks the Newton to start from a seed that is badly wrong at
+    # the new interior nodes (the mu=1 quadratic reads p^d = 1.82% where the truth is
+    # 0.67%), so the node count is walked up.
+    # THE WARM START IS NOT OPTIONAL HERE: the refined grid visits (P_D at +1, s at +1)
+    # combinations the coarse interpolant has no cross term for. Measured: the raw seed
+    # sits at max|F| = 4.0e-2, and 20 time-iteration sweeps bring it to 1.9e-3 -- inside
+    # the Newton's basin.
+    nreg = rules.n_regimes
+    okj = wj = None
+    ladder = [m for m in (5, 9, 17) if 1 < m < s_refine] + [s_refine]
+    for m_s in ladder:
+        gfine = build_state_box(ss, cal, mu=box["mu"], mu_vec=box["mu_vec"],
+                                rot=box["rot"], centre=box["centre"], refine=(IS, m_s),
+                                **box["box_kw"])
+        if verbose:
+            print(f"  s-refined grid: {gfine.n} points x {nreg} regimes "
+                  f"({m_s} nodes, degree {m_s - 1} in s)")
+        fine = _seed_from(RuleSet(gfine, nreg), rules)
+        okj, itj, wj = _stage(fine, cal, ss, sproc, tuple(range(nreg)), False,
+                              f"joint (s={m_s})", verbose, backend=backend,
+                              warm=REFINE_WARM_SWEEPS, maxit=12,
+                              no_cb=not with_cb)
+        rules = fine
+    return rules, okj, wj
+
+
+def _stamp_verdict(rules, oks, worsts):
+    # RECORD WHETHER EVERY STAGE ROOTED ON THE RULE SET ITSELF.
+    # A caller that plots or tabulates several solves has no other way to know which of
+    # them actually rooted -- without this the certainty curve would draw a stopped solve
+    # with the same solid marker as a converged one.
+    ok0, ok1, okb, okj = oks
+    w0, w1, wb, wj = worsts
+    rules.solve_ok = bool(ok0 and ok1 and okb and okj)
+    rules.solve_worst = float(np.nanmax([w0, w1, wb, wj]))
+    if not rules.solve_ok:
+        print(f"    NOTE: a collocation stage did not reach the acceptance floor: "
+              f"d0 ok={ok0} ({w0:.1e}), d1 ok={ok1} ({w1:.1e}), "
+              f"base ok={okb} ({wb:.1e}), joint ok={okj} ({wj:.1e}). "
+              f"Read the IRFs as indicative.")
+
+
+def solve_recursive(cal, ss, sproc, mu=1, verbose=True, mu_vec=None, rotate=False,
+                    s_refine=S_REFINE, backend="auto", with_cb=False,
+                    base=None, base_out=None):
+    # SOLVE EVERY REGIME BY GLOBAL COLLOCATION (Bocola's model_solution_mean.m).
+    # THE LADDER IS HIS -- every stage is a genuine root of the collocation system:
+    #   1. coarse grid, d = 0 at pi = 0 with the facility off        (_solve_baseline)
+    #   2. the default regime by haircut homotopy 0.85 -> recovery_rate_D
+    #   3. the risk-priced baseline, facility still off
+    #   4. the facility regimes, seeded from their twins, walked up   (_solve_facility)
+    #   5. joint polish over every regime
+    #   6. rebuild on the s-refined grid, seeded from the coarse one   (_refine_s)
+    # phi is a per-experiment SCALAR (cal["phi_ltro"]): each activation is its own solve.
+    # with_cb DEFAULTS TO FALSE, AND THAT DEFAULT IS LOAD-BEARING: the facility regimes
+    # double the regime count and cost 4x, and because phi_ltro = 0 nests the no-backstop
+    # model EXACTLY, a caller that gets them by accident pays 4x for an identical answer.
+    # THE BASELINE STAGES DO NOT DEPEND ON phi: an activation sweep hands the solved
+    # baseline back in through `base` (and collects it through `base_out`).
+    nreg = 4 if with_cb else 2
+    rules, box = _build_rules(cal, ss, sproc, mu, mu_vec, rotate, nreg, verbose)
+    # regime indices BY MEANING, never by position: with the facility available in the
+    # default state the pure-default regime is index 2, not the last one
+    reg = regime_table(nreg)
+    D_REG = next(j for j, (d, m) in enumerate(reg) if d and not m)
+
     if base is None:
-        ok0, it0, w0 = _stage(rules, cal, ss, sproc, (0,), True, "d0", verbose,
-                              no_cb=True)
-
-        for k in STORE_RULES:                   # warm-start the default regime from d=0
-            rules.set_values(k, D_REG, rules.vals[k][0].copy())
-        rec_target = cal["recovery_rate_D"]
-        ok1, w1 = False, np.nan
-        for rec in (0.85, 0.70, 0.55, rec_target):
-            cal["recovery_rate_D"] = rec
-            ok1, it1, w1 = _stage(rules, cal, ss, sproc, (D_REG,), False,
-                                  f"d1 rec={rec:.2f}", verbose, no_cb=True)
-        cal["recovery_rate_D"] = rec_target
-
-        # THE RISK-PRICED BASELINE, still with the facility switched off. This is the
-        # model the backstop is measured against, and every facility regime is seeded
-        # from it.
-        okb, itb, wb = _stage(rules, cal, ss, sproc, (0, D_REG), False,
-                              "joint (no facility)", verbose, backend=backend,
-                              no_cb=True)
+        (ok0, ok1, okb), (w0, w1, wb) = _solve_baseline(rules, cal, ss, sproc, D_REG,
+                                                        backend, verbose)
         if base_out is not None:                # hand the caller a reusable snapshot
             base_out.append(rules.copy())
     else:
-        assert base.n_regimes == nreg and base.grid.n == grid.n, \
+        assert base.n_regimes == nreg and base.grid.n == rules.grid.n, \
             "reused baseline must carry the same grid and regime count"
         rules = base.copy()
         ok0 = ok1 = okb = True
@@ -248,85 +300,17 @@ def solve_recursive(cal, ss, sproc, mu=1, verbose=True, mu_vec=None, rotate=Fals
             print("  reusing the solved phi-independent baseline")
 
     if with_cb:
-        # EACH FACILITY REGIME IS SEEDED FROM ITS OWN NO-FACILITY TWIN -- (0,1) from
-        # (0,0) and (1,1) from (1,0) -- so the seed already carries the right default
-        # state and only the constraint has to move.
-        for j in CB_REGS:
-            twin = next(k for k, (d, m) in enumerate(reg)
-                        if d == reg[j][0] and not m)
-            for k in STORE_RULES:
-                rules.set_values(k, j, rules.vals[k][twin].copy())
-        m0 = (cal["ltro_D"], cal["ltro_F"])
-        for frac in LTRO_LADDER:
-            cal["ltro_D"], cal["ltro_F"] = frac * m0[0], frac * m0[1]
-            _stage(rules, cal, ss, sproc, tuple(range(nreg)), False,
-                   f"ltro {100 * frac:.0f}% of envelope", verbose, backend=backend,
-                   warm=4, maxit=12)
-        cal["ltro_D"], cal["ltro_F"] = m0
+        _solve_facility(rules, cal, ss, sproc, reg, backend, verbose)
 
     okj, itj, wj = _stage(rules, cal, ss, sproc, tuple(range(nreg)), False, "joint",
                           verbose, backend=backend, no_cb=not with_cb)
 
     if s_refine and s_refine > 1:
-        # THE REFINEMENT LADDER. Same box, a dense Chebyshev factor in s, seeded from
-        # the previous solution each time -- one more continuation step in Bocola's
-        # style. Going straight from 3 nodes in s to 9 asks the Newton to start from a
-        # seed that is badly wrong at the new interior nodes (the mu=1 quadratic reads
-        # p^d = 1.82% where the truth is 0.67%), so the node count is walked up.
-        ladder = [m for m in (5, 9, 17) if 1 < m < s_refine] + [s_refine]
-        for m_s in ladder:
-            gfine = build_state_box(ss, cal, mu=mu, mu_vec=mu_vec, rot=rot,
-                                    centre=centre, refine=(IS, m_s), **box_kw)
-            if verbose:
-                print(f"  s-refined grid: {gfine.n} points x {nreg} regimes "
-                      f"({m_s} nodes, degree {m_s - 1} in s)")
-            fine = _seed_from(RuleSet(gfine, nreg), rules)
-            # THE WARM START IS NOT OPTIONAL HERE. The coarse mu = 1 grid puts only ONE
-            # coordinate off centre per point; the refined grid is its product with the
-            # dense s factor, so it visits (P_D at +1, s at +1)-type combinations the
-            # coarse interpolant has no cross term for. Measured: the raw seed sits at
-            # max|F| = 4.0e-2 with 62% of points above 1e-3, and 20 time-iteration
-            # sweeps (132 s at 95 points, every point clearing at 3e-14) bring it to
-            # 1.9e-3 -- inside the Newton's basin.
-            okj, itj, wj = _stage(fine, cal, ss, sproc, tuple(range(nreg)), False,
-                                  f"joint (s={m_s})", verbose, backend=backend,
-                                  warm=REFINE_WARM_SWEEPS, maxit=12,
-                                  no_cb=not with_cb)
-            rules = fine
+        rules, okj, wj = _refine_s(rules, cal, ss, sproc, box, s_refine, with_cb,
+                                   backend, verbose)
 
-    # STAMP THE VERDICT ON THE RULE SET. A caller that plots or tabulates several solves
-    # has no other way to know which of them actually rooted -- the NOTE below goes to the
-    # console and the figure does not see it. Without this the certainty curve would draw
-    # a stopped solve with the same solid marker as a converged one.
-    rules.solve_ok = bool(ok0 and ok1 and okb and okj)
-    rules.solve_worst = float(np.nanmax([w0, w1, wb, wj]))
-    if not rules.solve_ok:
-        print(f"    NOTE: a collocation stage did not reach the acceptance floor: "
-              f"d0 ok={ok0} ({w0:.1e}), d1 ok={ok1} ({w1:.1e}), "
-              f"base ok={okb} ({wb:.1e}), joint ok={okj} ({wj:.1e}). "
-              f"Read the IRFs as indicative.")
+    _stamp_verdict(rules, (ok0, ok1, okb, okj), (w0, w1, wb, wj))
     return rules
-
-
-def _solve_point(rules, cal, ss, sproc, S, x0):
-    # DIRECT d=0 IMPACT SOLVE AT STATE S (both regimes as continuation).
-    ngh = rules.n_gh or N_GH
-
-    def f(x):
-        try:
-            return point_residuals(S, 0, x, rules, cal, ss, sproc,
-                                   n_gh=ngh, no_default=False)[0]
-        except (ValueError, RuntimeError, FloatingPointError):
-            return np.full(len(SOLVE7), 10.0)
-    best = None
-    for g in (x0, ss_x(ss, cal)):
-        sol = root(f, g, method="hybr", tol=1e-12)
-        fn = np.max(np.abs(sol.fun))
-        if best is None or fn < best[1]:
-            best = (sol.x, fn)
-    _, o = point_residuals(S, 0, best[0], rules, cal, ss, sproc,
-                           n_gh=ngh, no_default=False)
-    return best[0], o
 
 
 def read_at(rules, cal, ss, sproc, S):
@@ -472,18 +456,14 @@ def s_from_pd(pd):
 
 
 def persistence_irf(rules, cal, ss, sproc, pd_shock=0.0198, T=21, s_shock=None):
-    # IRF AS AN s-SHOCK DECAYS (rho_s), endogenous states held at SS so the path
-    # stays on-grid -- the shock-persistence channel (a lower bound; the
-    # endogenous net-worth dynamics amplify it). Reads the binding-branch rules.
-    # the shock is stated as a TARGET p^d (main.py's RISK_SHOCK_PD); s_shock overrides
-    # it in raw logit units. The old default s_shock = -3.9 was labelled "+2 sigma" and
-    # is +4.77 sigma at the calibrated sigma_s = 0.63.
+    # IRF AS AN s-SHOCK DECAYS (rho_s), endogenous states held at the rest point so the
+    # path stays on-grid -- the shock-persistence channel (a lower bound; the endogenous
+    # net-worth dynamics amplify it). The shock is stated as a TARGET p^d; s_shock
+    # overrides it in raw logit units.
     if s_shock is None:
         s_shock = s_from_pd(pd_shock)
-    # endogenous states frozen at the REST POINT (see impact_table)
     S0 = stochastic_rest_point(rules, cal, ss, sproc, verbose=False)
     base = read_at(rules, cal, ss, sproc, S0.copy())
-    Yr, Cr, Ir, Nr = base["Y_D"], base["C_D"], base["I_D"], base["_x"][0]
     print(f"\n  PERSISTENCE IRF (one-off risk shock to p^d = "
           f"{100*default_prob(s_shock):.2f}%/qtr, rho_s = {sproc['rho_s']} decay)")
     print("   qtr  pd_q%  pd_a%     Y%    Y_ann%      C%     I%   hours%  "
@@ -494,17 +474,7 @@ def persistence_irf(rules, cal, ss, sproc, pd_shock=0.0198, T=21, s_shock=None):
         s_t = sproc["s_star"] + sproc["rho_s"] ** t * (s_shock - sproc["s_star"])
         S = S0.copy(); S[IS] = s_t
         o = read_at(rules, cal, ss, sproc, S)
-        pq = float(default_prob(s_t))
-        dY = 100 * (o["Y_D"] / Yr - 1)
-        path["pd"].append(100 * pq); path["pd_ann"].append(100 * ann_prob(pq))
-        path["Y"].append(dY); path["Y_ann"].append(ann_pct(dY))
-        path["C"].append(100 * (o["C_D"] / Cr - 1))
-        path["I"].append(100 * (o["I_D"] / Ir - 1))
-        path["N"].append(100 * (o["_x"][0] / Nr - 1))
-        path["spread"].append(_spread_bp(o, cal))
-        path["rdep"].append(bp_ann(o["rdep_D"]))
-        path["r_wc"].append(bp_ann(o["r_wc_D"]))
-        path["Q_bD"].append(o["Q_bD"])
+        _append(path, _persistence_row(o, base, s_t, cal))
         if t in (0, 1, 2, 4, 6, 8, 12, 16, 20):
             print(f"   {t:3d} {path['pd'][-1]:6.2f} {path['pd_ann'][-1]:6.2f} "
                   f"{path['Y'][-1]:+8.4f} {path['Y_ann'][-1]:+9.4f} "
@@ -512,6 +482,24 @@ def persistence_irf(rules, cal, ss, sproc, pd_shock=0.0198, T=21, s_shock=None):
                   f"{path['rdep'][-1]:8.1f} {path['spread'][-1]:10.1f} "
                   f"{path['r_wc'][-1]:8.1f}  {path['Q_bD'][-1]:.4f}")
     return {k: np.array(v) for k, v in path.items()}
+
+
+def _append(path, row):
+    # APPEND ONE QUARTER'S VALUES TO EVERY SERIES OF AN IRF PATH.
+    for k, v in row.items():
+        path[k].append(v)
+
+
+def _persistence_row(o, base, s_t, cal):
+    # ONE QUARTER OF THE PERSISTENCE IRF, AS DEVIATIONS FROM THE FROZEN REST-POINT READ.
+    pq = float(default_prob(s_t))
+    dY = 100 * (o["Y_D"] / base["Y_D"] - 1)
+    return {"pd": 100 * pq, "pd_ann": 100 * ann_prob(pq), "Y": dY, "Y_ann": ann_pct(dY),
+            "C": 100 * (o["C_D"] / base["C_D"] - 1),
+            "I": 100 * (o["I_D"] / base["I_D"] - 1),
+            "N": 100 * (o["_x"][0] / base["_x"][0] - 1),
+            "spread": _spread_bp(o, cal), "rdep": bp_ann(o["rdep_D"]),
+            "r_wc": bp_ann(o["r_wc_D"]), "Q_bD": o["Q_bD"]}
 
 
 def advance(o, S, sproc, grid=None):
@@ -576,126 +564,67 @@ def stochastic_rest_point(rules, cal, ss, sproc, tol=1e-11, max_it=4000, verbose
     return S
 
 
-def dynamic_irf(rules, cal, ss, sproc, pd_shock=0.0198, T=25, rest_verbose=True):
-    # DYNAMIC IRF: THE STATE VECTOR ITERATES FORWARD, IT IS NOT HELD AT THE SS.
-    # persistence_irf varies only s and pins K, P and B at their steady-state values --
-    # its own docstring calls that "a lower bound". Bocola's Table 5 output losses are
-    # the LEVEL of output over six quarters, driven by capital and bank net worth
-    # accumulating downward, so a frozen-state impact reading cannot be compared with
-    # them. Here every endogenous state follows the period map's own law of motion
-    # (K' = Kp, P' = Pp, B' = Bp) while s decays at rho_s, which is the object his
-    # numbers describe.
-    # BOCOLA'S generate_irf.m, BOTH HALVES. (1) Start at the STOCHASTIC rest point,
-    # not the deterministic SS -- the two differ because the solved rules price risk
-    # (see stochastic_rest_point). (2) Difference the shocked path against an UNSHOCKED
-    # path from the SAME state, rather than against a frozen base: his
-    # `gdp = mean(gdp_s) - mean(gdp_nos)`. Either alone removes most of the artifact;
-    # he does both, so the reported response cannot contain the no-shock transition
-    # even if the rest point is imperfectly converged.
-    S0 = stochastic_rest_point(rules, cal, ss, sproc, verbose=rest_verbose)
-    S = S0.copy()
-    escapes = []
-    base = read_at(rules, cal, ss, sproc, S0.copy())
-    # the NO-SHOCK reference path, advanced with the same law of motion
+def _no_shock_path(rules, cal, ss, sproc, S0, T):
+    # THE UNSHOCKED REFERENCE PATH FROM S0: THE READS AND THE CAPITAL STATE PER QUARTER.
     ref, Sr = [], S0.copy()
     for _ in range(T):
         o_r = read_at(rules, cal, ss, sproc, Sr)
         ref.append(o_r)
         Sr = advance(o_r, Sr, sproc, rules.grid)
-    S[IS] = s_from_pd(pd_shock)
-    print(f"\n  DYNAMIC IRF (states evolve; p^d shock to {100*pd_shock:.2f}%/qtr, "
-          f"rho_s = {sproc['rho_s']})")
-    print("   qtr  pd_q%  pd_a%    GDP%   GDP_ann%     C%      I%   hours%  "
-          "rdep_bp  bank_bp  r_wc_bp  sov_bp    K%      n%")
-    # TWO SPREADS, RECORDED SEPARATELY BECAUSE THEY ARE DIFFERENT OBJECTS. "spread" is the
-    # BANK CREDIT spread lambda_K*mu/alpha, identically zero once mu hits the KKT switch;
-    # "sov_bp" is the SOVEREIGN spread y_D - y_F out of the bond Euler, which carries no mu
-    # and persists for as long as p^d is elevated. The figure plots the sovereign one.
-    # THE F COUNTERPARTS (Y_F, C_F, n_F, spread_F) ARE RECORDED, NOT DERIVED: the paper
-    # figures plot both countries, and the F line is the control for the D response --
-    # the shock is D's alone and reaches F only through the union deposit market.
-    path = {k: [] for k in ("pd", "pd_ann", "Y", "Y_ann", "C", "I", "N", "spread",
-                            "rdep", "r_wc", "K", "n", "Q_bD", "Q_bF", "sov_bp",
-                            "d_rdep", "d_spread", "d_r_wc", "dQ_bD", "m_ltro",
-                            "mu", "E_Om", "Y_F", "C_F", "n_F", "spread_F", "I_F")}
-    # THE WEDGE DECOMPOSITION, in annualised bp DEVIATIONS from the no-shock state.
-    # r_wc = rdep + lambda*mu/E[Om] is the only channel from the financial block into
-    # output under GHH, and its two legs move in OPPOSITE directions: the credit spread
-    # rises with the constraint while the union deposit rate falls as banks delever.
-    # Reporting only the spread hides the netting -- which is what the 2026-08-28 audit
-    # found was costing most of the output response before country size was made
-    # asymmetric.
-    Sr = S0.copy()                    # state of the no-shock path, for K
+    Sr = S0.copy()
     K_ref = [Sr[IK_D]]
     for t in range(T - 1):
         Sr = advance(ref[t], Sr, sproc, rules.grid)
         K_ref.append(Sr[IK_D])
-    for t in range(T):
-        o = read_at(rules, cal, ss, sproc, S)
-        r = ref[t]                    # the SAME quarter of the unshocked path
-        pq = float(default_prob(S[IS]))
-        dY = 100 * (o["Y_D"] / r["Y_D"] - 1)
-        path["pd"].append(100 * pq); path["pd_ann"].append(100 * ann_prob(pq))
-        path["Y"].append(dY); path["Y_ann"].append(ann_pct(dY))
-        path["C"].append(100 * (o["C_D"] / r["C_D"] - 1))
-        path["I"].append(100 * (o["I_D"] / r["I_D"] - 1))
-        path["I_F"].append(100 * (o["I_F"] / r["I_F"] - 1))
-        path["N"].append(100 * (o["_x"][0] / r["_x"][0] - 1))
-        path["spread"].append(_spread_bp(o, cal))
-        path["Y_F"].append(100 * (o["Y_F"] / r["Y_F"] - 1))
-        path["C_F"].append(100 * (o["C_F"] / r["C_F"] - 1))
-        path["n_F"].append(100 * (o["n_F"] / r["n_F"] - 1))
-        path["spread_F"].append(_spread_bp(o, cal, "F"))
-        path["rdep"].append(bp_ann(o["rdep_D"]))
-        path["r_wc"].append(bp_ann(o["r_wc_D"]))
-        path["d_rdep"].append(bp_ann(o["rdep_D"] - r["rdep_D"]))
-        path["d_spread"].append(_spread_bp(o, cal) - _spread_bp(r, cal))
-        path["d_r_wc"].append(bp_ann(o["r_wc_D"] - r["r_wc_D"]))
-        path["K"].append(100 * (S[IK_D] / K_ref[t] - 1))
-        path["n"].append(100 * (o["n_D"] / r["n_D"] - 1))
-        path["Q_bD"].append(o["Q_bD"])
-        path["Q_bF"].append(o["Q_bF"])
-        path["dQ_bD"].append(100 * (o["Q_bD"] / r["Q_bD"] - 1))
-        # THE BACKSTOP'S FOOTPRINT AND ITS TWO OPPOSING CHANNELS. m_ltro is the facility
-        # actually drawn -- ZERO along the never-fired path, which is the headline read.
-        # mu and E_Om are recorded because they move in OPPOSITE directions: the facility
-        # relieves the constraint directly, but by lowering the franchise value it lowers
-        # E[Om], which RAISES mu. Reporting only the first would hide the offset that
-        # decides the sign (docs/ltro_backstop_plan.md S3).
-        path["m_ltro"].append(100 * o["m_ltro_D"] / ss["ss_firm_D"]["Y_ss"])
-        path["mu"].append(o["mu_D"])
-        path["E_Om"].append(o["E_Om_D"])
-        _yD = cal["delta_b_D"] * (1.0 - o["Q_bD"]) / o["Q_bD"]   # HM perpetuity flow yield
-        _yF = cal["delta_b_F"] * (1.0 - o["Q_bF"]) / o["Q_bF"]
-        path["sov_bp"].append(bp_ann(_yD - _yF))
-        if t in (0, 1, 2, 4, 6, 8, 12, 16, 20, 24):
-            print(f"   {t:3d} {path['pd'][-1]:6.2f} {path['pd_ann'][-1]:6.2f} "
-                  f"{path['Y'][-1]:+8.4f} {path['Y_ann'][-1]:+9.4f} "
-                  f"{path['C'][-1]:+8.4f} {path['I'][-1]:+7.3f} {path['N'][-1]:+7.3f} "
-                  f"{path['rdep'][-1]:8.1f} {path['spread'][-1]:8.1f} "
-                  f"{path['r_wc'][-1]:8.1f} {path['sov_bp'][-1]:7.1f} "
-                  f"{path['K'][-1]:+7.3f} {path['n'][-1]:+7.2f}")
-        Sn = advance(o, S, sproc)
-        # BOX ESCAPES ARE REPORTED, NOT SWALLOWED. Clipping keeps the read on-grid, but a
-        # state pinned to a band turns a divergent law of motion into a flat IRF that
-        # looks like convergence: the pre-2026-08-25 figure's "trough at q7 then recovery"
-        # was B_D pinned at +8.00% from q7 to q24 (debt root 0.9929; see phi_lamb).
-        S = rules.grid.clip(Sn)[0]
-        esc = np.abs(Sn - S) > 1e-12
-        if esc.any():
-            escapes.append((t, [(_SNAMES[i], 100 * (Sn[i] / S0[i] - 1),
-                                 100 * (S[i] / S0[i] - 1)) for i in np.flatnonzero(esc)]))
-    # THE BENCHMARK, IN BOTH UNITS. The line this replaces compared a LEVEL IRF against
-    # Bocola's Table 5, which is a cumulated quarterly GROWTH gap x400 -- four times too
-    # demanding, and a different experiment (an 8-quarter estimated shock sequence, not
-    # one shock). His single-shock IRFs, rescaled to this p^d, are the right targets.
+    return ref, K_ref
+
+
+def _dynamic_row(o, r, S, K_ref_t, cal, ss):
+    # ONE QUARTER OF THE DYNAMIC IRF: SHOCKED READ o AGAINST THE SAME QUARTER r UNSHOCKED.
+    # TWO SPREADS, DIFFERENT OBJECTS: "spread" is the BANK CREDIT spread lambda_K*mu/alpha
+    # (zero once mu hits the KKT switch); "sov_bp" is the SOVEREIGN spread y_D - y_F out
+    # of the bond Euler, which persists while p^d is elevated. The d_* legs are the wedge
+    # decomposition in annualised bp deviations: r_wc = rdep + lambda*mu/E[Om] is the only
+    # financial channel into output under GHH and its two legs move in OPPOSITE directions.
+    # m_ltro is the facility actually drawn (zero on the never-fired path); mu and E_Om
+    # are recorded because the facility moves them in opposite directions.
+    pq = float(default_prob(S[IS]))
+    dY = 100 * (o["Y_D"] / r["Y_D"] - 1)
+    _yD = cal["delta_b_D"] * (1.0 - o["Q_bD"]) / o["Q_bD"]   # HM perpetuity flow yield
+    _yF = cal["delta_b_F"] * (1.0 - o["Q_bF"]) / o["Q_bF"]
+    return {"pd": 100 * pq, "pd_ann": 100 * ann_prob(pq), "Y": dY, "Y_ann": ann_pct(dY),
+            "C": 100 * (o["C_D"] / r["C_D"] - 1),
+            "I": 100 * (o["I_D"] / r["I_D"] - 1),
+            "I_F": 100 * (o["I_F"] / r["I_F"] - 1),
+            "N": 100 * (o["_x"][0] / r["_x"][0] - 1),
+            "spread": _spread_bp(o, cal),
+            "Y_F": 100 * (o["Y_F"] / r["Y_F"] - 1),
+            "C_F": 100 * (o["C_F"] / r["C_F"] - 1),
+            "n_F": 100 * (o["n_F"] / r["n_F"] - 1),
+            "spread_F": _spread_bp(o, cal, "F"),
+            "rdep": bp_ann(o["rdep_D"]), "r_wc": bp_ann(o["r_wc_D"]),
+            "d_rdep": bp_ann(o["rdep_D"] - r["rdep_D"]),
+            "d_spread": _spread_bp(o, cal) - _spread_bp(r, cal),
+            "d_r_wc": bp_ann(o["r_wc_D"] - r["r_wc_D"]),
+            "K": 100 * (S[IK_D] / K_ref_t - 1),
+            "n": 100 * (o["n_D"] / r["n_D"] - 1),
+            "Q_bD": o["Q_bD"], "Q_bF": o["Q_bF"],
+            "dQ_bD": 100 * (o["Q_bD"] / r["Q_bD"] - 1),
+            "m_ltro": 100 * o["m_ltro_D"] / ss["ss_firm_D"]["Y_ss"],
+            "mu": o["mu_D"], "E_Om": o["E_Om_D"],
+            "sov_bp": bp_ann(_yD - _yF)}
+
+
+def _print_dynamic_summary(path, rules, cal, ss, sproc, S0, S, pd_shock, T, escapes):
+    # TROUGH, THE FITTED-vs-EXACT IMPACT BRACKET, THE WEDGE NETTING, BENCHMARKS, BOX.
+    # The benchmark is in both units: Bocola's Table 5 is a cumulated quarterly GROWTH
+    # gap x400 over an 8-quarter shock sequence; his single-shock IRFs, rescaled to this
+    # p^d, are the like-for-like targets.
     tr = min(path["Y"])
     print(f"   trough GDP = {tr:+.4f}% level = {ann_pct(tr):+.4f}% annualised "
           f"(Bocola Table 5 units)")
-    # THE SAME IMPACT, CLEARED EXACTLY. The interpolant and the exactly-cleared period
-    # map bracket the response, and near the mu = max(.,0) kink -- where this model's
-    # rest point sits -- the bracket is wide. Printing one number alone would be a
-    # false precision. See read_exact.
+    # the same impact cleared exactly: near the mu = max(.,0) kink, where this model's
+    # rest point sits, the fitted and exact reads bracket the response (see read_exact)
     Sx = S0.copy(); Sx[IS] = s_from_pd(pd_shock)
     bx = read_exact(rules, cal, ss, sproc, S0.copy())
     ox = read_exact(rules, cal, ss, sproc, Sx)
@@ -704,10 +633,9 @@ def dynamic_irf(rules, cal, ss, sproc, pd_shock=0.0198, T=25, rest_verbose=True)
           f"{max(path['Y'][0], trx):+.4f}%]: {path['Y'][0]:+.4f}% reading the fitted "
           f"rules, {trx:+.4f}% clearing the period map exactly at that state "
           f"(mu {bx['mu_D']:.5f} -> {ox['mu_D']:.5f})")
-    # THE IDENTITY THAT PRODUCES THAT TROUGH, on impact. Under GHH,
-    #   dlogY = -(1-alpha)/(1/nu+alpha) * [dlog(1+zeta*r_wc) + dlog P_CES],
-    # so the output response IS the working-capital wedge response, and the wedge is
-    # the credit spread NET of the deposit rate.
+    # under GHH dlogY = -(1-alpha)/(1/nu+alpha) * [dlog(1+zeta*r_wc) + dlog P_CES], so
+    # the output response IS the wedge response, and the wedge is the credit spread NET
+    # of the deposit rate
     print(f"   impact wedge: credit spread {path['d_spread'][0]:+.1f} bp/yr, "
           f"deposit rate {path['d_rdep'][0]:+.1f} bp/yr, "
           f"NET r_wc {path['d_r_wc'][0]:+.1f} bp/yr "
@@ -717,6 +645,12 @@ def dynamic_irf(rules, cal, ss, sproc, pd_shock=0.0198, T=25, rest_verbose=True)
           f"(his open economy -- GHH + working capital, our own structure), "
           f"{BOCOLA_IRF_CLOSED:+.3f}% (his closed benchmark), "
           f"{BOCOLA_EPISODE_LEVEL:+.3f}% (2011Q4 episode)")
+    _print_box_escapes(escapes, S0, S, T)
+
+
+def _print_box_escapes(escapes, S0, S, T):
+    # BOX ESCAPES ARE REPORTED, NOT SWALLOWED: a state pinned to a band turns a divergent
+    # law of motion into a flat IRF that looks like convergence.
     if escapes:
         first = escapes[0]
         print(f"   WARNING: {len(escapes)}/{T} quarters left the collocation box "
@@ -732,6 +666,46 @@ def dynamic_irf(rules, cal, ss, sproc, pd_shock=0.0198, T=25, rest_verbose=True)
               f"(final |dev| from SS: " +
               ", ".join(f"{_SNAMES[i]} {100 * (S[i] / S0[i] - 1):+.2f}%"
                         for i in (0, 2, 3, 4)) + ")")
+
+
+def dynamic_irf(rules, cal, ss, sproc, pd_shock=0.0198, T=25, rest_verbose=True):
+    # DYNAMIC IRF: THE STATE VECTOR ITERATES FORWARD, IT IS NOT HELD AT THE SS.
+    # Every endogenous state follows the period map's own law of motion while s decays
+    # at rho_s -- the object Bocola's Table 5 describes. BOCOLA'S generate_irf.m, BOTH
+    # HALVES: (1) start at the STOCHASTIC rest point, not the deterministic SS, and
+    # (2) difference the shocked path against an UNSHOCKED path from the SAME state (his
+    # `gdp = mean(gdp_s) - mean(gdp_nos)`), so the response cannot contain the no-shock
+    # transition even if the rest point is imperfectly converged.
+    S0 = stochastic_rest_point(rules, cal, ss, sproc, verbose=rest_verbose)
+    S = S0.copy()
+    escapes = []
+    ref, K_ref = _no_shock_path(rules, cal, ss, sproc, S0, T)
+    S[IS] = s_from_pd(pd_shock)
+    print(f"\n  DYNAMIC IRF (states evolve; p^d shock to {100*pd_shock:.2f}%/qtr, "
+          f"rho_s = {sproc['rho_s']})")
+    print("   qtr  pd_q%  pd_a%    GDP%   GDP_ann%     C%      I%   hours%  "
+          "rdep_bp  bank_bp  r_wc_bp  sov_bp    K%      n%")
+    path = {k: [] for k in ("pd", "pd_ann", "Y", "Y_ann", "C", "I", "N", "spread",
+                            "rdep", "r_wc", "K", "n", "Q_bD", "Q_bF", "sov_bp",
+                            "d_rdep", "d_spread", "d_r_wc", "dQ_bD", "m_ltro",
+                            "mu", "E_Om", "Y_F", "C_F", "n_F", "spread_F", "I_F")}
+    for t in range(T):
+        o = read_at(rules, cal, ss, sproc, S)
+        _append(path, _dynamic_row(o, ref[t], S, K_ref[t], cal, ss))
+        if t in (0, 1, 2, 4, 6, 8, 12, 16, 20, 24):
+            print(f"   {t:3d} {path['pd'][-1]:6.2f} {path['pd_ann'][-1]:6.2f} "
+                  f"{path['Y'][-1]:+8.4f} {path['Y_ann'][-1]:+9.4f} "
+                  f"{path['C'][-1]:+8.4f} {path['I'][-1]:+7.3f} {path['N'][-1]:+7.3f} "
+                  f"{path['rdep'][-1]:8.1f} {path['spread'][-1]:8.1f} "
+                  f"{path['r_wc'][-1]:8.1f} {path['sov_bp'][-1]:7.1f} "
+                  f"{path['K'][-1]:+7.3f} {path['n'][-1]:+7.2f}")
+        Sn = advance(o, S, sproc)
+        S = rules.grid.clip(Sn)[0]
+        esc = np.abs(Sn - S) > 1e-12
+        if esc.any():
+            escapes.append((t, [(_SNAMES[i], 100 * (Sn[i] / S0[i] - 1),
+                                 100 * (S[i] / S0[i] - 1)) for i in np.flatnonzero(esc)]))
+    _print_dynamic_summary(path, rules, cal, ss, sproc, S0, S, pd_shock, T, escapes)
     return {k: np.array(v) for k, v in path.items()}
 
 
@@ -756,6 +730,22 @@ def solve_tfp(cal, ss, sproc, mu=1):
     return rules
 
 
+def _tfp_row(o, base, z_t, cal):
+    # ONE QUARTER OF THE TFP IRF, AS DEVIATIONS FROM THE SS READ.
+    return {"Z": 100 * z_t,
+            "Y": 100 * (o["Y_D"] / base["Y_D"] - 1),
+            "C": 100 * (o["C_D"] / base["C_D"] - 1),
+            "I": 100 * (o["I_D"] / base["I_D"] - 1),
+            "I_F": 100 * (o["I_F"] / base["I_F"] - 1),
+            "N": 100 * (o["_x"][0] / base["_x"][0] - 1),
+            "Y_F": 100 * (o["Y_F"] / base["Y_F"] - 1),
+            "C_F": 100 * (o["C_F"] / base["C_F"] - 1),
+            "n": 100 * (o["n_D"] / base["n_D"] - 1),
+            "n_F": 100 * (o["n_F"] / base["n_F"] - 1),
+            "spread": _spread_bp(o, cal), "spread_F": _spread_bp(o, cal, "F"),
+            "Q_bD": o["Q_bD"], "Q_bF": o["Q_bF"]}
+
+
 def tfp_irf(rules, cal, ss, sproc, dz=0.01, T=21):
     # TFP IRF read off the no-default rules along the Z_D-decay path (rho_z from
     # sproc), endogenous states held at SS so the read stays on-grid -- the exact
@@ -763,47 +753,20 @@ def tfp_irf(rules, cal, ss, sproc, dz=0.01, T=21):
     S0 = ss_state(ss, cal, sproc)
     Z_ss = S0[IZ]
     base = _tfp_read(rules, cal, ss, sproc, S0.copy())
-    Yb, Cb, Ib, Nb = base["Y_D"], base["C_D"], base["I_D"], base["_x"][0]
-    YbF, CbF, IbF = base["Y_F"], base["C_F"], base["I_F"]
-    nbF, nbD = base["n_F"], base["n_D"]
     print(f"\n  TFP IRF (one-off {dz:.0%} shock, rho_z={sproc['rho_z']} decay)")
     print("   qtr    Z%     Y_D%     C_D%     I_D%    hours%")
-    # same five paper series as dynamic_irf, so both figures read off one panel spec
+    # same paper series as dynamic_irf, so both figures read off one panel spec
     path = {k: [] for k in ("Z", "Y", "C", "I", "N", "Y_F", "C_F", "I_F", "n", "n_F",
                             "spread", "spread_F", "Q_bD", "Q_bF")}
     for t in range(T):
         z_t = dz * sproc["rho_z"] ** t
         S = S0.copy(); S[IZ] = Z_ss * np.exp(z_t)
         o = _tfp_read(rules, cal, ss, sproc, S)
-        path["Z"].append(100 * z_t)
-        path["Y"].append(100 * (o["Y_D"] / Yb - 1))
-        path["C"].append(100 * (o["C_D"] / Cb - 1))
-        path["I"].append(100 * (o["I_D"] / Ib - 1))
-        path["I_F"].append(100 * (o["I_F"] / IbF - 1))
-        path["N"].append(100 * (o["_x"][0] / Nb - 1))
-        path["Y_F"].append(100 * (o["Y_F"] / YbF - 1))
-        path["C_F"].append(100 * (o["C_F"] / CbF - 1))
-        path["n"].append(100 * (o["n_D"] / nbD - 1))
-        path["n_F"].append(100 * (o["n_F"] / nbF - 1))
-        path["spread"].append(_spread_bp(o, cal))
-        path["spread_F"].append(_spread_bp(o, cal, "F"))
-        path["Q_bD"].append(o["Q_bD"])
-        path["Q_bF"].append(o["Q_bF"])
+        _append(path, _tfp_row(o, base, z_t, cal))
         if t in (0, 1, 2, 4, 6, 8, 12, 16, 20):
             print(f"   {t:3d}  {path['Z'][-1]:5.2f}  {path['Y'][-1]:+7.3f}  "
                   f"{path['C'][-1]:+7.3f}  {path['I'][-1]:+7.2f}  {path['N'][-1]:+6.2f}")
     return {k: np.array(v) for k, v in path.items()}
-
-
-def tfp_main():
-    cal = get_calibration()
-    cal["nw_floor_frac"] = 0.15      # match main.py
-    ss = solve_steady_state(cal, verbose=False)
-    sproc = s_process_params(cal)
-    calibrate_household_anchors(cal, ss, sproc)
-    print("=== TFP shock — recursive projection (Z_D as the 7th state) ===")
-    rules = solve_tfp(cal, ss, sproc)
-    tfp_irf(rules, cal, ss, sproc)
 
 
 def main():
@@ -814,14 +777,6 @@ def main():
     calibrate_household_anchors(cal, ss, sproc)
     print("=== recursive global solution: pass-through of sovereign risk ===")
     rules = solve_recursive(cal, ss, sproc)
-    try:
-        import pickle
-        with open("/private/tmp/claude-501/-Users-Huawei-Quantitative-Model/"
-                  "239042af-4c74-4ebe-a83f-92681158d4c3/scratchpad/mu2_rules.pkl",
-                  "wb") as fh:
-            pickle.dump((rules, cal, ss, sproc), fh)
-    except Exception:
-        pass
     impact_table(rules, cal, ss, sproc)
     persistence_irf(rules, cal, ss, sproc)
 

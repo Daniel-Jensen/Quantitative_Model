@@ -6,7 +6,7 @@
 correctness, completeness as a model section, and agreement with
 `01-introduction.tex` and `03-calibration.tex`. Every equation in the section was
 re-derived. No comparison to the repository's sequence-space implementation:
-`docs/referee_report_3.md` established that Section 2 describes the coauthors' global
+`Claude files/docs/referee_report_3.md` established that Section 2 describes the coauthors' global
 model and that the two are separate objects, and that finding is respected here.
 
 Line numbers refer to `02-model.tex` as of 2026-08-27. Equation numbers are the
@@ -402,7 +402,7 @@ model. It is not yet one in which "the ECB" is a well-defined agent.
 `\D` and `\F` are used at ll. 43, 63 and 142 and defined nowhere; `main.tex`'s macro
 block (ll. 7–9) is commented out. The build emits four `Undefined control sequence`
 errors and LaTeX drops the symbols silently. This was flagged in
-`docs/referee_report_3.md` and left "for the coauthors". It has not been fixed, and it
+`Claude files/docs/referee_report_3.md` and left "for the coauthors". It has not been fixed, and it
 is worse than a warning, because line 142 is inside \eqref{eq:balance-sheet}. What the
 PDF actually prints is
 

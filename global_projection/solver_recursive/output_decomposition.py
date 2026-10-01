@@ -19,9 +19,10 @@
 import numpy as np
 from scipy.optimize import root
 
-from solver_recursive.point_map import point_residuals, SOLVE7
-from solver_recursive.recursive_main import ss_state
-from solver_recursive.state_grid import (IK_D, IK_F, IP_D, IP_F, IBDD, IBDF, IBFD, IV,
+from global_projection.solver_recursive.point_map import point_residuals
+from global_projection.solver_recursive.decision_rules import SOLVE7
+from global_projection.solver_recursive.recursive_main import ss_state
+from global_projection.solver_recursive.state_grid import (IK_D, IK_F, IP_D, IP_F, IBDD, IBDF, IBFD, IV,
                                          IS, IZ)
 
 # per-period objects recorded along a simulated path
@@ -96,48 +97,59 @@ def simulate(rules, cal, ss, sproc, s_path, endogenous_states=True, refine=False
     # equation the decomposition leans on, so its own accuracy is reported
     rec["resid"] = np.empty(T)
     rec["resid_lab"] = np.empty(T)
-    lo, hi = rules.grid.lo, rules.grid.hi
     off_box = 0.0
-    n_slack = n_fail = 0
+    counts = {"slack": 0, "fail": 0}
     for t in range(T):
         S[IS] = s_path[t]
-        span = np.maximum(hi - lo, 1e-12)
-        off_box = max(off_box, float(np.max(np.maximum(
-            (lo - S) / span, (S - hi) / span))))
+        off_box = max(off_box, _box_excursion(S, rules.grid.lo, rules.grid.hi))
         S = rules.grid.clip(S)[0]
         o = _read(rules, cal, ss, sproc, S)
         if refine and o["_resid"] > 1e-11:
-            x1, fn = _refine(rules, cal, ss, sproc, S, o["_x"])
-            if fn > 1e-9:
-                n_fail += 1
-            else:
-                res1, o1 = point_residuals(S, 0, x1, rules, cal, ss, sproc,
-                                           n_gh=rules.n_gh or 5, no_default=False)
-                if o1["mu_D"] <= 1e-9:      # slipped off the binding branch
-                    n_slack += 1
-                else:
-                    o1["_x"], o1["_res"] = x1, res1
-                    o1["_resid"] = float(np.max(np.abs(res1)))
-                    o = o1
+            o = _refined_read(rules, cal, ss, sproc, S, o, counts)
         for k in REC_KEYS:
             rec[k][t] = o[k]
         rec["resid"][t] = o["_resid"]
         rec["resid_lab"][t] = abs(float(o["_res"][2]))
-        if endogenous_states:
-            S = S0.copy()
-            S[IK_D], S[IK_F] = o["_x"][2], o["_x"][3]
-            S[IP_D], S[IP_F] = o["Pp_D"], o["Pp_F"]
-            S[IBDD], S[IBDF] = o["b_D_D_new"], o["b_D_F_new"]
-            S[IBFD] = o["b_F_D_new"]
-            S[IV] = o["Vp_dep"]
-            S[IS], S[IZ] = s_path[t], S0[IZ]
-        else:
-            S = S0.copy()
+        S = _next_state(o, S0, s_path[t]) if endogenous_states else S0.copy()
     rec["off_box"] = off_box
-    rec["n_slack"] = n_slack
-    rec["n_fail"] = n_fail
+    rec["n_slack"] = counts["slack"]
+    rec["n_fail"] = counts["fail"]
     rec["s"] = np.asarray(s_path, dtype=float)
     return rec
+
+
+def _box_excursion(S, lo, hi):
+    # HOW FAR S LIES OUTSIDE THE BOX, AS A FRACTION OF BOX WIDTH (0 INSIDE).
+    span = np.maximum(hi - lo, 1e-12)
+    return float(np.max(np.maximum((lo - S) / span, (S - hi) / span)))
+
+
+def _refined_read(rules, cal, ss, sproc, S, o, counts):
+    # THE PERIOD MAP CLEARED EXACTLY AT S, UNLESS THAT FAILS OR SLIPS OFF THE BINDING BRANCH.
+    x1, fn = _refine(rules, cal, ss, sproc, S, o["_x"])
+    if fn > 1e-9:
+        counts["fail"] += 1
+        return o
+    res1, o1 = point_residuals(S, 0, x1, rules, cal, ss, sproc,
+                               n_gh=rules.n_gh or 5, no_default=False)
+    if o1["mu_D"] <= 1e-9:      # slipped off the binding branch
+        counts["slack"] += 1
+        return o
+    o1["_x"], o1["_res"] = x1, res1
+    o1["_resid"] = float(np.max(np.abs(res1)))
+    return o1
+
+
+def _next_state(o, S0, s_t):
+    # THE PERIOD MAP'S OWN END-OF-PERIOD STOCKS AS NEXT PERIOD'S STATE (Z_D HELD AT S0).
+    S = S0.copy()
+    S[IK_D], S[IK_F] = o["_x"][2], o["_x"][3]
+    S[IP_D], S[IP_F] = o["Pp_D"], o["Pp_F"]
+    S[IBDD], S[IBDF] = o["b_D_D_new"], o["b_D_F_new"]
+    S[IBFD] = o["b_F_D_new"]
+    S[IV] = o["Vp_dep"]
+    S[IS], S[IZ] = s_t, S0[IZ]
+    return S
 
 
 def _wedge_shapley(rd, sp, rd_r, sp_r, zeta):

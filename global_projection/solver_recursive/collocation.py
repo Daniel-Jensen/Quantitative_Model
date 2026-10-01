@@ -29,11 +29,11 @@
 import numpy as np
 from scipy.linalg import lu_factor, lu_solve
 from scipy.optimize import newton_krylov
-from scipy.optimize.nonlin import NoConvergence
+from scipy.optimize import NoConvergence
 
-from solver_recursive.decision_rules import (SOLVE, DERIVED, STORE_RULES,
+from global_projection.solver_recursive.decision_rules import (SOLVE, DERIVED, STORE_RULES,
                                              to_fit, from_fit)
-from solver_recursive.point_map import point_residuals
+from global_projection.solver_recursive.point_map import point_residuals
 
 # THE STACKING CONVENTION, in one place. theta is ordered rule-major, then regime,
 # then grid point -- the image of Bocola's [cons; R; alp; q] per regime block.
@@ -73,45 +73,55 @@ def write_back(theta, rules, regimes=(0, 1)):
     return rules
 
 
+def _install_guess(rules, vals, regimes):
+    # FIT EVERY STORED RULE TO THE CURRENT GUESS (EXACT SQUARE FIT ONLY).
+    # A masked/ridge fit would stop the interpolant from reproducing its own nodes, and
+    # point_map reads alpha/C/r_wc at the CURRENT state through cont.eval -- exactness
+    # there is what makes those the unknowns.
+    for k in STORE_RULES:
+        for d in regimes:
+            rules.set_values(k, d, vals[k][d])
+
+
+def _point_block(i, d, vals, rules, cal, ss, sproc, n_gh, no_default, no_cb):
+    # THE N_RES RESIDUALS AT GRID POINT i IN REGIME d (the _BIG sentinel if unevaluable).
+    out_row = np.empty(N_RES)
+    x = np.array([vals[k][d][i] for k in SOLVE])
+    try:
+        r, out = point_residuals(rules.grid.points[i], d, x, rules, cal, ss, sproc,
+                                 n_gh=n_gh, no_default=no_default, no_cb=no_cb)
+    except (ValueError, RuntimeError, ArithmeticError):
+        # ArithmeticError covers ZeroDivisionError/OverflowError too: a trial Newton
+        # step can drive an expectation to zero, and one unevaluable point must cost
+        # the STEP, not the whole solve.
+        out_row[:] = _BIG
+        return out_row
+    out_row[:N_RES_POINT] = r
+    # Bocola's identity residual log(guess/implied), in the transform the rule is
+    # fitted in (log level, or log gross rate)
+    for q, k in enumerate(DERIVED):
+        out_row[N_RES_POINT + q] = to_fit(k, vals[k][d][i]) - to_fit(k, out[k])
+    return out_row
+
+
 def make_residual(rules, cal, ss, sproc, regimes=(0, 1), no_default=False, n_gh=5,
                   scale=None, no_cb=False):
     # BUILD THE GLOBAL RESIDUAL F(theta) -- the image of residual_model.m.
-    # `rules` is used as the working RuleSet: each call overwrites its values and
-    # coefficients from theta, so the continuation is ALWAYS the current guess.
-    # `scale` (optional, per-equation) row-scales the residuals; the zero set is
-    # unchanged, only the conditioning of the linear solve and the norm are.
+    # `rules` is the working RuleSet: each call overwrites its values and coefficients
+    # from theta, so the continuation is ALWAYS the current guess. `scale` (optional,
+    # per-equation) row-scales the residuals; the zero set is unchanged.
     n = rules.grid.n
-    pts = rules.grid.points
     sw = np.ones(N_RES) if scale is None else np.asarray(scale, dtype=float)
 
     def F(theta):
+        # UNPACK -> FIT -> PERIOD MAP AT EVERY (REGIME, POINT) -> STACK.
         vals = unpack(theta, rules, regimes)
-        # EXACT SQUARE FIT ONLY. A masked/ridge fit would stop the interpolant from
-        # reproducing its own nodes, and point_map reads alpha/C/r_wc at the CURRENT
-        # state through cont.eval -- exactness there is what makes those the unknowns.
-        for k in STORE_RULES:
-            for d in regimes:
-                rules.set_values(k, d, vals[k][d])
+        _install_guess(rules, vals, regimes)
         res = np.empty((len(regimes), n, N_RES))
         for jd, d in enumerate(regimes):
             for i in range(n):
-                x = np.array([vals[k][d][i] for k in SOLVE])
-                try:
-                    r, out = point_residuals(pts[i], d, x, rules, cal, ss, sproc,
-                                             n_gh=n_gh, no_default=no_default,
-                                             no_cb=no_cb)
-                except (ValueError, RuntimeError, ArithmeticError):
-                    # ArithmeticError covers ZeroDivisionError/OverflowError too: a
-                    # trial Newton step can drive an expectation to zero, and one
-                    # unevaluable point must cost the STEP, not the whole solve.
-                    res[jd, i, :] = _BIG
-                    continue
-                res[jd, i, :N_RES_POINT] = r
-                # Bocola's identity residual log(guess/implied), in the same transform
-                # the rule is fitted in (log level, or log gross rate).
-                for q, k in enumerate(DERIVED):
-                    res[jd, i, N_RES_POINT + q] = (to_fit(k, vals[k][d][i])
-                                                   - to_fit(k, out[k]))
+                res[jd, i, :] = _point_block(i, d, vals, rules, cal, ss, sproc,
+                                             n_gh, no_default, no_cb)
         res = np.where(np.isfinite(res), res, _BIG)
         return (res * sw).ravel()
 
@@ -124,6 +134,44 @@ def residual_table(theta, F):
     return dict(zip(RES_NAMES, r.max(axis=0)))
 
 
+def _fd_jacobian(F, x, f, eps):
+    # FORWARD-DIFFERENCE JACOBIAN, BUILT COLUMN BY COLUMN AT STEP eps.
+    J = np.empty((f.size, x.size))
+    for i in range(x.size):
+        xp = x.copy()
+        xp[i] += eps
+        J[:, i] = (F(xp) - f) / eps
+    return J
+
+
+def _factor(J):
+    # LU FACTORISATION, OR None WHEN THE JACOBIAN IS SINGULAR / NON-FINITE.
+    try:
+        return lu_factor(J)
+    except (np.linalg.LinAlgError, ValueError):
+        return None
+
+
+def _newton_direction(lu, J, f):
+    # SOLVE J dx = f BY THE FACTORISATION, FALLING BACK TO LEAST SQUARES.
+    try:
+        return lu_solve(lu, f) if lu is not None else np.linalg.lstsq(J, f, rcond=None)[0]
+    except (np.linalg.LinAlgError, ValueError):
+        return np.linalg.lstsq(J, f, rcond=None)[0]
+
+
+def _line_search(F, x, dx, gap, cc, backtrack):
+    # DAMPED STEP x - step*dx, HALVING THE DAMPING UNTIL THE NORM FALLS (IF backtrack).
+    step = cc
+    while True:
+        xn = x - step * dx
+        fn = F(xn)
+        gn = float(fn @ fn)
+        if (not backtrack) or gn < gap or step < 1e-5:
+            return xn, fn, gn, step
+        step *= 0.5
+
+
 def parsolve(F, x0, cc=1.0, tol=1e-20, maxcount=60, eps=1e-6, verbose=True,
              blowup=100.0, backtrack=True, label="", stall_step=1e-3, jac_every=1,
              floor_tol=1e-8):
@@ -131,56 +179,28 @@ def parsolve(F, x0, cc=1.0, tol=1e-20, maxcount=60, eps=1e-6, verbose=True,
     # Ryan Decker's routine as Bocola ships it: build J column by column at step eps,
     # take x <- x - cc*(J\f), stop when sum(f^2) <= tol, abort if it exceeds `blowup`.
     # TWO ADDITIONS over the original, both about stopping rather than about the step.
-    # (1) A backtrack on the damping when a full step does not reduce the norm. Bocola
-    # does this by hand instead -- he calls parsolve with cc = 1, 0.8 and 0.5 in
-    # different stages -- so this automates his own practice. backtrack=False is his
-    # code exactly.
-    # (2) A STALL EXIT. His test is sum(f^2) <= 1e-20, which for a system this size is
-    # ~1e-12 per residual and is below the arithmetic floor of the period map: the
-    # capital and bond Eulers are O(1) expectations differenced to O(1e-4), so ~1e-10
-    # is as small as max|F| goes and further Newton steps cannot improve it. Without
-    # this the solve burns its whole iteration budget backtracking at step ~1e-5 on a
-    # converged answer, which is exactly what it did on first run (stalled at
-    # max|F| = 4.9e-10 and kept going). Reaching the floor IS convergence -- but ONLY
-    # if the residual is actually at the floor: a stall at max|F| = 1e-3 is a failure
-    # and is reported as one, which is what floor_tol decides. The achieved norm is
-    # returned either way.
+    # (1) A backtrack on the damping when a full step does not reduce the norm (Bocola
+    # does this by hand, calling parsolve with cc = 1, 0.8 and 0.5 in different stages);
+    # backtrack=False is his code exactly.
+    # (2) A STALL EXIT. His sum(f^2) <= 1e-20 is below the arithmetic floor of the period
+    # map (~1e-10 per residual: O(1) expectations differenced to O(1e-4)), so without it
+    # the solve burns its budget backtracking on a converged answer. Reaching the floor IS
+    # convergence -- but ONLY if the residual is actually at the floor: a stall at
+    # max|F| = 1e-3 is a failure, which is what floor_tol decides.
     # jac_every > 1 REUSES the factorised Jacobian for that many steps (a chord /
-    # Shamanskii iteration). Bocola refreshes every step, which is jac_every = 1 and the
-    # default; the option exists because a dense FD Jacobian costs m+1 residual
-    # evaluations, and on the s-refined grid m is 6498 rather than 798.
+    # Shamanskii iteration); Bocola refreshes every step, the default.
     x = np.asarray(x0, dtype=float).copy()
-    m = x.size
     f = F(x)
     gap = float(f @ f)
-    ok = False
     lu = None
     for count in range(1, maxcount + 1):
         if gap <= tol:
-            ok = True
             break
         if lu is None or (count - 1) % jac_every == 0:
-            J = np.empty((f.size, m))
-            for i in range(m):
-                xp = x.copy()
-                xp[i] += eps
-                J[:, i] = (F(xp) - f) / eps
-            try:
-                lu = lu_factor(J)
-            except (np.linalg.LinAlgError, ValueError):
-                lu = None
-        try:
-            dx = lu_solve(lu, f) if lu is not None else np.linalg.lstsq(J, f, rcond=None)[0]
-        except (np.linalg.LinAlgError, ValueError):
-            dx = np.linalg.lstsq(J, f, rcond=None)[0]
-        step = cc
-        while True:
-            xn = x - step * dx
-            fn = F(xn)
-            gn = float(fn @ fn)
-            if (not backtrack) or gn < gap or step < 1e-5:
-                break
-            step *= 0.5
+            J = _fd_jacobian(F, x, f, eps)
+            lu = _factor(J)
+        dx = _newton_direction(lu, J, f)
+        xn, fn, gn, step = _line_search(F, x, dx, gap, cc, backtrack)
         improved = gn < gap
         if improved:
             x, f, gap = xn, fn, gn
@@ -195,9 +215,7 @@ def parsolve(F, x0, cc=1.0, tol=1e-20, maxcount=60, eps=1e-6, verbose=True,
             # residual is already at the period map's arithmetic floor, failed if not
             worst = float(np.max(np.abs(f)))
             return x, worst <= floor_tol, count, worst
-    if gap <= tol:
-        ok = True
-    return x, ok, count, float(np.max(np.abs(f)))
+    return x, gap <= tol, count, float(np.max(np.abs(f)))
 
 
 def krylov_solve(F, x0, f_tol=1e-11, maxiter=60, verbose=True, label=""):

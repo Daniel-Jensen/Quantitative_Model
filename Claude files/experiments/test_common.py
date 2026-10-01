@@ -13,11 +13,10 @@ import sys
 import numpy as np
 import pytest
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(HERE)
-sys.path.insert(0, os.path.join(ROOT, "code"))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # repo root, from Claude files/experiments/
+sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "diagnostics", "regimes"))
-sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.join(ROOT, "experiments"))
 
 
 def test_cache_path_reflects_calibration_override():
@@ -59,7 +58,7 @@ def test_calibration_override_restores_on_exception():
     and would pass even if the patch leaked. That is what the first version of
     this test did, and it guarded nothing.
     """
-    import calibration
+    from calibration import ssj as calibration
     from common import calibration_override
 
     before = calibration.get_calibration
@@ -77,7 +76,7 @@ def test_calibration_override_rejects_unknown_key():
     is exactly the "silently ran a different model" failure mode this project has
     already been burned by (the retired audit_artifacts/ harness).
     """
-    import calibration
+    from calibration import ssj as calibration
     from common import calibration_override
 
     with pytest.raises(KeyError):

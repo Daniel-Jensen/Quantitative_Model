@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# FIGURES FOR THE code/global RECURSIVE-SOLVER METHODS NOTE.
+# FIGURES FOR THE global_projection RECURSIVE-SOLVER METHODS NOTE.
 # Grids are the ACTUAL solver_recursive/state_grid.SmolyakGrid so every point
 # count and node layout is faithful to the running code.
 import importlib.util as _u
@@ -11,8 +11,10 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import FancyArrowPatch
 
 # import the real grid module by path (no package side effects)
+import os as _os
 _spec = _u.spec_from_file_location(
-    "sg", "/Users/Huawei/Quantitative_Model/code/global/solver_recursive/state_grid.py")
+    "sg", _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "..", "..",
+                        "global_projection", "solver_recursive", "state_grid.py"))
 sg = _u.module_from_spec(_spec); _spec.loader.exec_module(sg)
 
 OUT = "/private/tmp/claude-501/-Users-Huawei-Quantitative-Model/d4031c6e-4ebf-4ea1-9802-95747d474540/scratchpad/"

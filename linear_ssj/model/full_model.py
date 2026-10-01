@@ -4,7 +4,7 @@ import numpy as np
 import sequence_jacobian as sj
 from sequence_jacobian import simple, combine
 
-from equations_D import (
+from linear_ssj.model.equations_D import (
     capital_adj_D, labor_D, labor_market_D, labor_demand_D,
     intermediation_IC_D, bank_return_D, capital_fund_D, intermediation_P1_D,
     k_balance_sheet_D, cap_adj_cost_inter_D, macro_pru_tax_D,
@@ -16,7 +16,7 @@ from equations_D import (
     welfare_agg_D, market_clearing_D, hh_extended_D,
     price_nkpc_D, firm_profit_D,
 )
-from equations_F import (
+from linear_ssj.model.equations_F import (
     capital_adj_F, labor_F, labor_market_F, labor_demand_F,
     intermediation_IC_F, bank_return_F, capital_fund_F, intermediation_P1_F,
     k_balance_sheet_F, cap_adj_cost_inter_F, macro_pru_tax_F,
@@ -28,7 +28,7 @@ from equations_F import (
     welfare_agg_F, market_clearing_F, hh_extended_F,
     price_nkpc_F, firm_profit_F,
 )
-from equations_global import (
+from linear_ssj.model.equations_global import (
     trade_balance, domestic_bond_clearing,
     portfolio_level_anchors, gk_cross_border_foc, bond_yield,
     global_goods_mkt, external_account_D,
@@ -219,7 +219,7 @@ def build_and_solve(ss_results):
     print("G computed successfully.")
 
     # ── Shocks ────────────────────────────────────────────────────────────────
-    # Persistences come from the calibration (code/calibration.py, "Shock
+    # Persistences come from the calibration (calibration/ssj.py, "Shock
     # processes"). The literals below are the pre-2026-08-06 hardcoded values
     # and are kept only as a fallback so any caller that hands build_and_solve
     # an older calibration dict still runs.

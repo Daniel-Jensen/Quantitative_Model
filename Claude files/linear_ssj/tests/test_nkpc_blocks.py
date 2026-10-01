@@ -9,14 +9,14 @@ import sys
 
 import pytest
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE)
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.insert(0, ROOT)
 
 
 # ── Markup rent ───────────────────────────────────────────────────────────────
 
 def test_firm_profit_is_zero_at_steady_state():
-    from equations_D import firm_profit_D
+    from linear_ssj.model.equations_D import firm_profit_D
     mu_p = 1.20
     ss = firm_profit_D.steady_state({
         'Y_D': 1.0, 'N_D': 0.8, 'alpha_D': 0.33,
@@ -28,7 +28,7 @@ def test_firm_profit_is_zero_at_steady_state():
 def test_firm_profit_restores_factor_exhaustion_off_steady_state():
     """w*N + profit must equal (1-alpha)*Y for ANY mc, so that adding the
     capital share alpha*Y exhausts output exactly."""
-    from equations_D import firm_profit_D, labor_demand_D
+    from linear_ssj.model.equations_D import firm_profit_D, labor_demand_D
     mu_p, mc, Y, N, alpha = 1.20, 0.79, 1.03, 0.81, 0.33
 
     # w from labour demand at this mc (w_res_D == 0 defines w)
@@ -48,8 +48,8 @@ def test_firm_profit_restores_factor_exhaustion_off_steady_state():
 
 
 def test_firm_profit_F_matches_D():
-    from equations_D import firm_profit_D
-    from equations_F import firm_profit_F
+    from linear_ssj.model.equations_D import firm_profit_D
+    from linear_ssj.model.equations_F import firm_profit_F
     args = dict(Y=1.03, N=0.81, alpha=0.33, mu_p=1.20, mc=0.79)
     d = firm_profit_D.steady_state({
         'Y_D': args['Y'], 'N_D': args['N'], 'alpha_D': args['alpha'],
@@ -65,7 +65,7 @@ def test_firm_profit_F_matches_D():
 # ── Price Phillips curve ──────────────────────────────────────────────────────
 
 def test_price_nkpc_is_zero_at_steady_state():
-    from equations_D import price_nkpc_D
+    from linear_ssj.model.equations_D import price_nkpc_D
     mu_p = 1.20
     ss = price_nkpc_D.steady_state({
         'pi_D': 0.0, 'mc_D': 1.0 / mu_p, 'mu_p_D': mu_p,
@@ -77,7 +77,7 @@ def test_price_nkpc_is_zero_at_steady_state():
 def test_price_nkpc_flex_limit_forces_mc_to_one_over_mu_p():
     """As kappa_p -> inf the residual/kappa_p -> -(mu_p*mc - 1), so setting the
     residual to zero drives mu_p*mc -> 1, which is the competitive condition."""
-    from equations_D import price_nkpc_D
+    from linear_ssj.model.equations_D import price_nkpc_D
     mu_p = 1.20
     base = {'pi_D': 0.0, 'mu_p_D': mu_p, 'beta_D': 0.985}
     off_mc = 0.79                       # != 1/mu_p = 0.8333...
@@ -90,7 +90,7 @@ def test_price_nkpc_flex_limit_forces_mc_to_one_over_mu_p():
 def test_price_nkpc_gap_linearises_to_mc_hat():
     """d(mu_p*mc - 1)/d(mc/mc_ss) evaluated at mc_ss = 1/mu_p equals 1 for ANY
     mu_p -- which is why mu_p is a free normalisation to first order."""
-    from equations_D import price_nkpc_D
+    from linear_ssj.model.equations_D import price_nkpc_D
     for mu_p in (1.05, 1.20, 1.50):
         mc_ss = 1.0 / mu_p
         h = 1e-7
@@ -103,8 +103,8 @@ def test_price_nkpc_gap_linearises_to_mc_hat():
 
 
 def test_price_nkpc_F_matches_D():
-    from equations_D import price_nkpc_D
-    from equations_F import price_nkpc_F
+    from linear_ssj.model.equations_D import price_nkpc_D
+    from linear_ssj.model.equations_F import price_nkpc_F
     args = dict(pi=0.001, mc=0.79, mu_p=1.20, kappa=0.0871, beta=0.985)
     d = price_nkpc_D.steady_state({
         'pi_D': args['pi'], 'mc_D': args['mc'], 'mu_p_D': args['mu_p'],
@@ -120,7 +120,7 @@ def test_price_nkpc_F_matches_D():
 def test_labor_demand_collapses_to_competitive_at_ss_markup():
     """At mc = 1/mu_p the condition must be exactly w = (1-alpha)Y/N, which is
     what makes the steady state bit-identical to the flex model."""
-    from equations_D import labor_demand_D
+    from linear_ssj.model.equations_D import labor_demand_D
     mu_p, Y, N, alpha = 1.20, 1.03, 0.81, 0.33
     w_competitive = (1 - alpha) * Y / N
     ss = labor_demand_D.steady_state({
@@ -133,7 +133,7 @@ def test_labor_demand_collapses_to_competitive_at_ss_markup():
 # ── Global closure ────────────────────────────────────────────────────────────
 
 def test_global_residuals_zero_at_steady_state():
-    from equations_global import terms_of_trade, union_inflation
+    from linear_ssj.model.equations_global import terms_of_trade, union_inflation
     tot = terms_of_trade.steady_state({'p': 0.99, 'pi_D': 0.0, 'pi_F': 0.0})
     assert tot['tot_res'] == pytest.approx(0.0, abs=1e-15)
     uni = union_inflation.steady_state({'pi_D': 0.0, 'pi_F': 0.0, 'omega_pi_D': 0.071})
@@ -151,7 +151,7 @@ def test_closure_puts_93pct_of_tot_move_into_D_deflation():
     O(dlog_p^2) truncation is 0.429*dlog_p in relative terms, which swamps any
     tight tolerance.
     """
-    from equations_global import union_inflation
+    from linear_ssj.model.equations_global import union_inflation
     omega = 0.071
     dlog_p = 1e-4
     pi_D = -(1 - omega) * dlog_p
@@ -185,7 +185,7 @@ def test_omega_one_half_splits_evenly():
 def test_deposit_rates_collapse_at_zero_inflation():
     """At pi = 0 both derived real rates must equal the nominal rate exactly --
     this is what keeps the steady state bit-identical."""
-    from equations_D import deposit_rates_D
+    from linear_ssj.model.equations_D import deposit_rates_D
     ss = deposit_rates_D.steady_state({'i_dep_D': 0.0125, 'pi_D': 0.0})
     assert ss['rdep_D'] == pytest.approx(0.0125, rel=1e-15)
     assert ss['rdep_expost_D'] == pytest.approx(0.0125, rel=1e-15)
@@ -195,7 +195,7 @@ def test_deflation_raises_the_realised_real_deposit_rate():
     """Deflation is a windfall to depositors and a loss to banks, which hold
     real assets against nominal liabilities. This is the Fisher channel; if the
     sign flips, bank_return_D will amplify in the wrong direction."""
-    from equations_D import deposit_rates_D
+    from linear_ssj.model.equations_D import deposit_rates_D
     i = 0.0125
     base = deposit_rates_D.steady_state({'i_dep_D': i, 'pi_D': 0.0})
     defl = deposit_rates_D.steady_state({'i_dep_D': i, 'pi_D': -0.001})
@@ -205,14 +205,14 @@ def test_deflation_raises_the_realised_real_deposit_rate():
 
 def test_deposit_return_is_unchanged_at_zero_inflation():
     """Rgross must be exactly 1 + i_dep when pi = 0 and P_CES is flat."""
-    from equations_D import deposit_return_D
+    from linear_ssj.model.equations_D import deposit_return_D
     ss = deposit_return_D.steady_state({'i_dep_D': 0.0125, 'P_CES_D': 1.3, 'pi_D': 0.0})
     assert ss['Rgross_D'] == pytest.approx(1.0125, rel=1e-15)
 
 
 def test_deposit_rates_F_matches_D():
-    from equations_D import deposit_rates_D
-    from equations_F import deposit_rates_F
+    from linear_ssj.model.equations_D import deposit_rates_D
+    from linear_ssj.model.equations_F import deposit_rates_F
     d = deposit_rates_D.steady_state({'i_dep_D': 0.0125, 'pi_D': -0.001})
     f = deposit_rates_F.steady_state({'i_dep_F': 0.0125, 'pi_F': -0.001})
     assert d['rdep_D'] == pytest.approx(f['rdep_F'], rel=1e-15)
@@ -222,7 +222,7 @@ def test_deposit_rates_F_matches_D():
 def test_bank_return_uses_the_expost_rate():
     """Signature check: bank_return_D must take rdep_expost_D and must NOT take
     rdep_D. Getting this backwards silently reverses the Fisher channel."""
-    from equations_D import bank_return_D, capital_fund_D
+    from linear_ssj.model.equations_D import bank_return_D, capital_fund_D
     for blk in (bank_return_D, capital_fund_D):
         assert 'rdep_expost_D' in blk.inputs, (blk.name, sorted(blk.inputs))
         assert 'rdep_D' not in blk.inputs, (blk.name, sorted(blk.inputs))
@@ -237,7 +237,7 @@ def test_forward_looking_blocks_still_use_rdep():
     T-2 invariant now lives entirely in intermediation_P1_D. Asserted below, which is
     strictly stronger than the old signature check.
     """
-    from equations_D import intermediation_P1_D
+    from linear_ssj.model.equations_D import intermediation_P1_D
     assert 'rdep_D' in intermediation_P1_D.inputs, sorted(intermediation_P1_D.inputs)
     assert 'rdep_expost_D' not in intermediation_P1_D.inputs, sorted(intermediation_P1_D.inputs)
 
@@ -248,8 +248,8 @@ def test_own_sovereign_foc_is_pure_gk():
     Guards the refactor against regression to a reduced-form spread rule: no frozen
     psi_spread, no excess_return_*_ss anchor, no tau_mp wedge, no interest rate.
     """
-    from equations_D import gk_bond_foc_D
-    from equations_F import gk_bond_foc_F
+    from linear_ssj.model.equations_D import gk_bond_foc_D
+    from linear_ssj.model.equations_F import gk_bond_foc_F
     for blk, want in ((gk_bond_foc_D, {'nu_bD_D', 'nu_K_D', 'Delta_bD_eff_D'}),
                       (gk_bond_foc_F, {'nu_bF_F', 'nu_K_F', 'Delta_bF_eff_F'})):
         assert set(blk.inputs) == want, (blk.name, sorted(blk.inputs))
@@ -259,14 +259,14 @@ def test_no_ad_hoc_sovereign_spread_wedge_anywhere():
     """The governing invariant of the 2026-08-18 refactor.
 
     psi_spread_D/F and EL_price_D/F are DELETED. No symbol of either name may reappear
-    in code/, in any form — parameter, anchor, renamed twin or hard-coded literal. The
+    in linear_ssj/ or calibration/ssj.py, in any form — parameter, anchor, renamed twin or hard-coded literal. The
     sovereign spread must come from the state-contingent payoff plus the GK portfolio
     FOC, never from `spread += coefficient * default_probability`.
     """
     import ast
     import pathlib
     import re
-    root = pathlib.Path(__file__).resolve().parent
+    root = pathlib.Path(__file__).resolve().parents[3]   # repo root
     banned = ('psi_spread', 'EL_price', 'divert_bond_foc', 'divert_portfolio_adj',
               'excess_return_')
     ident = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
@@ -295,13 +295,13 @@ def test_no_ad_hoc_sovereign_spread_wedge_anywhere():
                     yield n.value
 
     hits = []
-    for f in sorted(root.glob('*.py')):
+    for f in sorted(list((root / 'linear_ssj').rglob('*.py')) + [root / 'calibration' / 'ssj.py']):
         if f.name == pathlib.Path(__file__).name:
             continue
         for s in symbols(ast.parse(f.read_text())):
             for b in banned:
                 if b in s:
-                    hits.append(f"{f.name}: {s}")
+                    hits.append(f"{f.relative_to(root)}: {s}")
     assert not hits, ("deleted objects still referenced in live code:\n"
                       + "\n".join(sorted(set(hits))))
 
@@ -313,9 +313,9 @@ def test_expected_loss_enters_each_sovereign_leg_exactly_once():
     through intermediation_P1_D/F. Every downstream portfolio condition must be stated on
     the resulting nu's, so no block may take BOTH a nu and a def_rate/EL object.
     """
-    from equations_D import intermediation_P1_D, gk_bond_foc_D
-    from equations_F import intermediation_P1_F, gk_bond_foc_F
-    from equations_global import gk_cross_border_foc
+    from linear_ssj.model.equations_D import intermediation_P1_D, gk_bond_foc_D
+    from linear_ssj.model.equations_F import intermediation_P1_F, gk_bond_foc_F
+    from linear_ssj.model.equations_global import gk_cross_border_foc
 
     # The Euler equations price rb_exp, never rb_actual and never def_rate directly.
     for blk, c, o in ((intermediation_P1_D, 'D', 'F'), (intermediation_P1_F, 'F', 'D')):
@@ -338,8 +338,8 @@ def test_expected_loss_enters_each_sovereign_leg_exactly_once():
 def test_flow_adjustment_cost_vanishes_at_steady_state():
     """S(1) = S'(1) = 0 is what makes this SS-neutral. Check the block's own
     residual is unchanged when investment is flat, for ANY omega_I."""
-    from equations_D import capital_adj_D
-    from equations_F import capital_adj_F
+    from linear_ssj.model.equations_D import capital_adj_D
+    from linear_ssj.model.equations_F import capital_adj_F
     # SSJ's .steady_state() silently ignores dict keys the block does not take,
     # so without this the rest of the test is vacuously green on the OLD block.
     for blk, suf in ((capital_adj_D, 'D'), (capital_adj_F, 'F')):
@@ -363,7 +363,7 @@ def test_flow_adjustment_cost_vanishes_at_steady_state():
 def test_flow_adjustment_cost_bites_off_steady_state():
     """With investment falling, the cost must be strictly positive and must
     scale with omega_I -- otherwise the parameter is doing nothing."""
-    from equations_D import capital_adj_D
+    from linear_ssj.model.equations_D import capital_adj_D
     base = dict(K_D=10.8, Q_D=1.0, Z_D=1.0, N_D=0.8, alpha_D=0.33,
                 delta_D=0.022407, gamma0_D=0.15, gamma1_D=-0.0053, ksi_D=0.5,
                 beta_D=0.9995)

@@ -9,12 +9,12 @@
 # probabilities; (3) the D-F spread across those 10 probabilities.
 import numpy as np
 
-from config.calibration import get_calibration
-from config.steady_state import solve_steady_state
-from solver_recursive.state_grid import s_process_params, default_prob, IS
-from solver_recursive.recursive_experiment import s_from_pd
-from solver_recursive.recursive_main import ss_state, calibrate_household_anchors
-from solver_recursive.recursive_experiment import solve_recursive, read_at
+from calibration.global_projection import get_calibration
+from global_projection.steady_state import solve_steady_state
+from global_projection.solver_recursive.state_grid import s_process_params, default_prob, IS
+from global_projection.solver_recursive.recursive_experiment import s_from_pd
+from global_projection.solver_recursive.recursive_main import ss_state, calibrate_household_anchors
+from global_projection.solver_recursive.recursive_experiment import solve_recursive, read_at
 
 ACTIVATIONS = np.round(np.arange(0.0, 0.95, 0.1), 2)   # phi = 0,10,...,90 %
 # The shock is a TARGET one-quarter-ahead default probability (main.py's
@@ -51,7 +51,7 @@ def main():
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    from reporting.plots import OUTDIR
+    from global_projection.reporting.plots import OUTDIR
     os.makedirs(OUTDIR, exist_ok=True)
 
     cal = get_calibration()

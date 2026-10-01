@@ -1,13 +1,13 @@
 # STATE-GRID GATE: SMOLYAK COUNTS, ON-GRID EXACTNESS, QUADRATIC EXACTNESS,
 # THE STATE BOX, AND THE s-PROCESS EXPERIMENT MAPPING.
 import sys, os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
 
 import numpy as np
 
-from solver_recursive.state_grid import (SmolyakGrid, build_state_box, default_prob,
+from global_projection.solver_recursive.state_grid import (SmolyakGrid, build_state_box, default_prob,
                         s_process_params, STATE_NAMES, IS)
-from solver_recursive.recursive_main import ss_state
+from global_projection.solver_recursive.recursive_main import ss_state
 from common import get_ss
 
 

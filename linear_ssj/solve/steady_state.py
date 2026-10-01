@@ -3,7 +3,7 @@ import numpy as np
 import sequence_jacobian as sj
 from sequence_jacobian import simple, combine, create_model
 
-from equations_D import (
+from linear_ssj.model.equations_D import (
     hh_init_D, hh_D, make_grids_D, income_D, hh_extended_D,
     smart_steady_D, market_clearing_D, steady_auxilliary_D,
     banker_div_D, sdf_D, sdf_ss_D, sdf_banker_ss_D, government_ss_D, labor_ss_D,
@@ -11,7 +11,7 @@ from equations_D import (
     ces_price_D, import_demand_D, deposit_rates_D, deposit_return_D,
     firm_profit_D, price_nkpc_D,
 )
-from equations_F import (
+from linear_ssj.model.equations_F import (
     hh_init_F, hh_F, make_grids_F, income_F, hh_extended_F,
     smart_steady_F, market_clearing_F, steady_auxilliary_F,
     banker_div_F, sdf_F, sdf_ss_F, sdf_banker_ss_F, government_ss_F, labor_ss_F,
@@ -19,7 +19,7 @@ from equations_F import (
     ces_price_F, import_demand_F, deposit_rates_F, deposit_return_F,
     firm_profit_F, price_nkpc_F,
 )
-from equations_global import (
+from linear_ssj.model.equations_global import (
     trade_balance, domestic_bond_clearing,
     portfolio_level_anchors, bond_yield,
     global_goods_mkt, external_account_D,
@@ -29,8 +29,8 @@ from equations_global import (
 # binds the value at import time, so a sweep that flips the switch afterwards
 # would silently keep the old portfolio targets — the same stale-binding trap as
 # the regimes cache key and PSILAM_MAIN.
-import calibration
-from calibration import load_eba_targets, load_eba_foreign_shares
+from calibration import ssj as calibration
+from calibration.ssj import load_eba_targets, load_eba_foreign_shares
 
 
 def assert_gk_well_posed(ss_in):
@@ -54,7 +54,7 @@ def assert_gk_well_posed(ss_in):
     ("good collateral") part of the sovereign book (right). High measured
     concentration `phi_own` therefore puts a LOWER BOUND on the divertability
     `Delta_own` — which is how the EBA data partially identifies a parameter
-    that has no direct empirical counterpart. See docs/eba_calibration.md.
+    that has no direct empirical counterpart. See Claude files/docs/eba_calibration.md.
     """
     vals, bad = [], []
     for c in ("D", "F"):
@@ -72,7 +72,7 @@ def assert_gk_well_posed(ss_in):
               "    f*theta > (1-Delta_own)*phi_own + (1-Delta_cross)*phi_cross\n"
               "Raise Delta_own (bond divertability), raise f, or lower the sovereign "
               "concentration. See assert_gk_well_posed.__doc__ and "
-              "docs/eba_calibration.md 'GK feasibility'.")
+              "Claude files/docs/eba_calibration.md 'GK feasibility'.")
 
 
 def gk_feasibility_margin(theta, f, phi_own, phi_cross, Delta_own, Delta_cross):
@@ -349,7 +349,7 @@ def solve_steady_state(calibration_start):
     # ── Portfolio share targeting ─────────────────────────────────────────────
     # EBA 2011 REBUILD (2026-07-31): bank-sovereign concentration, 31 Dec 2010,
     # read from data/eba_moments.json (single source of truth — do NOT hardcode
-    # a second copy here). Regenerate with `python code/eba_calibration.py`.
+    # a second copy here). Regenerate with `python calibration/eba_moments.py`.
     #   phi_bD_D = 2.390   GR banks' Greek book / capital  (own, doom loop)
     #   phi_bF_D = 0.018   GR banks' Bund  / capital       (cross)
     #   phi_bD_F = 0.069   DE banks' Greek book / capital  (cross, contagion)

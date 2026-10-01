@@ -71,6 +71,34 @@ def chebyshev_basis_1d(x, max_deg):
     return T
 
 
+def _sparse_nodes(d, mu, mu_vec):
+    # SMOLYAK NODES AND THEIR CHEBYSHEV DEGREES IN [-1,1]^d (UNION OVER MULTI-INDICES).
+    pts, degs = [], []
+    for i_vec in _multi_indices(d, mu, mu_vec):
+        axes_p = [_new_points(i) for i in i_vec]
+        axes_d = [_new_degrees(i) for i in i_vec]
+        mesh_p = np.meshgrid(*axes_p, indexing="ij")
+        mesh_d = np.meshgrid(*axes_d, indexing="ij")
+        pts.append(np.column_stack([m.ravel() for m in mesh_p]))
+        degs.append(np.column_stack([m.ravel() for m in mesh_d]))
+    return np.vstack(pts), np.vstack(degs).astype(int)
+
+
+def _tensor_refine(pts, degs, keep, refine, d):
+    # CARTESIAN PRODUCT OF A SPARSE GRID (dims `keep`) WITH m DENSE NODES IN dim r.
+    r, m_s = refine
+    u_s = _level_points_m(m_s)                 # dense Chebyshev extrema
+    d_s = np.arange(m_s)                       # degrees 0 .. m-1
+    nb = pts.shape[0]
+    P = np.empty((nb * m_s, d))
+    G = np.empty((nb * m_s, d), dtype=int)
+    P[:, keep] = np.repeat(pts, m_s, axis=0)
+    G[:, keep] = np.repeat(degs, m_s, axis=0)
+    P[:, r] = np.tile(u_s, nb)
+    G[:, r] = np.tile(d_s, nb)
+    return P, G
+
+
 class SmolyakGrid:
     # SPARSE COLLOCATION GRID ON A BOX [lo, hi]^d WITH A SQUARE CHEBYSHEV BASIS.
     # The box may be stated in ROTATED coordinates z = rot @ (x - centre) (Bocola's
@@ -112,35 +140,13 @@ class SmolyakGrid:
 
         self.refine = None if refine is None else (int(refine[0]), int(refine[1]))
         if self.refine is None:
-            base_d, base_mu_vec, keep = self.d, self.mu_vec, None
+            self.points_unit, self.degrees = _sparse_nodes(self.d, self.mu, self.mu_vec)
         else:
-            # sparse factor over every dimension EXCEPT the refined one
+            # sparse factor over every dimension EXCEPT the refined one, times the dense s
             keep = [j for j in range(self.d) if j != self.refine[0]]
-            base_d, base_mu_vec = self.d - 1, self.mu_vec[keep]
-        pts, degs = [], []
-        for i_vec in _multi_indices(base_d, self.mu, base_mu_vec):
-            axes_p = [_new_points(i) for i in i_vec]
-            axes_d = [_new_degrees(i) for i in i_vec]
-            mesh_p = np.meshgrid(*axes_p, indexing="ij")
-            mesh_d = np.meshgrid(*axes_d, indexing="ij")
-            pts.append(np.column_stack([m.ravel() for m in mesh_p]))
-            degs.append(np.column_stack([m.ravel() for m in mesh_d]))
-        pts = np.vstack(pts)
-        degs = np.vstack(degs).astype(int)
-        if self.refine is None:
-            self.points_unit, self.degrees = pts, degs
-        else:
-            r, m_s = self.refine
-            u_s = _level_points_m(m_s)                 # dense Chebyshev extrema
-            d_s = np.arange(m_s)                       # degrees 0 .. m-1
-            nb = pts.shape[0]
-            P = np.empty((nb * m_s, self.d))
-            G = np.empty((nb * m_s, self.d), dtype=int)
-            P[:, keep] = np.repeat(pts, m_s, axis=0)
-            G[:, keep] = np.repeat(degs, m_s, axis=0)
-            P[:, r] = np.tile(u_s, nb)
-            G[:, r] = np.tile(d_s, nb)
-            self.points_unit, self.degrees = P, G
+            pts, degs = _sparse_nodes(self.d - 1, self.mu, self.mu_vec[keep])
+            self.points_unit, self.degrees = _tensor_refine(pts, degs, keep, self.refine,
+                                                            self.d)
         self.n = self.points_unit.shape[0]
         self.points = self.from_unit(self.points_unit)
         self.max_deg = int(self.degrees.max())
@@ -251,7 +257,7 @@ class SmolyakGrid:
 # in the incentive constraint. (A BOND-PURCHASE backstop does need a state for the CB's
 # book. That was built and measured: purchases can only remove the liquidity premium,
 # 0.2-0.7% of the price here, because they work by pushing mu down and mu is floored at
-# zero. See docs/ltro_backstop_plan.md and git history for the implementation.)
+# zero. See Claude files/docs/ltro_backstop_plan.md and git history for the implementation.)
 # phi, the per-period activation probability, is deliberately NOT a state either: its box
 # [0,1] centres at 0.5, so no collocation node would have phi = 0 with every other state
 # at its own centre and the steady state would stop being a grid point. It is a
@@ -293,21 +299,8 @@ def build_state_box(ss, cal, s_lo=None, s_hi=None, s_halfwidth=None, k_band=0.03
     # refinement where the constraint boundary moves (s, P) without paying for
     # resolution in the near-fixed K.
     #
-    # s BOX: s* +- s_halfwidth, and the halfwidth is Bocola's own COVERAGE -- +-2.16
-    # UNCONDITIONAL sd of the s process (model_solution_mean.m bounds(6,:) =
-    # [-4.35,4.35] around his s* = -7.06) -- so it is computed from the process, not
-    # hard-wired. It used to be the literal 4.35, which is +-2.16 sd only at
-    # sigma_s = 0.63; at the corrected 0.4455 (see calibration.py) the same number is
-    # +-3.05 sd, 41% wider than Bocola covers. The extra width is pure cost: out there
-    # p^d ~ 0 and Q_bD must be flat at the risk-free perpetuity price ~0.946, but the
-    # mu=1 quadratic OVERSHOOTS to 0.981-0.986 and even turns non-monotone, and that
-    # overshoot is what feeds the bond-FOC residual (corr(|bondFOC_D|, |s-s*|) = 0.885,
-    # fitted Q_bD off by up to 0.95%). Explicit s_lo/s_hi still override.
-    # The earlier hard-wired [-9,-3.5] was only +-1.39/+2.26 CONDITIONAL innovation sd
-    # wide against sigma_s = 1.5075, so grid.clip truncated ~18% of the quadrature mass
-    # and cut the effective persistence of s from 0.95 to 0.80 -- a 62% attenuation of
-    # the long bond's repricing, the mechanism the model exists to measure. Coverage in
-    # sd units is the invariant; an absolute halfwidth silently breaks on any sigma change.
+    # s BOX: +-S_COVER_SD unconditional sd of the s process -- see _s_bounds for why
+    # coverage, not an absolute halfwidth (Bocola: +-2.16 sd, his bounds(6,:)).
     #
     # p_band_D / p_band_F take a scalar or an explicit (lower, upper) pair; both fall
     # back to p_band. NOTE (measured, docs): the P-transition Jacobian at the SS has
@@ -315,69 +308,76 @@ def build_state_box(ss, cal, s_lo=None, s_hi=None, s_halfwidth=None, k_band=0.03
     # axis-aligned box centred on the SS is one-step invariant. Pass rot/centre (see
     # recursive_main.p_block_rotation) to draw the box on the eigenbasis instead,
     # where the map is diagonal and every box IS invariant.
-    bk_D, bk_F = ss["ss_bank_D"], ss["ss_bank_F"]
-    K_D, K_F = ss["Kap_D_ss"], ss["Kap_F_ss"]
-    P_D = bk_D["P_state_ss"]                   # net of the WC receivable, see bank.py
-    P_F = bk_F["P_state_ss"]
-    # THE D-SOVEREIGN STOCK IS CARRIED AS ITS TWO HOLDINGS, NOT AS ONE TOTAL. Once the
-    # split is chosen by the banks' own FOCs it is no longer a fixed share of B, so last
-    # period's split is genuinely part of the state: the HM perpetuity payoff is
-    # payD*b_lag PER HOLDER. B_D = b_DD + b_DF is recovered wherever the total is needed.
-    b_DF = cal["b_D_F_ss"]
-    b_DD = cal["B_gov_D_ss"] - b_DF
-    b_FD = cal["b_F_D_ss"]                     # D bank's holding of the F sovereign
-    Z_D = cal["Z_ss_D"]                        # deterministic TFP state (9th dim)
-    _sp = s_process_params(cal)
-    s_star = _sp["s_star"]
-    if s_halfwidth is None:
-        # COVERAGE IN UNCONDITIONAL sd. Bocola's own is 2.16, but the box must also
-        # CONTAIN the experiment and it cannot be shifted: s* has to stay the box centre
-        # or it stops being a collocation node and the exact SS rest point goes with it.
-        # The headline shock (p^d 0.10% -> 1.98%) is itself 2.11 sd, so at 2.16 it sits
-        # at 97% of the half-width -- on the boundary, where the fit is worst and the
-        # dynamic IRF would start at the edge. 2.75 puts it at 77% with room to move,
-        # and is still 10% narrower than the 3.05 sd that the literal 4.35 halfwidth
-        # became once sigma_s was corrected.
-        s_halfwidth = S_COVER_SD * _sp["sigma_s"] / np.sqrt(1.0 - _sp["rho_s"] ** 2)
-    s_lo = s_star - s_halfwidth if s_lo is None else s_lo
-    s_hi = s_star + s_halfwidth if s_hi is None else s_hi
+    c = _box_centre(ss, cal)
+    s_lo, s_hi = _s_bounds(cal, s_lo, s_hi, s_halfwidth)
     pD_lo, pD_hi = _band(p_band_D, p_band)
     pF_lo, pF_hi = _band(p_band_F, p_band)
     b_lo_f = (1 - b_band if b_lo_frac is None else b_lo_frac)
     # V IS ZERO AT THE SS, so its band is ABSOLUTE (a fractional band round 0 collapses
-    # the dimension). w_band is read as a fraction OF P_D, which keeps the caller's units
-    # comparable to the other wealth states: the measured ergodic |nfa| runs to 0.137
-    # against P_D = 7.74, so w_band = 0.04 gives +-0.31 -- roughly 2x the ergodic reach.
-    V_half = w_band * P_D
-    lo = np.array([(1 - k_band) * K_D, (1 - k_band) * K_F,
-                   (1 - pD_lo) * P_D, (1 - pF_lo) * P_F,
-                   b_lo_f * b_DD, b_lo_f * b_DF, b_lo_f * b_FD, -V_half,
-                   s_lo, (1 - z_band) * Z_D])
-    hi = np.array([(1 + k_band) * K_D, (1 + k_band) * K_F,
-                   (1 + pD_hi) * P_D, (1 + pF_hi) * P_F,
-                   (1 + b_band) * b_DD, (1 + b_band) * b_DF, (1 + b_band) * b_FD,
+    # the dimension). w_band is read as a fraction OF P_D: the measured ergodic |nfa|
+    # runs to 0.137 against P_D = 7.74, so w_band = 0.04 gives +-0.31, ~2x its reach.
+    V_half = w_band * c["P_D"]
+    lo = np.array([(1 - k_band) * c["K_D"], (1 - k_band) * c["K_F"],
+                   (1 - pD_lo) * c["P_D"], (1 - pF_lo) * c["P_F"],
+                   b_lo_f * c["b_DD"], b_lo_f * c["b_DF"], b_lo_f * c["b_FD"], -V_half,
+                   s_lo, (1 - z_band) * c["Z_D"]])
+    hi = np.array([(1 + k_band) * c["K_D"], (1 + k_band) * c["K_F"],
+                   (1 + pD_hi) * c["P_D"], (1 + pF_hi) * c["P_F"],
+                   (1 + b_band) * c["b_DD"], (1 + b_band) * c["b_DF"], (1 + b_band) * c["b_FD"],
                    +V_half,
-                   s_hi, (1 + z_band) * Z_D])
+                   s_hi, (1 + z_band) * c["Z_D"]])
     if rot is not None:
-        # The bands above are NATURAL half-widths t. The collocation box lives on
-        # z = rot(x - centre), and a z-box |z| <= b reaches natural half-widths
-        # |rot^-1| b, so solve |rot^-1| b = t for the z half-widths. (For the
-        # un-rotated dimensions rot^-1 is the identity there and b = t exactly.)
         rot = np.asarray(rot, dtype=float)
         centre = np.asarray(centre, dtype=float)
-        t = 0.5 * (hi - lo)
-        A = np.abs(np.linalg.inv(rot))
-        b = np.linalg.solve(A, t)
-        if np.any(b <= 0.0):
-            b = A @ t          # fallback: a superset box, still invariant on z
-        mid = rot @ (0.5 * (lo + hi) - centre)
-        lo, hi = mid - b, mid + b
-    # refine=(dim, m) tensors a DENSE m-node Chebyshev factor onto one dimension.
-    # The risk experiment passes refine=(IS, m): the logistic p^d(s) is where all the
-    # curvature is, and raising the Smolyak level to reach it would pay for resolution
-    # in nine other dimensions that are near-linear. See SmolyakGrid.__init__.
+        lo, hi = _rotate_box(lo, hi, rot, centre)
+    # refine=(dim, m) tensors a DENSE m-node Chebyshev factor onto one dimension; the
+    # risk experiment passes refine=(IS, m) because the logistic p^d(s) is where all the
+    # curvature is. See SmolyakGrid.__init__.
     return SmolyakGrid(lo, hi, mu=(mu if mu_vec is None else int(max(mu_vec))),
                        mu_vec=mu_vec, rot=rot, centre=centre, refine=refine)
+
+
+def _box_centre(ss, cal):
+    # THE STEADY-STATE VALUE OF EVERY STATE EXCEPT s AND V (THE BOX CENTRE).
+    # The D sovereign is carried as its two holdings, not one total: once the split is
+    # chosen by the banks' own FOCs, last period's split is part of the state.
+    b_DF = cal["b_D_F_ss"]
+    return dict(K_D=ss["Kap_D_ss"], K_F=ss["Kap_F_ss"],
+                P_D=ss["ss_bank_D"]["P_state_ss"],     # net of the WC receivable, see bank.py
+                P_F=ss["ss_bank_F"]["P_state_ss"],
+                b_DD=cal["B_gov_D_ss"] - b_DF, b_DF=b_DF,
+                b_FD=cal["b_F_D_ss"],                  # D bank's holding of the F sovereign
+                Z_D=cal["Z_ss_D"])                     # deterministic TFP state
+
+
+def _s_bounds(cal, s_lo, s_hi, s_halfwidth):
+    # s BOX: s* +- S_COVER_SD UNCONDITIONAL sd OF THE s PROCESS (explicit bounds win).
+    # Coverage in sd units is the invariant; an absolute halfwidth silently breaks on any
+    # sigma change (the literal 4.35 became 3.05 sd once sigma_s was corrected, and the
+    # extra width fed the bond-FOC residual through the quadratic's overshoot). The box
+    # cannot be shifted -- s* must stay a collocation node or the exact SS rest point goes
+    # with it -- and the headline shock is itself 2.11 sd, so Bocola's 2.16 would put it
+    # on the boundary; 2.75 puts it at 77% of the half-width.
+    _sp = s_process_params(cal)
+    s_star = _sp["s_star"]
+    if s_halfwidth is None:
+        s_halfwidth = S_COVER_SD * _sp["sigma_s"] / np.sqrt(1.0 - _sp["rho_s"] ** 2)
+    s_lo = s_star - s_halfwidth if s_lo is None else s_lo
+    s_hi = s_star + s_halfwidth if s_hi is None else s_hi
+    return s_lo, s_hi
+
+
+def _rotate_box(lo, hi, rot, centre):
+    # NATURAL HALF-WIDTHS -> THE z-BOX ON z = rot(x - centre) THAT REACHES THEM.
+    # A z-box |z| <= b reaches natural half-widths |rot^-1| b, so solve |rot^-1| b = t
+    # (for un-rotated dimensions rot^-1 is the identity and b = t exactly).
+    t = 0.5 * (hi - lo)
+    A = np.abs(np.linalg.inv(rot))
+    b = np.linalg.solve(A, t)
+    if np.any(b <= 0.0):
+        b = A @ t          # fallback: a superset box, still invariant on z
+    mid = rot @ (0.5 * (lo + hi) - centre)
+    return mid - b, mid + b
 
 
 def default_prob(s):

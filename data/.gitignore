@@ -1,9 +1,8 @@
-# Raw source data (large; download per README.md). Derived artifacts stay tracked.
+# Raw source data (large; download per "Claude files/data/README.md"). Derived artifacts stay tracked.
 *.csv
 *.CSV
 *.pdf
 eurostat_gdp_raw.json
 
-# Keep derived + docs
+# Keep derived
 !eba_moments.json
-!README.md

@@ -5,7 +5,7 @@ uncommitted working-tree changes** to ten files under `code/` (773 insertions / 
 deletions). The audit is of the working tree.
 
 **Method:** static trace of every CB code path plus a live pipeline solve
-(`diagnostics/cb_audit/probe_pipeline.py` — `main.py` stages 1–5 and `run_tpi()`,
+(`Claude files/diagnostics/cb_audit/probe_pipeline.py` — `main.py` stages 1–5 and `run_tpi()`,
 figures skipped), a stability/Prony analysis (`probe_stability.py`), and a modal
 decomposition of the closed-loop operator. No model source was edited. Full evidence
 in `run_log.md`; proposed fixes in `recommended_fix.md`, none implemented.
@@ -226,6 +226,6 @@ Both are defensible modelling choices and both should be stated as such.
   switched on is untested.
 * No sensitivity of F-3's 84/99% split to `psi_bD_F`; the number is reported at the
   calibrated `psi_bD_F = 0.5` only.
-* The Prony estimator that `docs/STATE.md:2317` refers to is not in the working tree
+* The Prony estimator that `Claude files/docs/STATE.md:2317` refers to is not in the working tree
   (it went with `audit_artifacts/`); a self-contained order-selected reimplementation
-  with a passing synthetic self-test is at `diagnostics/cb_audit/prony.py`.
+  with a passing synthetic self-test is at `Claude files/diagnostics/cb_audit/prony.py`.

@@ -31,11 +31,11 @@ import time
 
 import numpy as np
 
-from config.calibration import get_calibration
-from config.steady_state import solve_steady_state
-from solver_recursive.state_grid import s_process_params
-from solver_recursive.recursive_main import calibrate_household_anchors, ss_state
-from solver_recursive.recursive_experiment import solve_recursive, read_at, _spread_bp
+from calibration.global_projection import get_calibration
+from global_projection.steady_state import solve_steady_state
+from global_projection.solver_recursive.state_grid import s_process_params
+from global_projection.solver_recursive.recursive_main import calibrate_household_anchors, ss_state
+from global_projection.solver_recursive.recursive_experiment import solve_recursive, read_at, _spread_bp
 
 TARGET_BP = 8.0          # wanted ANNUALISED spread at the stochastic rest point
 TOL_BP = 0.3             # accept within this many bp

@@ -5,11 +5,10 @@ import sys
 import numpy as np
 import pytest
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(HERE)
-sys.path.insert(0, os.path.join(ROOT, "code"))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # repo root, from Claude files/experiments/
+sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "diagnostics", "regimes"))
-sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.join(ROOT, "experiments"))
 
 
 def _synthetic():

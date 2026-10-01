@@ -14,9 +14,9 @@
 import numpy as np
 from scipy.optimize import root
 
-from solver_recursive.decision_rules import RuleSet, SOLVE7, DERIVED
-from solver_recursive.point_map import point_residuals
-from solver_recursive.state_grid import build_state_box, s_process_params, NSTATE
+from global_projection.solver_recursive.decision_rules import RuleSet, SOLVE7, DERIVED, STORE_RULES
+from global_projection.solver_recursive.point_map import point_residuals
+from global_projection.solver_recursive.state_grid import build_state_box, NSTATE
 
 
 def ss_state(ss, cal, sproc):
@@ -106,7 +106,7 @@ def _sweep(rules, cont, cal, ss, sproc, regimes, no_default, n_gh,
     # A point whose solve does not clear (fn > keep_tol) RETAINS the previous
     # iterate's values -- a failed corner must never poison the continuation.
     n = rules.grid.n
-    new = {k: {d: np.empty(n) for d in regimes} for k in STORE()}
+    new = {k: {d: np.empty(n) for d in regimes} for k in STORE_RULES}
     wt = {d: np.ones(n) for d in regimes}     # per-point fit weight (0 = failed corner)
     x_ss = ss_x(ss, cal)     # was a duplicated literal; it silently kept 7 entries
     worst, n_fail = 0.0, 0
@@ -121,7 +121,7 @@ def _sweep(rules, cont, cal, ss, sproc, regimes, no_default, n_gh,
             if (not np.isfinite(fn)) or fn > keep_tol:   # retain old values, mask fit
                 n_fail += 1
                 wt[d][i] = 0.0
-                for k in STORE():
+                for k in STORE_RULES:
                     new[k][d][i] = rules.vals[k][d][i]
             else:
                 for j, k in enumerate(SOLVE7):
@@ -129,11 +129,6 @@ def _sweep(rules, cont, cal, ss, sproc, regimes, no_default, n_gh,
                 for k in DERIVED:
                     new[k][d][i] = out[k]
     return new, worst, n_fail, wt
-
-
-def STORE():
-    # THE 15 STORED RULE NAMES (SOLVE7 + DERIVED), one place.
-    return SOLVE7 + DERIVED
 
 
 def p_block_rotation(ss, cal, sproc, eps=1e-3, mu=1, mu_vec=None, probe_kw=None):
@@ -197,15 +192,7 @@ def time_iteration(rules, cal, ss, sproc, regimes=(0, 1),
         cont = rules.copy()                       # frozen continuation
         new, worst, n_fail, wt = _sweep(rules, cont, cal, ss, sproc, regimes,
                                         no_default, n_gh, no_cb=no_cb)
-        change = 0.0
-        for k in STORE():
-            for d in regimes:
-                old = rules.vals[k][d]
-                upd = damp * new[k][d] + (1.0 - damp) * old
-                change = max(change, np.max(np.abs(upd - old))
-                             / (np.max(np.abs(old)) + 1e-8))
-                weights = (np.where(wt[d] > 0.5, 1.0, fit_fw) if fit_mask else None)
-                rules.set_values(k, d, upd, weights=weights, ridge=fit_ridge)
+        change = _damped_update(rules, new, wt, regimes, damp, fit_mask, fit_fw, fit_ridge)
         if verbose:
             print(f"    [time-it {it + 1:2d}] max|F_point|={worst:.2e}  "
                   f"rel rule change={change:.2e}  fails={n_fail}/"
@@ -213,3 +200,17 @@ def time_iteration(rules, cal, ss, sproc, regimes=(0, 1),
         if change < tol and worst < 1e-6:
             return True, it + 1, worst, n_fail
     return False, max_it, worst, n_fail
+
+
+def _damped_update(rules, new, wt, regimes, damp, fit_mask, fit_fw, fit_ridge):
+    # MOVE EVERY RULE A FRACTION damp TOWARD THE SWEEP'S VALUES; RETURN THE MAX REL CHANGE.
+    change = 0.0
+    for k in STORE_RULES:
+        for d in regimes:
+            old = rules.vals[k][d]
+            upd = damp * new[k][d] + (1.0 - damp) * old
+            change = max(change, np.max(np.abs(upd - old))
+                         / (np.max(np.abs(old)) + 1e-8))
+            weights = (np.where(wt[d] > 0.5, 1.0, fit_fw) if fit_mask else None)
+            rules.set_values(k, d, upd, weights=weights, ridge=fit_ridge)
+    return change

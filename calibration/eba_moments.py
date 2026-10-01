@@ -13,7 +13,7 @@ Sovereign: gross direct long exposures as-of 31 Dec 2010 (worksheet 5; the
 Country map: D = Greece (banks GR030-GR035, issuer GR),
              F = Germany (banks DE017-DE029, issuer DE).
 
-What changed vs. the 2026-07-22 build (see docs/eba_calibration.md "Rebuild"):
+What changed vs. the 2026-07-22 build (see Claude files/docs/eba_calibration.md "Rebuild"):
 
   * The **maturity ladder** (MATURITY_CODE 125..155) is now read. Previously only
     the 999 "total" row was used, so `delta_b` had no EBA counterpart at all and
@@ -31,7 +31,7 @@ What changed vs. the 2026-07-22 build (see docs/eba_calibration.md "Rebuild"):
     scenario deliberately excluded sovereign default in the banking book, so its
     capital depletion understates sovereign pass-through by construction.
 
-Run:  /opt/anaconda3/envs/ssj/bin/python code/eba_calibration.py
+Run:  /opt/anaconda3/envs/ssj/bin/python calibration/eba_moments.py
 """
 from __future__ import annotations
 
@@ -83,7 +83,7 @@ BUCKETS: dict[int, tuple[float, float]] = {
 COUPON_GGB, COUPON_BUND = 0.047, 0.035
 
 # Model-side constants needed to translate a duration into `delta_b`.
-BETA_INTER = 0.9975155088          # code/calibration.py beta_inter_D/F
+BETA_INTER = 0.9975155088          # calibration/ssj.py beta_inter_D/F
 K_OVER_Y_ANNUAL = 2.7              # model K=10.8 at quarterly Y=1
 
 

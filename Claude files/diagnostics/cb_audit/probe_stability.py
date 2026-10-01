@@ -1,6 +1,6 @@
 """CB-block audit — Step 4 analysis (feedback sign + closed-loop stability).
 
-Reads diagnostics/cb_audit/probe_pipeline.npz (written by probe_pipeline.py) and
+Reads Claude files/diagnostics/cb_audit/probe_pipeline.npz (written by probe_pipeline.py) and
 reports:
   * the sign and shape of A_cb = d(spread_rb)/d(cb_buy_D);
   * the closed-loop pole and the safety margin against the intended gamma range;
@@ -56,7 +56,7 @@ p(f"- 1 / max real eigenvalue = {1.0/np.max(ev.real):+.4f} "
 p("\n## 4b. Closed-loop pole and margin\n")
 pole = J.get("closed_loop_pole")
 p(f"- condition-number scan: {pole}")
-p(f"- intended gamma range: [0, 10] (code/tpi.py gamma_values = [0, 2, 5, 10])")
+p(f"- intended gamma range: [0, 10] (linear_ssj/solve/tpi.py gamma_values = [0, 2, 5, 10])")
 if pole:
     p(f"- margin: pole / gamma_max = {pole['gamma_pole']/10.0:.2f}x; "
       f"the 0.75-safety cap sits at gamma = {pole['gamma_safe_max']:.2f}")

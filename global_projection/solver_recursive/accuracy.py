@@ -9,9 +9,9 @@
 # invariance check the box design turns on.
 import numpy as np
 
-from solver_recursive.point_map import point_residuals, SOLVE7
-from solver_recursive.state_grid import default_prob
-from solver_recursive.decision_rules import DERIVED, to_fit
+from global_projection.solver_recursive.point_map import point_residuals
+from global_projection.solver_recursive.state_grid import default_prob
+from global_projection.solver_recursive.decision_rules import DERIVED, SOLVE7, to_fit
 
 # RESIDUAL NAMES, in point_map order. Single-sourced so the report cannot fall out of
 # step with the system the way the hard-wired 7 did when it grew to 11.
@@ -23,7 +23,7 @@ from solver_recursive.decision_rules import DERIVED, to_fit
 _EQN = ("cap_D", "cap_F", "lab_D", "lab_F", "euler_D", "uip", "goods_D",
         "bondD_D", "bondD_F", "euler_F", "dep_clear", "bondF_F", "bondF_D"
         ) + tuple(f"id_{k}" for k in DERIVED)
-from solver_recursive.state_grid import (IK_D, IK_F, IP_D, IP_F, IBDD,
+from global_projection.solver_recursive.state_grid import (IK_D, IK_F, IP_D, IP_F, IBDD,
                                           IBDF, IBFD, IV, IS, IZ, STATE_NAMES)
 
 EQ_NAMES = ("cap_D", "cap_F", "lab_D", "lab_F", "euler_D", "uip", "goods_D")
@@ -49,19 +49,24 @@ def simulate(rules, cal, ss, sproc, S0, T=2000, burn=200, seed=0, no_default=Fal
         if t >= burn:
             out.append(S.copy())
             off.append(rules.grid.outside(S)[0])
-        Sn = S.copy()
-        Sn[IK_D], Sn[IK_F] = x[2], x[3]                 # K' = Kp
-        Sn[IP_D], Sn[IP_F] = o["Pp_D"], o["Pp_F"]
-        Sn[IBDD], Sn[IBDF] = o["b_D_D_new"], o["b_D_F_new"]
-        Sn[IBFD] = o["b_F_D_new"]
-        Sn[IV] = o["Vp_dep"]
-        Sn[IS] = ((1.0 - sproc["rho_s"]) * sproc["s_star"] + sproc["rho_s"] * S[IS]
-                  + sproc["sigma_s"] * rng.standard_normal())
-        Sn[IZ] = (1.0 - sproc["rho_z"]) * sproc["z_star"] + sproc["rho_z"] * S[IZ]
         # the SOLVER only knows the box; a path that leaves it is evaluated on the
         # clipped state, exactly as the continuation would be
-        S = rules.grid.clip(Sn)[0]
+        S = rules.grid.clip(_stochastic_next_state(S, x, o, sproc, rng))[0]
     return np.array(out), np.array(off)
+
+
+def _stochastic_next_state(S, x, o, sproc, rng):
+    # LAW OF MOTION WITH A DRAWN s INNOVATION: STOCKS FROM THE PERIOD MAP, Z_D DECAYS.
+    Sn = S.copy()
+    Sn[IK_D], Sn[IK_F] = x[2], x[3]                 # K' = Kp
+    Sn[IP_D], Sn[IP_F] = o["Pp_D"], o["Pp_F"]
+    Sn[IBDD], Sn[IBDF] = o["b_D_D_new"], o["b_D_F_new"]
+    Sn[IBFD] = o["b_F_D_new"]
+    Sn[IV] = o["Vp_dep"]
+    Sn[IS] = ((1.0 - sproc["rho_s"]) * sproc["s_star"] + sproc["rho_s"] * S[IS]
+              + sproc["sigma_s"] * rng.standard_normal())
+    Sn[IZ] = (1.0 - sproc["rho_z"]) * sproc["z_star"] + sproc["rho_z"] * S[IZ]
+    return Sn
 
 
 def euler_errors(rules, cal, ss, sproc, states, no_default=False):
@@ -99,6 +104,18 @@ def accuracy_report(rules, cal, ss, sproc, S0, T=1500, burn=200, seed=0,
         return None
     e = np.maximum(err[ok], 1e-16)
     l10 = np.log10(e)
+    _print_error_table(l10, states, ok, rules, label)
+    frac = (off > 0).mean(axis=0)
+    _print_box_escapes(off, frac)
+    pd = default_prob(states[:, IS])
+    print(f"   simulated p^d: mean {100*pd.mean():.3f}%  "
+          f"p5 {100*np.percentile(pd, 5):.4f}%  p95 {100*np.percentile(pd, 95):.3f}%")
+    return dict(l10_mean=l10.mean(axis=0), l10_max=l10.max(axis=0),
+                off_frac=frac, states=states)
+
+
+def _print_error_table(l10, states, ok, rules, label):
+    # PER-EQUATION MEAN / MAX / 90TH-PERCENTILE log10 |R| ON THE SIMULATED STATES.
     head = f"  EULER-EQUATION ERRORS on the ergodic set{(' — ' + label) if label else ''}"
     print(f"\n{head}")
     print(f"   {states.shape[0]} simulated states ({ok.sum()} evaluable), "
@@ -109,15 +126,11 @@ def accuracy_report(rules, cal, ss, sproc, S0, T=1500, burn=200, seed=0,
               f" {np.percentile(l10[:, j], 90):10.2f}")
     print(f"   {'ALL':10s} {l10.mean():13.2f} {l10.max():14.2f}"
           f" {np.percentile(l10, 90):10.2f}")
-    names = STATE_NAMES      # not a local copy: this one still said W_D after the
-                             # slot changed to carry V_dep
-    frac = (off > 0).mean(axis=0)
+
+
+def _print_box_escapes(off, frac):
+    # SHARE OF SIMULATED PERIODS OUTSIDE THE BOX, PER STATE, AND THE WORST OVERSHOOT.
     print("   box escapes (share of simulated periods outside, per state):")
-    print("     " + "  ".join(f"{n}={100*f:.1f}%" for n, f in zip(names, frac)))
+    print("     " + "  ".join(f"{n}={100*f:.1f}%" for n, f in zip(STATE_NAMES, frac)))
     print(f"     worst overshoot = {100*off.max():.2f}% of box width"
           f"   any-dimension escape = {100*(off > 0).any(axis=1).mean():.1f}% of periods")
-    pd = default_prob(states[:, IS])
-    print(f"   simulated p^d: mean {100*pd.mean():.3f}%  "
-          f"p5 {100*np.percentile(pd, 5):.4f}%  p95 {100*np.percentile(pd, 95):.3f}%")
-    return dict(l10_mean=l10.mean(axis=0), l10_max=l10.max(axis=0),
-                off_frac=frac, states=states)

@@ -57,7 +57,7 @@ whole grid.
 * `CLAUDE.md`'s and `code/tpi.py:332-343`'s claim of "a closed-loop pole at
   gamma ~ 27.3 on the post-GK-refactor calibration" is an artefact reading and must be
   corrected, not softened;
-* `docs/STATE.md` and any paper text asserting a stability ceiling on γ derived from
+* `Claude files/docs/STATE.md` and any paper text asserting a stability ceiling on γ derived from
   that pole needs the same treatment.
 
 **Do not** simply tighten the grid. A finer grid still misses poles between points; it
@@ -92,7 +92,7 @@ Recommended:
    makes the two objects visibly different quantities rather than two rows of one
    table.
 3. Mirror the split in `experiments/e1_backstop_schedule.py`'s A5-1 reporting and in
-   `docs/paper_draft_results.md`'s German-side captions.
+   `Claude files/docs/paper_draft_results.md`'s German-side captions.
 
 **Paper-side rule this implies:** no sentence may net, sum, or trade off the realised
 German transfer against the expected loss. A burden-sharing claim must name which of
@@ -156,7 +156,7 @@ Leaving it as two copies is the option that produced the `audit_artifacts/` fail
 
 ---
 
-## R-6 (F-7) — Document what the "central bank" is, in `docs/SPEC.md`
+## R-6 (F-7) — Document what the "central bank" is, in `Claude files/docs/SPEC.md`
 
 No code change. Two modelling choices are currently implicit in `code/tpi.py`'s
 comments and should be stated where the paper's modelling choices live:

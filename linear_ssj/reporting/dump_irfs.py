@@ -1,20 +1,20 @@
 """Run the pipeline through build_and_solve and save IRFs for comparison.
 
 Usage:
-    /opt/anaconda3/envs/ssj/bin/python code/dump_irfs.py OUT.npz
+    /opt/anaconda3/envs/ssj/bin/python linear_ssj/reporting/dump_irfs.py OUT.npz
 """
 import sys
 from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
 
-from calibration import get_calibration
-from steady_state import solve_steady_state
-from ic_delta_calibration import calibrate_ic_delta
-from depreciation_calibration import calibrate_depreciation
-from full_model import build_and_solve
+from calibration.ssj import get_calibration
+from linear_ssj.solve.steady_state import solve_steady_state
+from linear_ssj.solve.ic_delta_calibration import calibrate_ic_delta
+from linear_ssj.solve.depreciation_calibration import calibrate_depreciation
+from linear_ssj.model.full_model import build_and_solve
 
 KEYS = ('Y_D', 'C_D', 'I_D', 'n_inter_D', 'K_D', 'b_gov_D', 'w_D', 'N_D',
         'p', 'q_b_D', 'spread_rb', 'Y_F', 'C_F', 'I_F', 'n_inter_F')

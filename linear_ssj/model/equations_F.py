@@ -6,7 +6,7 @@ from sequence_jacobian import grids
 from pathlib import Path
 
 try:
-    BASE_DIR_F = Path(__file__).resolve().parent
+    BASE_DIR_F = Path(__file__).resolve().parents[2]
 except NameError:
     BASE_DIR_F = Path.cwd()
 

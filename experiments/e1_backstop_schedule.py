@@ -1,7 +1,7 @@
 """E1 — the core backstop schedule at the three named regimes.
 
 Canonical parameterisation is the NAMED REGIMES (passive / medium / aggressive),
-with gamma SOLVED for 0/25/50% peak-spread compression, not code/tpi.py's round
+with gamma SOLVED for 0/25/50% peak-spread compression, not linear_ssj/solve/tpi.py's round
 gamma in {0,2,5,10}. A solved gamma keeps its meaning across recalibrations; a
 round number silently drifts into a different policy stance every time the model
 is re-tuned.
@@ -24,7 +24,7 @@ compensating branch. It must be summed by hand as
 
     Sum_t beta^t * EL_price * def_rate_t * q_b * cb_buy_t
 
-Welfare is computed but SECONDARY, and labelled so in the payload: docs/SPEC.md
+Welfare is computed but SECONDARY, and labelled so in the payload: Claude files/docs/SPEC.md
 says not to lead with it. It is decomposition-sensitive and comes out near-exactly
 zero-sum, so it is the wrong thing for the paper to headline.
 """
@@ -38,7 +38,7 @@ import numpy as np
 from common import (BP_ANN, FIGURES_DIR, irf_from_cache, load_cache, pct_of_ss,
                     provenance, regime_irfs, write_results)
 
-T_PNL = 100          # PV horizon, matches code/tpi.py's cb_pnl
+T_PNL = 100          # PV horizon, matches linear_ssj/solve/tpi.py's cb_pnl
 T_WELFARE = 100      # discounted welfare horizon, matches run_tpi
 PLOT_N = 60
 
@@ -54,7 +54,7 @@ REGIME_COLORS = {"passive": RED, "medium": ORANGE, "aggressive": GREEN}
 def cb_pnl(irf, cache, T_pnl=T_PNL):
     """PV decomposition of the CB's D-bond position, in D-goods units.
 
-    Ported from code/tpi.py's cb_pnl, reading steady-state levels from the cache
+    Ported from linear_ssj/solve/tpi.py's cb_pnl, reading steady-state levels from the cache
     rather than re-deriving them, so the two cannot drift apart.
     """
     beta_F = float(cache["beta_F"])

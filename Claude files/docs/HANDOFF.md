@@ -1,5 +1,18 @@
 # Handoff Notes
 
+## Where things are now — 2026-10-01
+
+Run everything with `python3 run.py [ssj|global|both]` (set `SSJ_PYTHON` at its top); results land in
+`results/<SSJ|GLOBAL>/{data,figures,run.log}` and `results/COMPARISON/`. The LTRO sweep is OFF
+(`RUN_LTRO = False` in `run.py`). These docs, all notes/reports and all tests live in `Claude files/`;
+the map is `Claude files/REFACTOR_ARCHITECTURE.md`.
+
+## Repository layout changed — 2026-09-30 (no economics changes)
+
+`code/` is gone. SSJ model code is in `linear_ssj/`, global model code in `global_projection/`, both
+calibrations in the shared `calibration/` package, one entry point `run.py`, and `compare.py` for
+the linear-vs-global comparison. Old→new path table and run guide: `Claude files/REFACTOR_ARCHITECTURE.md`.
+
 ## Read first: this repository now has TWO solvers (2026-09-14, PR #32)
 
 `bocola-rewrite` was merged with `main`. Both pipelines are live and neither
@@ -7,15 +20,15 @@ supersedes the other:
 
 | | Sequence-space (SSJ) | Global projection |
 |---|---|---|
-| Path | `code/*.py` | `code/global/` |
+| Path | `linear_ssj/` (+ `calibration/ssj.py`) | `global_projection/` (+ `calibration/global_projection.py`) |
 | Interpreter | `/opt/anaconda3/envs/ssj/bin/python` | plain `python3` |
 | Method | linearised, sequence-space Jacobians | nonlinear Chebyshev-Smolyak collocation |
-| Entry point | `code/main.py` | `cd code/global && python3 main.py` |
+| Entry point | `python3 run.py ssj` | `python3 run.py global` |
 | Carries | sticky prices, nominal deposits, GK structural refactor, `experiments/` E1-E4, the paper's current figures | occasionally-binding IC, exogenous priced default risk, LTRO backstop |
 
-They share no code, no calibration and no interpreter. **Their impulse
+They share no model code and no interpreter; their calibrations sit side by side in `calibration/` but hold different values. **Their impulse
 magnitudes are not comparable** — say which pipeline a number came from before
-quoting it. `docs/STATE.md` is split into Part I and Part II accordingly.
+quoting it. `Claude files/docs/STATE.md` is split into Part I and Part II accordingly.
 
 Everything else in this file refers to the **sequence-space** pipeline. The
 reconciliation of the paper's Sections 2-4 against the sequence-space code, flagged
@@ -33,7 +46,7 @@ The last session touched **no model source**. Work was on the Overleaf project a
 - **`Empirics/motivation_figures.py`** is new and generates the two motivation figures
   (`fig_greece_motivation`, `fig_euro_yield_decoupling`). Re-run it after any data
   refresh: `/opt/anaconda3/envs/ssj/bin/python Empirics/motivation_figures.py --refresh`.
-- **`docs/referee_report_2.md`** is the standing referee report. Its ten findings are the
+- **`Claude files/docs/referee_report_2.md`** is the standing referee report. Its ten findings are the
   best available list of what the paper still needs.
 
 **Next on the paper, in order.** Sections 2–4 are the coauthor's global nonlinear model
@@ -42,7 +55,7 @@ blocking item. Section 4 (TPI) is an empty stub. The abstract is `Lorem Ipsum`. 
 is unmodified template boilerplate and there is no calibration table anywhere in the
 manuscript.
 
-**Two live corrections.** `docs/paper_draft_results.md` Table 4 (quintile incidence) was
+**Two live corrections.** `Claude files/docs/paper_draft_results.md` Table 4 (quintile incidence) was
 generated at `ea23e94`, before the GK structural refactor; the aggregate numbers still
 match STATE.md but the quintile numbers should be regenerated before they go to print
 (`experiments/e4_distribution.py`, then `experiments/paper_outputs.py`). And `CLAUDE.md`'s
@@ -52,9 +65,9 @@ means *less* divertable, hence better collateral. Fix the wording.
 
 ---
 
-## READ FIRST: `docs/cb_mechanism.md` is canonical — 2026-08-19
+## READ FIRST: `Claude files/docs/cb_mechanism.md` is canonical — 2026-08-19
 
-The CB-block audit (`diagnostics/cb_audit/`) is done and promoted. **No model source changed.**
+The CB-block audit (`Claude files/diagnostics/cb_audit/`) is done and promoted. **No model source changed.**
 The CB block came through the GK refactor correct and untouched, SS neutrality is exact, and
 the spread feedback is signed right. Three things it establishes that change how you write:
 
@@ -77,14 +90,14 @@ spread by nothing at γ=2/5/10. No reported number is wrong — but the γ=19.88
 for a spurious reason and the pole is not a stability ceiling. Fix R-1 proposed, not applied.
 
 Open items the audit raised and did **not** fix: `experiments/e1_backstop_schedule.py`
-duplicates `cb_pnl`; `code/tpi_plots.py:243` hardcodes a stale `δ_b = 0.10`; and three
+duplicates `cb_pnl`; `linear_ssj/reporting/tpi_plots.py:243` hardcodes a stale `δ_b = 0.10`; and three
 `diagnostics/psilam_*` / `solve_configs.py` scripts still reference the deleted `psi_spread` —
 `solve_configs.py` being the dangerous one, since it does not crash, it silently produces a
 `psi_lambda_B = 0` arm identical to its own baseline. See `recommended_fix.md`.
 
 ## DONE: GK structural refactor (`gk-structural-foc`), stages 1–5 — 2026-08-18
 
-Read `docs/STATE.md` -> *GK structural refactor* first. Short version: the Greek spread is now
+Read `Claude files/docs/STATE.md` -> *GK structural refactor* first. Short version: the Greek spread is now
 generated by the bond's state-contingent payoff inside the genuine GK portfolio FOC. There is
 no free spread parameter anywhere in the model.
 
@@ -115,7 +128,7 @@ stage-1 conclusion that the GK mechanism was too weak was wrong.
   from ~0.85 x pole. `common.named_regime_gammas` falls back to
   `POLE_SAFETY_FRACTION * pole = 19.875` and says so loudly. Fix the prose.
 - **Never plot a gamma grid past `lottery_math.closed_loop_pole`.** It cost two broken paper
-  figures. `e1.loading_schedule`, `code/tpi.py`'s effectiveness curve and
+  figures. `e1.loading_schedule`, `linear_ssj/solve/tpi.py`'s effectiveness curve and
   `named_regime_gammas` all cap now; anything new must too.
 - **E1–E4 and every `experiments/paper/fig0*.png` are STALE.** The SS moved
   (`q_b_D 0.968941 -> 0.974906`). Rebuild the regime cache FIRST
@@ -192,7 +205,7 @@ mark-to-market term dominates outright. The FOC decomposition of `d b_D_F` off
 - *The fiscal limit.* Estimated from Greek data the same way BFT estimate theirs
   from Italian CDS. The best-fitting value (`def_scale_D` ≈ 0.63) puts the model in
   a region where `psi_lambda_B` is not continuously calibratable, and the apparent
-  retrenchment at that value sits past a pole. See `docs/STATE.md`.
+  retrenchment at that value sits past a pole. See `Claude files/docs/STATE.md`.
 
 So the fiscal block cannot deliver this. The remaining routes are all on the
 portfolio side, none yet chosen: a home-bias risk-pricing wedge in `prem_DF`; a
@@ -217,7 +230,7 @@ GK well-posedness, impact signs).
 
 - **FIRST: regenerate the downstream artefacts. They are stale.** The country-size
   asymmetry landed on 2026-08-07 (`size_F = 11.697`) with `psi_lambda_B` re-tuned
-  **2.92 → 3.01**; see `docs/STATE.md` → *Country-size asymmetry*. `code/main.py`
+  **2.92 → 3.01**; see `Claude files/docs/STATE.md` → *Country-size asymmetry*. `linear_ssj/main.py`
   is verified against the new calibration, but E1–E4 and every paper artefact
   still reflect the old one — **and everything TPI-related predates the
   `rem_cb_F` conduit fix, so those numbers are wrong by an amount that grows with
@@ -229,7 +242,7 @@ GK well-posedness, impact signs).
   /opt/anaconda3/envs/ssj/bin/python experiments/e4_distribution.py
   /opt/anaconda3/envs/ssj/bin/python experiments/paper_outputs.py
   ```
-  Affected: `docs/experiments_results.md`, `docs/paper_draft_results.md`, the
+  Affected: `Claude files/docs/experiments_results.md`, `Claude files/docs/paper_draft_results.md`, the
   eight tracked `experiments/paper/fig0*.png`.
 
 - **PAPER EDIT REQUIRED — the constrained-seller number changed.** The default
@@ -254,8 +267,8 @@ GK well-posedness, impact signs).
   A full re-solve is ~2 minutes. The `rho_def` bisection was thrown away and
   redone over exactly this.
 
-- **`rho_def` and `rho_Z` now live in `code/calibration.py`**, section *Shock
-  processes*, not in `code/full_model.py`. `rho_Z` stays at 0.80 — the
+- **`rho_def` and `rho_Z` now live in `calibration/ssj.py`**, section *Shock
+  processes*, not in `linear_ssj/model/full_model.py`. `rho_Z` stays at 0.80 — the
   Markov-switching estimate disciplines the sovereign-risk shock only.
 
 - **MOSTLY CLOSED: `Y_D` negative for only ONE quarter (issue I-1).**
@@ -269,7 +282,7 @@ GK well-posedness, impact signs).
   hypotheses must not be re-tested.
 
   *Historical (pre-`rho_def` fix), retained for the rejected hypotheses:* see
-  `docs/STATE.md` → *Open issue I-1*. On the default shock `Y_D` was −0.5064,
+  `Claude files/docs/STATE.md` → *Open issue I-1*. On the default shock `Y_D` was −0.5064,
   −0.0026, **+0.0929**, … then a positive hump; Bi–Foerster–Traum stay negative
   ~20 quarters. **Two frictions were tested and both rejected — do not
   re-test either.**
@@ -292,44 +305,44 @@ GK well-posedness, impact signs).
 
 - **Regenerating the `omega_I = 0` equivalence reference.** `/tmp/nkpc_irfs_nominal.npz`
   is **stale** (predates the `psi_lambda_B` 8.5 → 7.85 re-tune; differs by 1.56).
-  Regenerate with `/opt/anaconda3/envs/ssj/bin/python code/dump_irfs.py OUT.npz`
+  Regenerate with `/opt/anaconda3/envs/ssj/bin/python linear_ssj/reporting/dump_irfs.py OUT.npz`
   *before* making a change, and compare after. The current change passes at
   1.08e-13 over all 45 arrays.
 
 - **The model is sticky-price with nominal deposit contracts.** The `add-nkpc`
-  workstream (`docs/superpowers/plans/2026-08-05-nominal-rigidities.md`) is
+  workstream (`Claude files/docs/superpowers/plans/2026-08-05-nominal-rigidities.md`) is
   **COMPLETE** — Tasks 1–16, all committed, all results regenerated. Read
   *Nominal rigidities (`add-nkpc`) — complete* further down this file before
-  touching anything, and `docs/STATE.md`'s top section for the full tables.
+  touching anything, and `Claude files/docs/STATE.md`'s top section for the full tables.
   The two things not to rediscover the hard way are `solve_jacobian_padded()`
   (SSJ cannot solve this system without it) and the regime-cache rebuild
   ordering; both are written up in that section.
-- Working branch: `add-nkpc` (to be merged to `main`). Production entry point: `code/main.py` (orchestrates
+- Working branch: `add-nkpc` (to be merged to `main`). Production entry point: `linear_ssj/main.py` (orchestrates
   `calibration.py`, `steady_state.py`, `ic_delta_calibration.py`,
   `depreciation_calibration.py`, `full_model.py`, `tpi.py`, `irf_plots.py`,
   `tpi_plots.py`). The legacy notebook `code/model_v12.ipynb` has been removed.
-- Core equations: `code/equations_D.py`, `code/equations_F.py`,
-  `code/equations_global.py`.
-- Read `docs/STATE.md` first for current model status, calibration table, and
+- Core equations: `linear_ssj/model/equations_D.py`, `linear_ssj/model/equations_F.py`,
+  `linear_ssj/model/equations_global.py`.
+- Read `Claude files/docs/STATE.md` first for current model status, calibration table, and
   open issues.
-- Read `docs/SPEC.md` for the paper's theoretical framing and research goals
+- Read `Claude files/docs/SPEC.md` for the paper's theoretical framing and research goals
   (merged in from the now-retired `docs/FRAMING_HANDOFF.md`).
-- Read `docs/eba_calibration.md` for the EBA-2011 derivation, the identification
+- Read `Claude files/docs/eba_calibration.md` for the EBA-2011 derivation, the identification
   ledger, and the three structural fixes of 2026-07-31 (collateral mapping,
   `omega_K` fund rule, `n_inter` scope). **This is the live calibration.**
 - **Policy experiments:** `experiments/` on branch `experiments` — the paper's
   standard results set (E1 backstop schedule, E2 ΔY decomposition, E3 S-1
-  writeoff). Spec: `docs/superpowers/specs/2026-08-01-policy-experiments-design.md`;
-  plan: `docs/superpowers/plans/2026-08-03-policy-experiments.md`. **COMPLETE
+  writeoff). Spec: `Claude files/docs/superpowers/specs/2026-08-01-policy-experiments-design.md`;
+  plan: `Claude files/docs/superpowers/plans/2026-08-03-policy-experiments.md`. **COMPLETE
   2026-08-03 — E1, E2, E3 and the orchestrator all landed.** Results:
-  `docs/experiments_results.md` (generated). Production regression re-run after
+  `Claude files/docs/experiments_results.md` (generated). Production regression re-run after
   all of it and **bit-identical** to the pre-work baseline; `git diff main --
   code/` is empty. Full suite 31 passed.
 
   **Two author decisions now block paper text — see the two bold items below.**
   The schema-3 cache is built (`cache_G_main_v3_*.npz`); rebuild with
   `/opt/anaconda3/envs/ssj/bin/python diagnostics/regimes/regime_model.py --force`
-  after any calibration change. Run everything with `experiments/run_all.py` (`--skip-e3` to skip the two re-solves, `--render-only` to rebuild the doc). Results land in `docs/experiments_results.md`. Run E2 alone with
+  after any calibration change. Run everything with `experiments/run_all.py` (`--skip-e3` to skip the two re-solves, `--render-only` to rebuild the doc). Results land in `Claude files/docs/experiments_results.md`. Run E2 alone with
   `/opt/anaconda3/envs/ssj/bin/python experiments/e2_dy_decomposition.py`.
   `experiments/common.py` was hardened after code review the same day:
   `calibration_override` now rejects an unrecognised override key instead of
@@ -341,17 +354,17 @@ GK well-posedness, impact signs).
   different households. (Under the flexible-price model the output response was
   additionally a small *residue* of channels ~4× larger; under sticky prices the
   largest channel is 0.25× the headline, so the magnitude ordering has reversed
-  but the instruction has not.) See `docs/STATE.md` for the table.
+  but the instruction has not.) See `Claude files/docs/STATE.md` for the table.
 
   **E1's headline:** the loading schedule is monotone decreasing at all 59 finite
   grid points (**4.43 → 1.49** over γ ∈ [0.51, 30.00] on the sticky-price model),
   confirming Live Claim 5 on a fine grid. Every cross-check against
-  `code/main.py` passes. Run with
+  `linear_ssj/main.py` passes. Run with
   `/opt/anaconda3/envs/ssj/bin/python experiments/e1_backstop_schedule.py`.
 
   **First-draft material is ready.** `experiments/paper_outputs.py` →
   **eight** captioned figures in `experiments/paper/` + **four** tables in
-  `docs/paper_draft_results.md` (calibration/identification ledger, moment match,
+  `Claude files/docs/paper_draft_results.md` (calibration/identification ledger, moment match,
   main results, distributional incidence). Regenerate with
   `/opt/anaconda3/envs/ssj/bin/python experiments/paper_outputs.py`. The decile /
   quintile cache is built separately and rarely:
@@ -365,7 +378,7 @@ GK well-posedness, impact signs).
   −44.4 mass, netting +2.8). Never describe the wealth cut as household behaviour.
 
   **Incidence result** (regenerated on the sticky-price model 2026-08-06 — see
-  Table 4 of `docs/paper_draft_results.md`, which is authoritative): the crisis is
+  Table 4 of `Claude files/docs/paper_draft_results.md`, which is authoritative): the crisis is
   progressive. PV consumption **+0.4250%** for the lowest income quintile against
   **−0.9073%** for the highest, monotone in between; the backstop's protection
   runs the same way (**+2.01** vs **+1.34**). The flex-price figures previously
@@ -376,7 +389,7 @@ GK well-posedness, impact signs).
   > the arrays it plots and hands it to `save()`, which registers it — so
   > `fig08_deciles`'s caption reads the same `pv` object Table 4 does and cannot
   > drift from it. **Figure captions are quotable again**, but quote them from a
-  > freshly regenerated `docs/paper_draft_results.md`, not from memory.
+  > freshly regenerated `Claude files/docs/paper_draft_results.md`, not from memory.
 
   **S-1 RESOLVED 2026-08-04: `writeoff_enabled=0` stays** — the pure risk-premium
   framing. E3 becomes an appendix robustness result and a *stated caveat*: the
@@ -420,7 +433,7 @@ GK well-posedness, impact signs).
 > **The EBA calibration is LIVE and verified** (established 2026-07-31; the
 > *steady-state* content below is current, the *dynamics* were re-measured on the
 > sticky-price model 2026-08-06 and are given in the `add-nkpc` section).
-> `EBA_CALIBRATION = True`, `BANK_SCOPE = "broad"` in `code/calibration.py`.
+> `EBA_CALIBRATION = True`, `BANK_SCOPE = "broad"` in `calibration/ssj.py`.
 >
 > Measured: `theta` 5.51/6.94 (GK-eligible assets / CT1), `delta_b` 0.0777/0.0568
 > (sovereign maturity ladder repriced at the end-2010 market yield), the sovereign
@@ -439,7 +452,7 @@ GK well-posedness, impact signs).
 > *(The flex-price values were `n_inter_D[0]=−3.380%`, `Y_D[0]=−0.0149%`, peak
 > spread 150.4bp, loading 4.35/4.01/3.44.)*
 >
-> Getting here took three fixes, all documented in `docs/eba_calibration.md`:
+> Getting here took three fixes, all documented in `Claude files/docs/eba_calibration.md`:
 > (1) the hidden `ratio=Delta_cross/Delta_own=2.0` closure in
 > `ic_delta_calibration`; (2) `omega_K` as a fixed share (`fund_rule=1` makes the
 > fund a fixed quantity, SS-identical); (3) the `n_inter` scope — CT1 of the
@@ -482,7 +495,7 @@ GK well-posedness, impact signs).
 ```bash
 conda activate ssj   # or use /opt/anaconda3/envs/ssj/bin/python explicitly
 cd /path/to/QUANTITATIVE_MODEL
-/opt/anaconda3/envs/ssj/bin/python code/main.py
+/opt/anaconda3/envs/ssj/bin/python linear_ssj/main.py
 ```
 
 Install deps if needed:
@@ -493,13 +506,13 @@ nbstripout --install && nbdime config-git --enable
 
 Regression test after any equation change — the full pipeline is the regression test:
 ```bash
-/opt/anaconda3/envs/ssj/bin/python code/main.py
+/opt/anaconda3/envs/ssj/bin/python linear_ssj/main.py
 ```
 (`audit_artifacts/` was removed 2026-07-30; it tested a hardcoded calibration, not `get_calibration()`.)
 
 ## Latest session (2026-07-24)
 
-- **Ran `code/main.py` end-to-end** (clean: SS `goods_mkt_D≈-4.8e-7`,
+- **Ran `linear_ssj/main.py` end-to-end** (clean: SS `goods_mkt_D≈-4.8e-7`,
   `ca_res_D≈2.3e-16`; `b_gov_D[499]≈2e-6`). Fresh impacts on the default shock:
   `n_inter_D[0]=-2.83%`, `Y_D[0]=+0.032%` (Y-1), peak D–F spread `+0.392pp`. TPI:
   spread compresses 0.392→0.244pp (−38%) over γ=0→10; loading 3.59/3.03/2.47 at
@@ -520,7 +533,7 @@ Regression test after any equation change — the full pipeline is the regressio
 - **Added a pre-commit doc-sync hook** (`.claude/settings.json` +
   `.claude/hooks/require-docs-before-commit.sh`): blocks committing model/code
   changes unless STATE.md, PROGRESS.md, HANDOFF.md are updated in the same commit.
-- **Created `docs/PROGRESS.md`** — a comprehensive changelog reverse-engineered from
+- **Created `Claude files/docs/PROGRESS.md`** — a comprehensive changelog reverse-engineered from
   the 135-commit git history + STATE/audit/EBA docs (the retired `PROCESS.md`'s old "Version
   history" moved here). PROGRESS is now the hook's required changelog; PROCESS stays
   the (rarely-changing) workflow doc.
@@ -533,10 +546,10 @@ constraint) is fixed at its root, and `psi_lambda_B` is calibrated to the
 paper's external spread target rather than left at a value chosen only to
 dodge a bug. Three downstream drift bugs surfaced and were fixed while
 verifying the C-1 fix (stale audit harness, a diagnostic sign/scale error, a
-real TPI conduit accounting leak). Full details: `docs/eba_calibration.md`,
-`docs/STATE.md`.
+real TPI conduit accounting leak). Full details: `Claude files/docs/eba_calibration.md`,
+`Claude files/docs/STATE.md`.
 
-**Calibration (main, `code/calibration.py`):**
+**Calibration (main, `calibration/ssj.py`):**
 - `phi_bD_D_ss=2.39`, `phi_bF_F_ss=2.76` (own-book concentration, EBA 2011),
   `phi_bF_D_ss=0.018`, `phi_bD_F_ss=0.069` (cross-holdings)
 - `n_inter_D=0.408`, `n_inter_F=0.175` (EBA CT1/quarterly-GDP bank capital)
@@ -568,7 +581,7 @@ real TPI conduit accounting leak). Full details: `docs/eba_calibration.md`,
 
 ## Open issues (author decisions required)
 
-See `docs/STATE.md`'s "Open issues" table for the full, current list (C-1
+See `Claude files/docs/STATE.md`'s "Open issues" table for the full, current list (C-1
 resolved; S-1, RK-1, Y-1, EL-1, PT-1, DIST-1, A5-1 open). The two most
 consequential for the paper right now:
 
@@ -584,12 +597,12 @@ consequential for the paper right now:
 1. **Validate PT-1** against event studies (Altavilla–Pagano–Simonelli;
    Acharya–Drechsler–Schnabl) at the new magnitude.
 2. **Resolve EL-1** (confirm or justify `recovery_rate_D/F`).
-3. **Update `docs/SPEC.md`'s "Theoretical framing" numbers** as PT-1/EL-1 are
+3. **Update `Claude files/docs/SPEC.md`'s "Theoretical framing" numbers** as PT-1/EL-1 are
    resolved and as the model changes further — several are explicitly flagged
    there as needing re-verification.
 4. **Decide S-1** (`writeoff_enabled`), coupled to whatever EL-1 resolves to.
 5. **Port remaining bank-cal calibration values**: `delta_b=0.036/0.038`,
-   `f=0.03`. Re-test Finding F-1 (`docs/STATE.md`) again after porting — the
+   `f=0.03`. Re-test Finding F-1 (`Claude files/docs/STATE.md`) again after porting — the
    most recent re-test used today's `delta_b=0.10`/`f=0.12` only for the
    duration dimension.
 6. **Investigate RK-1 and Y-1** before reporting `rk_F` or `Y_D` impact-sign
@@ -600,27 +613,27 @@ consequential for the paper right now:
 
 | File | Purpose |
 |------|---------|
-| `code/main.py` | Production pipeline (calibration → SS → Jacobian → IRFs → TPI) |
-| `code/equations_D.py` | Country D blocks (C-1 fix: `steady_auxilliary_D`) |
-| `code/equations_F.py` | Country F blocks (C-1 fix: `steady_auxilliary_F`) |
-| `code/equations_global.py` | Global clearing + portfolio costs |
-| `code/tpi.py` | TPI/ECB conduit experiment; `cb_pnl` for off-path P&L |
-| `docs/STATE.md` | Current model status, calibration table, open issues |
-| `docs/SPEC.md` | Research goals, modelling choices, **and paper theoretical framing** |
-| `docs/eba_calibration.md` | EBA parameter→moment map; C-1 fix; `psi_lambda_B` recalibration |
-| `docs/audit.md` | Master audit log (ranked findings, fix history) |
-| `docs/verification_report.md` | Post-fix verification with numerical evidence |
-| `docs/bank_cal_review.md` | bank-cal branch analysis; remaining calibration porting roadmap |
-| `docs/walras_forensics.md` | Analytical Walras derivation; all leaks proven |
-| ~~`audit_artifacts/*`~~ | Removed 2026-07-30 — regression harness, `psi_lambda_B` sweep, F-1/F-2 estimators. Results retained in `docs/STATE.md`; scripts in git history at `0c99013`. |
-| `code/tpi_plots.py`, `code/irf_plots.py` | Figure-generation scripts (regenerate from `main`) |
+| `linear_ssj/main.py` | Production pipeline (calibration → SS → Jacobian → IRFs → TPI) |
+| `linear_ssj/model/equations_D.py` | Country D blocks (C-1 fix: `steady_auxilliary_D`) |
+| `linear_ssj/model/equations_F.py` | Country F blocks (C-1 fix: `steady_auxilliary_F`) |
+| `linear_ssj/model/equations_global.py` | Global clearing + portfolio costs |
+| `linear_ssj/solve/tpi.py` | TPI/ECB conduit experiment; `cb_pnl` for off-path P&L |
+| `Claude files/docs/STATE.md` | Current model status, calibration table, open issues |
+| `Claude files/docs/SPEC.md` | Research goals, modelling choices, **and paper theoretical framing** |
+| `Claude files/docs/eba_calibration.md` | EBA parameter→moment map; C-1 fix; `psi_lambda_B` recalibration |
+| `Claude files/docs/audit.md` | Master audit log (ranked findings, fix history) |
+| `Claude files/docs/verification_report.md` | Post-fix verification with numerical evidence |
+| `Claude files/docs/bank_cal_review.md` | bank-cal branch analysis; remaining calibration porting roadmap |
+| `Claude files/docs/walras_forensics.md` | Analytical Walras derivation; all leaks proven |
+| ~~`audit_artifacts/*`~~ | Removed 2026-07-30 — regression harness, `psi_lambda_B` sweep, F-1/F-2 estimators. Results retained in `Claude files/docs/STATE.md`; scripts in git history at `0c99013`. |
+| `linear_ssj/reporting/tpi_plots.py`, `linear_ssj/reporting/irf_plots.py` | Figure-generation scripts (regenerate from `main`) |
 | Overleaf | https://www.overleaf.com/project/698b4f88aeef1d0e1d08cc0c |
 
 ## Nominal rigidities (`add-nkpc`) — complete (Tasks 1–16, 2026-08-05/06)
 
 **The workstream is done.** Sixteen tasks, all committed, all downstream results
-regenerated. Full tables in `docs/STATE.md`'s top section; the changelog entry is
-in `docs/PROGRESS.md`.
+regenerated. Full tables in `Claude files/docs/STATE.md`'s top section; the changelog entry is
+in `Claude files/docs/PROGRESS.md`.
 
 ### What the model now is
 
@@ -740,8 +753,8 @@ points on γ ∈ [0.51, 30.00], above 1 throughout). **Live Claim 1 survives**
 ### Test entry points
 
 ```bash
-/opt/anaconda3/envs/ssj/bin/python -m pytest code/test_nkpc_blocks.py -v   # 17 tests, ~1s
-/opt/anaconda3/envs/ssj/bin/python -m pytest code/test_nkpc_blocks.py code/test_eba_calibration.py experiments/ -v   # 40 passed
+/opt/anaconda3/envs/ssj/bin/python -m pytest Claude files/linear_ssj/tests/test_nkpc_blocks.py -v   # 17 tests, ~1s
+/opt/anaconda3/envs/ssj/bin/python -m pytest Claude files/linear_ssj/tests/test_nkpc_blocks.py Claude files/linear_ssj/tests/test_eba_calibration.py experiments/ -v   # 40 passed
 ```
 
 ## Run environment

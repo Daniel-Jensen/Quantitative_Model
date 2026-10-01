@@ -1,6 +1,6 @@
 """Regression checks for the country-size asymmetry — run standalone:
 
-    /opt/anaconda3/envs/ssj/bin/python -m pytest code/test_cross_border_units.py -v
+    /opt/anaconda3/envs/ssj/bin/python -m pytest Claude files/linear_ssj/tests/test_cross_border_units.py -v
 
 THE CONVENTION: every F-side variable is PER F CAPITA and O(1); every D-side
 variable is a D aggregate (size_D == 1). `size_F` (= 11.697, Germany/Greece 2010
@@ -20,9 +20,9 @@ confirms both moments hold in a SOLVED steady state.
 import json
 import os
 
-import calibration as C
+from calibration import ssj as C
 
-_MOMENTS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+_MOMENTS = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
                         "data", "eba_moments.json")
 
 

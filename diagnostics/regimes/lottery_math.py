@@ -83,7 +83,7 @@ def gamma_for_compression(A_def, A_cb, eps, target, lo=0.0, hi=40.0, tol=1e-8):
     it.
 
     RAISED because the 50% target stopped bracketing on [0,25] after the country-size
-    asymmetry and the rem_cb_F conduit fix (see docs/STATE.md). TPI is materially less
+    asymmetry and the rem_cb_F conduit fix (see Claude files/docs/STATE.md). TPI is materially less
     effective than before both changes -- the same compression now needs ~8x the
     intervention:
 

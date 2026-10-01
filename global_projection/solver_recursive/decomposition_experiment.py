@@ -12,15 +12,15 @@ import time
 
 import numpy as np
 
-from config.calibration import get_calibration
-from config.steady_state import solve_steady_state
-from solver_recursive.state_grid import s_process_params, default_prob
-from solver_recursive.recursive_experiment import s_from_pd
-from solver_recursive.recursive_main import calibrate_household_anchors
-from solver_recursive.recursive_experiment import solve_recursive
-from solver_recursive.output_decomposition import (simulate, s_decay_path,
+from calibration.global_projection import get_calibration
+from global_projection.steady_state import solve_steady_state
+from global_projection.solver_recursive.state_grid import s_process_params, default_prob
+from global_projection.solver_recursive.recursive_experiment import s_from_pd
+from global_projection.solver_recursive.recursive_main import calibrate_household_anchors
+from global_projection.solver_recursive.recursive_experiment import solve_recursive
+from global_projection.solver_recursive.output_decomposition import (simulate, s_decay_path,
                                                    decompose_output, active_channels)
-from solver_recursive import welfare_quintiles as wq
+from global_projection.solver_recursive import welfare_quintiles as wq
 
 ACTIVATIONS = (0.0, 0.5, 1.0)   # per-period TPI activation probabilities phi
 # The shock is a TARGET one-quarter-ahead default probability (main.py's
@@ -39,7 +39,7 @@ def _label(a):
 
 def run(cal, ss, sproc, mu=1, activations=ACTIVATIONS, verbose=True):
     # SOLVE EACH ACTIVATION, SIMULATE, DECOMPOSE, PRICE WELFARE, WRITE THE FIGURES.
-    from reporting.plots import (plot_output_decomposition, plot_welfare_quintiles,
+    from global_projection.reporting.plots import (plot_output_decomposition, plot_welfare_quintiles,
                                  OUTDIR)
     env = wq.ss_household_inputs(ss, cal)
     V_ss, a_pol_ss = wq.steady_state_value(ss, cal, env)

@@ -180,7 +180,7 @@ def print_sovereign_spread(legs, label=""):
     # else, and on this calibration that leg is ~2% of the D-F spread, which is why the
     # LTRO moves the credit spread by tens of basis points and the sovereign spread by
     # single digits. Legs are removals, not a partition -- y is convex in q.
-    from solver_recursive.output_decomposition import SOVEREIGN_LEGS
+    from global_projection.solver_recursive.output_decomposition import SOVEREIGN_LEGS
     print(f"\n  SOVEREIGN SPREAD DECOMPOSITION{(' - ' + label) if label else ''}"
           f"   (annualised bp)")
     print(f"   {'leg':<32s}{'y_D':>10s}{'y_F':>10s}{'SPREAD':>10s}{'% of spread':>13s}")
@@ -192,3 +192,20 @@ def print_sovereign_spread(legs, label=""):
           f"{legs['spread']:10.1f}")
     print(f"   FOC closure off-node: D {100*legs['foc_closure_D']:+.3f}%, "
           f"F {100*legs['foc_closure_F']:+.3f}%  (the solve is exact only AT the nodes)")
+
+
+def print_output_decomposition(dec, channels):
+    # IMPACT OF EACH ACTIVE OUTPUT CHANNEL AND THE TOTAL, LEVEL % AND ANNUALISED.
+    for k, lab in channels:
+        print(f"    {lab:<22s} impact {dec[k][0]:+8.4f}%  "
+              f"({4 * dec[k][0]:+8.4f}% annualised)")
+    print(f"    {'TOTAL':<22s} impact {dec['total'][0]:+8.4f}%  "
+          f"({4 * dec['total'][0]:+8.4f}% annualised)")
+
+
+def print_bond_decomposition(bdec, channels):
+    # IMPACT OF EACH LEG OF THE D-BOND PRICE AND THE TOTAL, % FROM THE NO-SHOCK PATH.
+    print("\n  Q_bD decomposition (%, deviation from the no-shock path)")
+    for k, lab in channels:
+        print(f"    {lab:<36s} impact {bdec[k][0]:+8.4f}%")
+    print(f"    {'TOTAL':<36s} impact {bdec['total'][0]:+8.4f}%")

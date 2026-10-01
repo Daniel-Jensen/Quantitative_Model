@@ -23,10 +23,10 @@
 # every quintile carries exactly 20% of households.
 import numpy as np
 
-from blocks.firms import markup_ss
-from blocks.household import solve_backward_transition
-from blocks.distribution import forward_iterate
-from blocks.trade import ces_price
+from global_projection.blocks.firms import markup_ss
+from global_projection.blocks.household import solve_backward_transition
+from global_projection.blocks.distribution import forward_iterate
+from global_projection.blocks.trade import ces_price
 
 
 def ss_household_inputs(ss, cal):
@@ -117,15 +117,6 @@ def transition_welfare(inp, ss, cal, V_ss):
         V = (_u(c_path[t] - inp["vN"][t], cal["sigma_D"])
              + beta * _expected_value(V, a_pol_path[t], a_grid, Pi))
     return V, c_path, a_pol_path
-
-
-def cev(V_shock, V_base, ss, cal):
-    # CONSUMPTION-EQUIVALENT DEVIATION: THE PERMANENT SCALING OF c - v(N) THAT
-    # MAKES THE SHOCK PATH AS GOOD AS THE REFERENCE (negative = welfare cost).
-    beta, sigma = ss["beta_D_ss"], cal["sigma_D"]
-    if abs(sigma - 1.0) < 1e-12:
-        return np.exp((1.0 - beta) * (V_shock - V_base)) - 1.0
-    return (V_shock / V_base) ** (1.0 / (1.0 - sigma)) - 1.0
 
 
 def income_quintile_weights(ss, cal, env, n_q=5):

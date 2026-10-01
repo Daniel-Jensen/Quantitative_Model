@@ -8,18 +8,18 @@
 # N3  the Fischer-Burmeister complementarity holds on the grid (mu >= 0).
 # The economic blocks are untouched; these gates validate the re-indexing only.
 import sys, os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
 
 import numpy as np
 
 from common import get_ss
-from solver_recursive.state_grid import build_state_box, s_process_params
-from solver_recursive.decision_rules import RuleSet, SOLVE7
-from solver_recursive.point_map import point_residuals
-from solver_recursive.recursive_main import (time_iteration, calibrate_household_anchors,
+from global_projection.solver_recursive.state_grid import build_state_box, s_process_params
+from global_projection.solver_recursive.decision_rules import RuleSet
+from global_projection.solver_recursive.point_map import point_residuals
+from global_projection.solver_recursive.recursive_main import (time_iteration, calibrate_household_anchors,
                             ss_state, ss_x)
-from solver_recursive.recursive_experiment import BOX_KW
-from solver_recursive.collocation import (solve_collocation, TOL_MAXF, RES_NAMES,
+from global_projection.solver_recursive.recursive_experiment import BOX_KW
+from global_projection.solver_recursive.collocation import (solve_collocation, TOL_MAXF, RES_NAMES,
                                           N_RES_POINT)
 
 # SINGLE-SOURCED FROM THE SOLVER. This list used to be a hand-kept copy and went stale

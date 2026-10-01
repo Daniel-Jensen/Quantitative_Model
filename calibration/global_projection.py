@@ -241,7 +241,7 @@ def get_calibration():
         # central-bank credit -- at an unchanged rate: every budget identity in the model
         # is untouched and the whole effect is in the incentive constraint,
         #     mu_ratio = N'/(lambda*A')  ->  (N' + m)/(lambda*(A' - m)).
-        # See point_map.py and docs/ltro_backstop_plan.md.
+        # See point_map.py and Claude files/docs/ltro_backstop_plan.md.
         #
         # phi_ltro is a per-experiment SCALAR, not a state: a phi dimension would centre
         # its box at 0.5 and the steady state would stop being a collocation node. One

@@ -40,7 +40,7 @@ printf '%s\n' "$staged" | grep -Eq '^(code/|audit_artifacts/)|\.py$' || exit 0
 
 # Which required living docs are missing from the commit?
 missing=""
-for d in docs/STATE.md docs/PROGRESS.md docs/HANDOFF.md; do
+for d in "Claude files/docs/STATE.md" "Claude files/docs/PROGRESS.md" "Claude files/docs/HANDOFF.md"; do
   printf '%s\n' "$staged" | grep -qxF "$d" || missing="$missing $d"
 done
 

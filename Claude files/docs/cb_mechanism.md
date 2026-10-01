@@ -2,11 +2,11 @@
 
 **Status: canonical.** This is the reference description of what the TPI central bank
 is, how it transmits, and what may and may not be claimed about it. Established by the
-CB-block audit of 2026-08-19 (`diagnostics/cb_audit/`) against the working tree of
+CB-block audit of 2026-08-19 (`Claude files/diagnostics/cb_audit/`) against the working tree of
 `gk-structural-foc` after the GK structural refactor. Every number below is measured,
 not asserted; the probes that produced them are named at each point.
 
-Supersedes ad-hoc descriptions of the CB in `docs/STATE.md` and in figure captions.
+Supersedes ad-hoc descriptions of the CB in `Claude files/docs/STATE.md` and in figure captions.
 When this document and a caption disagree, this document is right and the caption is
 stale.
 
@@ -149,7 +149,7 @@ Aggregate effect, closed loop: `A_cb[0,0] = d(spread_rb)/d(cb_buy_D)[0,0] =
 
 ## 6. The decisive diagnostic — the 2×2 sovereign-holdings matrix
 
-`diagnostics/cb_audit/probe_portfolio.py`, full output in `portfolio_matrix.md`.
+`Claude files/diagnostics/cb_audit/probe_portfolio.py`, full output in `portfolio_matrix.md`.
 Aggregate market value in D goods, `q_b × quantity`, with the per-F-capita legs scaled
 by `size_F = 11.696651`. Both clearing identities close to ≤ 1.2e−15 at every point
 reported, at the steady state and at t = 0, 4, 20 for every γ.
@@ -313,7 +313,7 @@ five columns removes every pole below γ = 36 and changes the reported peak spre
 No reported number is affected — every statistic is computed on `[:100]`, where the
 artefact has no mass. But the γ = 19.88 cap on the effectiveness curve is imposed for a
 spurious reason, and the pole should not be cited as a stability ceiling on γ. Fix
-proposed at `diagnostics/cb_audit/recommended_fix.md` R-1; not implemented.
+proposed at `Claude files/diagnostics/cb_audit/recommended_fix.md` R-1; not implemented.
 
 ## 10. Reporting rules
 
@@ -336,13 +336,13 @@ Consolidated, for the paper and for anything generated into `docs/`:
 
 | artefact | what it establishes |
 |---|---|
-| `diagnostics/cb_audit/run_log.md` | timestamped probe-by-probe evidence |
-| `diagnostics/cb_audit/VERDICT.md` | audit findings, most severe first |
-| `diagnostics/cb_audit/recommended_fix.md` | proposed fixes; **none implemented** |
-| `diagnostics/cb_audit/probe_pipeline.py` | live solve: Steps 0/4/5 quantities |
-| `diagnostics/cb_audit/probe_stability.py` | feedback sign, Prony moduli, fiscal incidence |
-| `diagnostics/cb_audit/probe_portfolio.py` | §6, the 2×2 matrix |
-| `diagnostics/cb_audit/prony.py` | order-selected Prony estimator, self-test passing |
+| `Claude files/diagnostics/cb_audit/run_log.md` | timestamped probe-by-probe evidence |
+| `Claude files/diagnostics/cb_audit/VERDICT.md` | audit findings, most severe first |
+| `Claude files/diagnostics/cb_audit/recommended_fix.md` | proposed fixes; **none implemented** |
+| `Claude files/diagnostics/cb_audit/probe_pipeline.py` | live solve: Steps 0/4/5 quantities |
+| `Claude files/diagnostics/cb_audit/probe_stability.py` | feedback sign, Prony moduli, fiscal incidence |
+| `Claude files/diagnostics/cb_audit/probe_portfolio.py` | §6, the 2×2 matrix |
+| `Claude files/diagnostics/cb_audit/prony.py` | order-selected Prony estimator, self-test passing |
 
 Base audited: `EBA_CALIBRATION = True`, `BANK_SCOPE = "broad"`, all four `Delta = 0.20`,
 `psi_lambda_B = 0`, `zeta_writeoff = 1`, `writeoff_enabled = 0`, `kappa_cb_F = 0.929`,

@@ -10,7 +10,7 @@ import numpy as np
 import sequence_jacobian as sj
 from sequence_jacobian import simple
 
-from equations_D import (
+from linear_ssj.model.equations_D import (
     deposit_return_D, tax_rule_D, hh_extended_D, ghh_composite_D,
     sdf_D, sdf_banker_D, government_default_D,
     bond_return_D, bank_return_D, capital_fund_D, cap_adj_cost_inter_D, macro_pru_tax_D,
@@ -20,7 +20,7 @@ from equations_D import (
     market_clearing_D, welfare_agg_D, ces_price_D, import_demand_D,
     gk_bond_foc_D,
 )
-from equations_F import (
+from linear_ssj.model.equations_F import (
     deposit_return_F, tax_rule_F, hh_extended_F, ghh_composite_F,
     sdf_F, sdf_banker_F, government_default_F,
     bond_return_F, bank_return_F, capital_fund_F, cap_adj_cost_inter_F, macro_pru_tax_F,
@@ -30,7 +30,7 @@ from equations_F import (
     market_clearing_F, welfare_agg_F, ces_price_F, import_demand_F,
     gk_bond_foc_F,
 )
-from equations_global import (
+from linear_ssj.model.equations_global import (
     trade_balance, bond_yield,
     portfolio_level_anchors, gk_cross_border_foc, global_goods_mkt,
 )
@@ -163,7 +163,7 @@ def run_tpi(model_results):
     irfs_def_D         = model_results['irfs_def_D']
 
     # ── Build TPI model ───────────────────────────────────────────────────────
-    from full_model import build_block_list
+    from linear_ssj.model.full_model import build_block_list
     ha_full_tpi = sj.create_model(
         build_block_list(financial_solved_D, financial_solved_F,
                          overrides=tpi_overrides()),
@@ -177,7 +177,7 @@ def run_tpi(model_results):
     ss_tpi.toplevel['cb_flow_D'] = 0.0
     _kap = ss_final.toplevel.get('kappa_cb_F')
     if _kap is None:
-        from calibration import get_calibration
+        from calibration.ssj import get_calibration
         _kap = get_calibration()['kappa_cb_F']
     kappa_cb_F = float(_kap)
     ss_tpi.toplevel['kappa_cb_F'] = kappa_cb_F
@@ -185,7 +185,7 @@ def run_tpi(model_results):
     # ── Jacobian ──────────────────────────────────────────────────────────────
     exogenous_tpi = ['Z_D', 'shock_def_D', 'Z_F', 'shock_def_F', 'cb_buy_D']
     print(f"Computing G_tpi (T={T}, {len(exogenous_tpi)} exogenous inputs)...")
-    from full_model import solve_jacobian_padded
+    from linear_ssj.model.full_model import solve_jacobian_padded
     G_tpi = solve_jacobian_padded(
         ha_full_tpi, ss_tpi, unknowns=unknowns_tp, targets=targets_tp,
         inputs=exogenous_tpi, T=T,

@@ -6,7 +6,7 @@ from sequence_jacobian import grids
 from pathlib import Path
 
 try:
-    BASE_DIR_D = Path(__file__).resolve().parent
+    BASE_DIR_D = Path(__file__).resolve().parents[2]
 except NameError:
     BASE_DIR_D = Path.cwd()
 
@@ -131,7 +131,7 @@ def smart_steady_D(theta_D, Y_D, n_inter_D, rdep_D, alpha_D, delta_D, f_D, N_D,
     # different dynamics: dK/dN is theta/omega_K under rule 0 and theta under
     # rule 1. Rule 0 makes the passive fund mechanically mirror bank deleveraging,
     # levering the accelerator by 1/omega_K (~8.5x at measured EBA net worth) --
-    # the root cause of the EBA dynamic instability. See docs/eba_calibration.md.
+    # the root cause of the EBA dynamic instability. See Claude files/docs/eba_calibration.md.
     bank_assets_D = theta_D * n_inter_D - q_b_D * b_D_D - q_b_F * b_F_D
     K_D          = ((1.0 - fund_rule_D) * bank_assets_D / (omega_K_D * Q_D)
                     + fund_rule_D * (bank_assets_D / Q_D + K_fund_D))
@@ -204,7 +204,7 @@ def steady_auxilliary_D(theta_D, rk_D, rdep_D, delta_D, alpha_D, Y_D, K_D, N_D,
     # iff Delta_bD_D == Delta_bF_D == 1. The old formula silently assumed full
     # (Delta=1) bond divertability, which made the downstream Delta back-solve
     # in ic_delta_calibration.py degenerate (>1) at realistic (EBA) portfolio
-    # concentration -- see docs/eba_calibration.md "Why C-1 forces Delta->1".
+    # concentration -- see Claude files/docs/eba_calibration.md "Why C-1 forces Delta->1".
     D_target_D   = theta_D - (1 - Delta_bD_D) * phi_bD_D - (1 - Delta_bF_D) * phi_bF_D
     lambda_gk_D  = f_D / (D_target_D / (beta_inter_D * (1 + rn_D)) - (1 - f_D) * theta_D)
     Omega_D      = f_D + (1 - f_D) * lambda_gk_D * theta_D
@@ -311,7 +311,7 @@ def bond_return_D(def_rate_D, recovery_rate_D, q_b_D, delta_b_D, zeta_writeoff_D
                      wedge, and there is no free coefficient anywhere in it.
     ``EL_load_D``    DIAGNOSTIC ONLY — expected loss per unit of default probability.
                      Nothing in the model reads it. It exists so the central bank's P&L
-                     accounting (``code/tpi.py``) and every reported decomposition are
+                     accounting (``linear_ssj/solve/tpi.py``) and every reported decomposition are
                      computed off the SAME payoff the FOC prices, instead of a separately
                      anchored ``EL_price_D`` parameter (deleted 2026-08-18).
     """
@@ -500,7 +500,7 @@ def collateral_quality_D(Delta_bD_D, Delta_bF_D, psi_lambda_B_D,
     = -0.2658 at the live calibration. Only reachable at a default probability 26.6pp
     BELOW steady state, which is impossible here (``def_rate_ss = 0`` and the shock is
     positive), and the linearised solve never evaluates the nonlinear map anyway. It
-    would bind on a global/nonlinear solve — flagged for ``code/global/``.
+    would bind on a global/nonlinear solve — flagged for ``global_projection/``.
 
     Interpretation is a MARKET haircut / pledgeability channel — the reduced-form
     device Bi-Foerster-Traum use for cross-border interbank retrenchment — NOT a

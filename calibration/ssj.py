@@ -18,12 +18,12 @@ BANK_SCOPE = "broad"
 
 
 def load_eba_targets(path: str = _EBA_MOMENTS, scope: str | None = None) -> dict:
-    """Read the EBA 2011 moment set produced by ``code/eba_calibration.py``.
+    """Read the EBA 2011 moment set produced by ``calibration/eba_moments.py``.
 
     Single source of truth: nothing here or in ``steady_state.py`` may carry its
     own copy of these numbers. (The retired ``audit_artifacts/`` harness did
     exactly that and silently tested a different model for weeks.) Regenerate
-    with ``python code/eba_calibration.py``.
+    with ``python calibration/eba_moments.py``.
     """
     key = {"broad": "model_targets_broad", "ct1": "model_targets"}[scope or BANK_SCOPE]
     with open(path) as fh:
@@ -75,7 +75,7 @@ def load_eba_foreign_shares(path: str = _EBA_MOMENTS) -> dict:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# EBA switch. True = the MEASURED EBA 2011 moment set (code/eba_calibration.py ->
+# EBA switch. True = the MEASURED EBA 2011 moment set (calibration/eba_moments.py ->
 # data/eba_moments.json), read at the scope set by BANK_SCOPE above.
 # False = the pre-EBA placeholder calibration, kept bit-exact for regression.
 #
@@ -94,7 +94,7 @@ def load_eba_foreign_shares(path: str = _EBA_MOMENTS) -> dict:
 #    n_inter = (Q*K + sovereign)/theta, omega_K = 1, and the model is STABLE:
 #    b_gov_D[499] ~ 1e-9 to 1e-6 with both impact signs correct.
 #
-# See docs/eba_calibration.md.
+# See Claude files/docs/eba_calibration.md.
 EBA_CALIBRATION = True
 
 
@@ -193,8 +193,8 @@ def get_calibration():
         'lambda_BF_D':  0.06,    'lambda_BD_F':  0.06,
         # EBA 2011 REBUILD (2026-07-31). Supersedes both the 2026-07-22 EBA build
         # and the 2026-07-30 pre-EBA revert. All values below come from
-        # data/eba_moments.json (regenerate: python code/eba_calibration.py);
-        # see docs/eba_calibration.md for the identification ledger, including
+        # data/eba_moments.json (regenerate: python calibration/eba_moments.py);
+        # see Claude files/docs/eba_calibration.md for the identification ledger, including
         # what this moment set does NOT pin down.
         #
         # psi_lambda_B: the one amplification dial, still UNIDENTIFIED by EBA and
@@ -225,7 +225,7 @@ def get_calibration():
         #   psi_lambda_B = 7.85 -> peak spread 0.3753 pp -> 150.14 bp  <- was adopted
         # b_gov_D[499] stayed in ~1e-5..1e-4 across the whole bracket (no
         # instability); n_inter_D[0] and Y_D[0] both negative throughout
-        # (correct doom-loop sign). See docs/STATE.md for the full record.
+        # (correct doom-loop sign). See Claude files/docs/STATE.md for the full record.
         #
         # RETUNED AGAIN 2026-08-06 (rho_def 0.80 -> 0.9408, see "Shock processes"
         # below). A more persistent sovereign-risk shock raises the peak spread
@@ -254,7 +254,7 @@ def get_calibration():
         # 3.4% fundamental / 96.6% collateral friction to ~8.6% / ~91.4% --
         # a friction:fundamental ratio of ~10.6:1, down from ~28.6:1. The
         # constrained-seller claim survives but is quantitatively weaker, and
-        # the paper's fig04 prose must be re-derived. See docs/STATE.md.
+        # the paper's fig04 prose must be re-derived. See Claude files/docs/STATE.md.
         # RETUNED 2026-08-07 (country-size asymmetry, fix-cross-border-units).
         # size_F = 11.697 makes a Greek shock a much smaller shock to F, which
         # damps the cross-border amplification and took the peak spread to
@@ -284,7 +284,7 @@ def get_calibration():
         # with risk). experiments/ Arm 2 re-runs the model at 3.01 as a DIAGNOSTIC of
         # what that channel is worth; it is not the baseline and the difference is a
         # model counterfactual, not an empirical decomposition of the spread.
-        # Do not retune this to recover 150bp -- see docs/STATE.md.
+        # Do not retune this to recover 150bp -- see Claude files/docs/STATE.md.
         'psi_lambda_B_D': 0.0,
         'psi_lambda_B_F': 0.0,
         # Bank net worth = Core Tier 1 / own quarterly nominal GDP.
@@ -314,7 +314,7 @@ def get_calibration():
         # Measured CT1 is 7.4x thinner than the placeholder, which is what made the
         # EBA calibration explosive (b_gov[499] ~ 1e2-1e3). Verified: with the
         # pre-EBA bank block (omega_K=1) the same model is stable at ~1e-8
-        # regardless of concentration or Delta. See docs/eba_calibration.md.
+        # regardless of concentration or Delta. See Claude files/docs/eba_calibration.md.
         # A fixed share is also the harder assumption to defend: it says non-bank
         # capital holders shrink in lockstep with bank equity, which is the
         # amplification, not an independent behavioural claim.
@@ -371,7 +371,7 @@ def get_calibration():
         # moment is 0.456, a 5.2x weaker doom loop, and the explosion does not occur —
         # b_gov_D[499] ~ 7e-05 at the live calibration. F-1's near-unit-root zone
         # [0.15,0.18] was likewise an mv_rule=1 measurement and has no established
-        # bearing on the par rule. See docs/STATE.md.
+        # bearing on the par rule. See Claude files/docs/STATE.md.
         'mv_rule_D':    0.0,     'mv_rule_F':    0.0,
         'mv_gov_ss_D':  0.6*4,   'mv_gov_ss_F':  0.6*4,
 
@@ -407,7 +407,7 @@ def get_calibration():
         'writeoff_enabled_D': 0.0,  'writeoff_enabled_F': 0.0,
 
         # ── Shock processes ───────────────────────────────────────────────────
-        # Promoted out of code/full_model.py (was hardcoded at lines 217-221)
+        # Promoted out of linear_ssj/model/full_model.py (was hardcoded at lines 217-221)
         # on 2026-08-06 so the persistence of the crisis is a calibration
         # decision with a source, not a magic number in the solve driver.
         #
@@ -422,7 +422,7 @@ def get_calibration():
         # constraint on how long the contraction lasted -- cumulative Y over 40q
         # goes -0.049 (rho=0.80) -> -0.784 (0.90) -> -2.021 (0.95) holding peak
         # spread fixed at 150bp, so this is persistence, not crisis size. See
-        # docs/STATE.md.
+        # Claude files/docs/STATE.md.
         #
         # rho_Z is the TFP shock and is deliberately LEFT at 0.80 -- the MS
         # estimate speaks to sovereign spreads only.

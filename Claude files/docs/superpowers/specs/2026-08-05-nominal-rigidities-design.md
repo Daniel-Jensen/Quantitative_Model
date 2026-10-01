@@ -28,7 +28,7 @@ rate, or policy rule anywhere in `code/`.
 ### The `C_D[0]` motivation, stated honestly
 
 At the live calibration `C_D[0] = +0.2164%` against `Y_D[0] = -0.0149%` and
-`I_D[0] = -0.7718%` (`docs/STATE.md`, E1 passive). `docs/HANDOFF.md` already flags
+`I_D[0] = -0.7718%` (`Claude files/docs/STATE.md`, E1 passive). `Claude files/docs/HANDOFF.md` already flags
 this: the model's crisis is an investment bust, not a consumption bust, which is
 counterfactual for Greece 2010-13.
 

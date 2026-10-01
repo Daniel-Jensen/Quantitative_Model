@@ -28,7 +28,7 @@ Build a tractable two-country general equilibrium model with heterogeneous house
 - `code/equations_global.py` — global goods market, external account, bond clearing, portfolio adjustment costs
 - `code/main.py` — production pipeline: calibration → SS solve → Jacobian → IRFs → TPI experiment (orchestrates `calibration.py`, `steady_state.py`, `full_model.py`, `tpi.py`)
 - `routines/` — auxiliary: grid construction, income Markov chain, Gini calculation
-- ~~`audit_artifacts/`~~ — removed 2026-07-30; findings retained in `docs/audit.md` and `docs/STATE.md`
+- ~~`audit_artifacts/`~~ — removed 2026-07-30; findings retained in `Claude files/docs/audit.md` and `Claude files/docs/STATE.md`
 - `plots/` — output figures (TPI welfare and spread panels)
 
 ## Research objectives
@@ -45,10 +45,10 @@ Build a tractable two-country general equilibrium model with heterogeneous house
 - **Predetermined deposit rate:** `Rgross = (1+rdep(−1))·P(−1)/P`. Deposit contracts signed at t−1, so funding costs are predetermined — standard NK timing for bank liabilities.
 - **Hatchondo-Martinez perpetuity:** bond coupon decays geometrically at rate `1−delta_b`. Duration = 1/delta_b quarters. Captures MTM capital losses on bank balance sheets.
 - **GK agency problem:** divertable fraction `Delta` drives the IC constraint binding. Multi-asset IC requires separate `Delta` for each asset class.
-- **Walras redundancy:** equations `ca_res_D` and `goods_mkt_F` are dropped from targets. Post-fix they hold to machine tolerance; see `docs/walras_forensics.md`.
+- **Walras redundancy:** equations `ca_res_D` and `goods_mkt_F` are dropped from targets. Post-fix they hold to machine tolerance; see `Claude files/docs/walras_forensics.md`.
 
 *Added 2026-08-06 with the `add-nkpc` workstream (sticky prices + nominal deposits). Full
-numbers in `docs/STATE.md`.*
+numbers in `Claude files/docs/STATE.md`.*
 
 - **Rotemberg price Phillips curve, subsidy-neutralised.** `pi = beta*pi(+1) + kappa_p*(mu_p*mc − 1)`
   in both countries, with the markup wedge `mu_p*mc` entering labour demand
@@ -103,7 +103,7 @@ numbers in `docs/STATE.md`.*
 ## Calibration strategy
 
 > **Values in this section date from 2026-07-22 and several are superseded.** The live
-> calibration table is `docs/STATE.md`. In particular: `psi_lambda_B_D/F = 7.85` (not
+> calibration table is `Claude files/docs/STATE.md`. In particular: `psi_lambda_B_D/F = 7.85` (not
 > 1.1793 — re-tuned 2026-07-31 to 8.5 for `BANK_SCOPE="broad"`, then 2026-08-06 to 7.85
 > once sticky prices and the Fisher channel pushed the spread response to 162bp);
 > `EL_price_D/F = 0.056134` (not 0.0717 — that predates the EBA `delta_b=0.0777`,
@@ -111,8 +111,8 @@ numbers in `docs/STATE.md`.*
 > ladder; `phi_lamb_D/F = 0.15`. The *reasoning* below is still the reasoning; the
 > numbers are not all current. **Re-derive, do not copy.**
 
-**As of 2026-07-22, see `docs/eba_calibration.md` for the full parameter →
-moment map and `docs/STATE.md` for the live calibration table:**
+**As of 2026-07-22, see `Claude files/docs/eba_calibration.md` for the full parameter →
+moment map and `Claude files/docs/STATE.md` for the live calibration table:**
 - Bilateral GR/DE bank exposures from the EBA 2011 stress-test disclosure
   (31 Dec 2010 actual): own-book concentration `phi_bD_D_ss=2.39` (GR),
   `phi_bF_F_ss=2.76` (DE); cross-holdings `phi_bF_D_ss=0.018`, `phi_bD_F_ss=0.069`
@@ -129,7 +129,7 @@ moment map and `docs/STATE.md` for the live calibration table:**
   must not be used without re-checking stability at that value.**
 - Bond duration: `delta_b_D/F=0.10` (2.5yr); empirical target `0.036/0.038`
   (Hatchondo-Martinez matching GR/DE 2011 avg maturities ~7yr/6.5yr) not yet
-  ported to the committed calibration — see Finding F-1 in `docs/STATE.md`.
+  ported to the committed calibration — see Finding F-1 in `Claude files/docs/STATE.md`.
 - Bohn fiscal coefficient: `phi_lamb_D/F=0.60`; literature 0.025–0.038 quarterly
   for EA periphery (Staehr 2008) is far below what this model needs for
   stability at current amplification.
@@ -143,7 +143,7 @@ moment map and `docs/STATE.md` for the live calibration table:**
   response per 100bp of spread, ≈−4.5%/100bp — was checked against
   Acharya-Drechsler-Schnabl (2014 JF)'s bank-equity-return-on-sovereign-CDS
   elasticity and sits within its literature-implied range (−1.8% to
-  −8.6%/100bp depending on baseline CDS level); see `docs/STATE.md` issue PT-1.
+  −8.6%/100bp depending on baseline CDS level); see `Claude files/docs/STATE.md` issue PT-1.
 
 ## Out of scope (current phase)
 
@@ -194,7 +194,7 @@ These are not caveats to bury — several framings die on them.
   moral-hazard channel.
 - **Always-binding IC.** No risk-shifting/gamble-for-resurrection;
   renationalisation cannot be endogenised (though its *quantity signature*
-  emerges from market clearing — see "Model facts" in `docs/STATE.md`).
+  emerges from market clearing — see "Model facts" in `Claude files/docs/STATE.md`).
 - **`writeoff_enabled = 0`, the risk-premium framing.** `def_rate` is a genuine
   probability; agents price expected loss; the IRF traces the **no-default
   branch**. This is standard (risk-premium-shock device), *not* "default is
@@ -260,7 +260,7 @@ why the litigation was tortured, not a claim to have out-theorised the Court.
    resolving `recovery_rate` afterward — which shrinks `EL_price`, the
    denominator — raised it to the current 3.59/3.03/2.47. Both supersede the
    pre-fix ~7-7.6x figure at `psi_lambda_B=2.8-3.0`, which is no longer a valid
-   calibration on this model — see `docs/eba_calibration.md`. Re-verify this
+   calibration on this model — see `Claude files/docs/eba_calibration.md`. Re-verify this
    number after any further recalibration.) **The monetary-financing objection
    fails on the model's own terms.**
 2. **The `psi_spread` ambiguity — preserve it, do not resolve it.** Since the
@@ -378,7 +378,7 @@ justification has inverted. Arguably this is an improvement: output is no longer
 a numerically fragile residue of nearly-cancelling terms, so the headline can be
 quoted without the earlier caveat that it is an artifact of near-cancellation —
 but the decomposition still carries the distributional content, which is the
-reason to lead with it. Current numbers: `docs/experiments_results.md` (E2).
+reason to lead with it. Current numbers: `Claude files/docs/experiments_results.md` (E2).
 
 ### The TL;DR as it currently stands
 
@@ -393,7 +393,7 @@ reason to lead with it. Current numbers: `docs/experiments_results.md` (E2).
 > succeeds.
 
 Survives contact, but every specific number in it needs to be re-quoted from
-`docs/STATE.md`'s current calibration rather than from memory of earlier
+`Claude files/docs/STATE.md`'s current calibration rather than from memory of earlier
 drafts — this model's numbers moved substantially in July 2026 (EBA
 calibration, C-1 fix, `psi_lambda_B` recalibration) and will likely move again
 before the paper is final.

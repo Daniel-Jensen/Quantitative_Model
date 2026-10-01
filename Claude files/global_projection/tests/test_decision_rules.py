@@ -4,12 +4,12 @@
 # exact, the interpolant must be positive everywhere by construction, and a rule with
 # a saturated corner must no longer drag the fit at the ergodic centre negative.
 import sys, os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
 
 import numpy as np
 
-from solver_recursive.state_grid import SmolyakGrid
-from solver_recursive.decision_rules import (RuleSet, ALL_RULES, LOG_RULES,
+from global_projection.solver_recursive.state_grid import SmolyakGrid
+from global_projection.solver_recursive.decision_rules import (RuleSet, ALL_RULES,
                                              GROSS_RULES, to_fit, from_fit)
 from common import get_ss
 

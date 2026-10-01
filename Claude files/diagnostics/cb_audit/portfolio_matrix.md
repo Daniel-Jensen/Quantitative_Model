@@ -1,6 +1,6 @@
 # The 2x2 sovereign-holdings matrix, before and after TPI
 
-Generated 2026-08-19 10:09:49 by `diagnostics/cb_audit/probe_portfolio.py`. `size_F` = 11.696651.
+Generated 2026-08-19 10:09:49 by `Claude files/diagnostics/cb_audit/probe_portfolio.py`. `size_F` = 11.696651.
 
 All entries are **aggregate market value in D goods**, `q_b * quantity`, with per-F-capita legs (`b_D_F`, `b_F_F`, `b_gov_F`) scaled by `size_F`. `q_b_D` and `q_b_F` are both D-good prices, so no terms-of-trade conversion enters.
 

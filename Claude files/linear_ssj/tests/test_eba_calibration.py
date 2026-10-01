@@ -1,8 +1,8 @@
 """Regression checks for eba_calibration.py — run standalone:
 
-    /opt/anaconda3/envs/ssj/bin/python code/test_eba_calibration.py
+    /opt/anaconda3/envs/ssj/bin/python Claude files/linear_ssj/tests/test_eba_calibration.py
 """
-import eba_calibration as E
+from calibration import eba_moments as E
 
 
 def approx(a, b, tol):

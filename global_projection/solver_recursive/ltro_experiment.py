@@ -20,23 +20,23 @@
 #     E[Om], which RAISES today's mu = max(1 - E[Om]R n/lev, 0). The bank's charter value
 #     IS its collateral. This channel is not second-order -- mu is a small difference of
 #     numbers near one -- and whether stabilisation beats it is the experiment.
-# See docs/ltro_backstop_plan.md. Serial pointwise solves; __main__ guard kept regardless.
+# See Claude files/docs/ltro_backstop_plan.md. Serial pointwise solves; __main__ guard kept regardless.
 import numpy as np
 
-from config.calibration import get_calibration
-from config.steady_state import solve_steady_state
-from solver_recursive.state_grid import s_process_params
-from solver_recursive.recursive_main import calibrate_household_anchors
-from solver_recursive.recursive_experiment import (solve_recursive, dynamic_irf,
+from calibration.global_projection import get_calibration
+from global_projection.steady_state import solve_steady_state
+from global_projection.solver_recursive.state_grid import s_process_params
+from global_projection.solver_recursive.recursive_main import calibrate_household_anchors
+from global_projection.solver_recursive.recursive_experiment import (solve_recursive, dynamic_irf,
                                                    stochastic_rest_point, read_at,
-                                                   s_from_pd, liquidity_ceiling_report)
-from solver_recursive.output_decomposition import (simulate, s_decay_path,
+                                                   s_from_pd)
+from global_projection.solver_recursive.output_decomposition import (simulate, s_decay_path,
                                                    decompose_bond_price, BOND_CHANNELS)
-from solver_recursive.state_grid import IS
-from solver_recursive.accuracy import accuracy_report
-from reporting.plots import ACTIVATION_RAMP
-from reporting.prints import bp_ann, print_sovereign_spread
-from solver_recursive.output_decomposition import sovereign_spread_legs, SOVEREIGN_LEGS
+from global_projection.solver_recursive.state_grid import IS
+from global_projection.solver_recursive.accuracy import accuracy_report
+from global_projection.reporting.plots import ACTIVATION_RAMP
+from global_projection.reporting.prints import bp_ann, print_sovereign_spread
+from global_projection.solver_recursive.output_decomposition import sovereign_spread_legs, SOVEREIGN_LEGS
 
 DEFAULT_ACTIVATIONS = (0.0, 0.5, 1.0)      # per-period activation probabilities phi
 # backstop strength is an ORDERED variable, so it takes the sequential ramp plots.py
@@ -102,59 +102,40 @@ def rest_point_diagnostics(rules, cal, ss, sproc):
                 legs_shock=sovereign_spread_legs(ok_, cal))
 
 
-def run(cal, ss, sproc, mu=1, activations=None, mu_vec=None, pd_shock=PD_SHOCK,
-        accuracy=True, accuracy_T=600, s_refine=None, decompose=True):
-    # SOLVE THE ACTIVATION SCENARIOS AND WRITE THE OVERLAY FIGURE (shared SS).
-    from reporting.plots import (plot_activation_irf, plot_certainty_curve,
-                                 OUTDIR)
-    import os, time
-    os.makedirs(OUTDIR, exist_ok=True)
-    specs = _specs(DEFAULT_ACTIVATIONS if activations is None else activations)
-    print("=== LTRO backstop — the same shock under several activation probabilities ===",
-          flush=True)
-    print(f"    facility {100 * cal['ltro_D'] / ss['ss_firm_D']['Y_ss']:.1f}% of quarterly"
-          f" GDP to D, {100 * cal['ltro_F'] / ss['ss_firm_D']['Y_ss']:.1f}% to F;"
-          f" read along the NEVER-FIRED path", flush=True)
-    phi0 = cal.get("phi_ltro", 0.0)
-    t0 = time.perf_counter()
-    scenarios, rest, decs = [], [], []
-    # THE BASELINE IS SOLVED ONCE AND REUSED. d0, the haircut homotopy and the
-    # no-facility joint solve are phi-INDEPENDENT; re-solving them per activation costs
-    # ~7 min a point on the coarse grid and buys nothing. Every activation, including
-    # phi = 0, then runs on the SAME grid and the SAME regime count, so a kink at the
-    # left-hand end of the curve is economics and not a change of configuration.
-    base_out, solved_ok = [], []
-    for a, label, color in specs:
-        cal["phi_ltro"] = a
-        print(f"  --- solving [{label}] ---", flush=True)
-        kw = {} if s_refine is None else dict(s_refine=s_refine)
-        rules = solve_recursive(cal, ss, sproc, mu=mu, verbose=True, mu_vec=mu_vec,
-                                with_cb=True,
-                                base=(base_out[0] if base_out else None),
-                                base_out=(None if base_out else base_out), **kw)
-        solved_ok.append(bool(getattr(rules, "solve_ok", True)))
-        P = irf_series(rules, cal, ss, sproc, pd_shock=pd_shock)
-        rest.append(rest_point_diagnostics(rules, cal, ss, sproc))
-        if decompose:
-            S0 = stochastic_rest_point(rules, cal, ss, sproc, verbose=False)
-            s_path = s_decay_path(sproc, s_from_pd(pd_shock), DECOMP_T)
-            sim = simulate(rules, cal, ss, sproc, s_path, S_init=S0)
-            ref = simulate(rules, cal, ss, sproc,
-                           np.full(DECOMP_T, sproc["s_star"]), S_init=S0)
-            decs.append(decompose_bond_price(sim, ref, cal))
-        if accuracy:
-            accuracy_report(rules, cal, ss, sproc,
-                            stochastic_rest_point(rules, cal, ss, sproc, verbose=False),
-                            T=accuracy_T, label=f"LTRO {label}")
-        scenarios.append((label, P, color))
-        print(f"  [{label}] solved ({time.perf_counter() - t0:.0f}s)  "
-              f"impact Y_D={P['Y_D'][0]:+.4f}%  Q_bD={P['Q_bD'][0]:+.3f}%  "
-              f"sov spread={P['sov_bp'][0]:+.0f}bp  drawn={P['m_ltro'][0]:.2f}% of GDP",
-              flush=True)
+def _solve_activation(cal, ss, sproc, a, label, base_out, mu, mu_vec, pd_shock,
+                      s_refine, decompose, accuracy, accuracy_T):
+    # ONE ACTIVATION PROBABILITY: SOLVE (REUSING THE BASELINE), THEN EVERY READ OF IT.
+    # d0, the haircut homotopy and the no-facility joint solve are phi-INDEPENDENT, so
+    # they are solved once (the first activation fills base_out) and reused; every
+    # activation then runs on the SAME grid and regime count, so a kink at the left end
+    # of the curve is economics and not a change of configuration.
+    cal["phi_ltro"] = a
+    print(f"  --- solving [{label}] ---", flush=True)
+    kw = {} if s_refine is None else dict(s_refine=s_refine)
+    rules = solve_recursive(cal, ss, sproc, mu=mu, verbose=True, mu_vec=mu_vec,
+                            with_cb=True,
+                            base=(base_out[0] if base_out else None),
+                            base_out=(None if base_out else base_out), **kw)
+    ok = bool(getattr(rules, "solve_ok", True))
+    P = irf_series(rules, cal, ss, sproc, pd_shock=pd_shock)
+    rest = rest_point_diagnostics(rules, cal, ss, sproc)
+    dec = None
+    if decompose:
+        S0 = stochastic_rest_point(rules, cal, ss, sproc, verbose=False)
+        s_path = s_decay_path(sproc, s_from_pd(pd_shock), DECOMP_T)
+        sim = simulate(rules, cal, ss, sproc, s_path, S_init=S0)
+        ref = simulate(rules, cal, ss, sproc,
+                       np.full(DECOMP_T, sproc["s_star"]), S_init=S0)
+        dec = decompose_bond_price(sim, ref, cal)
+    if accuracy:
+        accuracy_report(rules, cal, ss, sproc,
+                        stochastic_rest_point(rules, cal, ss, sproc, verbose=False),
+                        T=accuracy_T, label=f"LTRO {label}")
+    return ok, P, rest, dec
 
-    plot_activation_irf(scenarios)
 
-    # E1 -- the headline table
+def _print_e1_impact(scenarios):
+    # E1 -- IMPACT ON THE NEVER-FIRED PATH, BY ACTIVATION PROBABILITY.
     print("\n  E1  IMPACT (t=0) ON THE NEVER-FIRED PATH, by activation probability",
           flush=True)
     print("      (the facility is announced and NOT drawn: 'drawn' must be 0.00)",
@@ -166,7 +147,9 @@ def run(cal, ss, sproc, mu=1, activations=None, mu_vec=None, pd_shock=PD_SHOCK,
               f"{P['I_D'][0]:+7.4f} {P['Q_bD'][0]:+7.3f} {P['sov_bp'][0]:+8.0f} "
               f"{P['m_ltro'][0]:7.2f}", flush=True)
 
-    # E3 -- the two channels, at the rest point
+
+def _print_e3_rest_points(scenarios, rest, solved_ok):
+    # E3 -- THE TWO CHANNELS AT THE REST POINT, AND WHERE THE ECONOMY RESTS (E3b).
     print("\n  E3  REST POINT vs phi: does the constraint LOOSEN or TIGHTEN when nothing"
           " is drawn?", flush=True)
     print("   scenario                    mu_D      E[Om_D]    alpha_D    lev_div"
@@ -175,32 +158,34 @@ def run(cal, ss, sproc, mu=1, activations=None, mu_vec=None, pd_shock=PD_SHOCK,
         print(f"   {label:22s} {r['mu']:10.6f} {r['E_Om']:11.6f} {r['alpha']:10.5f} "
               f"{r['lev_div']:9.3f} {r['spread_bp']:10.1f}"
               f"{'' if okf else '   <- DID NOT REACH THE ACCEPTANCE FLOOR'}", flush=True)
-    if len(rest) > 1:
-        d_mu = rest[-1]["mu"] - rest[0]["mu"]
-        verdict = ("the CHARTER-VALUE channel dominates: a looser future TIGHTENS the "
-                   "constraint today" if d_mu > 0 else
-                   "the RELIEF channels dominate: the constraint is looser even with "
-                   "nothing drawn")
-        print(f"   -> d(mu)/d(phi) = {d_mu:+.6f} over the range; {verdict}.", flush=True)
-        # THE LEVEL SHIFT, WHICH THE IRF CANNOT SHOW. dynamic_irf differences each phi's
-        # shocked path against ITS OWN unshocked path, so it reports the response
-        # CONDITIONAL on the policy regime and silently removes the shift in the ergodic
-        # point -- which is most of what "the economy is stabilised" means here. Reading
-        # every rest point against the phi = 0 one puts that shift back.
-        b = rest[0]
-        print("\n  E3b WHERE THE ECONOMY RESTS, against the no-backstop rest point"
-              " (nothing ever drawn)", flush=True)
-        print("   scenario                   Y_D%     C_D%     I_D%    Q_bD%"
-              "   sov_bp   credit_bp", flush=True)
-        for (label, _, _), r in zip(scenarios, rest):
-            print(f"   {label:22s} {100*(r['Y']/b['Y']-1):+8.4f} "
-                  f"{100*(r['C']/b['C']-1):+8.4f} {100*(r['I']/b['I']-1):+8.4f} "
-                  f"{100*(r['Q_bD']/b['Q_bD']-1):+8.3f} "
-                  f"{r['sov_bp']-b['sov_bp']:+8.1f} {r['spread_bp']-b['spread_bp']:+11.1f}",
-                  flush=True)
+    if len(rest) <= 1:
+        return
+    d_mu = rest[-1]["mu"] - rest[0]["mu"]
+    verdict = ("the CHARTER-VALUE channel dominates: a looser future TIGHTENS the "
+               "constraint today" if d_mu > 0 else
+               "the RELIEF channels dominate: the constraint is looser even with "
+               "nothing drawn")
+    print(f"   -> d(mu)/d(phi) = {d_mu:+.6f} over the range; {verdict}.", flush=True)
+    # THE LEVEL SHIFT, WHICH THE IRF CANNOT SHOW: dynamic_irf differences each phi's
+    # shocked path against ITS OWN unshocked path, so it silently removes the shift in the
+    # ergodic point -- most of what "the economy is stabilised" means here. Reading every
+    # rest point against the phi = 0 one puts that shift back.
+    b = rest[0]
+    print("\n  E3b WHERE THE ECONOMY RESTS, against the no-backstop rest point"
+          " (nothing ever drawn)", flush=True)
+    print("   scenario                   Y_D%     C_D%     I_D%    Q_bD%"
+          "   sov_bp   credit_bp", flush=True)
+    for (label, _, _), r in zip(scenarios, rest):
+        print(f"   {label:22s} {100*(r['Y']/b['Y']-1):+8.4f} "
+              f"{100*(r['C']/b['C']-1):+8.4f} {100*(r['I']/b['I']-1):+8.4f} "
+              f"{100*(r['Q_bD']/b['Q_bD']-1):+8.3f} "
+              f"{r['sov_bp']-b['sov_bp']:+8.1f} {r['spread_bp']-b['spread_bp']:+11.1f}",
+              flush=True)
 
-    # THE SPREAD, LEG BY LEG. The policy targets the sovereign spread, so the table
-    # that matters is which part of that spread each instrument can reach.
+
+def _print_spread_legs(scenarios, rest):
+    # THE SOVEREIGN SPREAD LEG BY LEG -- the policy targets the spread, so the table that
+    # matters is which part of it each instrument can reach.
     for (label, _, _), r in zip(scenarios, rest):
         print_sovereign_spread(r["legs_shock"], f"{label}, at the shock")
     print("\n  WHAT THE FACILITY MOVES, leg by leg (annualised bp, vs the first scenario)")
@@ -214,38 +199,82 @@ def run(cal, ss, sproc, mu=1, activations=None, mu_vec=None, pd_shock=PD_SHOCK,
                         for k, _ in SOVEREIGN_LEGS)
               + f"{L['spread'] - b['spread']:10.2f}")
 
-    # E2 -- which leg of the bond price moves
-    if decompose:
-        print("\n  E2  BOND-PRICE DECOMPOSITION of the SAME shock, impact leg (log %)",
-              flush=True)
-        names = [k for k, _ in BOND_CHANNELS]
-        print("   scenario              " + "".join(f"{k[:12]:>14s}" for k in names),
-              flush=True)
-        for (label, _, _), d in zip(scenarios, decs):
-            print(f"   {label:20s}" + "".join(f"{d[k][0]:14.4f}" for k in names),
-                  flush=True)
-        print("   -> the CLAIM is that the risk-premium leg carries the compression on"
-              " the never-fired\n      path. If the liquidity leg carries it instead,"
-              " the mechanism is direct relief,\n      not credibility.", flush=True)
 
-    # THE CERTAINTY CURVE: the ergodic point AGAINST the announced probability. The
-    # overlay figure shows responses over time at each phi; this one shows what the
-    # announcement itself buys, which is the object of the experiment.
-    if len(rest) > 1:
-        b = rest[0]
-        curve = dict(
-            mu=[r["mu"] for r in rest],
-            cred=[r["spread_bp"] for r in rest],
-            sov=[r["sov_bp"] - b["sov_bp"] for r in rest],
-            Q=[100 * (r["Q_bD"] / b["Q_bD"] - 1) for r in rest],
-            Y=[100 * (r["Y"] / b["Y"] - 1) for r in rest],
-            I=[100 * (r["I"] / b["I"] - 1) for r in rest])
-        print(f"  figure -> "
-              f"{plot_certainty_curve([a for a, _, _ in specs], curve, solved_ok)}",
+def _print_e2_bond_legs(scenarios, decs):
+    # E2 -- WHICH LEG OF THE BOND PRICE MOVES, impact leg of the same shock.
+    print("\n  E2  BOND-PRICE DECOMPOSITION of the SAME shock, impact leg (log %)",
+          flush=True)
+    names = [k for k, _ in BOND_CHANNELS]
+    print("   scenario              " + "".join(f"{k[:12]:>14s}" for k in names),
+          flush=True)
+    for (label, _, _), d in zip(scenarios, decs):
+        print(f"   {label:20s}" + "".join(f"{d[k][0]:14.4f}" for k in names),
               flush=True)
-    print(f"  figure -> {OUTDIR}/ltro_activation.png", flush=True)
+    print("   -> the CLAIM is that the risk-premium leg carries the compression on"
+          " the never-fired\n      path. If the liquidity leg carries it instead,"
+          " the mechanism is direct relief,\n      not credibility.", flush=True)
+
+
+def _certainty_curve(rest):
+    # THE ERGODIC POINT AGAINST THE ANNOUNCED PROBABILITY, relative to phi = 0 -- what
+    # the announcement itself buys, which is the object of the experiment.
+    b = rest[0]
+    return dict(
+        mu=[r["mu"] for r in rest],
+        cred=[r["spread_bp"] for r in rest],
+        sov=[r["sov_bp"] - b["sov_bp"] for r in rest],
+        Q=[100 * (r["Q_bD"] / b["Q_bD"] - 1) for r in rest],
+        Y=[100 * (r["Y"] / b["Y"] - 1) for r in rest],
+        I=[100 * (r["I"] / b["I"] - 1) for r in rest])
+
+
+def run(cal, ss, sproc, mu=1, activations=None, mu_vec=None, pd_shock=PD_SHOCK,
+        accuracy=True, accuracy_T=600, s_refine=None, decompose=True):
+    # SOLVE THE ACTIVATION SCENARIOS AND PRINT E1/E3/E2 (shared SS); figures() draws them.
+    import time
+    specs = _specs(DEFAULT_ACTIVATIONS if activations is None else activations)
+    print("=== LTRO backstop — the same shock under several activation probabilities ===",
+          flush=True)
+    print(f"    facility {100 * cal['ltro_D'] / ss['ss_firm_D']['Y_ss']:.1f}% of quarterly"
+          f" GDP to D, {100 * cal['ltro_F'] / ss['ss_firm_D']['Y_ss']:.1f}% to F;"
+          f" read along the NEVER-FIRED path", flush=True)
+    phi0 = cal.get("phi_ltro", 0.0)
+    t0 = time.perf_counter()
+    scenarios, rest, decs, base_out, solved_ok = [], [], [], [], []
+    for a, label, color in specs:
+        ok, P, r, dec = _solve_activation(cal, ss, sproc, a, label, base_out, mu, mu_vec,
+                                          pd_shock, s_refine, decompose, accuracy,
+                                          accuracy_T)
+        solved_ok.append(ok)
+        rest.append(r)
+        if decompose:
+            decs.append(dec)
+        scenarios.append((label, P, color))
+        print(f"  [{label}] solved ({time.perf_counter() - t0:.0f}s)  "
+              f"impact Y_D={P['Y_D'][0]:+.4f}%  Q_bD={P['Q_bD'][0]:+.3f}%  "
+              f"sov spread={P['sov_bp'][0]:+.0f}bp  drawn={P['m_ltro'][0]:.2f}% of GDP",
+              flush=True)
+
+    _print_e1_impact(scenarios)
+    _print_e3_rest_points(scenarios, rest, solved_ok)
+    _print_spread_legs(scenarios, rest)
+    if decompose:
+        _print_e2_bond_legs(scenarios, decs)
     cal["phi_ltro"] = phi0
-    return scenarios, rest, decs
+    return dict(activations=[a for a, _, _ in specs], labels=[lab for _, lab, _ in specs],
+                irfs=[P for _, P, _ in scenarios], rest=rest, decs=decs, solved_ok=solved_ok,
+                curve=_certainty_curve(rest) if len(rest) > 1 else None)
+
+
+def figures(res):
+    # THE ACTIVATION OVERLAY AND THE CERTAINTY CURVE, DRAWN FROM A (SAVED) run() RESULT.
+    from global_projection.reporting.plots import plot_activation_irf, plot_certainty_curve
+    specs = _specs(res["activations"])
+    paths = [plot_activation_irf([(lab, P, color)
+                                  for (_, lab, color), P in zip(specs, res["irfs"])])]
+    if res["curve"] is not None:
+        paths.append(plot_certainty_curve(res["activations"], res["curve"], res["solved_ok"]))
+    return paths
 
 
 def main():
@@ -256,7 +285,8 @@ def main():
     ss = solve_steady_state(cal, verbose=False)
     sproc = s_process_params(cal)
     calibrate_household_anchors(cal, ss, sproc)
-    run(cal, ss, sproc)
+    for path in figures(run(cal, ss, sproc)):
+        print(f"  figure -> {path}")
 
 
 if __name__ == "__main__":

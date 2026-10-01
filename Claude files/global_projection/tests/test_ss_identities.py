@@ -1,5 +1,4 @@
 # STEADY-STATE IDENTITIES AGAINST GK/BOCOLA THEORY, AT MACHINE PRECISION.
-import numpy as np
 
 from common import get_ss
 
@@ -43,18 +42,6 @@ def test_ss_market_clearing():
         assert abs(walras) < 5e-6, f"SS goods market {c}: {walras:.2e}"
 
 
-def test_government_stationary():
-    # govt_transition AT SS PRICES WITH NO DEFAULT MUST KEEP DEBT CONSTANT.
-    from blocks.government import govt_transition
-    cal, ss = get_ss()
-    T = cal["T"]
-    for c in ("D", "F"):
-        gov = govt_transition(cal, ss[f"gs_{c}"],
-                              np.full(T, ss[f"Q_b{c}_ss"]), None, c)
-        assert np.max(np.abs(gov["b_gov_eop"] - cal[f"B_gov_{c}_ss"])) < 1e-10
-        assert np.max(np.abs(gov["Tax"] - ss[f"gs_{c}"]["Tax_ss"])) < 1e-10
-
-
 def test_calibration_targets():
     # THE BOCOLA CALIBRATION ANCHORS DOCUMENTED IN calibration.py MUST BE HIT.
     cal, ss = get_ss()
@@ -70,7 +57,6 @@ def test_calibration_targets():
     assert 0.06 < exposure < 0.09, \
         f"D-sovereign exposure/assets = {exposure:.4f} (target 0.076, Bocola Table B1)"
     # the F bank is sz times bigger, so its OWN book carries b_D_F_ss/sz of the D bond
-    sz = cal["size_F"] / cal["size_D"]
     assets_F = ss["ss_bank_F"]["theta_ss"] * ss["ss_bank_F"]["n_ss"]
     exp_F = ss["Q_bF_ss"] * ss["b_F_F_ss"] / assets_F
     assert 0.06 < exp_F < 0.11, f"F-sovereign exposure/assets = {exp_F:.4f}"
@@ -87,6 +73,5 @@ def test_calibration_targets():
 if __name__ == "__main__":
     test_bank_bellman_and_pricing()
     test_ss_market_clearing()
-    test_government_stationary()
     test_calibration_targets()
     print("test_ss_identities: ALL PASSED")

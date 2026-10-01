@@ -9,7 +9,7 @@ def pole_scan(A_cb, T, lo=0.25, hi=60.0, n=240, cond_max=1.0e4):
     """First gamma at which (I - gamma A_cb) becomes ill-conditioned.
 
     Same construction as diagnostics/regimes/lottery_math.closed_loop_pole and
-    code/tpi.py's inline guard. Returns None when no pole is found on [lo, hi].
+    linear_ssj/solve/tpi.py's inline guard. Returns None when no pole is found on [lo, hi].
     """
     I = np.eye(T)
     for g in np.linspace(lo, hi, n):

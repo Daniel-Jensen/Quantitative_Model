@@ -7,7 +7,7 @@ residual diagnostic.
 """
 import copy
 
-from steady_state import _apply_ss_anchors, report_gk_steady_state
+from linear_ssj.solve.steady_state import _apply_ss_anchors, report_gk_steady_state
 
 
 def calibrate_depreciation(ss_results):

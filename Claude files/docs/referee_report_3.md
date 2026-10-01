@@ -9,7 +9,7 @@ sequence-space implementation: Section 2 describes the coauthors' global model a
 two are separate objects. No data verification.
 
 The comparison draft throughout is `01-introduction.tex.bak`, which
-`docs/referee_report_2.md` reviewed.
+`Claude files/docs/referee_report_2.md` reviewed.
 
 ---
 
@@ -273,7 +273,7 @@ position is interrogative.
 `01-introduction.tex.bak` had a full results paragraph. Whatever prompted its deletion,
 the replacement is an introduction that cannot be assessed: a referee cannot grade a
 contribution that has not been stated, and an examiner will ask why the paper does not
-want to say what it found. Restore a results paragraph, with `docs/referee_report_2.md`'s
+want to say what it found. Restore a results paragraph, with `Claude files/docs/referee_report_2.md`'s
 M5 and M6 qualifications applied to the claims that overreached.
 
 ## C9. The 50 bp statistic does opposite work in the introduction and in Section 3
@@ -370,7 +370,7 @@ Purely internal; all of these will be caught on a careful read.
   flexible prices contributes only a constant markup.
 - ll. 138–147 and ll. 149–153 remain the strongest writing in the draft — the omitted
   causes of the Greek depression, the concession on TPI eligibility, and the exogeneity
-  restriction stated with its cost. `docs/referee_report_2.md`'s M1 and M2, answered about
+  restriction stated with its cost. `Claude files/docs/referee_report_2.md`'s M1 and M2, answered about
   as well as they can be without changing the model. Keep every line.
 
 ---
