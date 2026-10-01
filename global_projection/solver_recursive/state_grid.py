@@ -251,18 +251,9 @@ class SmolyakGrid:
 # the residual system and the F leg did not -- which also froze Q_bF and made a
 # flight-to-safety substitution impossible by construction.
 # d_D in {0,1} is the discrete default regime (separate coefficient sets).
-# THE CB BACKSTOP ADDS NO STATE. An LTRO changes the COMPOSITION of the bank's funding
-# -- divertable deposits for non-divertable central-bank credit -- at an unchanged rate,
-# so no stock is carried across periods and no budget identity moves; the whole effect is
-# in the incentive constraint. (A BOND-PURCHASE backstop does need a state for the CB's
-# book. That was built and measured: purchases can only remove the liquidity premium,
-# 0.2-0.7% of the price here, because they work by pushing mu down and mu is floored at
-# zero. See Claude files/docs/ltro_backstop_plan.md and git history for the implementation.)
-# phi, the per-period activation probability, is deliberately NOT a state either: its box
-# [0,1] centres at 0.5, so no collocation node would have phi = 0 with every other state
-# at its own centre and the steady state would stop being a grid point. It is a
-# per-experiment scalar (cal["phi_ltro"]) -- one solve per activation, each EXACT at its
-# own phi rather than quadratically interpolated.
+# (The LTRO backstop added no state -- it changed the composition of bank funding, not a
+# carried stock -- and was deleted 2026-10-01; Claude files/docs/ltro_backstop_plan.md
+# and git history keep it.)
 STATE_NAMES = ("K_D", "K_F", "P_D", "P_F", "b_DD", "b_DF", "b_FD", "V_dep",
                "s", "Z_D")
 

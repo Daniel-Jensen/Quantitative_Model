@@ -15,7 +15,9 @@
 >
 > **2026-10-01:** the living docs (this file, PROGRESS, HANDOFF) and every other AI-generated
 > note, report and test now live in `Claude files/` (mirrored paths); `run.py` writes every result
-> to `results/<SSJ|GLOBAL>/` and the LTRO sweep is off by default (`RUN_LTRO = False`).
+> to `results/<SSJ|GLOBAL>/`. **Later the same day (branch `OMT-fix`) the LTRO backstop was
+> deleted** from the global pipeline, bit-for-bit neutral for the two-regime model; a TPI
+> bond-purchase backstop is being built in its place (Part II, first note).
 >
 > **2026-09-30 layout change (no economics changes):** `code/` → `linear_ssj/` +
 > `global_projection/` + shared `calibration/`, one entry point `run.py`, and `compare.py`
@@ -2466,6 +2468,16 @@ the committed calibration with a Prony / companion-eigenvalue extractor
 ---
 
 # Part II — Global-projection pipeline (`global_projection/`)
+
+> **2026-10-01, branch `OMT-fix`: the LTRO backstop is DELETED; a TPI replaces it.** The
+> regime table is back to the default indicator d' in {0, 1}; `phi_ltro`, `ltro_D/F`,
+> `ltro_experiment.py` and the facility terms in the incentive constraint are gone. Verified
+> bit-for-bit against `1612f29` on 440 recorded outputs (see PROGRESS). The LTRO numbers
+> quoted below and in `Claude files/docs/ltro_backstop_plan.md` describe deleted code.
+> The TPI design: Eurosystem holdings M and its obligation to D banks O as two new states,
+> purchases m >= 0 as a new unknown against a spread cap over the F bond (complementarity),
+> bonds swapped for a safe CB claim so the divertable base does not move, profit and loss
+> shared by capital key (0.071 D), active only in the no-default regime, held to maturity.
 
 **Branch:** `file-reorganisation` | **Date:** 2026-07-07 | **Status:** Bocola (2016) / Cole-Kehoe sovereign-risk mechanism implemented and verified; **risk channel added** via two-branch default-branch pricing (standalone `global_projection/` model)
 

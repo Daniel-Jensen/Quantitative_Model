@@ -83,13 +83,13 @@ def _install_guess(rules, vals, regimes):
             rules.set_values(k, d, vals[k][d])
 
 
-def _point_block(i, d, vals, rules, cal, ss, sproc, n_gh, no_default, no_cb):
+def _point_block(i, d, vals, rules, cal, ss, sproc, n_gh, no_default):
     # THE N_RES RESIDUALS AT GRID POINT i IN REGIME d (the _BIG sentinel if unevaluable).
     out_row = np.empty(N_RES)
     x = np.array([vals[k][d][i] for k in SOLVE])
     try:
         r, out = point_residuals(rules.grid.points[i], d, x, rules, cal, ss, sproc,
-                                 n_gh=n_gh, no_default=no_default, no_cb=no_cb)
+                                 n_gh=n_gh, no_default=no_default)
     except (ValueError, RuntimeError, ArithmeticError):
         # ArithmeticError covers ZeroDivisionError/OverflowError too: a trial Newton
         # step can drive an expectation to zero, and one unevaluable point must cost
@@ -105,7 +105,7 @@ def _point_block(i, d, vals, rules, cal, ss, sproc, n_gh, no_default, no_cb):
 
 
 def make_residual(rules, cal, ss, sproc, regimes=(0, 1), no_default=False, n_gh=5,
-                  scale=None, no_cb=False):
+                  scale=None):
     # BUILD THE GLOBAL RESIDUAL F(theta) -- the image of residual_model.m.
     # `rules` is the working RuleSet: each call overwrites its values and coefficients
     # from theta, so the continuation is ALWAYS the current guess. `scale` (optional,
@@ -121,7 +121,7 @@ def make_residual(rules, cal, ss, sproc, regimes=(0, 1), no_default=False, n_gh=
         for jd, d in enumerate(regimes):
             for i in range(n):
                 res[jd, i, :] = _point_block(i, d, vals, rules, cal, ss, sproc,
-                                             n_gh, no_default, no_cb)
+                                             n_gh, no_default)
         res = np.where(np.isfinite(res), res, _BIG)
         return (res * sw).ravel()
 
@@ -263,13 +263,13 @@ BACKEND_DENSE_MAX = 10 ** 9
 
 def solve_collocation(rules, cal, ss, sproc, regimes=(0, 1), no_default=False,
                       n_gh=5, backend="auto", tol=TOL_MAXF, maxit=60, cc=1.0,
-                      verbose=True, label="", jac_every=1, no_cb=False):
+                      verbose=True, label="", jac_every=1):
     # SOLVE THE WHOLE COEFFICIENT VECTOR AT ONCE AND WRITE THE ANSWER BACK INTO `rules`.
     # backend "parsolve" is Bocola's dense-Jacobian Newton (the default whenever the
     # system is small enough to afford it); "krylov" is the Jacobian-free variant for
     # refined grids; "auto" picks on the unknown count.
     F = make_residual(rules, cal, ss, sproc, regimes=regimes,
-                      no_default=no_default, n_gh=n_gh, no_cb=no_cb)
+                      no_default=no_default, n_gh=n_gh)
     x0 = pack(rules, regimes)
     m = x0.size
     if backend == "auto":

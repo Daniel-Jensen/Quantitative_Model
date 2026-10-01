@@ -14,6 +14,32 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-10-01 — LTRO backstop deleted (step 1 of the TPI rework, branch `OMT-fix`)
+
+**No economics changes to the two-regime model, verified bit-for-bit.** The stochastic LTRO
+backstop is removed from the global pipeline to make room for a TPI bond-purchase backstop
+(ECB holdings as two new states, purchases as a new unknown, a spread-cap floor; plan in
+`/Users/Huawei/.claude/plans/plan-changes-to-implement-hidden-cerf.md`). A harness recording
+440 outputs (period map on perturbed rules in both regimes and under calibration variants,
+collocation residual and Newton, time iteration, readers, IRFs, decompositions, accuracy, and the
+solve ladder with its Newton stages stubbed, every printed line included) matches a frozen copy of
+`1612f29` exactly. The only differences are the seven deleted output keys (`phi`, `m_ltro_D/F`,
+`n_IC_D/F`, `lev_IC_D/F`); every other value in those output dictionaries is identical.
+
+- **Regimes:** the regime index is the default indicator d' again, `decision_rules.REGIMES = (0, 1)`;
+  `regime_table` asserts two regimes. `_regime_weights` drops the activation probability.
+- **Incentive constraint:** the facility terms `(n+m)/(lambda*(A-m))` are gone; the closed-form
+  `mu` reads the bank's own net worth and divertable base again.
+- **Deleted:** `ltro_experiment.py`, `bond_spread_experiment.py`, `recursive_experiment.LTRO_LADDER`
+  and `_solve_facility`, the `no_cb`/`with_cb` plumbing in `collocation`, `recursive_main` and
+  `recursive_experiment`, `plots.plot_activation_irf`/`plot_certainty_curve`, the calibration keys
+  `phi_ltro`, `ltro_D/F`, `ltro_s_thr/width`, and `RUN_LTRO`/`LTRO_*` in `run.py`.
+- **`decomposition_experiment`** now loops over named calibration scenarios (`SCENARIOS`, default
+  the no-backstop baseline) instead of LTRO activations, so the TPI can be dropped in as a scenario.
+- **Tests:** `test_collocation` and `test_recursive_nesting` build two-regime rules; the LTRO tests
+  (four-regime solve, N3 activation nesting, N4 facility accounting) are deleted, to be replaced
+  by the TPI-off nesting and swap-accounting gates in step 2/4.
+
 ## 2026-10-01 — Global code refactored into stage functions; run.py is the pipeline; results/
 
 **No economics changes, verified bit-for-bit.** A harness recording 3,123 outputs of every

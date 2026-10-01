@@ -2,7 +2,7 @@
 
     python3 run.py                    run MODEL (set below)
     python3 run.py ssj|global|both    override MODEL
-    python3 run.py global --quick     coarse grid, no LTRO sweep: a preview, NOT converged
+    python3 run.py global --quick     coarse grid: a preview, NOT converged
     python3 run.py both --plots-only  redraw every figure from the saved data, no solving
     python3 run.py compare            linear-vs-global tables and overlays only
 
@@ -41,16 +41,13 @@ SSJ_PYTHON = os.environ.get("SSJ_PYTHON", "/opt/anaconda3/envs/ssj/bin/python")
 # GLOBAL model settings -- how it is solved and which experiments run. Its economic
 # parameters live in calibration/global_projection.py. Measured cost: one dense
 # finite-difference Jacobian per Newton step, so a solve scales as (points x regimes)^2;
-# ~100 min end to end at S_REFINE = 5 without the LTRO sweep, which adds ~3 h coarse.
+# ~100 min end to end at S_REFINE = 5.
 NW_FLOOR = 0.15           # Bocola's net-worth floor (fraction of n_ss): keeps the deep default corners feasible
 MU = 1                    # Smolyak level of the TFP grid (no risk dimension to resolve there)
 RISK_MU_VEC = None        # per-state Smolyak levels for the coarse risk grid; None = isotropic mu = 1
 S_REFINE = 5              # dense Chebyshev nodes in s for the risk solve: 5 = 95 points (converged for
                           # every reported object), 9 = Bocola's resolution (~4 h), 0 = coarse only
 ROTATE_P = False          # P-block eigenbasis box: right in theory, measures worse (see solve_recursive)
-RUN_LTRO = False          # the LTRO-backstop activation sweep (~3 h): off for now, True to run it
-LTRO_S_REFINE = 0         # the sweep runs coarse: ~3 h for eight points, against ~70 h refined
-LTRO_ACTIVATIONS = (0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7)   # beyond 0.7 mu hits 0 at the rest point
 ACCURACY_T = 1200         # simulated periods for the Euler-error report
 DECOMP_T = 25             # quarters in the decompositions
 TFP_SHOCK = 0.01          # one-off TFP shock: +1% to Z_D, decaying at rho_z = 0.9
@@ -77,7 +74,6 @@ def compute_global(quick=False):
         simulate, s_decay_path, decompose_output, active_channels, decompose_bond_price,
         BOND_CHANNELS)
     from global_projection.solver_recursive.accuracy import accuracy_report
-    from global_projection.solver_recursive import ltro_experiment
     from global_projection.reporting.prints import (banner, print_ss_table,
                                                     print_output_decomposition,
                                                     print_bond_decomposition)
@@ -85,9 +81,8 @@ def compute_global(quick=False):
 
     data, _, log = results_io.model_dirs(RESULTS / "GLOBAL", fresh=True)
     settings = dict(quick=quick, S_REFINE=0 if quick else S_REFINE,
-                    RUN_LTRO=RUN_LTRO and not quick, NW_FLOOR=NW_FLOOR, MU=MU,
-                    RISK_MU_VEC=RISK_MU_VEC, ROTATE_P=ROTATE_P, LTRO_S_REFINE=LTRO_S_REFINE,
-                    LTRO_ACTIVATIONS=list(LTRO_ACTIVATIONS), ACCURACY_T=ACCURACY_T,
+                    NW_FLOOR=NW_FLOOR, MU=MU,
+                    RISK_MU_VEC=RISK_MU_VEC, ROTATE_P=ROTATE_P, ACCURACY_T=ACCURACY_T,
                     DECOMP_T=DECOMP_T, TFP_SHOCK=TFP_SHOCK, RISK_SHOCK_PD=RISK_SHOCK_PD)
     t0 = time.perf_counter()
     with _logged(log, "w"):
@@ -130,18 +125,7 @@ def compute_global(quick=False):
         accuracy = accuracy_report(rules, cal, ss, sproc, S_rest, T=ACCURACY_T,
                                    label="sovereign-risk rules")
 
-        # 6. the LTRO backstop, one four-regime solve per activation probability
-        ltro = None
-        if settings["RUN_LTRO"]:
-            pct = "-".join(f"{round(a * 100):.0f}" for a in LTRO_ACTIVATIONS[:1]
-                           + LTRO_ACTIVATIONS[-1:])
-            banner(f"LTRO backstop by activation probability ({pct}%, "
-                   f"{len(LTRO_ACTIVATIONS)} points)")
-            ltro = ltro_experiment.run(cal, ss, sproc, mu_vec=RISK_MU_VEC,
-                                       activations=LTRO_ACTIVATIONS, pd_shock=RISK_SHOCK_PD,
-                                       s_refine=LTRO_S_REFINE, accuracy=False)
-
-        # 7. save every computed object
+        # 6. save every computed object
         banner(f"Saving -> {data}")
         save(data / "settings", settings)
         save(data / "calibration", cal)
@@ -153,8 +137,6 @@ def compute_global(quick=False):
         save(data / "output_decomposition", output_dec)
         save(data / "bond_decomposition", bond_dec)
         save(data / "accuracy", accuracy)
-        if ltro is not None:
-            save(data / "ltro", ltro)
         for name, r in (("rules_tfp", rules_tfp), ("rules_risk", rules)):
             with open(data / f"{name}.pkl", "wb") as fh:   # the solved decision rules
                 pickle.dump(r, fh)
@@ -170,7 +152,6 @@ def plot_global():
     from global_projection.reporting.prints import banner
     from global_projection.solver_recursive.output_decomposition import (active_channels,
                                                                          BOND_CHANNELS)
-    from global_projection.solver_recursive import ltro_experiment
 
     data, figures, log = results_io.model_dirs(RESULTS / "GLOBAL")
     plots.OUTDIR = str(figures)
@@ -192,8 +173,6 @@ def plot_global():
                                           list(BOND_CHANNELS),
                                           note="the D bank first-order condition, split leg by leg"),
         ]
-        if s["RUN_LTRO"]:
-            paths += ltro_experiment.figures(load(data / "ltro"))
         for p in paths:
             print(f"  figure -> {p}")
 
@@ -268,7 +247,7 @@ def main():
     p.add_argument("model", nargs="?", default=MODEL,
                    choices=("ssj", "global", "both", "compare"))
     p.add_argument("--quick", action="store_true",
-                   help="global model: coarse grid, no LTRO sweep (fast, not converged)")
+                   help="global model: coarse grid (fast, not converged)")
     p.add_argument("--plots-only", action="store_true",
                    help="skip computing; redraw the figures from the saved data")
     a = p.parse_args()

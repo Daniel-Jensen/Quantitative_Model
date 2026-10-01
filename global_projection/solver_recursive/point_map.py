@@ -3,8 +3,6 @@
 # payoffs = quantities x current prices).
 #
 # STATE (10): [K_D, K_F, P_D, P_F, b_DD, b_DF, b_FD, V_dep, s, Z_D] -- see state_grid.
-#   The CB backstop needs NO state: an LTRO is a change in the COMPOSITION of the bank's
-#   funding at an unchanged rate, so no stock is carried and no budget identity moves.
 #   b_DD/b_DF are the two banks' CARRIED holdings of the D sovereign (B_D is their
 #   sum). They were one state while the split was a fixed SS share; once both banks
 #   bid through their own FOCs, last period's split is part of the state.
@@ -28,18 +26,16 @@
 # (lambda*divertable assets), 0}, explicit and bounded in [0,1); the capital Euler
 # E[Om(R_K-R)] = lambda_K*mu is the residual pinning K'.
 #
-# REGIMES ARE COMPOUND AND DATA-DRIVEN. decision_rules.regime_table maps the index the
-# rules are stored under to a (default d', CB-active m') pair, and _regime_weights turns
-# it into one probability per (s' node, regime') cell. Every expectation below is then
-# the SAME weighted sum over that list, so adding a regime is a table entry rather than
-# a new hand-written branch. The SDF in each regime is the genuine state-contingent
-# GHH-composite kernel against that regime's own continuation. A regime with zero weight
-# is never evaluated and aliases regime 0, so pi = 0 (no_default) and phi = 0 nest the
-# smaller models EXACTLY, not to tolerance.
+# REGIMES. The index the rules are stored under is the default indicator d' (0 = no
+# default, 1 = the haircut is realised); _regime_weights turns it into one probability
+# per (s' node, regime') cell, and every expectation below is the SAME weighted sum over
+# that list. The SDF in each regime is the genuine state-contingent GHH-composite kernel
+# against that regime's own continuation. A regime with zero weight is never evaluated and
+# aliases regime 0, so pi = 0 (no_default) nests the risk-free model EXACTLY.
 #
 # THE ANATOMY. point_residuals runs the stages below in order on one per-point record v;
 # each stage reads what earlier stages wrote and adds its own objects:
-#   _read_state_and_regime   state, unknowns, compound regime, LTRO offer probability
+#   _read_state_and_regime   state, unknowns, the default regime
 #   _production              firms + capital blocks, CES prices (current period)
 #   _government              Bohn tax on the surviving stock, new issuance
 #   _balance_sheets          bank payoffs, net worth, deposits, household claims
@@ -106,22 +102,10 @@ def _sclip(x, lo, hi, eps=None):
     return _smin(_smax(x, lo, eps or _GUARD_EPS), hi, eps or _GUARD_EPS)
 
 
-def _regime_weights(wq, pd, phi, reg):
-    # PROBABILITY OF EACH (s' NODE x REGIME') CELL, one weight vector per regime.
-    # d' = 1 with the priced default probability pd, and the CB is active with
-    # probability phi CONDITIONAL on d'. Reading phi off the rows that share a given d
-    # is what makes one function correct for every table: where a d has a single row it
-    # takes all of that d's mass (so phi cannot leak into a table that has no CB regime
-    # for that d), and where it has two the mass splits phi / 1 - phi. The cells sum to
-    # wq identically in every case, so the quadrature measure is preserved by
-    # construction rather than by arithmetic that has to be re-checked per table.
-    out = []
-    for d_n, m_n in reg:
-        p_d = pd if d_n else (1.0 - pd)
-        n_rows = sum(1 for dd, _ in reg if dd == d_n)
-        p_m = 1.0 if n_rows == 1 else (phi if m_n else 1.0 - phi)
-        out.append(wq * p_d * p_m)
-    return out
+def _regime_weights(wq, pd, reg):
+    # PROBABILITY OF EACH (s' NODE x REGIME') CELL: d' = 1 with the priced default
+    # probability pd. The cells sum to wq, so the quadrature measure is preserved.
+    return [wq * (pd if d_n else (1.0 - pd)) for d_n in reg]
 
 
 def _expect(wgt, vals):
@@ -174,40 +158,19 @@ def _cont_capital(N_next, Kp, Kpp, Z, cal, c):
     return f["mpk"], cp["Q"], f["Y"]
 
 
-def _ltro_offer_probability(cal, s):
-    # THE ACTIVATION PROBABILITY phi, OPTIONALLY STATE-CONTINGENT.
-    # A constant phi offers the facility in EVERY state, including the ergodic centre
-    # where the constraint barely binds -- measured, that is where it does most of its
-    # work (at phi = 0.5 the multiplier falls 37% at the rest point but only 8.9% at the
-    # headline shock), which makes it a permanent liquidity subsidy. ltro_s_thr turns it
-    # into a real backstop: the offer probability is logistic in the EXOGENOUS risk
-    # factor, ~0 in normal times and ~phi_ltro in a crisis, smooth in s, no state, no
-    # kink. ltro_s_thr = None keeps the constant-phi design exactly.
-    phi = float(cal.get("phi_ltro", 0.0))
-    _thr = cal.get("ltro_s_thr", None)
-    if _thr is not None:
-        phi *= 1.0 / (1.0 + np.exp(-(s - float(_thr)) / float(cal["ltro_s_width"])))
-    return phi
-
-
-def _read_state_and_regime(S, d, x, cont, cal, ss, no_cb):
-    # UNPACK STATE AND UNKNOWNS, RESOLVE THE COMPOUND REGIME, SET THE PER-POINT FLOORS.
+def _read_state_and_regime(S, d, x, cont, cal, ss):
+    # UNPACK STATE AND UNKNOWNS, RESOLVE THE DEFAULT REGIME, SET THE PER-POINT FLOORS.
     v = SimpleNamespace()
     (v.N_D, v.N_F, v.Kp_D, v.Kp_F, v.rdep_D, v.rdep_F, v.p,
      v.Q_bD, v.b_DF_new, v.Q_bF, v.b_FD_new, v.A_D, v.A_F) = x
     (v.K_D, v.K_F, v.P_D, v.P_F, v.b_D_D_lag, v.b_D_F_lag, v.b_F_D_lag,
      v.V_dep, v.s, v.Z_D) = S
     v.S = S
-    v.phi = _ltro_offer_probability(cal, v.s)
     v.B_D = v.b_D_D_lag + v.b_D_F_lag
-    # the index d names a (default d', CB-active m') pair through decision_rules
+    # the regime index is the default indicator (decision_rules.regime_table)
     v.reg, v.nreg = cont.reg, cont.n_regimes
     v.d = d
-    v.d_reg, v.m_reg = v.reg[d]
-    # no_cb switches the backstop OFF ENTIRELY -- zero probability in the expectation AND
-    # zero facility in this regime -- exactly as no_default does for the default fork.
-    if no_cb:
-        v.phi, v.m_reg = 0.0, 0
+    v.d_reg = v.reg[d]
     # every variable is PER CAPITA of its own country; sz = size_F/size_D is the only
     # place the asymmetry enters, and sovereign holdings are carried in the ISSUER's
     # per-capita units (the F bank's own book holds b_D_F/sz of the D bond)
@@ -357,12 +320,12 @@ def _regime_continuation(v, j, Sn, Z_next, cont, cal):
 def _continuation(v, cont, cal, sproc, n_gh, no_default):
     # QUADRATURE WEIGHTS OVER (s' NODE x REGIME') AND THE CONTINUATION IN EACH REGIME.
     # A regime carrying ZERO weight is never evaluated and is ALIASED to regime 0: that is
-    # what makes pi = 0 (and phi = 0) nest the smaller model EXACTLY rather than to
+    # what makes pi = 0 nest the risk-free model EXACTLY rather than to
     # solver tolerance, and it saves a full grid interpolation plus two capital blocks.
     eps, wq = gh_nodes(n_gh)
     pd = 0.0 if no_default else float(default_prob(v.s))
     Sn, Z_next = _next_states(v, sproc, eps)
-    v.wgt = _regime_weights(wq, pd, v.phi, v.reg)
+    v.wgt = _regime_weights(wq, pd, v.reg)
     v.R, v.RKD, v.RKF = [], [], []
     for j in range(v.nreg):
         if j > 0 and not np.any(v.wgt[j] > 0.0):
@@ -413,27 +376,12 @@ def _incentive_constraint(v, cal):
     lev_F = max(lKF * v.Q_F * v.Kp_F + lbFF * v.Q_bF * v.b_F_F_new
                 + cal["lambda_bD_F"] * v.Q_bD * (v.b_D_F_new / v.sz) / v.p
                 + lKF * v.L_wc_F, 1e-6)
-    # THE LTRO BACKSTOP -- BOCOLA'S OWN, residual_model_ltro_firstperiod.m:
-    #     mu_ratio = N'/(lambda*A')   ->   (N' + m)/(lambda*(A' - m))
-    # Lent at the DEPOSIT RATE, the facility changes the COMPOSITION of the bank's
-    # funding, not its size or cost, so every budget identity is untouched and the whole
-    # effect passes through the incentive constraint. It does TWO things a bond purchase
-    # does not: the assets it funds leave the divertable base AND the funding counts as
-    # equity -- to first order (1 + leverage) = 6x the relief of a purchase of the same
-    # size. Size the envelope to RELIEVE, not to unbind (Bocola's 40% puts the whole
-    # m = 1 coefficient set on the KKT kink).
-    v.m_ltro_D = cal.get("ltro_D", 0.0) if v.m_reg else 0.0
-    v.m_ltro_F = cal.get("ltro_F", 0.0) if v.m_reg else 0.0
-    v.n_IC_D, v.n_IC_F = v.n_D + v.m_ltro_D, v.n_F + v.m_ltro_F
-    # the pledged collateral leaves the base at its own lambda (single-lambda doctrine
-    # makes this Bocola's lambda*(A - m) exactly)
-    v.lev_IC_D = max(lev_D - lbDD * v.m_ltro_D, 1e-6)
-    v.lev_IC_F = max(lev_F - lbFF * v.m_ltro_F, 1e-6)
+    v.lev_D, v.lev_F = lev_D, lev_F
     # closed-form mu in [0, _MU_CAP]: the lower max is Bocola's KKT switch (hard -- it IS
     # the complementarity); the upper cap is a smoothed guard
-    v.mu_D = float(_smin(max(1.0 - v.E_Om_D * (1.0 + v.rdep_D) * v.n_IC_D / v.lev_IC_D, 0.0),
+    v.mu_D = float(_smin(max(1.0 - v.E_Om_D * (1.0 + v.rdep_D) * v.n_D / v.lev_D, 0.0),
                          _MU_CAP, _GUARD_EPS))
-    v.mu_F = float(_smin(max(1.0 - v.E_Om_F * (1.0 + v.rdep_F) * v.n_IC_F / v.lev_IC_F, 0.0),
+    v.mu_F = float(_smin(max(1.0 - v.E_Om_F * (1.0 + v.rdep_F) * v.n_F / v.lev_F, 0.0),
                          _MU_CAP, _GUARD_EPS))
     # capital-Euler surplus E[Om(R_K - R)] - lambda_K*mu, normalised by the O(1) kernel
     # E_Om so the residual is in return units (dividing by lambda_K*mu_ss amplifies ~130x)
@@ -448,9 +396,8 @@ def _incentive_constraint(v, cal):
     v.alpha_D_new = float(_sclip(v.E_Om_D * (1.0 + v.rdep_D) / (1.0 - v.mu_D), 0.05, alpha_cap))
     v.alpha_F_new = float(_sclip(v.E_Om_F * (1.0 + v.rdep_F) / (1.0 - v.mu_F), 0.05, alpha_cap))
     # slack is read off the SAME constraint the multiplier came from, so mu*slack = 0
-    # still holds point-wise once the facility is on
-    v.slack_D = v.alpha_D_cur * v.n_IC_D - v.lev_IC_D
-    v.slack_F = v.alpha_F_cur * v.n_IC_F - v.lev_IC_F
+    v.slack_D = v.alpha_D_cur * v.n_D - v.lev_D
+    v.slack_F = v.alpha_F_cur * v.n_F - v.lev_F
 
 
 def _bond_demands(v, cal):
@@ -459,7 +406,7 @@ def _bond_demands(v, cal):
     # the haircut in the regimes that default. F bond: safe.
     nreg, R, wgt = v.nreg, v.R, v.wgt
     db_D, db_F = cal["delta_b_D"], cal["delta_b_F"]
-    hc = [cal["recovery_rate_D"] if d_n else 1.0 for d_n, _ in v.reg]
+    hc = [cal["recovery_rate_D"] if d_n else 1.0 for d_n in v.reg]
     payD_gross = [db_D + (1.0 - db_D) * R[j]["Q_bD"] for j in range(nreg)]
     payD = [hc[j] * payD_gross[j] for j in range(nreg)]
     payF = [db_F + (1.0 - db_F) * R[j]["Q_bF"] for j in range(nreg)]
@@ -471,7 +418,7 @@ def _bond_demands(v, cal):
     # regime is replaced by the plain no-default one). The legs are exactly additive in
     # logs -- Bocola's Table 4 split.
     v.E_payD = _expect(wgt, payD)
-    v.E_payD_nodef = _expect(wgt, [payD_gross[j] if not v.reg[j][0] else payD_gross[0]
+    v.E_payD_nodef = _expect(wgt, [payD_gross[j] if not v.reg[j] else payD_gross[0]
                                    for j in range(nreg)])
     v.E_payF = _expect(wgt, payF)
     v.E_Om_payF = _expect(wgt, [v.Om_F[j] * payF[j] for j in range(nreg)])
@@ -600,9 +547,7 @@ def _outputs(v, cal):
                 b_D_D_new=v.b_D_D_new, b_D_F_new=v.b_D_F_new, nfa_dep_D=v.nfa_dep_D,
                 W_D=v.W_D, W_F=v.W_F, Wp_D=v.Wp_D, Vp_dep=v.Vp_dep, A_D=v.A_D, A_F=v.A_F,
                 Q_bD=v.Q_bD, Bp_tot=v.Bp_D, dep_union=v.dep_union,
-                save_union=v.save_union, phi=v.phi, B_D=v.B_D, m_ltro_D=v.m_ltro_D,
-                m_ltro_F=v.m_ltro_F, n_IC_D=v.n_IC_D, n_IC_F=v.n_IC_F,
-                lev_IC_D=v.lev_IC_D, lev_IC_F=v.lev_IC_F,
+                save_union=v.save_union, B_D=v.B_D,
                 inc_D=v.inc_D, inc_F=v.inc_F, w_D=v.w_D, dep_D=v.dep_D, dep_F=v.dep_F,
                 Pp_D=v.Pp_D, Pp_F=v.Pp_F, Bp_D=v.Bp_D, slack_D=v.slack_D, slack_F=v.slack_F,
                 # accounting legs for the output decomposition and the welfare overlay
@@ -616,12 +561,11 @@ def _outputs(v, cal):
                 C_D_terms=(v.P_D / v.P_CES_D, v.inc_D, v.A_D))
 
 
-def point_residuals(S, d, x, cont, cal, ss, sproc, n_gh=7, no_default=False,
-                    no_cb=False):
+def point_residuals(S, d, x, cont, cal, ss, sproc, n_gh=7, no_default=False):
     # THE PERIOD MAP AT ONE POINT: 13 RESIDUALS AND THE OBJECTS STORED AS RULES.
     # x follows SOLVE; cont is the FROZEN continuation RuleSet (previous iterate, or the
     # current guess under collocation).
-    v = _read_state_and_regime(S, d, x, cont, cal, ss, no_cb)
+    v = _read_state_and_regime(S, d, x, cont, cal, ss)
     _production(v, cal)
     _government(v, cal, ss)
     _balance_sheets(v, cont, cal)

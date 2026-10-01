@@ -18,7 +18,7 @@ from global_projection.steady_state import solve_steady_state
 from global_projection.solver_recursive.state_grid import build_state_box, s_process_params, default_prob
 from global_projection.solver_recursive.state_grid import (IK_D, IK_F, IP_D, IP_F, IBDD,
                                           IBDF, IBFD, IV, IS, IZ, STATE_NAMES)
-from global_projection.solver_recursive.decision_rules import RuleSet, SOLVE7, STORE_RULES, regime_table
+from global_projection.solver_recursive.decision_rules import RuleSet, SOLVE7, STORE_RULES
 from global_projection.solver_recursive.collocation import solve_collocation
 from global_projection.solver_recursive.recursive_main import (time_iteration, calibrate_household_anchors,
                             ss_state, p_block_rotation)
@@ -67,19 +67,6 @@ WARM_SWEEPS = 12
 REFINE_WARM_SWEEPS = 20
 
 
-# THE FACILITY HOMOTOPY. m = 0 is IDENTICALLY the no-facility model (the nesting gate
-# proves it), so the walk exists only because a LARGE envelope drives mu to zero over much
-# of the grid, which is a big move to ask of one Newton step from a seed where mu > 0
-# everywhere. At the shipped envelope (~1-1.5% of quarterly GDP, sized in
-# Claude files/docs/ltro_backstop_plan.md S5 to HALVE the crisis multiplier rather than eliminate it)
-# a single rung is normally enough; the ladder is insurance for the oversized variants.
-# One rung at the shipped envelope: it is small (2% of quarterly GDP) and each facility
-# regime is seeded from its OWN no-facility twin, so the Newton starts close. Add rungs
-# for the oversized variants, where mu is driven to zero over much of the grid and that
-# is a large move to ask of one step. A failed rung still leaves the final joint polish.
-LTRO_LADDER = (0.34, 0.67, 1.0)
-
-
 def _seed_from(rules_fine, rules_coarse):
     # EVALUATE A SOLVED COARSE RULE SET AT THE FINE GRID'S POINTS.
     # Both grids are drawn on the SAME box, so this is interpolation, not extrapolation.
@@ -92,16 +79,14 @@ def _seed_from(rules_fine, rules_coarse):
 
 
 def _stage(rules, cal, ss, sproc, regimes, no_default, label, verbose,
-           backend="auto", warm=WARM_SWEEPS, maxit=40, no_cb=False):
+           backend="auto", warm=WARM_SWEEPS, maxit=40):
     # ONE SOLVE STAGE: a short time-iteration warm start, then the GLOBAL NEWTON.
     if warm:
         time_iteration(rules, cal, ss, sproc, regimes=regimes, no_default=no_default,
-                       damp=0.5, tol=1e-4, max_it=warm, n_gh=N_GH, verbose=False,
-                       no_cb=no_cb)
+                       damp=0.5, tol=1e-4, max_it=warm, n_gh=N_GH, verbose=False)
     return solve_collocation(rules, cal, ss, sproc, regimes=regimes,
                              no_default=no_default, n_gh=N_GH, backend=backend,
-                             maxit=maxit, verbose=verbose, no_cb=no_cb,
-                             label=f" {label}")
+                             maxit=maxit, verbose=verbose, label=f" {label}")
 
 
 def liquidity_ceiling_report(rules, cal, ss, sproc, target=None, regime=0,
@@ -175,12 +160,10 @@ def _build_rules(cal, ss, sproc, mu, mu_vec, rotate, nreg, verbose):
 
 
 def _solve_baseline(rules, cal, ss, sproc, D_REG, backend, verbose):
-    # THE phi-INDEPENDENT BASELINE: d = 0, THE HAIRCUT HOMOTOPY, THEN THE JOINT RISK SOLVE.
+    # THE BASELINE: d = 0, THE HAIRCUT HOMOTOPY, THEN THE JOINT RISK SOLVE.
     # Bocola's ladder: he warm-starts the default model from the solved no-default one
-    # and walks the haircut up re-solving at each step. The facility stays OFF throughout
-    # -- this is the model the backstop is measured against.
-    ok0, it0, w0 = _stage(rules, cal, ss, sproc, (0,), True, "d0", verbose,
-                          no_cb=True)
+    # and walks the haircut up re-solving at each step.
+    ok0, it0, w0 = _stage(rules, cal, ss, sproc, (0,), True, "d0", verbose)
     for k in STORE_RULES:                   # warm-start the default regime from d=0
         rules.set_values(k, D_REG, rules.vals[k][0].copy())
     rec_target = cal["recovery_rate_D"]
@@ -188,35 +171,14 @@ def _solve_baseline(rules, cal, ss, sproc, D_REG, backend, verbose):
     for rec in (0.85, 0.70, 0.55, rec_target):
         cal["recovery_rate_D"] = rec
         ok1, it1, w1 = _stage(rules, cal, ss, sproc, (D_REG,), False,
-                              f"d1 rec={rec:.2f}", verbose, no_cb=True)
+                              f"d1 rec={rec:.2f}", verbose)
     cal["recovery_rate_D"] = rec_target
     okb, itb, wb = _stage(rules, cal, ss, sproc, (0, D_REG), False,
-                          "joint (no facility)", verbose, backend=backend,
-                          no_cb=True)
+                          "joint (no facility)", verbose, backend=backend)
     return (ok0, ok1, okb), (w0, w1, wb)
 
 
-def _solve_facility(rules, cal, ss, sproc, reg, backend, verbose):
-    # THE LTRO REGIMES, EACH SEEDED FROM ITS OWN NO-FACILITY TWIN, WALKED UP IN SIZE.
-    # (0,1) is seeded from (0,0) and (1,1) from (1,0), so the seed already carries the
-    # right default state and only the constraint has to move. m = 0 is IDENTICALLY the
-    # no-facility model, so the walk exists only because a large envelope drives mu to
-    # zero over much of the grid.
-    nreg = len(reg)
-    for j in [j for j, (d, m) in enumerate(reg) if m]:
-        twin = next(k for k, (d, m) in enumerate(reg) if d == reg[j][0] and not m)
-        for k in STORE_RULES:
-            rules.set_values(k, j, rules.vals[k][twin].copy())
-    m0 = (cal["ltro_D"], cal["ltro_F"])
-    for frac in LTRO_LADDER:
-        cal["ltro_D"], cal["ltro_F"] = frac * m0[0], frac * m0[1]
-        _stage(rules, cal, ss, sproc, tuple(range(nreg)), False,
-               f"ltro {100 * frac:.0f}% of envelope", verbose, backend=backend,
-               warm=4, maxit=12)
-    cal["ltro_D"], cal["ltro_F"] = m0
-
-
-def _refine_s(rules, cal, ss, sproc, box, s_refine, with_cb, backend, verbose):
+def _refine_s(rules, cal, ss, sproc, box, s_refine, backend, verbose):
     # THE REFINEMENT LADDER: A DENSE CHEBYSHEV FACTOR IN s, SEEDED FROM THE LAST SOLVE.
     # Same box each time -- one more continuation step in Bocola's style. Going straight
     # from 3 nodes in s to 9 asks the Newton to start from a seed that is badly wrong at
@@ -239,8 +201,7 @@ def _refine_s(rules, cal, ss, sproc, box, s_refine, with_cb, backend, verbose):
         fine = _seed_from(RuleSet(gfine, nreg), rules)
         okj, itj, wj = _stage(fine, cal, ss, sproc, tuple(range(nreg)), False,
                               f"joint (s={m_s})", verbose, backend=backend,
-                              warm=REFINE_WARM_SWEEPS, maxit=12,
-                              no_cb=not with_cb)
+                              warm=REFINE_WARM_SWEEPS, maxit=12)
         rules = fine
     return rules, okj, wj
 
@@ -262,28 +223,19 @@ def _stamp_verdict(rules, oks, worsts):
 
 
 def solve_recursive(cal, ss, sproc, mu=1, verbose=True, mu_vec=None, rotate=False,
-                    s_refine=S_REFINE, backend="auto", with_cb=False,
-                    base=None, base_out=None):
+                    s_refine=S_REFINE, backend="auto", base=None, base_out=None):
     # SOLVE EVERY REGIME BY GLOBAL COLLOCATION (Bocola's model_solution_mean.m).
     # THE LADDER IS HIS -- every stage is a genuine root of the collocation system:
-    #   1. coarse grid, d = 0 at pi = 0 with the facility off        (_solve_baseline)
+    #   1. coarse grid, d = 0 at pi = 0                               (_solve_baseline)
     #   2. the default regime by haircut homotopy 0.85 -> recovery_rate_D
-    #   3. the risk-priced baseline, facility still off
-    #   4. the facility regimes, seeded from their twins, walked up   (_solve_facility)
-    #   5. joint polish over every regime
-    #   6. rebuild on the s-refined grid, seeded from the coarse one   (_refine_s)
-    # phi is a per-experiment SCALAR (cal["phi_ltro"]): each activation is its own solve.
-    # with_cb DEFAULTS TO FALSE, AND THAT DEFAULT IS LOAD-BEARING: the facility regimes
-    # double the regime count and cost 4x, and because phi_ltro = 0 nests the no-backstop
-    # model EXACTLY, a caller that gets them by accident pays 4x for an identical answer.
-    # THE BASELINE STAGES DO NOT DEPEND ON phi: an activation sweep hands the solved
-    # baseline back in through `base` (and collects it through `base_out`).
-    nreg = 4 if with_cb else 2
+    #   3. the risk-priced joint solve
+    #   4. joint polish over every regime
+    #   5. rebuild on the s-refined grid, seeded from the coarse one   (_refine_s)
+    # A sweep over a policy parameter hands the solved baseline back in through `base`
+    # (and collects it through `base_out`).
+    nreg = 2
     rules, box = _build_rules(cal, ss, sproc, mu, mu_vec, rotate, nreg, verbose)
-    # regime indices BY MEANING, never by position: with the facility available in the
-    # default state the pure-default regime is index 2, not the last one
-    reg = regime_table(nreg)
-    D_REG = next(j for j, (d, m) in enumerate(reg) if d and not m)
+    D_REG = 1                                   # the regime index is the default indicator
 
     if base is None:
         (ok0, ok1, okb), (w0, w1, wb) = _solve_baseline(rules, cal, ss, sproc, D_REG,
@@ -297,17 +249,13 @@ def solve_recursive(cal, ss, sproc, mu=1, verbose=True, mu_vec=None, rotate=Fals
         ok0 = ok1 = okb = True
         w0 = w1 = wb = np.nan
         if verbose:
-            print("  reusing the solved phi-independent baseline")
-
-    if with_cb:
-        _solve_facility(rules, cal, ss, sproc, reg, backend, verbose)
+            print("  reusing the solved baseline")
 
     okj, itj, wj = _stage(rules, cal, ss, sproc, tuple(range(nreg)), False, "joint",
-                          verbose, backend=backend, no_cb=not with_cb)
+                          verbose, backend=backend)
 
     if s_refine and s_refine > 1:
-        rules, okj, wj = _refine_s(rules, cal, ss, sproc, box, s_refine, with_cb,
-                                   backend, verbose)
+        rules, okj, wj = _refine_s(rules, cal, ss, sproc, box, s_refine, backend, verbose)
 
     _stamp_verdict(rules, (ok0, ok1, okb, okj), (w0, w1, wb, wj))
     return rules
@@ -586,8 +534,7 @@ def _dynamic_row(o, r, S, K_ref_t, cal, ss):
     # of the bond Euler, which persists while p^d is elevated. The d_* legs are the wedge
     # decomposition in annualised bp deviations: r_wc = rdep + lambda*mu/E[Om] is the only
     # financial channel into output under GHH and its two legs move in OPPOSITE directions.
-    # m_ltro is the facility actually drawn (zero on the never-fired path); mu and E_Om
-    # are recorded because the facility moves them in opposite directions.
+    # mu and E_Om are recorded because a backstop moves them in opposite directions.
     pq = float(default_prob(S[IS]))
     dY = 100 * (o["Y_D"] / r["Y_D"] - 1)
     _yD = cal["delta_b_D"] * (1.0 - o["Q_bD"]) / o["Q_bD"]   # HM perpetuity flow yield
@@ -610,7 +557,6 @@ def _dynamic_row(o, r, S, K_ref_t, cal, ss):
             "n": 100 * (o["n_D"] / r["n_D"] - 1),
             "Q_bD": o["Q_bD"], "Q_bF": o["Q_bF"],
             "dQ_bD": 100 * (o["Q_bD"] / r["Q_bD"] - 1),
-            "m_ltro": 100 * o["m_ltro_D"] / ss["ss_firm_D"]["Y_ss"],
             "mu": o["mu_D"], "E_Om": o["E_Om_D"],
             "sov_bp": bp_ann(_yD - _yF)}
 
@@ -687,7 +633,7 @@ def dynamic_irf(rules, cal, ss, sproc, pd_shock=0.0198, T=25, rest_verbose=True)
           "rdep_bp  bank_bp  r_wc_bp  sov_bp    K%      n%")
     path = {k: [] for k in ("pd", "pd_ann", "Y", "Y_ann", "C", "I", "N", "spread",
                             "rdep", "r_wc", "K", "n", "Q_bD", "Q_bF", "sov_bp",
-                            "d_rdep", "d_spread", "d_r_wc", "dQ_bD", "m_ltro",
+                            "d_rdep", "d_spread", "d_r_wc", "dQ_bD",
                             "mu", "E_Om", "Y_F", "C_F", "n_F", "spread_F", "I_F")}
     for t in range(T):
         o = read_at(rules, cal, ss, sproc, S)

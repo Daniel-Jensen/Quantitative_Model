@@ -1,6 +1,6 @@
 # DECISION-RULE LAYER: PER-REGIME CHEBYSHEV COEFFICIENTS ON THE STATE GRID.
 # Every equilibrium object is approximated as a rule x(j, S) with SEPARATE
-# coefficient sets for the compound regime j (see regime_table). Two kinds:
+# coefficient sets for each regime j, the default indicator (see regime_table). Two kinds:
 #   SOLVE   -- the pointwise Newton unknowns: N, Kp, rdep and household saving A per
 #              country, the terms of trade p, BOTH sovereign prices Q_bD/Q_bF and the
 #              cross-border holdings b_DF/b_FD. (SOLVE7 is a back-compat alias; the
@@ -33,9 +33,6 @@ import numpy as np
 # move is ~0.18 of funding, ~23% of a household's consumption), C_F slammed into its
 # clip plateau and hybr made ZERO progress at 6/19 points. Both savings solved, clearing
 # scaled by SS deposits, is the conditioned form of the identical equilibrium.
-# THE CB BACKSTOP ADDS NO UNKNOWN. The LTRO facility is a fixed envelope, fully drawn
-# whenever it is offered (weakly optimal: it is lent at the deposit rate and relaxes the
-# constraint), so there is no quantity to solve for and no complementarity.
 SOLVE = ("N_D", "N_F", "Kp_D", "Kp_F", "rdep_D", "rdep_F", "p",
          "Q_bD", "b_DF", "Q_bF", "b_FD", "A_D", "A_F")
 SOLVE7 = SOLVE                              # back-compat alias (older imports)
@@ -70,28 +67,16 @@ def to_fit(name, v):
     return np.asarray(v, dtype=float)
 
 
-# THE REGIME TABLE: the compound index j -> (default d', CB-active m'). The index used
-# to BE the default indicator; it now carries the CB regime too, because the TPI
-# backstop is a second discrete state the continuation has to be conditioned on.
-#   n = 2  the pre-TPI model: j IS d, no central bank anywhere.
-#   n = 3  adds a CB-active regime in the NO-DEFAULT states only. Right for an
-#          instrument that is conditional on the sovereign -- a yield peg, or an LTRO
-#          under the collateral-ineligibility rule the ECB applied to Greek paper in
-#          2012 and 2015 -- and 25% cheaper than n = 4.
-#   n = 4  makes the CB regime ORTHOGONAL to default: the facility is available in the
-#          default state too. Right for an instrument that supports BANKS rather than
-#          the sovereign, and NECESSARY for the risk-premium channel: the default branch
-#          carries little probability mass but the largest payoff deviation, so it
-#          dominates cov(Omega, payD), which is the term a credible backstop compresses.
-# n = 2 is bit-for-bit the old layout, which is what makes phi = 0 nest exactly.
-_REG_TABLE = {2: ((0, 0), (1, 0)),
-              3: ((0, 0), (0, 1), (1, 0)),
-              4: ((0, 0), (0, 1), (1, 0), (1, 1))}
+# THE REGIMES. The index a rule is stored under IS the default indicator d' of the
+# period: 0 = no default, 1 = the haircut is realised. (A compound (d', CB-active m')
+# table carried the LTRO backstop; it was deleted 2026-10-01 together with the LTRO.)
+REGIMES = (0, 1)
 
 
 def regime_table(n_regimes):
-    # (d, m) PAIRS FOR EVERY REGIME INDEX, single-sourced.
-    return _REG_TABLE[int(n_regimes)]
+    # THE DEFAULT INDICATOR OF EVERY REGIME INDEX, single-sourced.
+    assert int(n_regimes) == len(REGIMES), "the model has exactly two regimes: d = 0, 1"
+    return REGIMES
 
 
 def from_fit(name, y):

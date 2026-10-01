@@ -3,8 +3,14 @@
 ## Where things are now — 2026-10-01
 
 Run everything with `python3 run.py [ssj|global|both]` (set `SSJ_PYTHON` at its top); results land in
-`results/<SSJ|GLOBAL>/{data,figures,run.log}` and `results/COMPARISON/`. The LTRO sweep is OFF
-(`RUN_LTRO = False` in `run.py`). These docs, all notes/reports and all tests live in `Claude files/`;
+`results/<SSJ|GLOBAL>/{data,figures,run.log}` and `results/COMPARISON/`.
+
+**Branch `OMT-fix` (in progress): the LTRO backstop is deleted and a TPI bond-purchase backstop is
+being built in its place**, in gated steps (plan: `/Users/Huawei/.claude/plans/plan-changes-to-implement-hidden-cerf.md`).
+Step 1 (delete the LTRO, bit-for-bit neutral) is done. Next: step 2 adds the ECB-holdings states
+M and O and the purchase unknown m with the TPI switched off, gated on bit-identical period-map
+outputs at M = O = m = 0; then the goods_F diagnostic, the TPI itself, the solve ladder and
+`tpi_experiment.py`, docs, runs. These docs, all notes/reports and all tests live in `Claude files/`;
 the map is `Claude files/REFACTOR_ARCHITECTURE.md`.
 
 ## Repository layout changed — 2026-09-30 (no economics changes)
@@ -24,7 +30,7 @@ supersedes the other:
 | Interpreter | `/opt/anaconda3/envs/ssj/bin/python` | plain `python3` |
 | Method | linearised, sequence-space Jacobians | nonlinear Chebyshev-Smolyak collocation |
 | Entry point | `python3 run.py ssj` | `python3 run.py global` |
-| Carries | sticky prices, nominal deposits, GK structural refactor, `experiments/` E1-E4, the paper's current figures | occasionally-binding IC, exogenous priced default risk, LTRO backstop |
+| Carries | sticky prices, nominal deposits, GK structural refactor, `experiments/` E1-E4, the paper's current figures | occasionally-binding IC, exogenous priced default risk, TPI backstop (in progress; the LTRO is deleted) |
 
 They share no model code and no interpreter; their calibrations sit side by side in `calibration/` but hold different values. **Their impulse
 magnitudes are not comparable** — say which pipeline a number came from before

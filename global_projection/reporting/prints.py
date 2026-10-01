@@ -178,8 +178,8 @@ def print_sovereign_spread(legs, label=""):
     # it is the CEILING on an instrument that acts only through that leg. The reason this
     # table exists: a bank-liquidity facility can touch the liquidity leg and nothing
     # else, and on this calibration that leg is ~2% of the D-F spread, which is why the
-    # LTRO moves the credit spread by tens of basis points and the sovereign spread by
-    # single digits. Legs are removals, not a partition -- y is convex in q.
+    # retired LTRO moved the credit spread by tens of basis points and the sovereign spread
+    # by single digits. Legs are removals, not a partition -- y is convex in q.
     from global_projection.solver_recursive.output_decomposition import SOVEREIGN_LEGS
     print(f"\n  SOVEREIGN SPREAD DECOMPOSITION{(' - ' + label) if label else ''}"
           f"   (annualised bp)")
