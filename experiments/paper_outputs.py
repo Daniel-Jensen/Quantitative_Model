@@ -50,7 +50,7 @@ from common import BP_ANN, HERE, ROOT, irf_from_cache, load_cache, provenance, r
 from e2_dy_decomposition import decompose_dY
 
 PAPER_DIR = os.path.join(HERE, "paper")
-TABLES_DOC = os.path.join(ROOT, "docs", "paper_draft_results.md")
+TABLES_DOC = os.path.join(ROOT, "Claude files", "docs", "paper_draft_results.md")
 
 # Validated categorical palette — see module docstring.
 BLUE, RED, ORANGE, GREEN = "#1B6CA8", "#A62B22", "#c87941", "#1a6e3a"
@@ -873,10 +873,10 @@ def _caption_fig05(gammas, expo, load):
 
 def _solved_ss():
     import io, contextlib
-    from calibration import get_calibration
-    from depreciation_calibration import calibrate_depreciation
-    from ic_delta_calibration import calibrate_ic_delta
-    from steady_state import solve_steady_state
+    from calibration.ssj import get_calibration
+    from linear_ssj.solve.depreciation_calibration import calibrate_depreciation
+    from linear_ssj.solve.ic_delta_calibration import calibrate_ic_delta
+    from linear_ssj.solve.steady_state import solve_steady_state
     with contextlib.redirect_stdout(io.StringIO()):
         r = calibrate_depreciation(calibrate_ic_delta(solve_steady_state(get_calibration())))
     ss = r["ss_final"] if isinstance(r, dict) and "ss_final" in r else r
@@ -994,7 +994,7 @@ def tables(cache, payload, ss_tl, el, ps, dist=None):
     ]
     for name in sorted(CAPTIONS):
         L += [f"### `{name}`", "", CAPTIONS[name], "",
-              f"![{name}](../experiments/paper/{name}.png)", ""]
+              f"![{name}](../../experiments/paper/{name}.png)", ""]
 
     with open(TABLES_DOC, "w") as fh:
         fh.write("\n".join(L) + "\n")

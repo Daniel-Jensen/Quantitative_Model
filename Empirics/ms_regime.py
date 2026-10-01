@@ -14,7 +14,7 @@ regimes:
 The estimated transition matrix P and its expected durations / ergodic
 distribution are the *empirical discipline* for the Stage-B exogenous
 regime-switching transition matrix in
-`docs/superpowers/specs/2026-07-16-exogenous-policy-regimes-design.md`.
+`Claude files/docs/superpowers/specs/2026-07-16-exogenous-policy-regimes-design.md`.
 
 Consistency with the paper's lane: spreads are used only as the *observable that
 reveals* which stance regime the ECB was in (regime dating). The structural model

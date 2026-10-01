@@ -1,6 +1,6 @@
 """E2 — decompose the output response into its goods-market components.
 
-Identity, from market_clearing_D (code/equations_D.py:139):
+Identity, from market_clearing_D (linear_ssj/model/equations_D.py:139):
 
     Y_D = P_CES_D*C_D + I_D + G_D + Phi_D + T_D + NX_D
 

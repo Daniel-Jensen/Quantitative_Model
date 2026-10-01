@@ -2,7 +2,7 @@
 
 The paper's stated contribution over Bi–Foerster–Traum is heterogeneous
 households, and until now nothing in the model exercised that margin: the only
-distributional statistics were Gini coefficients, which docs/STATE.md (DIST-1)
+distributional statistics were Gini coefficients, which Claude files/docs/STATE.md (DIST-1)
 flags as specifically the wrong object for the Greek crisis — measured inequality
 barely moved, because Greece was already highly unequal pre-crisis and the
 worst-affected households dropped out of the surveys. No Gini is computed here.
@@ -36,7 +36,7 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-for _p in (os.path.join(ROOT, "code"), os.path.join(ROOT, "diagnostics", "regimes")):
+for _p in (ROOT, os.path.join(ROOT, "diagnostics", "regimes")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
@@ -188,13 +188,13 @@ MDEC_AGG = DECILE_AGG_D[N_DEC:]
 def build():
     """Solve the SS, cut deciles, re-solve the Jacobian with decile outputs."""
     import sequence_jacobian as sj
-    import tpi
-    from calibration import get_calibration
-    from depreciation_calibration import calibrate_depreciation
-    from full_model import build_and_solve, solve_jacobian_padded
-    from ic_delta_calibration import calibrate_ic_delta
+    from linear_ssj.solve import tpi
+    from calibration.ssj import get_calibration
+    from linear_ssj.solve.depreciation_calibration import calibrate_depreciation
+    from linear_ssj.model.full_model import build_and_solve, solve_jacobian_padded
+    from linear_ssj.solve.ic_delta_calibration import calibrate_ic_delta
     from regime_model import _ss_tpi, build_tpi_model_main
-    from steady_state import solve_steady_state
+    from linear_ssj.solve.steady_state import solve_steady_state
 
     cal = get_calibration()
     ssr = calibrate_depreciation(calibrate_ic_delta(solve_steady_state(cal)))

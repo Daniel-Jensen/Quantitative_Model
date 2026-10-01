@@ -3,7 +3,7 @@
 Everything here reads the PRODUCTION calibration and the PRODUCTION equation
 files via diagnostics/regimes/regime_model.py. Nothing in this package carries
 its own copy of a parameter value — that is what made the retired
-audit_artifacts/ harness test a different model than code/main.py for weeks.
+audit_artifacts/ harness test a different model than linear_ssj/main.py for weeks.
 """
 import contextlib
 import datetime
@@ -16,7 +16,7 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-for _p in (os.path.join(ROOT, "code"), os.path.join(ROOT, "diagnostics", "regimes")):
+for _p in (ROOT, os.path.join(ROOT, "diagnostics", "regimes")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
@@ -31,19 +31,19 @@ BP_ANN = 4.0e4
 def calibration_override(**overrides):
     """Run a block with get_calibration() returning a modified dict.
 
-    Patches the MODULE ATTRIBUTE calibration.get_calibration. This reaches
+    Patches the MODULE ATTRIBUTE calibration.ssj.get_calibration. This reaches
     regime_model.build_caches, _calibration_fingerprint and _live_psilam because
-    each does a function-local `from calibration import get_calibration`, resolved
+    each does a function-local `from calibration.ssj import get_calibration`, resolved
     at call time. It then propagates onward through the dict those functions pass
     to solve_steady_state(cal), which takes the calibration as an argument rather
     than fetching it.
 
-    FOOTGUN: a module-level `from calibration import get_calibration` binds the
+    FOOTGUN: a module-level `from calibration.ssj import get_calibration` binds the
     original function object at import and will NOT see the override. Any new
     experiment must either call through one of the functions above or import the
-    module and call calibration.get_calibration() at use time.
+    module and call calibration.ssj.get_calibration() at use time.
     """
-    import calibration
+    from calibration import ssj as calibration
     original = calibration.get_calibration
 
     def patched():
@@ -55,7 +55,7 @@ def calibration_override(**overrides):
                 f"A typo here would silently leave the parameter at its default and "
                 f"produce a wrong-but-plausible number — the exact failure mode the "
                 f"retired audit_artifacts/ harness had. Check spelling against "
-                f"code/calibration.py.")
+                f"calibration/ssj.py.")
         cal.update(overrides)
         return cal
 
@@ -84,7 +84,7 @@ def pct_of_ss(path, ss_level):
 
 def provenance():
     """Stamp every result with the model it came from. Read live, never hardcoded."""
-    from calibration import BANK_SCOPE, EBA_CALIBRATION, get_calibration
+    from calibration.ssj import BANK_SCOPE, EBA_CALIBRATION, get_calibration
     from regime_model import CACHE_SCHEMA, _calibration_fingerprint
 
     cal = get_calibration()

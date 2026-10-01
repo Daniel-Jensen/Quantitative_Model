@@ -168,7 +168,7 @@ def run():
     # against the zeta=0 value. This is the exact footgun documented in
     # common.calibration_override's docstring; it was written anyway and the
     # assertion caught it.
-    import calibration
+    from calibration import ssj as calibration
     from common import named_regime_gammas
 
     baseline_cache = load_cache()
@@ -204,7 +204,7 @@ def run():
         el_actual = float(cache["EL_load_D"])
         assert abs(el_actual - el_expected) < 1e-12, (
             f"{name}: EL_load_D={el_actual:.9f} != closed form {el_expected:.9f}. "
-            f"code/equations_D.py bond_return_D no longer matches this experiment's "
+            f"linear_ssj/model/equations_D.py bond_return_D no longer matches this experiment's "
             f"model of it — reconcile before reporting.")
 
         drift = {k: float(cache[k]) - baseline_ss[k] for k in SS_INVARIANT_KEYS}

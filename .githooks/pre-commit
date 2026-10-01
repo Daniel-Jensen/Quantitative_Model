@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Git pre-commit gate: block commits of model/code changes unless the living docs
-# (docs/STATE.md, docs/PROGRESS.md, docs/HANDOFF.md) are updated in the SAME commit.
+# (Claude files/docs/STATE.md, PROGRESS.md, HANDOFF.md) are updated in the SAME commit.
 #
 # This is the git-native twin of .claude/hooks/require-docs-before-commit.sh, which
 # only fires when Claude Code runs the commit. This one covers terminal commits too.
@@ -26,7 +26,7 @@ staged="$(git diff --cached --name-only --diff-filter=ACMR 2>/dev/null)"
 printf '%s\n' "$staged" | grep -Eq '^code/|\.py$' || exit 0
 
 missing=""
-for d in docs/STATE.md docs/PROGRESS.md docs/HANDOFF.md; do
+for d in "Claude files/docs/STATE.md" "Claude files/docs/PROGRESS.md" "Claude files/docs/HANDOFF.md"; do
   printf '%s\n' "$staged" | grep -qxF "$d" || missing="$missing $d"
 done
 
@@ -40,9 +40,9 @@ cat >&2 <<EOF
   commit:${missing}
 
   Update each so it reflects the change, then stage it:
-    docs/STATE.md     current state / calibration table / findings
-    docs/PROGRESS.md  changelog entry for this commit
-    docs/HANDOFF.md   session status / priorities
+    Claude files/docs/STATE.md     current state / calibration table / findings
+    Claude files/docs/PROGRESS.md  changelog entry for this commit
+    Claude files/docs/HANDOFF.md   session status / priorities
   (plus CLAUDE.md if the working instructions changed)
 
   To bypass for a genuine false positive:  git commit --no-verify

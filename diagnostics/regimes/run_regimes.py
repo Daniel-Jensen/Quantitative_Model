@@ -22,8 +22,8 @@ sys.path.insert(0, HERE)
 from regime_model import build_caches, load_cache, PSILAM_MAIN
 from lottery_math import closed_loop, gamma_for_compression, peak
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), "code"))
-from calibration import get_calibration  # noqa: E402 - needs the sys.path insert above
+sys.path.insert(0, os.path.dirname(os.path.dirname(HERE)))
+from calibration.ssj import get_calibration  # noqa: E402 - needs the sys.path insert above
 
 _cal = get_calibration()
 
