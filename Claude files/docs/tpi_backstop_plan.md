@@ -170,4 +170,44 @@ rotation does the work, with centre 0, so every other coordinate and the slice a
 
 ## 9. Results
 
-*(filled from the full run)*
+### 9.1 Preview: the coarse grid (`run.py global --quick`, NOT converged), cap 200 bp
+
+Grid μ=1, 25 points × 2 regimes, three nodes in `s`. **The full run (§9.2) supersedes every
+number here**; they are recorded because they shaped the design (exact reads, §8).
+
+**Solve.** The cap homotopy 700 → 200 bp roots every rung in 4–6 Newton steps (FB form), then
+hands back in GZ form. On this grid the floor binds only at the riskiest node (p^d 4.8%/qtr):
+interior down to 400 bp — purchases 3 / 15 / 29 / 46 / 67% of the SS stock at
+600 / 550 / 500 / 450 / 400 bp — and at the corner (`b_DD = 0`, the Eurosystem holding 81% of
+the stock, `foc_D < 0`) from 350 bp down. KT conditions on the solved rules hold to 1e-9.
+
+**The announcement (rest point, nothing bought).**
+
+| object | no TPI | TPI | diff |
+|---|---|---|---|
+| sovereign spread, bp/yr | 61.8 | 34.7 | −27.0 |
+| credit spread, bp/yr | 79.0 | 71.0 | −8.0 |
+| `mu_D` (IC multiplier) | 0.0098 | 0.0089 | −0.0010 |
+| `alpha_D` (franchise value) | 1.1769 | 1.1801 | +0.0031 |
+| `Y_D` (D output) | 0.99996 | 1.00060 | +0.064% |
+
+The franchise channel does not dominate here: `alpha_D` rises with the TPI.
+
+**The headline risk shock (p^d → 1.98%/qtr), both paths cleared at every quarter.** The TPI
+never fires: the impact spread is 164 bp, under the cap, against 419 bp without it — the whole
+compression is the announcement. The credit spread stays at zero (151 bp without) and bank
+net worth falls 3.9% (5.2%). **Output falls more on impact, −0.31% against −0.12%**: the exact
+output decomposition gives the credit-spread leg +0.13 pp and the relative-price leg −0.40 pp
+(p +3.0% against +0.25%), because D demand falls harder (consumption −0.57%, investment −1.28%)
+as the D deposit rate rises 19 bp instead of falling 44 bp. Whether this survives the refined
+grid is the open question §9.2 answers.
+
+**Fitted reads are not usable for the TPI path.** Read off the fitted rules the same shock
+bought 53% of the stock on impact and then asked for more bonds than the D bank held
+(`b_DD` −120%), running into the box wall for 24 of 25 quarters; three nodes in `s` cannot
+place the floor's boundary, even for the smooth `x`. `tpi_experiment` therefore clears both
+economies' IRFs at every quarter.
+
+### 9.2 The full run (`S_REFINE = 5`)
+
+*(running 2026-10-02; filled when it completes)*

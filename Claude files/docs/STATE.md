@@ -2496,6 +2496,9 @@ the committed calibration with a Prony / companion-eigenvalue extractor
 > is small (+0.46% on Q_bD for 31% of the stock at the headline shock, fixed rules), so a cap
 > far below the market spread is met at the CORNER: on the coarse grid every cap <= 350 bp
 > puts the riskiest node (p^d 4.8%/qtr) there, the Eurosystem holding the D bank's whole book.
+> **Mechanism (quick run, exact reads):** the TPI raises the D bond's price almost entirely
+> through the CONTINUATION (the floor under its future resale value: +9.03 of +9.23% at the
+> headline shock), not the risk premium (-0.01%). `run.py` now runs the global model on a click.
 
 **Branch:** `file-reorganisation` | **Date:** 2026-07-07 | **Status:** Bocola (2016) / Cole-Kehoe sovereign-risk mechanism implemented and verified; **risk channel added** via two-branch default-branch pricing (standalone `global_projection/` model)
 

@@ -14,6 +14,26 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-10-02 — run.py runs on a click; the TPI figures; the mechanism verified (`OMT-fix`)
+
+- **`run.py` defaults to `MODEL = "global"` and gains `QUICK`.** A plain `python3 run.py` (an
+  editor "Run" click) used to start with the SSJ model under the ssj conda env, which is
+  absent on this machine, so it stopped with "SSJ interpreter not found" before the global
+  model or the TPI started. `QUICK = True` is the coarse preview (~1 h with the TPI);
+  `--quick` still forces it.
+- **Two TPI figures, paper scheme** (`plots.plot_tpi_irf`, `plots.plot_tpi_mechanism`):
+  the headline shock with and without the TPI (sovereign spread against the cap, bond price,
+  bank net worth, lending spread, GDP, consumption, investment, deposit rate, the Eurosystem's
+  purchases and book), and the mechanism (both spreads at rest, the bond-price legs of the
+  TPI's effect at the shock, the price impact of a one-off purchase at fixed rules).
+- **Mechanism checks on the solved TPI rules (quick run):** in the default regime x = 0 at
+  every node (nothing bought); where the floor binds the spread is the cap to 1e-6 bp (200.000000,
+  the Eurosystem holding 81.12% of the stock at the corner, b_DD 6e-9, foc_D -7.9e-3 < 0);
+  no node exceeds the cap. With exact reads the bond-price legs of the TPI's effect at the
+  shock close exactly (FOC residual 0.0000%) and the effect is almost all the CONTINUATION
+  price (+9.03 of +9.23%): the TPI works as a floor under the bond's future resale value, not
+  by de-risking the banks (risk premium -0.01%). Coarse magnitudes; the refined run decides.
+
 ## 2026-10-02 — The TPI switched on: floor, complementarity, solve ladder, experiment (steps 4-5, `OMT-fix`)
 
 The Eurosystem now buys the D bond in the no-default regime whenever the D-F spread would

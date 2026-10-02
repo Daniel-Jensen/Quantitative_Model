@@ -328,46 +328,126 @@ def plot_tfp_irf(path, filename="tfp_irf_recursive.png", note=""):
     return _paper_irf(path, filename)
 
 
-# THE TPI OVERLAY: the headline risk shock with and without the backstop. (key, title,
-# y label, deviation panel?, annualise?) -- annualise only the quarterly flows; the last
-# row is the instrument's own footprint, without which the figure shows an effect with no
-# policy attached.
-TPI_PANELS = (("pd", "priced default probability $p^d$", "% per quarter", False, False),
-              ("Y", "GDP  $Y_D$", "% deviation (level)", True, True),
-              ("sov_bp", "sovereign spread  $y_D - y_F$", "bp ann.", False, False),
-              ("spread", "credit spread", "bp ann.", False, False),
-              ("dQ_bD", "D-sovereign price  $Q_{b,D}$", "% vs no-shock path", True, False),
-              ("n", "bank net worth  $n_D$", "% deviation", True, False),
-              ("C", "consumption  $C_D$", "% deviation (level)", True, True),
-              ("I", "investment  $I_D$", "% deviation (level)", True, True),
-              ("mu", "IC multiplier  $\\mu_D$", "level", False, False),
-              ("m_cb", "Eurosystem purchases  $m$", "% of SS D debt", False, False),
-              ("M_cb", "Eurosystem book  $M$", "% of SS D debt", False, False),
-              ("Pi_cb", "Eurosystem P&L remitted  $\\Pi$", "% of SS quarterly GDP",
-               True, False))
+# THE TPI FIGURES, PAPER SCHEME. The two economies are an ORDERED policy variable, so they
+# take the two ends of the sequential ramp, and they differ in dash pattern too so the pair
+# survives greyscale. Every path is cleared exactly at every quarter (tpi_experiment).
+TPI_RUNS = (("irf_off", ACTIVATION_RAMP[0], "--", "No TPI"),
+            ("irf_on", ACTIVATION_RAMP[2], "-", "TPI"))
+# (key, title, y label, deviation panel?) -- flows are level % deviations from the
+# no-shock path of the same economy, rates are annualised basis points
+TPI_PANELS = (("sov_bp", "Sovereign spread $y_D - y_F$", "bp per year", False),
+              ("dQ_bD", "D bond price $Q_{b,D}$", "% vs no-shock path", True),
+              ("n", "D bank net worth $n_D$", "% vs no-shock path", True),
+              ("spread", "Lending spread", "bp per year", False),
+              ("Y", "GDP $Y_D$", "% vs no-shock path", True),
+              ("C", "Consumption $C_D$", "% vs no-shock path", True),
+              ("I", "Investment $I_D$", "% vs no-shock path", True),
+              ("d_rdep", "Deposit rate $r^{dep}_D$", "bp per year, vs no-shock", True))
 
 
 def plot_tpi_irf(res, filename="tpi_irf.png", note=""):
-    # THE HEADLINE RISK SHOCK WITH AND WITHOUT THE TPI, plus the TPI's footprint.
-    # Two scenarios, ordered by policy strength, so they take the ends of the sequential
-    # ramp; each starts from its OWN rest point, so a gap at q0 that the footprint shows
-    # was not bought is the announcement.
-    runs = (("no TPI", res["irf_off"], ACTIVATION_RAMP[0]),
-            (f"TPI, spread cap {res['cap_bp']:.0f} bp", res["irf_on"], ACTIVATION_RAMP[2]))
-    q = np.arange(len(runs[0][1]["Y"]))
-    fig, axes = plt.subplots(3, 4, figsize=(18.8, 9.9), layout="constrained")
-    for ax, (key, title, ylab, dev, an) in zip(axes.ravel(), TPI_PANELS):
-        for label, path, color in runs:
-            ax.plot(q, np.asarray(path[key], dtype=float), color=color, lw=1.8, label=label)
-        _style(ax, title, ylab, zero=dev)
-        if an:
-            _annual_axis(ax)
-    handles, labels = axes.ravel()[0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc="outside lower center", ncol=2, fontsize=9,
-               frameon=False)
-    fig.suptitle("Sovereign-risk shock with and without the TPI backstop"
-                 + (f"\n{note}" if note else "")
-                 + "\nright-hand axis on the flow panels: annualised (x4)",
-                 fontsize=11.5, color=INK)
-    _save(fig, filename)
+    # THE HEADLINE RISK SHOCK WITH AND WITHOUT THE TPI, AND THE EUROSYSTEM's FOOTPRINT.
+    # Each economy starts from its OWN rest point, so a gap at q0 that the footprint panel
+    # shows was not bought is the announcement. note is accepted and not drawn (paper
+    # scheme: the caption carries it).
+    cap = float(res["cap_bp"])
+    q = np.arange(len(res["irf_on"]["Y"]))
+    with plt.rc_context(PAPER_RC):
+        fig, axes = plt.subplots(3, 3, figsize=(13.2, 10.2), layout="constrained")
+        flat = axes.ravel()
+        for i, (key, title, ylab, dev) in enumerate(TPI_PANELS):
+            ax = flat[i]
+            for run, colour, ls, lab in TPI_RUNS:
+                ax.plot(q, np.asarray(res[run][key], dtype=float), color=colour, ls=ls,
+                        lw=1.8, label=lab, zorder=3)
+            if key == "sov_bp":
+                ax.axhline(cap, color=INK_MUTED, lw=0.9, ls=":", zorder=2)
+                ax.annotate(f"cap {cap:.0f} bp", (q[-1], cap), xytext=(0, 4),
+                            textcoords="offset points", ha="right", va="bottom",
+                            fontsize=8.5, color=INK_MUTED)
+            _paper_axes(ax, f"({chr(97 + i)}) {title}", ylab, zero=dev)
+            ax.set_xlim(q[0], q[-1])
+        ax = flat[-1]
+        m = np.asarray(res["irf_on"]["m_cb"], dtype=float)
+        M = np.asarray(res["irf_on"]["M_cb"], dtype=float)
+        ax.bar(q, m, color=ACTIVATION_RAMP[1], width=0.75, label="purchases $m$", zorder=3)
+        ax.plot(q, M, color=ACTIVATION_RAMP[2], lw=1.8, label="book $M$", zorder=4)
+        _paper_axes(ax, "(i) Eurosystem footprint (TPI)", "% of SS D debt", zero=False)
+        ax.set_xlim(q[0] - 0.5, q[-1] + 0.5)
+        # below 0.01% of the stock is the smoothing of the purchase rule, not a purchase
+        if np.max(np.abs(m)) < 1e-2 and np.max(np.abs(M)) < 1e-2:
+            ax.cla()
+            _paper_axes(ax, "(i) Eurosystem footprint (TPI)", "% of SS D debt", zero=False)
+            ax.set_xlim(q[0] - 0.5, q[-1] + 0.5)
+            ax.set_ylim(-1.0, 1.0)
+            ax.text(0.5, 0.5, "nothing bought on this path:\nthe gap in (a)-(h) is the "
+                    "announcement", transform=ax.transAxes, ha="center", va="center",
+                    fontsize=9.5, color=INK)
+        else:
+            ax.legend(fontsize=8.5, frameon=False, loc="upper right")
+        flat[0].legend(fontsize=9, frameon=False, loc="upper right")
+        _save(fig, filename)
+    return os.path.join(OUTDIR, filename)
+
+
+def plot_tpi_mechanism(res, bond_channels, filename="tpi_mechanism.png"):
+    # WHY THE TPI MOVES THE PRICE: the announcement at rest, the bond-price legs of its
+    # effect at the shock, and what a purchase alone would do at fixed rules.
+    cap = float(res["cap_bp"])
+    off, on = res["rest_off"], res["rest_on"]
+    with plt.rc_context(PAPER_RC):
+        fig, axes = plt.subplots(1, 3, figsize=(15.0, 4.9), layout="constrained")
+        # (a) the rest point: both spreads, with and without, nothing bought
+        ax = axes[0]
+        labels = ("Sovereign spread", "Lending spread")
+        vals = ((off["sov_bp"], on["sov_bp"]), (off["spread_bp"], on["spread_bp"]))
+        xs = np.arange(len(labels))
+        for j, (_, colour, _, lab) in enumerate(TPI_RUNS):
+            bars = ax.bar(xs + (j - 0.5) * 0.36, [v[j] for v in vals], width=0.34,
+                          color=colour, label=lab, zorder=3)
+            for b in bars:
+                ax.annotate(f"{b.get_height():.0f}", (b.get_x() + b.get_width() / 2,
+                            b.get_height()), xytext=(0, 3), textcoords="offset points",
+                            ha="center", fontsize=8.5, color=INK)
+        ax.set_xticks(xs, labels)
+        _paper_axes(ax, "(a) At rest: the announcement, nothing bought", "bp per year",
+                    zero=False)
+        ax.set_xlabel("")
+        ax.legend(fontsize=9, frameon=False, loc="upper right")
+        # (b) the bond-price legs of the TPI's effect at the shock (they sum to the total)
+        ax = axes[1]
+        legs = [(lab, float(np.asarray(res["bond_legs"][k])[0])) for k, lab in bond_channels]
+        total = float(np.asarray(res["bond_legs"]["total"])[0])
+        ys = np.arange(len(legs))[::-1]
+        ax.barh(ys, [v for _, v in legs], color=[ACTIVATION_RAMP[2] if v >= 0 else
+                                                  ACTIVATION_RAMP[0] for _, v in legs],
+                height=0.62, zorder=3)
+        for y, (_, v) in zip(ys, legs):
+            # every label to the RIGHT of zero, clear of the category names
+            ax.annotate(f"{v:+.2f}", (max(v, 0.0), y), xytext=(4, 0),
+                        textcoords="offset points", ha="left", va="center",
+                        fontsize=8.5, color=INK)
+        ax.margins(x=0.12)
+        ax.set_yticks(ys, [lab for lab, _ in legs])
+        ax.axvline(0.0, color="#B0B0B0", lw=0.7, zorder=1)
+        _paper_axes(ax, f"(b) Why the bond is worth more at the shock\n"
+                        f"(TPI minus no TPI: {total:+.2f}% of $Q_{{b,D}}$)",
+                    "", zero=False)
+        ax.set_xlabel("% of the bond price", fontsize=9, color=INK)
+        # (c) the price impact of a one-off purchase at fixed rules, rest vs shock
+        ax = axes[2]
+        for key, colour, marker, lab in (("impact_rest", ACTIVATION_RAMP[1], "o", "at rest"),
+                                         ("impact_shock", ACTIVATION_RAMP[2], "s",
+                                          "at the headline shock")):
+            rows = res[key]
+            mm = [100 * r["m"] for r in rows]
+            dq = [100 * (r["Q_bD"] / rows[0]["Q_bD"] - 1) for r in rows]
+            ax.plot(mm, dq, color=colour, marker=marker, lw=1.6, ms=5, label=lab, zorder=3)
+        _paper_axes(ax, "(c) A one-off purchase alone (rules fixed)",
+                    "D bond price, % change", zero=True)
+        ax.set_xlabel("purchase, % of SS D debt", fontsize=9, color=INK)
+        ax.legend(fontsize=9, frameon=False, loc="upper left")
+        fig.text(0.5, -0.02, f"TPI spread cap {cap:.0f} bp per year over the F bond",
+                 ha="center", fontsize=9, color=INK_MUTED)
+        _save(fig, filename)
     return os.path.join(OUTDIR, filename)

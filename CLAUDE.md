@@ -56,7 +56,8 @@ import …`, `from global_projection.blocks.bank import …`). The unified entry
 picks the right interpreter for you:
 
 ```bash
-python3 run.py                    # MODEL from run.py's configuration block ("both")
+python3 run.py                    # MODEL and QUICK from run.py's configuration block
+                                  #   ("global", full solve): what an editor "Run" click does
 python3 run.py ssj                # SSJ pipeline, in a subprocess under SSJ_PYTHON
 python3 run.py global [--quick]   # global pipeline, in this python3 process, step by step
 python3 run.py both   [--quick]   # both, then the comparison

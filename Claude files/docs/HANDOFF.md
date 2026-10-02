@@ -2,7 +2,9 @@
 
 ## Where things are now — 2026-10-01
 
-Run everything with `python3 run.py [ssj|global|both]` (set `SSJ_PYTHON` at its top); results land in
+A plain `python3 run.py` (an editor "Run" click) now runs the GLOBAL model with the TPI (`MODEL` and
+`QUICK` in its configuration block). Run everything with `python3 run.py [ssj|global|both]` (set
+`SSJ_PYTHON` at its top for the SSJ model); results land in
 `results/<SSJ|GLOBAL>/{data,figures,run.log}` and `results/COMPARISON/`.
 
 **Branch `OMT-fix` (in progress): the LTRO backstop is deleted and a TPI bond-purchase backstop is

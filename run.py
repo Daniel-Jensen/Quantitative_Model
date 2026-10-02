@@ -1,8 +1,9 @@
 """Unified entry point: the linear (SSJ) model, the global model, or both, then a comparison.
 
-    python3 run.py                    run MODEL (set below)
+    python3 run.py                    run MODEL with QUICK (both set below) -- what a
+                                      "Run" click in the editor does
     python3 run.py ssj|global|both    override MODEL
-    python3 run.py global --quick     coarse grid: a preview, NOT converged
+    python3 run.py global --quick     coarse grid: a preview, NOT converged (= QUICK = True)
     python3 run.py both --plots-only  redraw every figure from the saved data, no solving
     python3 run.py compare            linear-vs-global tables and overlays only
 
@@ -33,7 +34,12 @@ from results_io import RESULTS, load, save
 ROOT = Path(__file__).resolve().parent
 
 # ================================ CONFIGURATION ================================
-MODEL = "both"            # "ssj", "global" or "both" -- the command-line argument overrides it
+MODEL = "global"          # "ssj", "global" or "both" -- the command-line argument overrides it.
+                          # "global" runs the TPI experiment; "both" also needs the ssj conda env
+                          # below (absent on this machine, so "both" stops at the SSJ step)
+QUICK = False             # True: the coarse grid only (~1 h with the TPI, a preview, NOT
+                          # converged); False: the full s-refined solve (several hours).
+                          # --quick on the command line forces True
 # the SSJ model's interpreter: the ssj conda env (the base env has a broken liblapack
 # symlink, CLAUDE.md); the SSJ_PYTHON environment variable overrides it
 SSJ_PYTHON = os.environ.get("SSJ_PYTHON", "/opt/anaconda3/envs/ssj/bin/python")
@@ -45,8 +51,8 @@ SSJ_PYTHON = os.environ.get("SSJ_PYTHON", "/opt/anaconda3/envs/ssj/bin/python")
 NW_FLOOR = 0.15           # Bocola's net-worth floor (fraction of n_ss): keeps the deep default corners feasible
 MU = 1                    # Smolyak level of the TFP grid (no risk dimension to resolve there)
 RISK_MU_VEC = None        # per-state Smolyak levels for the coarse risk grid; None = isotropic mu = 1
-S_REFINE = 5              # dense Chebyshev nodes in s for the risk solve: 5 = 95 points (converged for
-                          # every reported object), 9 = Bocola's resolution (~4 h), 0 = coarse only
+S_REFINE = 5              # dense Chebyshev nodes in s for the risk solve: 5 = 115 points (converged
+                          # for every reported object), 9 = Bocola's resolution, 0 = coarse only
 ROTATE_P = False          # P-block eigenbasis box: right in theory, measures worse (see solve_recursive)
 ACCURACY_T = 1200         # simulated periods for the Euler-error report
 DECOMP_T = 25             # quarters in the decompositions
@@ -192,7 +198,9 @@ def plot_global():
                                           note="the D bank first-order condition, split leg by leg"),
         ]
         if s.get("RUN_TPI"):
-            paths.append(plots.plot_tpi_irf(load(data / "tpi"), note=shock))
+            tpi = load(data / "tpi")
+            paths += [plots.plot_tpi_irf(tpi, note=shock),
+                      plots.plot_tpi_mechanism(tpi, list(BOND_CHANNELS))]
         for p in paths:
             print(f"  figure -> {p}")
 
@@ -276,7 +284,7 @@ def main():
 
     if not a.plots_only:                      # 1. compute every selected model
         for m in models:
-            COMPUTE[m](quick=a.quick)
+            COMPUTE[m](quick=a.quick or QUICK)
     for m in models:                          # 2. then draw every figure from saved data
         PLOT[m]()
     if a.model in ("both", "compare"):        # 3. compare the two solutions
