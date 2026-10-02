@@ -14,6 +14,26 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-10-02 — F goods-market diagnostic; a pre-existing Walras leak found (step 3, `OMT-fix`)
+
+`point_map` now reports `goods_F` (F goods-market residual, never a solver target). Output only:
+the 413 period-map items stay bit-identical. **Finding: the global model's union budget does not
+close off the steady state, and the TPI is not the cause.** Measured on the solved TPI-off quick
+rules: `goods_F` is 1.3e-10 at the SS, up to 9.0e-3 of F output at the solved nodes (the K_F,
+P_F, Z_D nodes), and -1.9e-4 of F output on impact of the headline risk shock (-1.5e-3 of D
+output in union terms, against a D output response of -0.11%), decaying to -7.9e-5 by q11.
+Summing every budget in the period map gives the identity, checked node by node to 4.8e-6 (the
+smooth guards' bias):
+
+    Y_D*goods_D + sz*p*Y_F*goods_F = sz*p*delta_F*B_F*(Q_bF - Q_ss)          (<= 5.9e-3)
+                                   + sum_c [zeta*r_wc*w*N + L_wc - P_CES*hh_T]_c   (<= 6.9e-2)
+
+The first term is the documented Tier-3 cut (fixed `B_F`, `Tax_F`). The second is new: the rep-agent
+anchor `hh_T_D/F` = 0.583 per capita is a CONSTANT standing in for the working-capital flow
+(1+r_wc)*L_wc, which moves with hours, wages and the lending spread. The TPI's own flows (O, Z, M,
+kappa*Pi, (1-kappa)*Pi) cancel out of the sum exactly, so the identity's remainder is the TPI gate.
+Fixing the anchor changes every global result and is a separate decision.
+
 ## 2026-10-02 — TPI book added as two states and one unknown, switched off (step 2, `OMT-fix`)
 
 **No economics change with the TPI off, verified three ways.** The Eurosystem's holdings of

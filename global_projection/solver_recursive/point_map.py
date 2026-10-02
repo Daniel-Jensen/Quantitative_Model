@@ -522,8 +522,14 @@ def _households(v, cal, ss):
     v.euler_F = xC_F ** (-sigF) / (beff_F * E_mu_F) - 1.0
     IM_D = import_demand(np.array([v.p]), np.array([v.C_D]), np.array([v.P_CES_D]), cal, "D")[0]
     IM_F = import_demand(np.array([v.p]), np.array([v.C_F]), np.array([v.P_CES_F]), cal, "F")[0]
-    NX_D, _ = trade_balance(np.array([v.p]), np.array([IM_D]), np.array([IM_F]), cal)
+    NX_D, NX_F = trade_balance(np.array([v.p]), np.array([IM_D]), np.array([IM_F]), cal)
     v.NX_D = NX_D[0]
+    # THE F GOODS MARKET, never a residual (Walras) -- the check that the TPI's
+    # cross-border P&L closes through the existing budgets. Its baseline is NOT zero off
+    # the SS: B_F and Tax_F are fixed (a Tier-3 cut), so the F treasury is short
+    # delta_F*B_F*(Q_ss - Q_bF) whenever Q_bF moves, and goods_F carries that leak.
+    v.goods_F = ((v.Y_F - v.P_CES_F * v.C_F - v.I_F - NX_F[0] - cal["G_F"])
+                 / ss["ss_firm_F"]["Y_ss"])
     # E[p'] for deposit-UIP, under the same measure over regimes as every expectation
     v.Ep_next = _expect(v.wgt, [R[j]["p"] for j in range(nreg)])
 
@@ -582,7 +588,7 @@ def _outputs(v, cal):
                 # the TPI book: purchases, holdings, the banks' claim, next period's
                 # obligation and this period's remitted P&L
                 m_cb=v.m_cb, M_cb_new=v.M_cb_new, Z_cb=v.Z_cb, Op_cb=v.Op_cb, Pi_cb=v.Pi_cb,
-                Tax_F=v.Tax_F,
+                Tax_F=v.Tax_F, goods_F=v.goods_F,
                 # accounting legs for the output decomposition and the welfare overlay
                 N_D=v.N_D, Kap_prod_D=v.K_D, Z_D=v.Z_D, Kp_D=v.Kp_D, P_CES_D=v.P_CES_D,
                 E_Om_D=v.E_Om_D, r_wc_D=v.r_wc_D, wedge_sp_D=lKD * v.mu_D / v.E_Om_D,

@@ -10,7 +10,10 @@ being built in its place**, in gated steps (plan: `/Users/Huawei/.claude/plans/p
 Step 1 (delete the LTRO, bit-for-bit neutral) and step 2 (the ECB-holdings states `M_cb`, `O_cb`
 and the purchase unknown `m_cb`, switched off: period map bit-identical, solved model equal to
 solver tolerance) are done. Next: the goods_F diagnostic, the TPI itself, the solve ladder and
-`tpi_experiment.py`, docs, runs. A full global run now costs ~1.5x (12 states, 115 refined points). These docs, all notes/reports and all tests live in `Claude files/`;
+`tpi_experiment.py`, docs, runs. A full global run now costs ~1.5x (12 states, 115 refined points).
+**Open issue found in step 3 (pre-existing, not the TPI):** the union budget leaks off the SS
+because `hh_T_D/F` (0.583) is a constant standing in for the working-capital flow; on impact of the
+headline shock the leak is ~0.15% of D output. See STATE Part II and PROGRESS 2026-10-02. These docs, all notes/reports and all tests live in `Claude files/`;
 the map is `Claude files/REFACTOR_ARCHITECTURE.md`.
 
 ## Repository layout changed — 2026-09-30 (no economics changes)

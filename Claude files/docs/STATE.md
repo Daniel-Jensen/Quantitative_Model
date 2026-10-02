@@ -2481,6 +2481,12 @@ the committed calibration with a Prony / companion-eigenvalue extractor
 > **2026-10-02 (step 2):** the book is in the code as two states (`M_cb`, `O_cb`; 12 in all)
 > and one unknown (`m_cb`; 14), switched OFF: the solved model reproduces the 10-state one to
 > solver tolerance (risk rules 5.5e-10, IRFs 4.5e-9). The s-refined grid is now 115 points.
+> **2026-10-02 (step 3), OPEN ISSUE -- the global model leaks off the SS, independent of the
+> TPI.** `goods_F` (now reported) is 1.3e-10 at the SS but -1.9e-4 of F output on impact of the
+> headline risk shock (-1.5e-3 of D output in union terms) and up to 9.0e-3 at the solved nodes.
+> It is fully explained (to 4.8e-6) by the fixed F treasury (documented Tier-3 cut) plus the
+> rep-agent anchor `hh_T_D/F` = 0.583: a constant standing in for the state-dependent
+> working-capital flow (1+r_wc)*L_wc. See PROGRESS 2026-10-02 for the identity.
 
 **Branch:** `file-reorganisation` | **Date:** 2026-07-07 | **Status:** Bocola (2016) / Cole-Kehoe sovereign-risk mechanism implemented and verified; **risk channel added** via two-branch default-branch pricing (standalone `global_projection/` model)
 
