@@ -225,8 +225,9 @@ class SmolyakGrid:
         return np.maximum(np.maximum(self.lo - z, z - self.hi), 0.0) / (self.hi - self.lo)
 
 
-# STATE ORDER (2026-08-25, 9 states): THE ONE PLACE THE CONVENTION LIVES.
-#   0 K_D  1 K_F  2 P_D  3 P_F  4 b_DD  5 b_DF  6 V_dep  7 s  8 Z_D
+# STATE ORDER (2026-10-01, 12 states): THE ONE PLACE THE CONVENTION LIVES.
+#   0 K_D  1 K_F  2 P_D  3 P_F  4 b_DD  5 b_DF  6 b_FD  7 V_dep  8 s  9 Z_D
+#   10 M_cb  11 O_cb
 # P_X = (1+rdep_X,t-1)*dep_X,t-1 is the BANK's gross deposit obligation. It used to
 # double as the household's gross CLAIM, which is what let the state vector stop at 7 --
 # but that identity only holds under NATIONAL deposit clearing, where each household is
@@ -251,11 +252,17 @@ class SmolyakGrid:
 # the residual system and the F leg did not -- which also froze Q_bF and made a
 # flight-to-safety substitution impossible by construction.
 # d_D in {0,1} is the discrete default regime (separate coefficient sets).
-# (The LTRO backstop added no state -- it changed the composition of bank funding, not a
-# carried stock -- and was deleted 2026-10-01; Claude files/docs/ltro_backstop_plan.md
-# and git history keep it.)
+# M_cb / O_cb ARE THE TPI's CARRIED BOOK (2026-10-01). M_cb is the Eurosystem's holding of
+# the D sovereign (issuer per-capita units, like b_DD/b_DF); O_cb is its gross obligation
+# to the D banks for the safe claim Z = Q_bD*M it issued them last period, (1+rdep_D)*Z.
+# Both are needed: O carries last period's PRICE, which no other state remembers. Both
+# are ZERO at the steady state and their bands are symmetric round 0, so the SS stays a
+# collocation node AND every node with M = O = 0 is a node of the old 10-state grid: on
+# that slice the 12-state interpolant IS the 10-state one, so with the TPI off the model
+# nests the 10-state solution exactly (to solver tolerance), not approximately.
+# (The LTRO backstop added no state and was deleted 2026-10-01; git history keeps it.)
 STATE_NAMES = ("K_D", "K_F", "P_D", "P_F", "b_DD", "b_DF", "b_FD", "V_dep",
-               "s", "Z_D")
+               "s", "Z_D", "M_cb", "O_cb")
 
 
 def _band(spec, default):
@@ -271,7 +278,7 @@ def _band(spec, default):
 # NAMED STATE INDICES, single-sourced. Every experiment that advances the state by hand
 # imports these instead of writing S[5]/S[6], which is how the 7->9 state change would
 # otherwise have silently relabelled s and Z_D as b_DF and W_D.
-IK_D, IK_F, IP_D, IP_F, IBDD, IBDF, IBFD, IV, IS, IZ = range(10)
+IK_D, IK_F, IP_D, IP_F, IBDD, IBDF, IBFD, IV, IS, IZ, IM, IO = range(12)
 NSTATE = len(STATE_NAMES)
 
 # s-BOX COVERAGE in unconditional sd of the s process (see build_state_box).
@@ -281,8 +288,8 @@ S_COVER_SD = 2.75
 def build_state_box(ss, cal, s_lo=None, s_hi=None, s_halfwidth=None, k_band=0.03,
                     p_band=0.25, p_band_D=None, p_band_F=None,
                     b_band=0.30, b_lo_frac=None, mu=2, mu_vec=None, z_band=0.03, w_band=0.04,
-                    rot=None, centre=None, refine=None):
-    # THE 9-STATE BOX AROUND THE (RISKY) STEADY STATE, WIDE-LOW WHERE DEFAULT
+                    m_band=0.35, rot=None, centre=None, refine=None):
+    # THE STATE BOX AROUND THE (RISKY) STEADY STATE, WIDE-LOW WHERE DEFAULT
     # CUTS STOCKS. b_lo_frac sets the B LOWER bound as a fraction of B_ss (default
     # 1-b_band); the default regime's surviving debt (~recovery*B) needs it near
     # recovery_rate so the d=1 continuation stays ON-GRID. mu is the isotropic
@@ -308,15 +315,19 @@ def build_state_box(ss, cal, s_lo=None, s_hi=None, s_halfwidth=None, k_band=0.03
     # the dimension). w_band is read as a fraction OF P_D: the measured ergodic |nfa|
     # runs to 0.137 against P_D = 7.74, so w_band = 0.04 gives +-0.31, ~2x its reach.
     V_half = w_band * c["P_D"]
+    # THE TPI BOOK IS ZERO AT THE SS, so its bands are absolute too: m_band is a fraction
+    # of the D stock, and O's band is the same holding grossed up at the SS price and rate
+    M_half = m_band * cal["B_gov_D_ss"]
+    O_half = (1.0 + cal["r_dep_D_target"]) * ss["Q_bD_ss"] * M_half
     lo = np.array([(1 - k_band) * c["K_D"], (1 - k_band) * c["K_F"],
                    (1 - pD_lo) * c["P_D"], (1 - pF_lo) * c["P_F"],
                    b_lo_f * c["b_DD"], b_lo_f * c["b_DF"], b_lo_f * c["b_FD"], -V_half,
-                   s_lo, (1 - z_band) * c["Z_D"]])
+                   s_lo, (1 - z_band) * c["Z_D"], -M_half, -O_half])
     hi = np.array([(1 + k_band) * c["K_D"], (1 + k_band) * c["K_F"],
                    (1 + pD_hi) * c["P_D"], (1 + pF_hi) * c["P_F"],
                    (1 + b_band) * c["b_DD"], (1 + b_band) * c["b_DF"], (1 + b_band) * c["b_FD"],
                    +V_half,
-                   s_hi, (1 + z_band) * c["Z_D"]])
+                   s_hi, (1 + z_band) * c["Z_D"], +M_half, +O_half])
     if rot is not None:
         rot = np.asarray(rot, dtype=float)
         centre = np.asarray(centre, dtype=float)

@@ -14,6 +14,29 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-10-02 — TPI book added as two states and one unknown, switched off (step 2, `OMT-fix`)
+
+**No economics change with the TPI off, verified three ways.** The Eurosystem's holdings of
+the D bond `M_cb` and its gross obligation to the D banks `O_cb` are new states (12 in all),
+its purchases `m_cb` a new unknown and stored rule (14 unknowns, 20 rules per regime), with
+the accounting live: gross debt `B_D = b_DD + b_DF + M`, clearing `b_DD = B' - b_DF - M`, the
+safe claim `Z = Q_bD*M` in the D bank's assets and divertable base, `O_lag` in its payoff,
+the P&L `Pi = Xi*M_lag - O_lag` remitted by capital key (`tpi_key_D = 0.071`: D issuance,
+F taxes), and the laws of motion `M' = (1-delta)*surv*M + m`, `O' = (1+rdep_D)*Z`.
+
+- **Period map bit-for-bit:** fed the old 10-state rules with `M = O = m = 0` padded on, all
+  413 period-map items (both regimes, three calibration variants, perturbed states and rules,
+  the SS, the household anchors) are identical to `1612f29`. Every new term adds an exact 0.0.
+- **Solved model to solver tolerance:** the new states' bands are symmetric round 0, so every
+  node with `M = O = 0` is a node of the old grid and the 12-state interpolant restricted to
+  that slice IS the 10-state one. `run.py global --quick` on both codes: risk rules at all 21
+  slice nodes agree to 5.5e-10 (relative), the risk IRF to 4.5e-9, the decompositions and the
+  rest point to ~5e-10, the TFP IRF to 2e-6 pp; `m_cb` is 1e-23 everywhere. Quick run 824 s
+  against 528 s (25 coarse points x 20 rules against 21 x 19).
+- **Tests:** N1 prints the step-1 residuals digit for digit plus `tpi = 0`; N2 converges
+  (15 Newton steps, max|F| 7.3e-10); the refined grid is 115 points (was 95).
+- `accuracy._EQN` now imports `collocation.RES_NAMES` instead of keeping a hand copy.
+
 ## 2026-10-01 — LTRO backstop deleted (step 1 of the TPI rework, branch `OMT-fix`)
 
 **No economics changes to the two-regime model, verified bit-for-bit.** The stochastic LTRO

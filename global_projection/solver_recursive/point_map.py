@@ -2,7 +2,8 @@
 # Evaluates the full economy at ONE grid point (d, S) in QUANTITY FORM (realized
 # payoffs = quantities x current prices).
 #
-# STATE (10): [K_D, K_F, P_D, P_F, b_DD, b_DF, b_FD, V_dep, s, Z_D] -- see state_grid.
+# STATE (12): [K_D, K_F, P_D, P_F, b_DD, b_DF, b_FD, V_dep, s, Z_D, M_cb, O_cb] -- see
+#   state_grid.
 #   b_DD/b_DF are the two banks' CARRIED holdings of the D sovereign (B_D is their
 #   sum). They were one state while the split was a fixed SS share; once both banks
 #   bid through their own FOCs, last period's split is part of the state.
@@ -12,13 +13,23 @@
 #   deposit market they differ, and V is what they differ by: W_D = P_D + V,
 #   W_F = P_F - V/p, so the union identity holds by construction.
 #
-# UNKNOWNS (13): [N_D, N_F, Kp_D, Kp_F, rdep_D, rdep_F, p, Q_bD, b_DF', Q_bF, b_FD',
-#   A_D, A_F]
-# RESIDUALS (13): 2 bank capital-Euler (occasionally binding), 2 labour, BOTH household
+# UNKNOWNS (14): [N_D, N_F, Kp_D, Kp_F, rdep_D, rdep_F, p, Q_bD, b_DF', Q_bF, b_FD',
+#   A_D, A_F, m_cb]
+# RESIDUALS (14): 2 bank capital-Euler (occasionally binding), 2 labour, BOTH household
 #   deposit Eulers, deposit-UIP, goods-D, BOTH banks' D-bond FOCs, union deposit
-#   clearing, BOTH banks' F-bond FOCs. The D-sovereign is not force-fed to anyone: the
-#   two bond FOCs are demand schedules, b_DD = B' - b_DF clears the market, and Q_bD is
-#   the price that does it. The banker valuations alpha are still READ OFF the recursions
+#   clearing, BOTH banks' F-bond FOCs, and the TPI purchase rule. The D-sovereign is not
+#   force-fed to anyone: the two bond FOCs are demand schedules, b_DD = B' - b_DF - M
+#   clears the market, and Q_bD is the price that does it.
+#
+# THE TPI BOOK. The Eurosystem holds M of the D bond, bought at market prices and held
+#   to maturity, M = (1-delta_b)*surv*M_lag + m. It pays for them with a SAFE claim
+#   Z = Q_bD*M on itself, held by the D banks and paying (1+rdep_D)*Z next period (the
+#   state O_cb). A purchase therefore SWAPS bonds for Z at the same value inside the
+#   bank's book, so assets, the divertable base (single lambda), deposits and P' do not
+#   move within the period: the whole effect is the RISK TRANSFER to next period, where
+#   the bank is owed O instead of the bond's payoff. The Eurosystem keeps no equity and
+#   remits its P&L Pi = Xi*M_lag - O_lag every period, a share tpi_key_D to the D
+#   treasury and the rest to F. With M = O = m = 0 every new term is an exact 0.0. The banker valuations alpha are still READ OFF the recursions
 #   given a FROZEN continuation; under the collocation solve they are unknowns with their
 #   own identity residual, so the freeze is exact at every node.
 #
@@ -60,7 +71,7 @@ from global_projection.blocks.trade import ces_price, import_demand, trade_balan
 from global_projection.solver_recursive.state_grid import default_prob
 
 from global_projection.solver_recursive.state_grid import (IK_D, IK_F, IP_D, IP_F, IBDD, IBDF,
-                                         IBFD, IV, IS, IZ, NSTATE)
+                                         IBFD, IV, IS, IZ, IM, IO, NSTATE)
 
 
 
@@ -162,11 +173,12 @@ def _read_state_and_regime(S, d, x, cont, cal, ss):
     # UNPACK STATE AND UNKNOWNS, RESOLVE THE DEFAULT REGIME, SET THE PER-POINT FLOORS.
     v = SimpleNamespace()
     (v.N_D, v.N_F, v.Kp_D, v.Kp_F, v.rdep_D, v.rdep_F, v.p,
-     v.Q_bD, v.b_DF_new, v.Q_bF, v.b_FD_new, v.A_D, v.A_F) = x
+     v.Q_bD, v.b_DF_new, v.Q_bF, v.b_FD_new, v.A_D, v.A_F, v.m_cb) = x
     (v.K_D, v.K_F, v.P_D, v.P_F, v.b_D_D_lag, v.b_D_F_lag, v.b_F_D_lag,
-     v.V_dep, v.s, v.Z_D) = S
+     v.V_dep, v.s, v.Z_D, v.M_lag, v.O_lag) = S
     v.S = S
-    v.B_D = v.b_D_D_lag + v.b_D_F_lag
+    # GROSS debt: the banks' holdings plus the Eurosystem's
+    v.B_D = v.b_D_D_lag + v.b_D_F_lag + v.M_lag
     # the regime index is the default indicator (decision_rules.regime_table)
     v.reg, v.nreg = cont.reg, cont.n_regimes
     v.d = d
@@ -213,9 +225,17 @@ def _government(v, cal, ss):
     else:
         anchor, Tax_base = ss["gs_D"]["b_gov_ss"], ss["gs_D"]["Tax_ss"]
     v.Tax_D = Tax_base + ss["gs_D"]["gamma_tau"] * (v.B_D * v.surv - anchor)
-    v.Tax_F = ss["gs_F"]["Tax_ss"]
+    # THE EUROSYSTEM's P&L: what its bonds paid (coupon + the surviving stock at today's
+    # price, haircut included -- it is pari passu) less what it owes the banks. Remitted
+    # by capital key: the D share lowers D issuance, the F share lowers F taxes (B_F is
+    # fixed), per F capita and in F goods.
+    db_D = cal["delta_b_D"]
+    v.Xi_D = v.surv * (db_D + (1.0 - db_D) * v.Q_bD)
+    v.Pi_cb = v.Xi_D * v.M_lag - v.O_lag
+    kD = cal["tpi_key_D"]
+    v.Tax_F = ss["gs_F"]["Tax_ss"] - (1.0 - kD) * v.Pi_cb / (v.sz * v.p)
     v.coupon_D = cal["delta_b_D"] * v.B_D * v.surv
-    v.new_D = (cal["G_D"] + v.coupon_D - v.Tax_D) / v.Q_bD
+    v.new_D = (cal["G_D"] + v.coupon_D - v.Tax_D - kD * v.Pi_cb) / v.Q_bD
     v.Bp_D = (1.0 - cal["delta_b_D"]) * v.B_D * v.surv + v.new_D
 
 
@@ -239,10 +259,11 @@ def _balance_sheets(v, cont, cal):
     v.L_wc_D = zD_ * (v.w_D0 / (1.0 + zD_ * v.r_wc_D_cur)) * v.N_D
     v.L_wc_F = zF_ * (v.w_F0 / (1.0 + zF_ * v.r_wc_F_cur)) * v.N_F
 
-    payD_now = v.surv * (db_D + (1.0 - db_D) * v.Q_bD)
+    payD_now = v.Xi_D
     payF_now = db_F + (1.0 - db_F) * v.Q_bF
+    # the D bank is also owed O_lag on last period's TPI claim
     X_D = ((v.mpk_D + (1.0 - cal["delta_D"]) * v.Q_D) * v.K_D
-           + payD_now * v.b_D_D_lag + v.p * payF_now * v.b_F_D_lag)
+           + payD_now * v.b_D_D_lag + v.p * payF_now * v.b_F_D_lag + v.O_lag)
     X_F = ((v.mpk_F + (1.0 - cal["delta_F"]) * v.Q_F) * v.K_F
            + payF_now * v.b_F_F_lag + payD_now * (v.b_D_F_lag / v.sz) / v.p)
     v.ng_D, v.ng_F = X_D - v.P_D, X_F - v.P_F
@@ -250,12 +271,15 @@ def _balance_sheets(v, cont, cal):
     # holds (and the same for the F sovereign). Floored so a transient iterate cannot
     # hand a bank a negative book, which would flip the sign of lev.
     v.b_D_F_new = _smax(v.b_DF_new, 1e-4, 1e-5)
-    v.b_D_D_new = _smax(v.Bp_D - v.b_D_F_new, 1e-4, 1e-5)
+    # THE TPI BOOK, held to maturity, and the safe claim it is paid for with
+    v.M_cb_new = (1.0 - db_D) * v.surv * v.M_lag + v.m_cb
+    v.Z_cb = v.Q_bD * v.M_cb_new
+    v.b_D_D_new = _smax(v.Bp_D - v.b_D_F_new - v.M_cb_new, 1e-4, 1e-5)
     v.b_F_D_new = _smax(v.b_FD_new, 1e-4, 1e-5)
     v.b_F_F_new = _smax(cal["B_gov_F_ss"] - v.b_F_D_new / v.sz, 1e-4, 1e-5)
     # end-of-period portfolio valued at current PRICES (Q_b), not payoffs
     v.assets_D = (v.Q_D * v.Kp_D + v.Q_bD * v.b_D_D_new + v.p * v.Q_bF * v.b_F_D_new
-                  + v.L_wc_D)
+                  + v.L_wc_D + v.Z_cb)
     v.assets_F = (v.Q_F * v.Kp_F + v.Q_bF * v.b_F_F_new
                   + v.Q_bD * (v.b_D_F_new / v.sz) / v.p + v.L_wc_F)
     v.n_D = (1.0 - cal["f_D"]) * v.ng_D + cal["omega_ent_D"] * v.assets_D
@@ -282,6 +306,8 @@ def _balance_sheets(v, cont, cal):
     # the carried cross-border position: both legs carry the same WC deduction, so it
     # cancels and V' is this period's cross-border flow grossed up at the D deposit rate
     v.Vp_dep = (1.0 + v.rdep_D) * v.nfa_dep_D
+    # what the Eurosystem will owe the D banks next period
+    v.Op_cb = (1.0 + v.rdep_D) * v.Z_cb
 
 
 def _next_states(v, sproc, eps):
@@ -297,6 +323,7 @@ def _next_states(v, sproc, eps):
     Sn[:, IV] = v.Vp_dep
     Sn[:, IS] = s_next
     Sn[:, IZ] = Z_next
+    Sn[:, IM] = v.M_cb_new; Sn[:, IO] = v.Op_cb
     return Sn, Z_next
 
 
@@ -370,9 +397,10 @@ def _incentive_constraint(v, cal):
     lKD, lKF = cal["lambda_K_D"], cal["lambda_K_F"]
     lbDD, lbFF = cal["lambda_bD_D"], cal["lambda_bF_F"]
     # divertable assets (same leverage term as the FB slack), frozen-price valued
+    # the TPI claim Z sits in the base at the bond's lambda, so a swap leaves lev unchanged
     lev_D = max(lKD * v.Q_D * v.Kp_D + lbDD * v.Q_bD * v.b_D_D_new
                 + cal["lambda_bF_D"] * v.p * v.Q_bF * v.b_F_D_new
-                + lKD * v.L_wc_D, 1e-6)
+                + lKD * v.L_wc_D + lbDD * v.Z_cb, 1e-6)
     lev_F = max(lKF * v.Q_F * v.Kp_F + lbFF * v.Q_bF * v.b_F_F_new
                 + cal["lambda_bD_F"] * v.Q_bD * (v.b_D_F_new / v.sz) / v.p
                 + lKF * v.L_wc_F, 1e-6)
@@ -501,7 +529,7 @@ def _households(v, cal, ss):
 
 
 def _residual_vector(v, cal, ss):
-    # THE 13 EQUILIBRIUM CONDITIONS, EACH IN O(1) UNITS.
+    # THE 14 EQUILIBRIUM CONDITIONS, EACH IN O(1) UNITS.
     frisch_D, frisch_F = cal["frisch_D"], cal["frisch_F"]
     # 6: deposit-UIP (with Bocola's SGU debt-elastic premium on the cross-border
     # position), OR -- cal["union_nominal_rate"] -- a literal rdep_D = rdep_F. The latter
@@ -529,6 +557,7 @@ def _residual_vector(v, cal, ss):
         (v.save_union - v.dep_union) / ((1.0 + v.sz) * v.bkD["Dep_supply_ss"]),  # 11 union clearing
         (v.E_Om_payF - v.dmd_F_home * v.Q_bF) / v.E_Om_F,              # 12 F-bank F-bond -> Q_bF
         (v.E_Om_payF_D - v.dmd_F_for * v.Q_bF * v.adj_D) / v.E_Om_D,   # 13 D-bank F-bond -> b_FD
+        v.m_cb / cal["B_gov_D_ss"],                                    # 14 TPI off: m = 0
     ])
 
 
@@ -550,6 +579,10 @@ def _outputs(v, cal):
                 save_union=v.save_union, B_D=v.B_D,
                 inc_D=v.inc_D, inc_F=v.inc_F, w_D=v.w_D, dep_D=v.dep_D, dep_F=v.dep_F,
                 Pp_D=v.Pp_D, Pp_F=v.Pp_F, Bp_D=v.Bp_D, slack_D=v.slack_D, slack_F=v.slack_F,
+                # the TPI book: purchases, holdings, the banks' claim, next period's
+                # obligation and this period's remitted P&L
+                m_cb=v.m_cb, M_cb_new=v.M_cb_new, Z_cb=v.Z_cb, Op_cb=v.Op_cb, Pi_cb=v.Pi_cb,
+                Tax_F=v.Tax_F,
                 # accounting legs for the output decomposition and the welfare overlay
                 N_D=v.N_D, Kap_prod_D=v.K_D, Z_D=v.Z_D, Kp_D=v.Kp_D, P_CES_D=v.P_CES_D,
                 E_Om_D=v.E_Om_D, r_wc_D=v.r_wc_D, wedge_sp_D=lKD * v.mu_D / v.E_Om_D,
@@ -562,7 +595,7 @@ def _outputs(v, cal):
 
 
 def point_residuals(S, d, x, cont, cal, ss, sproc, n_gh=7, no_default=False):
-    # THE PERIOD MAP AT ONE POINT: 13 RESIDUALS AND THE OBJECTS STORED AS RULES.
+    # THE PERIOD MAP AT ONE POINT: 14 RESIDUALS AND THE OBJECTS STORED AS RULES.
     # x follows SOLVE; cont is the FROZEN continuation RuleSet (previous iterate, or the
     # current guess under collocation).
     v = _read_state_and_regime(S, d, x, cont, cal, ss)

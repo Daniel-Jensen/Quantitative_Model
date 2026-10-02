@@ -2478,6 +2478,9 @@ the committed calibration with a Prony / companion-eigenvalue extractor
 > purchases m >= 0 as a new unknown against a spread cap over the F bond (complementarity),
 > bonds swapped for a safe CB claim so the divertable base does not move, profit and loss
 > shared by capital key (0.071 D), active only in the no-default regime, held to maturity.
+> **2026-10-02 (step 2):** the book is in the code as two states (`M_cb`, `O_cb`; 12 in all)
+> and one unknown (`m_cb`; 14), switched OFF: the solved model reproduces the 10-state one to
+> solver tolerance (risk rules 5.5e-10, IRFs 4.5e-9). The s-refined grid is now 115 points.
 
 **Branch:** `file-reorganisation` | **Date:** 2026-07-07 | **Status:** Bocola (2016) / Cole-Kehoe sovereign-risk mechanism implemented and verified; **risk channel added** via two-branch default-branch pricing (standalone `global_projection/` model)
 

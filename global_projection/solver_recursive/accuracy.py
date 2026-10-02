@@ -13,18 +13,16 @@ from global_projection.solver_recursive.point_map import point_residuals
 from global_projection.solver_recursive.state_grid import default_prob
 from global_projection.solver_recursive.decision_rules import DERIVED, SOLVE7, to_fit
 
-# RESIDUAL NAMES, in point_map order. Single-sourced so the report cannot fall out of
-# step with the system the way the hard-wired 7 did when it grew to 11.
-# THE FULL 19-EQUATION SYSTEM the global collocation solve roots (collocation.py):
-# the 13 residuals point_map returns, plus Bocola's identity residual log(guess/implied)
+# RESIDUAL NAMES, in point_map order, imported from the solver: this list was a hand copy
+# and went stale every time the system grew (7 -> 11 -> 13).
+# THE FULL 20-EQUATION SYSTEM the global collocation solve roots (collocation.py):
+# the 14 residuals point_map returns, plus Bocola's identity residual log(guess/implied)
 # for the six objects that used to be READ OFF the recursions against a frozen
 # continuation (alpha, C, r_wc per country). Those are unknowns now, so leaving them out
 # of the accuracy report would have measured only part of the system.
-_EQN = ("cap_D", "cap_F", "lab_D", "lab_F", "euler_D", "uip", "goods_D",
-        "bondD_D", "bondD_F", "euler_F", "dep_clear", "bondF_F", "bondF_D"
-        ) + tuple(f"id_{k}" for k in DERIVED)
+from global_projection.solver_recursive.collocation import RES_NAMES as _EQN
 from global_projection.solver_recursive.state_grid import (IK_D, IK_F, IP_D, IP_F, IBDD,
-                                          IBDF, IBFD, IV, IS, IZ, STATE_NAMES)
+                                          IBDF, IBFD, IV, IS, IZ, IM, IO, STATE_NAMES)
 
 EQ_NAMES = ("cap_D", "cap_F", "lab_D", "lab_F", "euler_D", "uip", "goods_D")
 
@@ -63,6 +61,7 @@ def _stochastic_next_state(S, x, o, sproc, rng):
     Sn[IBDD], Sn[IBDF] = o["b_D_D_new"], o["b_D_F_new"]
     Sn[IBFD] = o["b_F_D_new"]
     Sn[IV] = o["Vp_dep"]
+    Sn[IM], Sn[IO] = o["M_cb_new"], o["Op_cb"]
     Sn[IS] = ((1.0 - sproc["rho_s"]) * sproc["s_star"] + sproc["rho_s"] * S[IS]
               + sproc["sigma_s"] * rng.standard_normal())
     Sn[IZ] = (1.0 - sproc["rho_z"]) * sproc["z_star"] + sproc["rho_z"] * S[IZ]

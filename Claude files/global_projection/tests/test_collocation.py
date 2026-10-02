@@ -93,8 +93,8 @@ def test_refined_grid_is_square_and_exact():
     _, _, _, rules = _setup(refine=(IS, 5))
     g = rules.grid
     assert g._Phi.shape == (g.n, g.n), g._Phi.shape
-    # sparse(mu=1) over the other 9 states = 19 points, times the 5 dense s nodes
-    assert g.n == 5 * (2 * (g.d - 1) + 1) == 95, (g.n, g.d)
+    # sparse(mu=1) over the other 11 states = 23 points, times the 5 dense s nodes
+    assert g.n == 5 * (2 * (g.d - 1) + 1) == 115, (g.n, g.d)
     rng = np.random.default_rng(0)
     y = rng.normal(size=g.n)
     assert np.max(np.abs(g.eval(g.fit(y), g.points) - y)) < 1e-10

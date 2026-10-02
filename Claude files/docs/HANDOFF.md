@@ -7,10 +7,10 @@ Run everything with `python3 run.py [ssj|global|both]` (set `SSJ_PYTHON` at its 
 
 **Branch `OMT-fix` (in progress): the LTRO backstop is deleted and a TPI bond-purchase backstop is
 being built in its place**, in gated steps (plan: `/Users/Huawei/.claude/plans/plan-changes-to-implement-hidden-cerf.md`).
-Step 1 (delete the LTRO, bit-for-bit neutral) is done. Next: step 2 adds the ECB-holdings states
-M and O and the purchase unknown m with the TPI switched off, gated on bit-identical period-map
-outputs at M = O = m = 0; then the goods_F diagnostic, the TPI itself, the solve ladder and
-`tpi_experiment.py`, docs, runs. These docs, all notes/reports and all tests live in `Claude files/`;
+Step 1 (delete the LTRO, bit-for-bit neutral) and step 2 (the ECB-holdings states `M_cb`, `O_cb`
+and the purchase unknown `m_cb`, switched off: period map bit-identical, solved model equal to
+solver tolerance) are done. Next: the goods_F diagnostic, the TPI itself, the solve ladder and
+`tpi_experiment.py`, docs, runs. A full global run now costs ~1.5x (12 states, 115 refined points). These docs, all notes/reports and all tests live in `Claude files/`;
 the map is `Claude files/REFACTOR_ARCHITECTURE.md`.
 
 ## Repository layout changed — 2026-09-30 (no economics changes)

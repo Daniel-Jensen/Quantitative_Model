@@ -17,7 +17,7 @@ from calibration.global_projection import get_calibration
 from global_projection.steady_state import solve_steady_state
 from global_projection.solver_recursive.state_grid import build_state_box, s_process_params, default_prob
 from global_projection.solver_recursive.state_grid import (IK_D, IK_F, IP_D, IP_F, IBDD,
-                                          IBDF, IBFD, IV, IS, IZ, STATE_NAMES)
+                                          IBDF, IBFD, IV, IS, IZ, IM, IO, STATE_NAMES)
 from global_projection.solver_recursive.decision_rules import RuleSet, SOLVE7, STORE_RULES
 from global_projection.solver_recursive.collocation import solve_collocation
 from global_projection.solver_recursive.recursive_main import (time_iteration, calibrate_household_anchors,
@@ -461,6 +461,7 @@ def advance(o, S, sproc, grid=None):
     Sn[IBDD], Sn[IBDF] = o["b_D_D_new"], o["b_D_F_new"]
     Sn[IBFD] = o["b_F_D_new"]
     Sn[IV] = o["Vp_dep"]
+    Sn[IM], Sn[IO] = o["M_cb_new"], o["Op_cb"]
     Sn[IS] = (1 - sproc["rho_s"]) * sproc["s_star"] + sproc["rho_s"] * S[IS]
     return Sn if grid is None else grid.clip(Sn)[0]
 

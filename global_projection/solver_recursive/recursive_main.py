@@ -20,28 +20,27 @@ from global_projection.solver_recursive.state_grid import build_state_box, NSTAT
 
 
 def ss_state(ss, cal, sproc):
-    # THE SS POINT IN THE 10-STATE VECTOR
-    # [K_D, K_F, P_D, P_F, b_DD, b_DF, b_FD, V_dep, s, Z_D]. b_DD/b_DF are the
+    # THE SS POINT IN THE 12-STATE VECTOR
+    # [K_D, K_F, P_D, P_F, b_DD, b_DF, b_FD, V_dep, s, Z_D, M_cb, O_cb]. b_DD/b_DF are the
     # two banks' carried holdings of the D sovereign and b_FD is the D bank's carried
     # holding of the F sovereign (both splits endogenous); V_dep is the carried
     # cross-border deposit position W_D - P_D, the margin national clearing suppressed.
     # It is ZERO at the symmetric SS, where each household's claim equals its own bank's
-    # obligation. The CB backstop carries no state, so the SS point is the same vector
-    # whether or not the facility is on -- which is what makes phi = 0 nest exactly.
+    # obligation. The TPI book M_cb/O_cb is empty at the SS, whether or not the TPI is on.
     b_DF = cal["b_D_F_ss"]
     return np.array([ss["Kap_D_ss"], ss["Kap_F_ss"],
                      ss["ss_bank_D"]["P_state_ss"], ss["ss_bank_F"]["P_state_ss"],
                      cal["B_gov_D_ss"] - b_DF, b_DF, cal["b_F_D_ss"], 0.0,
-                     sproc["s_star"], cal["Z_ss_D"]])
+                     sproc["s_star"], cal["Z_ss_D"], 0.0, 0.0])
 
 
 def ss_x(ss, cal):
-    # THE SS VALUES OF THE THIRTEEN UNKNOWNS, in decision_rules.SOLVE order.
+    # THE SS VALUES OF THE FOURTEEN UNKNOWNS, in decision_rules.SOLVE order (no purchases).
     return np.array([1.0, 1.0, ss["Kap_D_ss"], ss["Kap_F_ss"],
                      cal["r_dep_D_target"], cal["r_dep_F_target"], ss["p_ss"],
                      ss["Q_bD_ss"], cal["b_D_F_ss"],
                      ss["Q_bF_ss"], cal["b_F_D_ss"],
-                     ss["A_D_ss"], ss["A_F_ss"]])
+                     ss["A_D_ss"], ss["A_F_ss"], 0.0])
 
 
 def calibrate_household_anchors(cal, ss, sproc, tol=1e-13, max_it=12):

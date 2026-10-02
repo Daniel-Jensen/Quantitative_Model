@@ -112,13 +112,16 @@ git history preserves them).
 - `tests/` — regression suite
 
 The model is solved GLOBALLY as recursive decision rules on a Smolyak sparse
-grid (Chebyshev interpolation), over the 10-state vector
-`[K_D, K_F, P_D, P_F, b_DD, b_DF, b_FD, V_dep, s, Z_D]` — two capital
+grid (Chebyshev interpolation), over the 12-state vector
+`[K_D, K_F, P_D, P_F, b_DD, b_DF, b_FD, V_dep, s, Z_D, M_cb, O_cb]` — two capital
 stocks, two banks' gross deposit obligations, the three carried sovereign
-holdings, the cross-border deposit position, the sovereign-risk factor s, and the
+holdings, the cross-border deposit position, the sovereign-risk factor s, the
 TFP state Z_D (deterministic AR(1); the TFP experiment reads the IRF along a
-Z-decay path). At each grid point
-THIRTEEN unknowns are solved (the per-period image of the old stacked system)
+Z-decay path), and the TPI book: the Eurosystem's D-bond holdings and its gross
+obligation to the D banks (both zero at the SS, bands symmetric round 0, so the
+TPI-off model nests the 10-state one to solver tolerance). At each grid point
+FOURTEEN unknowns are solved (the thirteen market-clearing/Euler unknowns plus the
+TPI purchase `m_cb`) (the per-period image of the old stacked system)
 with Bocola's closed-form occasionally-binding μ. Expectations are genuine
 multi-branch Gauss-Hermite quadrature over the s-innovation × the default regime
 d′ ∈ {0,1} — see `decision_rules.regime_table`.
@@ -126,7 +129,7 @@ d′ ∈ {0,1} — see `decision_rules.regime_table`.
 **Driver: GLOBAL COLLOCATION NEWTON (`solver_recursive/collocation.py`), 2026-08-28.**
 The policy VALUES at the collocation points are the unknowns and there is no inner
 root find — Bocola's `residual_model.m` + `parsolve.m` exactly. Every stored rule is
-an unknown (19 per point per regime: the 13 market-clearing/Euler unknowns plus the
+an unknown (20 per point per regime: the 14 market-clearing/Euler/TPI unknowns plus the
 six objects that used to be READ OFF a frozen continuation — alpha, C, r_wc per
 country — which now carry Bocola's identity residual `log(guess/implied)`). The whole
 coefficient vector goes to one damped Newton with a finite-difference Jacobian
@@ -143,9 +146,11 @@ Raising the Smolyak level instead raises the GLOBAL budget; the tensor factor bu
 degree m−1 in the one dimension that carries curvature (the logistic p^d(s)) and full
 interaction with the sparse basis. Measured relative RMS error on this model's
 curvature profile: μ=1 21pts **1.9e-1**, μ=2 221pts **3.9e-2**, m=5 95pts **2.5e-2**,
-m=9 171pts **1.1e-3**. `S_REFINE = 5` ships (95 points, ~70 min); `S_REFINE = 9` is
+m=9 171pts **1.1e-3** (measured on the 10-state grid; with the two TPI states the s=5
+refined grid is 115 points). `S_REFINE = 5` ships (95 points, ~70 min, before the TPI
+states; ~1.5x that now); `S_REFINE = 9` is
 Bocola's own resolution and the ladder walks 5 → 9, at ~4 h, because the dense Jacobian
-is m+1 = 19·2·n+1 residual evaluations and the solve scales as n².
+is m+1 = 20·2·n+1 residual evaluations and the solve scales as n².
 **CONVERGENCE CHECKED 2026-08-29** at the 100 bp calibration: going 5 → 9 moves the
 impact output response from −0.1105% to −0.1087% (fitted) and −0.1278% to −0.1234%
 (exact) — 1.6% and 3.4%, both well inside the 13%-wide identification bracket — and
@@ -245,7 +250,7 @@ Console output lives in `prints.py`, never inside the model blocks.
 **Acceptance thresholds** (all enforced in tests):
 - Global collocation: Bocola's own test, `sum(F^2) <= m*(1e-9)^2` — the sum a
   uniform `max|F| = 1e-9` (`collocation.TOL_MAXF`) would give — at EVERY stage, over
-  the 19 equations × points × regimes. This replaces the old two-part
+  the 20 equations × points × regimes. This replaces the old two-part
   time-iteration test (settled rule AND every point clearing), which could pass on
   residuals while the rules were still moving. 1e-9 rather than machine zero because
   the period map's arithmetic floor is ~1e-10: the capital and bond Eulers difference

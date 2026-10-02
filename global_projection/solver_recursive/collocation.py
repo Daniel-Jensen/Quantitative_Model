@@ -25,7 +25,7 @@
 # so the solved object is a genuine recursive equilibrium rather than a fixed point of a
 # damped map.
 #
-# Nothing inside point_map.py changes. Residuals per (point, regime): 13 + 6 = 19.
+# Nothing inside point_map.py changes. Residuals per (point, regime): 14 + 6 = 20.
 import numpy as np
 from scipy.linalg import lu_factor, lu_solve
 from scipy.optimize import newton_krylov
@@ -40,7 +40,7 @@ from global_projection.solver_recursive.point_map import point_residuals
 N_RES_POINT = len(SOLVE)                 # residuals point_map itself returns
 N_RES = N_RES_POINT + len(DERIVED)       # + the identity residuals for the read-offs
 RES_NAMES = ("cap_D", "cap_F", "lab_D", "lab_F", "euler_D", "uip", "goods_D",
-             "bondD_D", "bondD_F", "euler_F", "dep_clear", "bondF_F", "bondF_D"
+             "bondD_D", "bondD_F", "euler_F", "dep_clear", "bondF_F", "bondF_D", "tpi"
              ) + tuple(f"id_{k}" for k in DERIVED)
 assert len(RES_NAMES) == N_RES, (len(RES_NAMES), N_RES)
 _BIG = 1e3                               # sentinel for an unevaluable point

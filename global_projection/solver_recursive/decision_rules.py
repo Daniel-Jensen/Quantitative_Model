@@ -3,8 +3,9 @@
 # coefficient sets for each regime j, the default indicator (see regime_table). Two kinds:
 #   SOLVE   -- the pointwise Newton unknowns: N, Kp, rdep and household saving A per
 #              country, the terms of trade p, BOTH sovereign prices Q_bD/Q_bF and the
-#              cross-border holdings b_DF/b_FD. (SOLVE7 is a back-compat alias; the
-#              name is historical, the tuple is 13 long.)
+#              cross-border holdings b_DF/b_FD, and the Eurosystem's TPI purchases m_cb.
+#              (SOLVE7 is a back-compat alias; the name is historical, the tuple is 14
+#              long.)
 #   DERIVED -- objects READ OFF the Euler recursions given the frozen continuation
 #              (point_map computes them): the banker valuations alpha, the
 #              consumptions, r_wc.
@@ -33,8 +34,10 @@ import numpy as np
 # move is ~0.18 of funding, ~23% of a household's consumption), C_F slammed into its
 # clip plateau and hybr made ZERO progress at 6/19 points. Both savings solved, clearing
 # scaled by SS deposits, is the conditioned form of the identical equilibrium.
+# m_cb, THE TPI PURCHASE, is last so every positional read of the first 13 is unchanged.
+# It is fitted in LEVELS (not logs): it is zero wherever the floor is slack.
 SOLVE = ("N_D", "N_F", "Kp_D", "Kp_F", "rdep_D", "rdep_F", "p",
-         "Q_bD", "b_DF", "Q_bF", "b_FD", "A_D", "A_F")
+         "Q_bD", "b_DF", "Q_bF", "b_FD", "A_D", "A_F", "m_cb")
 SOLVE7 = SOLVE                              # back-compat alias (older imports)
 # banker valuations + household aggregates, all READ OFF the recursions/closure
 DERIVED = ("alpha_D", "alpha_F", "C_D", "C_F",
@@ -153,7 +156,7 @@ class RuleSet:
                      Q_bD=ss["Q_bD_ss"], Q_bF=ss["Q_bF_ss"],
                      b_DF=cal["b_D_F_ss"], b_FD=cal["b_F_D_ss"],
                      C_D=ss["C_D_ss"], C_F=ss["C_F_ss"],
-                     A_D=ss["A_D_ss"], A_F=ss["A_F_ss"],
+                     A_D=ss["A_D_ss"], A_F=ss["A_F_ss"], m_cb=0.0,
                      # r_wc = rdep + lambda*mu/Omega, constant at the SS
                      r_wc_D=cal["r_dep_D_target"] + cal["credit_spread_target_D"],
                      r_wc_F=cal["r_dep_F_target"] + cal["credit_spread_target_F"])

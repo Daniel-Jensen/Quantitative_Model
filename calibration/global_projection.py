@@ -234,6 +234,12 @@ def get_calibration():
         # reached this conclusion on 2026-08-15 and the value below was never changed.
         sigma_s=0.4455,
 
+        # THE TPI BACKSTOP (Eurosystem purchases of the D bond against a spread cap; see
+        # point_map.py). Its P&L is shared by the euro-area CAPITAL KEY, renormalised to the
+        # two-country union -- the same 0.071 the sequence-space model uses for Greece
+        # (calibration/ssj.py kappa_cb_F = 0.929).
+        tpi_key_D=0.071,
+
         # Working capital (Neumeyer-Perri): firms pre-finance zeta x wage bill at
         # r_wc = rdep(-1) + lambda*mu/Omega. The only spread->output channel;
         # zeta = 0 nests it off exactly.
