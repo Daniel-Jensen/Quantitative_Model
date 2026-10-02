@@ -2487,6 +2487,15 @@ the committed calibration with a Prony / companion-eigenvalue extractor
 > It is fully explained (to 4.8e-6) by the fixed F treasury (documented Tier-3 cut) plus the
 > rep-agent anchor `hh_T_D/F` = 0.583: a constant standing in for the state-dependent
 > working-capital flow (1+r_wc)*L_wc. See PROGRESS 2026-10-02 for the identity.
+> **2026-10-02 (steps 4-5): the TPI is implemented** (`tpi_on`, default off; cap `tpi_cap_bp`
+> = 200 bp/yr; `Claude files/docs/tpi_backstop_plan.md`). 12 states, 14 unknowns, 20 rules x 2
+> regimes; the box is a shear on the book's reachable set; the solver roots the purchase
+> complementarity in the Fischer-Burmeister form and hands the rules back in the
+> Garcia-Zangwill form. Gates: N3 (swap + risk transfer, exact), N4 (union budget, 2e-10),
+> KT conditions on the solved rules (`tpi_experiment.complementarity`). Price impact per euro
+> is small (+0.46% on Q_bD for 31% of the stock at the headline shock, fixed rules), so a cap
+> far below the market spread is met at the CORNER: on the coarse grid every cap <= 350 bp
+> puts the riskiest node (p^d 4.8%/qtr) there, the Eurosystem holding the D bank's whole book.
 
 **Branch:** `file-reorganisation` | **Date:** 2026-07-07 | **Status:** Bocola (2016) / Cole-Kehoe sovereign-risk mechanism implemented and verified; **risk channel added** via two-branch default-branch pricing (standalone `global_projection/` model)
 

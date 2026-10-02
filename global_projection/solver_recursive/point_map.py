@@ -14,7 +14,7 @@
 #   W_F = P_F - V/p, so the union identity holds by construction.
 #
 # UNKNOWNS (14): [N_D, N_F, Kp_D, Kp_F, rdep_D, rdep_F, p, Q_bD, b_DF', Q_bF, b_FD',
-#   A_D, A_F, m_cb]
+#   A_D, A_F, x_cb]
 # RESIDUALS (14): 2 bank capital-Euler (occasionally binding), 2 labour, BOTH household
 #   deposit Eulers, deposit-UIP, goods-D, BOTH banks' D-bond FOCs, union deposit
 #   clearing, BOTH banks' F-bond FOCs, and the TPI purchase rule. The D-sovereign is not
@@ -54,9 +54,11 @@
 #   _discount_kernels        GHH-composite SDFs and the banker's Omega per regime
 #   _incentive_constraint    Bocola closed-form mu, capital Euler, franchise value alpha
 #   _bond_demands            both banks' FOCs for both sovereigns
+#   _tpi_rule                the D-bond FOC (a KT pair when the TPI is on) and the
+#                            purchase rule's residual
 #   _wages_and_dividends     working-capital wedge, wage, dividends
 #   _households              budget, consumption, deposit Eulers, trade, E[p']
-#   _residual_vector         the 13 equilibrium conditions
+#   _residual_vector         the 14 equilibrium conditions
 #   _outputs                 everything stored as rules or read by the reporting layer
 #
 # Tier-3 cuts (documented, reversible): B_F at SS; the wc-wedge rate component uses
@@ -111,6 +113,14 @@ def _sclip(x, lo, hi, eps=None):
     # that is then FITTED puts a kink inside the box, and one saturated node moves the
     # interpolant at the ergodic centre by ~26% and can drive it negative (measured).
     return _smin(_smax(x, lo, eps or _GUARD_EPS), hi, eps or _GUARD_EPS)
+
+
+def _fb(a, b, eps):
+    # SMOOTHED FISCHER-BURMEISTER: zero iff a >= 0, b >= 0 and a*b = eps^2/2. Unlike a
+    # smooth min it keeps a unit slope in BOTH arguments when one of them sits at zero:
+    # with min(m, Q - floor) the residual has NO slope in m while the price is below the
+    # floor, so the Newton could only move the price and stalled (measured).
+    return a + b - np.sqrt(a * a + b * b + eps * eps)
 
 
 def _regime_weights(wq, pd, reg):
@@ -173,7 +183,7 @@ def _read_state_and_regime(S, d, x, cont, cal, ss):
     # UNPACK STATE AND UNKNOWNS, RESOLVE THE DEFAULT REGIME, SET THE PER-POINT FLOORS.
     v = SimpleNamespace()
     (v.N_D, v.N_F, v.Kp_D, v.Kp_F, v.rdep_D, v.rdep_F, v.p,
-     v.Q_bD, v.b_DF_new, v.Q_bF, v.b_FD_new, v.A_D, v.A_F, v.m_cb) = x
+     v.Q_bD, v.b_DF_new, v.Q_bF, v.b_FD_new, v.A_D, v.A_F, v.x_cb) = x
     (v.K_D, v.K_F, v.P_D, v.P_F, v.b_D_D_lag, v.b_D_F_lag, v.b_F_D_lag,
      v.V_dep, v.s, v.Z_D, v.M_lag, v.O_lag) = S
     v.S = S
@@ -195,7 +205,46 @@ def _read_state_and_regime(S, d, x, cont, cal, ss):
     v.X_FLOOR_D, v.X_FLOOR_F = 0.05 * ss["C_D_ss"], 0.05 * ss["C_F_ss"]
     v.X_EPS = 1e-3 * ss["C_D_ss"]
     v.Sm = np.atleast_2d(S)
+    _tpi_purchase_and_price(v, cal, ss)
     return v
+
+
+def _tpi_floor(Q_bF, cal):
+    # THE TPI FLOOR: the D-F spread in HM flow yields y = delta*(1-Q)/Q capped at
+    # tpi_cap_bp, i.e. Q_bD >= delta_D/(delta_D + y_F + cap).
+    db_D, db_F = cal["delta_b_D"], cal["delta_b_F"]
+    return db_D / (db_D + db_F * (1.0 - Q_bF) / Q_bF + cal["tpi_cap_bp"] / 4e4)
+
+
+def _tpi_purchase_and_price(v, cal, ss):
+    # THE PURCHASE AND THE PRICE FROM ONE SMOOTH VARIABLE x (Garcia-Zangwill).
+    # Off, and in the default regime: m = B*x, and residual 14 holds x = 0. On, in the
+    # no-default regime, x > 0 is purchases at the floor and x < 0 the price's distance
+    # above it,
+    #     m = B*max(x, 0),     Q_bD = floor + Q_ss*max(-x, 0),
+    # so the complementarity holds by construction and the STORED rule is smooth across
+    # the floor's boundary. A stored m carries the kink into the Chebyshev fit: on the
+    # coarse grid the quadratic in s through (0, 0, 0.29) bought 19.7% of the stock at a
+    # shock where the floor does not bind (measured), and a degree-4 fit in s turns the
+    # same kink into SALES between nodes. The continuation still reads next period's
+    # price off the stored Q_bD rule (residual 14 ties it to this price at the nodes):
+    # computing it as max(-x', 0) puts the kink inside every expectation, and the
+    # finite-difference Newton then stalled (measured at the 500 bp rung, max|F| 5e-3).
+    # THE SOLVE USES THE OTHER FORM (cal["tpi_gz"] = False, recursive_experiment._tpi_form):
+    # x is the purchase share and the complementarity a Fischer-Burmeister residual. Both
+    # forms have the SAME equilibrium at the nodes (measured: the GZ residual at the FB
+    # solution is 2.2e-9); the GZ Newton stalled walking the cap down (500 bp rung, steps
+    # cut to 1/64) where the FB one takes full steps to 200 bp.
+    v.tpi = bool(cal["tpi_on"])
+    v.Q_floor = _tpi_floor(v.Q_bF, cal)
+    v.Q_bD_slot = v.Q_bD
+    B = cal["B_gov_D_ss"]
+    if v.tpi and not v.d_reg and cal["tpi_gz"]:
+        eps = cal["tpi_eps"]
+        v.m_cb = B * _smax(v.x_cb, 0.0, eps)
+        v.Q_bD = v.Q_floor + ss["Q_bD_ss"] * _smax(-v.x_cb, 0.0, eps)
+    else:
+        v.m_cb = B * v.x_cb
 
 
 def _production(v, cal):
@@ -274,7 +323,11 @@ def _balance_sheets(v, cont, cal):
     # THE TPI BOOK, held to maturity, and the safe claim it is paid for with
     v.M_cb_new = (1.0 - db_D) * v.surv * v.M_lag + v.m_cb
     v.Z_cb = v.Q_bD * v.M_cb_new
-    v.b_D_D_new = _smax(v.Bp_D - v.b_D_F_new - v.M_cb_new, 1e-4, 1e-5)
+    b_DD = v.Bp_D - v.b_D_F_new - v.M_cb_new
+    # with the TPI on, b_DD = 0 is an equilibrium CORNER (the Eurosystem holds the rest;
+    # the KT pair in _tpi_rule), so clearing must be exact; off, the old smooth floor
+    # guards transient iterates
+    v.b_D_D_new = b_DD if v.tpi else _smax(b_DD, 1e-4, 1e-5)
     v.b_F_D_new = _smax(v.b_FD_new, 1e-4, 1e-5)
     v.b_F_F_new = _smax(cal["B_gov_F_ss"] - v.b_F_D_new / v.sz, 1e-4, 1e-5)
     # end-of-period portfolio valued at current PRICES (Q_b), not payoffs
@@ -466,6 +519,27 @@ def _bond_demands(v, cal):
     v.adj_F = 1.0 + cal["psi_bD_F"] * (v.b_D_F_new - cal["b_D_F_ss"]) / cal["B_gov_D_ss"]
 
 
+def _tpi_rule(v, cal, ss):
+    # THE D-BANK's D-BOND FOC (a KT pair when the TPI is on) AND RESIDUAL 14.
+    # On, the D bank may hold none of the bond: b_DD >= 0, foc_D <= 0, b_DD*foc_D = 0 (the
+    # banker is linear, so his FOC is a price condition, and a price above his valuation
+    # clears at the corner with the Eurosystem holding the rest). The FOC then pins x in
+    # the no-default regime, and residual 14 ties the stored Q_bD rule to the price x
+    # implies; in the default regime it holds x = 0. Off, both are the plain residuals.
+    v.foc_D = (v.E_Om_payD - v.dmd_D * v.Q_bD) / v.E_Om_D
+    if not v.tpi:
+        v.res_bondD, v.res_tpi = v.foc_D, v.x_cb
+        return
+    eps = cal["tpi_eps"]
+    v.res_bondD = _fb(-v.foc_D, v.b_D_D_new / cal["B_gov_D_ss"], eps)
+    if v.d_reg:
+        v.res_tpi = v.x_cb
+    elif cal["tpi_gz"]:
+        v.res_tpi = (v.Q_bD_slot - v.Q_bD) / ss["Q_bD_ss"]
+    else:
+        v.res_tpi = _fb(v.x_cb, (v.Q_bD - v.Q_floor) / ss["Q_bD_ss"], eps)
+
+
 def _wages_and_dividends(v, cal):
     # WORKING-CAPITAL WEDGE r_wc = rdep + lambda_K*mu/E[Om], NET WAGE AND DIVIDENDS.
     lKD, lKF = cal["lambda_K_D"], cal["lambda_K_F"]
@@ -557,13 +631,13 @@ def _residual_vector(v, cal, ss):
         uip,                                                           # 6 deposit-UIP
         (v.Y_D - v.P_CES_D * v.C_D - v.I_D - v.NX_D - cal["G_D"])       # 7 goods_D -> p
         / ss["ss_firm_D"]["Y_ss"],
-        (v.E_Om_payD - v.dmd_D * v.Q_bD) / v.E_Om_D,                   # 8 D-bank D-bond -> Q_bD
+        v.res_bondD,                                                   # 8 D-bank D-bond -> Q_bD
         (v.E_Om_payD_F - v.dmd_F * v.Q_bD * v.adj_F) / v.E_Om_F,       # 9 F-bank D-bond -> b_DF
         v.euler_F,                                                     # 10 F deposit Euler
         (v.save_union - v.dep_union) / ((1.0 + v.sz) * v.bkD["Dep_supply_ss"]),  # 11 union clearing
         (v.E_Om_payF - v.dmd_F_home * v.Q_bF) / v.E_Om_F,              # 12 F-bank F-bond -> Q_bF
         (v.E_Om_payF_D - v.dmd_F_for * v.Q_bF * v.adj_D) / v.E_Om_D,   # 13 D-bank F-bond -> b_FD
-        v.m_cb / cal["B_gov_D_ss"],                                    # 14 TPI off: m = 0
+        v.res_tpi,                                                     # 14 TPI rule -> m
     ])
 
 
@@ -587,13 +661,14 @@ def _outputs(v, cal):
                 Pp_D=v.Pp_D, Pp_F=v.Pp_F, Bp_D=v.Bp_D, slack_D=v.slack_D, slack_F=v.slack_F,
                 # the TPI book: purchases, holdings, the banks' claim, next period's
                 # obligation and this period's remitted P&L
-                m_cb=v.m_cb, M_cb_new=v.M_cb_new, Z_cb=v.Z_cb, Op_cb=v.Op_cb, Pi_cb=v.Pi_cb,
-                Tax_F=v.Tax_F, goods_F=v.goods_F,
+                m_cb=v.m_cb, x_cb=v.x_cb, M_cb_new=v.M_cb_new, Z_cb=v.Z_cb, Op_cb=v.Op_cb, Pi_cb=v.Pi_cb,
+                Tax_F=v.Tax_F, goods_F=v.goods_F, Q_floor=v.Q_floor, foc_D=v.foc_D,
                 # accounting legs for the output decomposition and the welfare overlay
                 N_D=v.N_D, Kap_prod_D=v.K_D, Z_D=v.Z_D, Kp_D=v.Kp_D, P_CES_D=v.P_CES_D,
                 E_Om_D=v.E_Om_D, r_wc_D=v.r_wc_D, wedge_sp_D=lKD * v.mu_D / v.E_Om_D,
                 rdep_D=v.rdep_D, rdep_F=v.rdep_F, Div_D=v.Div_D, Tax_D=v.Tax_D, p=v.p,
                 Y_F=v.Y_F, r_wc_F=v.r_wc_F, L_wc_D=v.L_wc_D, L_wc_F=v.L_wc_F,
+                w_F=v.w_F, P_CES_F=v.P_CES_F,
                 # diagnostics, never residuals; C_D_terms are the three legs of
                 # C = carried claim + income - new deposits
                 euler_F_resid=v.euler_F, euler_D_resid=v.euler_D,
@@ -612,6 +687,7 @@ def point_residuals(S, d, x, cont, cal, ss, sproc, n_gh=7, no_default=False):
     _discount_kernels(v, cont, cal)
     _incentive_constraint(v, cal)
     _bond_demands(v, cal)
+    _tpi_rule(v, cal, ss)
     _wages_and_dividends(v, cal)
     _households(v, cal, ss)
     return _residual_vector(v, cal, ss), _outputs(v, cal)

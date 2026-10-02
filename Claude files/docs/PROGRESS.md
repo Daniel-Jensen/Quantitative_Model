@@ -14,6 +14,51 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-10-02 — The TPI switched on: floor, complementarity, solve ladder, experiment (steps 4-5, `OMT-fix`)
+
+The Eurosystem now buys the D bond in the no-default regime whenever the D-F spread would
+exceed `tpi_cap_bp` (default 200 bp/yr), holding it to maturity against a safe claim on itself
+(`Claude files/docs/tpi_backstop_plan.md`). `tpi_on = False` stays the default and is bit-for-bit
+the no-TPI model (413 period-map items unchanged).
+
+- **Period map.** The 14th unknown `x_cb` (Garcia-Zangwill: `m = B*max(x,0)`,
+  `Q_bD = floor + Q_ss*max(-x,0)`); residual 8 the D-bank FOC as a Fischer-Burmeister KT pair with
+  `b_DD >= 0` (the corner where the Eurosystem holds the bank's whole book, exact clearing);
+  residual 14 ties the stored `Q_bD` rule to the price. `w_F`, `P_CES_F`, `Q_floor`, `foc_D` are
+  new outputs.
+- **The box is a shear** (`z_bDD = b_DD + M`, `z_O = O - rho*M`, `m_band = 1`): on the natural
+  axes a forced purchase moved the price non-monotonically (-0.5% at 5% of the stock, +0.3% at
+  30%, `mu_D` 4x); on the shear it is monotone (+0.46% for 31% of the stock at the headline shock).
+- **Formulation, measured.** A smooth min stalls (no slope in `m` below the floor); FB on a stored
+  `m` roots every cap but its fit buys 19.7% of the stock where the floor is slack (Gibbs);
+  GZ stalls along the cap walk. Shipped: root in FB, hand back in GZ (exact at the nodes,
+  2.2e-9), polish 1-2 steps.
+- **Solve ladder.** `_solve_tpi`: from the no-TPI baseline, the cap walked 700 -> target in 50 bp
+  rungs (FB), each rung 4-6 Newton steps on the coarse grid; a failed rung is retried at half
+  the step. On the coarse grid the floor binds only at the riskiest node (p^d 4.8%/qtr), interior
+  down to 400 bp (purchases 3% / 15% / 29% / 46% / 67% of the stock at 600/550/500/450/400 bp)
+  and at the corner from 350 bp.
+- **Gates.** N3: a purchase is a swap today (assets, divertable base, deposits, P', mu unchanged
+  to 1e-12) and a risk transfer tomorrow, exactly `[(1-f)+omega_ent*kappa_D]*(RQ - Xi')*dm` in
+  both regimes. N4: every budget sums to the union goods market at random points, TPI on (both
+  forms) or off, to 2e-10. KT conditions on the solved rules: reported by `tpi_experiment`.
+- **`tpi_experiment.py`** (rest point with and without, headline IRF with the footprint,
+  bond-price legs of the difference, price impact of a forced purchase, KT check),
+  `prints.print_tpi_report`, `plots.plot_tpi_irf`, `run.py` `RUN_TPI` (saves `data/tpi` and
+  `rules_tpi.pkl`, draws `tpi_irf.png`). **Its IRFs are CLEARED at every quarter**
+  (`dynamic_irf(exact=True)`, both economies): read off the fitted rules, the TPI path bought
+  53% of the stock on impact and then asked for more bonds than the D bank held (b_DD -120%),
+  running into the box wall for 24 of 25 quarters; cleared, neither path leaves the box.
+- **Quick run (coarse grid, a preview, 60 min end to end), cap 200 bp.** KT on the solved rules
+  to 1e-9 (floor binds at 1 node, corner at 1). The announcement: at the rest point (nothing
+  bought) the sovereign spread falls 62 -> 35 bp, the credit spread 79 -> 71 bp, alpha_D RISES
+  (the franchise channel does not dominate), Y_D +0.06%. The headline shock, cleared: the TPI
+  never fires (impact spread 164 bp, under the cap, against 419 without), the credit spread
+  stays 0 and bank net worth falls 3.9% (5.2% without), but output falls MORE on impact
+  (-0.31% vs -0.12%): the relative-price channel (-0.40 pp; p +3.0% vs +0.25%) outweighs the
+  removed credit spread (+0.13 pp), because D demand falls harder as the deposit rate rises
+  (+19 bp, against -44 bp without). To be confirmed on the refined grid.
+
 ## 2026-10-02 — F goods-market diagnostic; a pre-existing Walras leak found (step 3, `OMT-fix`)
 
 `point_map` now reports `goods_F` (F goods-market residual, never a solver target). Output only:

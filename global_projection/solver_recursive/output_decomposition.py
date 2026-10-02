@@ -101,7 +101,7 @@ def simulate(rules, cal, ss, sproc, s_path, endogenous_states=True, refine=False
     counts = {"slack": 0, "fail": 0}
     for t in range(T):
         S[IS] = s_path[t]
-        off_box = max(off_box, _box_excursion(S, rules.grid.lo, rules.grid.hi))
+        off_box = max(off_box, float(np.max(rules.grid.outside(S))))
         S = rules.grid.clip(S)[0]
         o = _read(rules, cal, ss, sproc, S)
         if refine and o["_resid"] > 1e-11:
@@ -116,12 +116,6 @@ def simulate(rules, cal, ss, sproc, s_path, endogenous_states=True, refine=False
     rec["n_fail"] = counts["fail"]
     rec["s"] = np.asarray(s_path, dtype=float)
     return rec
-
-
-def _box_excursion(S, lo, hi):
-    # HOW FAR S LIES OUTSIDE THE BOX, AS A FRACTION OF BOX WIDTH (0 INSIDE).
-    span = np.maximum(hi - lo, 1e-12)
-    return float(np.max(np.maximum((lo - S) / span, (S - hi) / span)))
 
 
 def _refined_read(rules, cal, ss, sproc, S, o, counts):

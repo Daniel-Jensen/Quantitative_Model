@@ -7,10 +7,14 @@ Run everything with `python3 run.py [ssj|global|both]` (set `SSJ_PYTHON` at its 
 
 **Branch `OMT-fix` (in progress): the LTRO backstop is deleted and a TPI bond-purchase backstop is
 being built in its place**, in gated steps (plan: `/Users/Huawei/.claude/plans/plan-changes-to-implement-hidden-cerf.md`).
-Step 1 (delete the LTRO, bit-for-bit neutral) and step 2 (the ECB-holdings states `M_cb`, `O_cb`
-and the purchase unknown `m_cb`, switched off: period map bit-identical, solved model equal to
-solver tolerance) are done. Next: the goods_F diagnostic, the TPI itself, the solve ladder and
-`tpi_experiment.py`, docs, runs. A full global run now costs ~1.5x (12 states, 115 refined points).
+Steps 1-5 are done: the LTRO deleted (bit-for-bit), the TPI book as states `M_cb`/`O_cb` and
+unknown `x_cb` (TPI off: solved model equal to solver tolerance), the goods_F diagnostic, the TPI
+itself (spread-cap floor, KT corner, sheared box, FB-rooted / GZ-read solve) and its experiment
+(`tpi_experiment.py`, `RUN_TPI` in `run.py`, `tpi_irf.png`). Design and results:
+`Claude files/docs/tpi_backstop_plan.md`. Open: the full run's numbers in that file's section 9,
+and the CAP itself is a calibration decision (200 bp ships; on the coarse grid caps <= 350 bp put
+the riskiest node at the corner). A full global run now costs ~1.5x (12 states, 115 refined
+points) plus the TPI solve.
 **Open issue found in step 3 (pre-existing, not the TPI):** the union budget leaks off the SS
 because `hh_T_D/F` (0.583) is a constant standing in for the working-capital flow; on impact of the
 headline shock the leak is ~0.15% of D output. See STATE Part II and PROGRESS 2026-10-02. These docs, all notes/reports and all tests live in `Claude files/`;

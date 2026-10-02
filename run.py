@@ -52,6 +52,8 @@ ACCURACY_T = 1200         # simulated periods for the Euler-error report
 DECOMP_T = 25             # quarters in the decompositions
 TFP_SHOCK = 0.01          # one-off TFP shock: +1% to Z_D, decaying at rho_z = 0.9
 RISK_SHOCK_PD = 0.0198    # one-off risk shock: p^d jumps 0.10% -> 1.98%/qtr, decays at rho_s
+RUN_TPI = True            # the TPI backstop against no TPI, at calibration tpi_cap_bp: one more
+                          # solve (the cap homotopy on the coarse grid, then the refined grid)
 
 
 # ============================== THE GLOBAL MODEL ==============================
@@ -78,12 +80,15 @@ def compute_global(quick=False):
                                                     print_output_decomposition,
                                                     print_bond_decomposition)
     from global_projection.reporting.export import export_irfs
+    from global_projection.solver_recursive import tpi_experiment
+    from global_projection.reporting.prints import print_tpi_report
 
     data, _, log = results_io.model_dirs(RESULTS / "GLOBAL", fresh=True)
     settings = dict(quick=quick, S_REFINE=0 if quick else S_REFINE,
                     NW_FLOOR=NW_FLOOR, MU=MU,
                     RISK_MU_VEC=RISK_MU_VEC, ROTATE_P=ROTATE_P, ACCURACY_T=ACCURACY_T,
-                    DECOMP_T=DECOMP_T, TFP_SHOCK=TFP_SHOCK, RISK_SHOCK_PD=RISK_SHOCK_PD)
+                    DECOMP_T=DECOMP_T, TFP_SHOCK=TFP_SHOCK, RISK_SHOCK_PD=RISK_SHOCK_PD,
+                    RUN_TPI=RUN_TPI)
     t0 = time.perf_counter()
     with _logged(log, "w"):
         # 1. calibration and the deterministic steady state
@@ -102,9 +107,10 @@ def compute_global(quick=False):
         tfp = tfp_irf(rules_tfp, cal, ss, sproc, dz=TFP_SHOCK)
 
         # 3. sovereign-risk pass-through: solve, find the model's own rest point, read IRFs
-        banner("Sovereign-risk pass-through — global collocation (10-state, Newton)")
+        banner("Sovereign-risk pass-through — global collocation (12-state, Newton)")
+        base = []                                          # the coarse no-TPI baseline,
         rules = solve_recursive(cal, ss, sproc, mu_vec=RISK_MU_VEC, rotate=ROTATE_P,
-                                s_refine=settings["S_REFINE"])
+                                s_refine=settings["S_REFINE"], base_out=base)  # reused by the TPI
         S_rest = report_rest_point(rules, cal, ss, sproc)   # every IRF is read against this
         impact_table(rules, cal, ss, sproc)
         persistence = persistence_irf(rules, cal, ss, sproc, pd_shock=RISK_SHOCK_PD)
@@ -125,7 +131,16 @@ def compute_global(quick=False):
         accuracy = accuracy_report(rules, cal, ss, sproc, S_rest, T=ACCURACY_T,
                                    label="sovereign-risk rules")
 
-        # 6. save every computed object
+        # 6. the TPI backstop: the same economy with the Eurosystem's spread cap switched on
+        tpi = rules_tpi = None
+        if RUN_TPI:
+            banner(f"TPI backstop — spread cap {cal['tpi_cap_bp']:.0f} bp/yr over the F bond")
+            tpi, rules_tpi = tpi_experiment.run(cal, ss, sproc, rules, base[0],
+                                                s_refine=settings["S_REFINE"],
+                                                mu_vec=RISK_MU_VEC, pd_shock=RISK_SHOCK_PD)
+            print_tpi_report(tpi, BOND_CHANNELS)
+
+        # 7. save every computed object
         banner(f"Saving -> {data}")
         save(data / "settings", settings)
         save(data / "calibration", cal)
@@ -137,9 +152,12 @@ def compute_global(quick=False):
         save(data / "output_decomposition", output_dec)
         save(data / "bond_decomposition", bond_dec)
         save(data / "accuracy", accuracy)
-        for name, r in (("rules_tfp", rules_tfp), ("rules_risk", rules)):
-            with open(data / f"{name}.pkl", "wb") as fh:   # the solved decision rules
-                pickle.dump(r, fh)
+        if tpi is not None:
+            save(data / "tpi", tpi)
+        for name, r in (("rules_tfp", rules_tfp), ("rules_risk", rules), ("rules_tpi", rules_tpi)):
+            if r is not None:
+                with open(data / f"{name}.pkl", "wb") as fh:   # the solved decision rules
+                    pickle.dump(r, fh)
         export_irfs(risk, tfp, sproc, RISK_SHOCK_PD, TFP_SHOCK, data / "comparison_irfs.json",
                     grid_note=" [--quick: coarse grid]" if quick else "")
         print(f"  {len(list(data.iterdir()))} files written")
@@ -173,6 +191,8 @@ def plot_global():
                                           list(BOND_CHANNELS),
                                           note="the D bank first-order condition, split leg by leg"),
         ]
+        if s.get("RUN_TPI"):
+            paths.append(plots.plot_tpi_irf(load(data / "tpi"), note=shock))
         for p in paths:
             print(f"  figure -> {p}")
 

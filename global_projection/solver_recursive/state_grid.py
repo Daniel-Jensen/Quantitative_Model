@@ -260,6 +260,14 @@ class SmolyakGrid:
 # collocation node AND every node with M = O = 0 is a node of the old 10-state grid: on
 # that slice the 12-state interpolant IS the 10-state one, so with the TPI off the model
 # nests the 10-state solution exactly (to solver tolerance), not approximately.
+# THE BOX IS DRAWN ON THE BOOK's REACHABLE SET, NOT ON THE NATURAL AXES (build_state_box):
+# a purchase moves b_DD and M one for one and books O ~ R*Q*M, so axis-aligned nodes are
+# states no purchase reaches -- bonds sold with nothing owed, a claim owed with nothing
+# held -- and a purchase walks b_DD out of its own band. Measured on that box: a forced
+# purchase moved Q_bD NON-MONOTONICALLY (-0.5% at m = 0.05, +0.3% at 0.3) and mu_D 4x.
+# The grid is a SHEAR in the coordinates z_bDD = b_DD + M (what the D bank holds absent
+# the TPI) and z_O = O - rho*M (the claim net of its SS value), centre 0, so every other
+# coordinate, and the M = O = 0 slice, is untouched.
 # (The LTRO backstop added no state and was deleted 2026-10-01; git history keeps it.)
 STATE_NAMES = ("K_D", "K_F", "P_D", "P_F", "b_DD", "b_DF", "b_FD", "V_dep",
                "s", "Z_D", "M_cb", "O_cb")
@@ -288,7 +296,7 @@ S_COVER_SD = 2.75
 def build_state_box(ss, cal, s_lo=None, s_hi=None, s_halfwidth=None, k_band=0.03,
                     p_band=0.25, p_band_D=None, p_band_F=None,
                     b_band=0.30, b_lo_frac=None, mu=2, mu_vec=None, z_band=0.03, w_band=0.04,
-                    m_band=0.35, rot=None, centre=None, refine=None):
+                    m_band=1.0, o_band=0.25, rot=None, centre=None, refine=None):
     # THE STATE BOX AROUND THE (RISKY) STEADY STATE, WIDE-LOW WHERE DEFAULT
     # CUTS STOCKS. b_lo_frac sets the B LOWER bound as a fraction of B_ss (default
     # 1-b_band); the default regime's surviving debt (~recovery*B) needs it near
@@ -315,10 +323,13 @@ def build_state_box(ss, cal, s_lo=None, s_hi=None, s_halfwidth=None, k_band=0.03
     # the dimension). w_band is read as a fraction OF P_D: the measured ergodic |nfa|
     # runs to 0.137 against P_D = 7.74, so w_band = 0.04 gives +-0.31, ~2x its reach.
     V_half = w_band * c["P_D"]
-    # THE TPI BOOK IS ZERO AT THE SS, so its bands are absolute too: m_band is a fraction
-    # of the D stock, and O's band is the same holding grossed up at the SS price and rate
-    M_half = m_band * cal["B_gov_D_ss"]
-    O_half = (1.0 + cal["r_dep_D_target"]) * ss["Q_bD_ss"] * M_half
+    # THE TPI BOOK IS ZERO AT THE SS, so its bands are absolute too, and they are bands
+    # on the SHEARED coordinates (see the end of this function). m_band = 1 reaches the
+    # corner b_DD = 0 (the Eurosystem holds the D bank's whole book) at the band centre;
+    # o_band covers the claim's value away from the SS price: O/M = R_lag*Q_lag runs
+    # 0.70-0.93 against rho = 0.91, i.e. z_O within -0.21..+0.02 of M.
+    M_half = m_band * c["b_DD"]
+    O_half = o_band * M_half
     lo = np.array([(1 - k_band) * c["K_D"], (1 - k_band) * c["K_F"],
                    (1 - pD_lo) * c["P_D"], (1 - pF_lo) * c["P_F"],
                    b_lo_f * c["b_DD"], b_lo_f * c["b_DF"], b_lo_f * c["b_FD"], -V_half,
@@ -332,11 +343,18 @@ def build_state_box(ss, cal, s_lo=None, s_hi=None, s_halfwidth=None, k_band=0.03
         rot = np.asarray(rot, dtype=float)
         centre = np.asarray(centre, dtype=float)
         lo, hi = _rotate_box(lo, hi, rot, centre)
+    else:
+        rot, centre = np.eye(lo.size), np.zeros(lo.size)
+    # THE TPI SHEAR, composed after any P rotation (they touch disjoint rows): the box
+    # bounds z_bDD = b_DD + M and z_O = O - rho*M rather than b_DD and O themselves
+    shear = np.eye(lo.size)
+    shear[IBDD, IM] = 1.0
+    shear[IO, IM] = -(1.0 + cal["r_dep_D_target"]) * ss["Q_bD_ss"]
     # refine=(dim, m) tensors a DENSE m-node Chebyshev factor onto one dimension; the
     # risk experiment passes refine=(IS, m) because the logistic p^d(s) is where all the
     # curvature is. See SmolyakGrid.__init__.
     return SmolyakGrid(lo, hi, mu=(mu if mu_vec is None else int(max(mu_vec))),
-                       mu_vec=mu_vec, rot=rot, centre=centre, refine=refine)
+                       mu_vec=mu_vec, rot=shear @ rot, centre=centre, refine=refine)
 
 
 def _box_centre(ss, cal):

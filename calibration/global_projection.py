@@ -239,6 +239,20 @@ def get_calibration():
         # two-country union -- the same 0.071 the sequence-space model uses for Greece
         # (calibration/ssj.py kappa_cb_F = 0.929).
         tpi_key_D=0.071,
+        # tpi_on switches the purchase rule on; off, m = 0 and the model is the no-backstop
+        # one exactly. The cap is on the D-F spread in HM flow yields, annualised bp: the
+        # Eurosystem buys whatever holds y_D - y_F <= tpi_cap_bp, in the no-default regime
+        # only. It has to sit ABOVE the expected-loss spread wherever it binds, or the
+        # instrument stops being a backstop and becomes a cross-border transfer (the
+        # headline p^d = 1.98%/qtr shock prices a 300 bp spread, ~90 bp at the rest point).
+        # tpi_eps smooths the two complementarity pairs: the bias is eps^2/(2*gap), so
+        # 1e-5 puts it below the period map's 1e-10 arithmetic floor away from the kink.
+        tpi_on=False,
+        tpi_cap_bp=200.0,
+        tpi_eps=1e-5,
+        # the form the rules are READ in (Garcia-Zangwill, kink-exact); the solver roots
+        # the system in the Fischer-Burmeister form and converts (recursive_experiment)
+        tpi_gz=True,
 
         # Working capital (Neumeyer-Perri): firms pre-finance zeta x wage bill at
         # r_wc = rdep(-1) + lambda*mu/Omega. The only spread->output channel;

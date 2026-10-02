@@ -25,7 +25,7 @@ from global_projection.solver_recursive.recursive_main import (time_iteration, c
 from global_projection.reporting.prints import (bp_ann, ann_pct, ann_prob,
                               BOCOLA_IRF_CLOSED, BOCOLA_IRF_OPEN,
                               BOCOLA_EPISODE_LEVEL)
-from global_projection.solver_recursive.point_map import point_residuals
+from global_projection.solver_recursive.point_map import point_residuals, _tpi_floor
 
 
 # STATE NAMES, for the box-escape report in dynamic_irf -- taken from state_grid so a
@@ -65,6 +65,16 @@ S_REFINE = 5
 WARM_SWEEPS = 12
 # The refined stages need a LONGER warm start than the coarse one -- see solve_recursive.
 REFINE_WARM_SWEEPS = 20
+
+# THE TPI CAP HOMOTOPY, annualised bp. A purchase moves the price only through the
+# continuation and by very little (+0.46% for 31% of the stock at the headline shock), so
+# a cap below the market spread is met at the CORNER -- the Eurosystem holding the D
+# bank's whole book -- and the Newton reaches that corner only by degrees. The cap is
+# walked down from TPI_CAP_START (where it binds nowhere on the box) in TPI_CAP_STEP
+# rungs, and a rung that does not root is retried at half the step, down to TPI_MIN_STEP.
+TPI_CAP_START = 700.0
+TPI_CAP_STEP = 50.0
+TPI_MIN_STEP = 6.25
 
 
 def _seed_from(rules_fine, rules_coarse):
@@ -174,8 +184,69 @@ def _solve_baseline(rules, cal, ss, sproc, D_REG, backend, verbose):
                               f"d1 rec={rec:.2f}", verbose)
     cal["recovery_rate_D"] = rec_target
     okb, itb, wb = _stage(rules, cal, ss, sproc, (0, D_REG), False,
-                          "joint (no facility)", verbose, backend=backend)
+                          "joint (no TPI)", verbose, backend=backend)
     return (ok0, ok1, okb), (w0, w1, wb)
+
+
+def _tpi_form(rules, cal, ss, gz):
+    # SWITCH THE TPI VARIABLE BETWEEN ITS TWO FORMS, IN PLACE, AT THE NODES.
+    # FB (the solve): x = the purchase share. GZ (the reads): x = the purchase share where
+    # the floor binds and MINUS the price's gap over the floor where it does not. The two
+    # describe the same allocation at every node, so the conversion is exact there; the
+    # default regime keeps x = 0 in both.
+    x = rules.vals["x_cb"][0]
+    if gz:
+        gap = (rules.vals["Q_bD"][0] - _tpi_floor(rules.vals["Q_bF"][0], cal)) / ss["Q_bD_ss"]
+        x = np.where(x > gap, x, -np.maximum(gap, 0.0))
+    else:
+        x = np.maximum(x, 0.0)
+    rules.set_values("x_cb", 0, x)
+    cal["tpi_gz"] = bool(gz)
+
+
+def _tpi_polish(rules, cal, ss, sproc, label, verbose, backend):
+    # HAND A FB-ROOTED TPI SOLUTION BACK IN THE GZ FORM AND RE-ROOT IT THERE (1-2 steps).
+    _tpi_form(rules, cal, ss, gz=True)
+    return _stage(rules, cal, ss, sproc, tuple(range(rules.n_regimes)), False,
+                  f"{label} (GZ form)", verbose, backend=backend, warm=0, maxit=6)
+
+
+def _solve_tpi(rules, cal, ss, sproc, backend, verbose):
+    # THE TPI ON A SOLVED BASELINE: WALK THE CAP DOWN TO cal["tpi_cap_bp"].
+    # Returns (rules, ok, worst). A failed walk returns the last rung that rooted and
+    # stamps the cap it was actually solved at, so no reader can mistake it for the target.
+    target = cal["tpi_cap_bp"]
+    regimes = tuple(range(rules.n_regimes))
+    cap, last, step = max(TPI_CAP_START, target), None, TPI_CAP_STEP
+    _tpi_form(rules, cal, ss, gz=False)         # the walk runs in the FB form
+    good, ok, w = rules.copy(), False, np.nan
+    while True:
+        cal["tpi_cap_bp"] = cap
+        ok, _, w = _stage(rules, cal, ss, sproc, regimes, False, f"TPI cap={cap:.1f}bp",
+                          verbose, backend=backend, warm=0)
+        if ok:
+            good, last = rules.copy(), cap
+            if cap <= target:
+                break
+            cap = max(cap - step, target)
+            continue
+        step *= 0.5
+        if last is None or step < TPI_MIN_STEP:
+            break
+        rules = good.copy()
+        cap = max(last - step, target)
+    if not ok:
+        rules = good
+    if last is not None:                        # hand back in the form the reads use
+        cal["tpi_cap_bp"] = last
+        ok_gz, _, w = _tpi_polish(rules, cal, ss, sproc, f"TPI cap={last:.1f}bp", verbose,
+                                  backend)
+        ok = ok and ok_gz
+    else:
+        _tpi_form(rules, cal, ss, gz=True)
+    cal["tpi_cap_bp"] = target
+    rules.tpi_cap_solved = last
+    return rules, bool(ok and last is not None and last <= target), w
 
 
 def _refine_s(rules, cal, ss, sproc, box, s_refine, backend, verbose):
@@ -199,9 +270,16 @@ def _refine_s(rules, cal, ss, sproc, box, s_refine, backend, verbose):
             print(f"  s-refined grid: {gfine.n} points x {nreg} regimes "
                   f"({m_s} nodes, degree {m_s - 1} in s)")
         fine = _seed_from(RuleSet(gfine, nreg), rules)
+        tpi = bool(cal["tpi_on"])
+        if tpi:                                 # root in the FB form, hand back in GZ
+            _tpi_form(fine, cal, ss, gz=False)
         okj, itj, wj = _stage(fine, cal, ss, sproc, tuple(range(nreg)), False,
                               f"joint (s={m_s})", verbose, backend=backend,
                               warm=REFINE_WARM_SWEEPS, maxit=12)
+        if tpi:
+            ok_gz, _, wj = _tpi_polish(fine, cal, ss, sproc, f"joint (s={m_s})", verbose,
+                                       backend)
+            okj = okj and ok_gz
         rules = fine
     return rules, okj, wj
 
@@ -229,17 +307,21 @@ def solve_recursive(cal, ss, sproc, mu=1, verbose=True, mu_vec=None, rotate=Fals
     #   1. coarse grid, d = 0 at pi = 0                               (_solve_baseline)
     #   2. the default regime by haircut homotopy 0.85 -> recovery_rate_D
     #   3. the risk-priced joint solve
-    #   4. joint polish over every regime
+    #   4. joint polish over every regime -- or, with the TPI on, the cap homotopy
+    #      (_solve_tpi), starting from the no-TPI baseline
     #   5. rebuild on the s-refined grid, seeded from the coarse one   (_refine_s)
     # A sweep over a policy parameter hands the solved baseline back in through `base`
     # (and collects it through `base_out`).
     nreg = 2
     rules, box = _build_rules(cal, ss, sproc, mu, mu_vec, rotate, nreg, verbose)
     D_REG = 1                                   # the regime index is the default indicator
+    tpi = bool(cal["tpi_on"])
 
     if base is None:
+        cal["tpi_on"] = False                   # the baseline is the no-TPI economy
         (ok0, ok1, okb), (w0, w1, wb) = _solve_baseline(rules, cal, ss, sproc, D_REG,
                                                         backend, verbose)
+        cal["tpi_on"] = tpi
         if base_out is not None:                # hand the caller a reusable snapshot
             base_out.append(rules.copy())
     else:
@@ -251,11 +333,22 @@ def solve_recursive(cal, ss, sproc, mu=1, verbose=True, mu_vec=None, rotate=Fals
         if verbose:
             print("  reusing the solved baseline")
 
-    okj, itj, wj = _stage(rules, cal, ss, sproc, tuple(range(nreg)), False, "joint",
-                          verbose, backend=backend)
+    cap_solved, target = None, cal["tpi_cap_bp"]
+    if tpi:                                     # the cap homotopy is the polish
+        rules, okj, wj = _solve_tpi(rules, cal, ss, sproc, backend, verbose)
+        cap_solved = rules.tpi_cap_solved
+    else:
+        okj, itj, wj = _stage(rules, cal, ss, sproc, tuple(range(nreg)), False, "joint",
+                              verbose, backend=backend)
 
     if s_refine and s_refine > 1:
-        rules, okj, wj = _refine_s(rules, cal, ss, sproc, box, s_refine, backend, verbose)
+        # a walk that stopped short refines at the cap it actually reached, and says so
+        if tpi and cap_solved is not None:
+            cal["tpi_cap_bp"] = cap_solved
+        rules, okj2, wj = _refine_s(rules, cal, ss, sproc, box, s_refine, backend, verbose)
+        okj = okj2 and (okj or not tpi)         # a TPI walk short of the target is a fail
+        cal["tpi_cap_bp"] = target
+    rules.tpi_cap_solved = cap_solved
 
     _stamp_verdict(rules, (ok0, ok1, okb, okj), (w0, w1, wb, wj))
     return rules
@@ -513,11 +606,11 @@ def stochastic_rest_point(rules, cal, ss, sproc, tol=1e-11, max_it=4000, verbose
     return S
 
 
-def _no_shock_path(rules, cal, ss, sproc, S0, T):
+def _no_shock_path(rules, cal, ss, sproc, S0, T, read=read_at):
     # THE UNSHOCKED REFERENCE PATH FROM S0: THE READS AND THE CAPITAL STATE PER QUARTER.
     ref, Sr = [], S0.copy()
     for _ in range(T):
-        o_r = read_at(rules, cal, ss, sproc, Sr)
+        o_r = read(rules, cal, ss, sproc, Sr)
         ref.append(o_r)
         Sr = advance(o_r, Sr, sproc, rules.grid)
     Sr = S0.copy()
@@ -559,7 +652,12 @@ def _dynamic_row(o, r, S, K_ref_t, cal, ss):
             "Q_bD": o["Q_bD"], "Q_bF": o["Q_bF"],
             "dQ_bD": 100 * (o["Q_bD"] / r["Q_bD"] - 1),
             "mu": o["mu_D"], "E_Om": o["E_Om_D"],
-            "sov_bp": bp_ann(_yD - _yF)}
+            "sov_bp": bp_ann(_yD - _yF),
+            # THE TPI's FOOTPRINT, in levels: purchases and holdings as % of the SS D
+            # debt stock, the remitted P&L as % of SS quarterly D output (0 with it off)
+            "m_cb": 100 * o["m_cb"] / cal["B_gov_D_ss"],
+            "M_cb": 100 * S[IM] / cal["B_gov_D_ss"],
+            "Pi_cb": 100 * o["Pi_cb"] / ss["ss_firm_D"]["Y_ss"]}
 
 
 def _print_dynamic_summary(path, rules, cal, ss, sproc, S0, S, pd_shock, T, escapes):
@@ -615,7 +713,8 @@ def _print_box_escapes(escapes, S0, S, T):
                         for i in (0, 2, 3, 4)) + ")")
 
 
-def dynamic_irf(rules, cal, ss, sproc, pd_shock=0.0198, T=25, rest_verbose=True):
+def dynamic_irf(rules, cal, ss, sproc, pd_shock=0.0198, T=25, rest_verbose=True,
+                exact=False):
     # DYNAMIC IRF: THE STATE VECTOR ITERATES FORWARD, IT IS NOT HELD AT THE SS.
     # Every endogenous state follows the period map's own law of motion while s decays
     # at rho_s -- the object Bocola's Table 5 describes. BOCOLA'S generate_irf.m, BOTH
@@ -623,10 +722,15 @@ def dynamic_irf(rules, cal, ss, sproc, pd_shock=0.0198, T=25, rest_verbose=True)
     # (2) difference the shocked path against an UNSHOCKED path from the SAME state (his
     # `gdp = mean(gdp_s) - mean(gdp_nos)`), so the response cannot contain the no-shock
     # transition even if the rest point is imperfectly converged.
+    # exact=True CLEARS the period map at every visited state (read_exact) instead of
+    # reading the fitted rules: a fitted policy read off-node does not respect a KT corner
+    # -- with the TPI on, the fitted purchase at the second quarter asked for more bonds
+    # than the D bank held (b_DD -120%) and the path ran into the box wall (measured).
+    read = read_exact if exact else read_at
     S0 = stochastic_rest_point(rules, cal, ss, sproc, verbose=rest_verbose)
     S = S0.copy()
     escapes = []
-    ref, K_ref = _no_shock_path(rules, cal, ss, sproc, S0, T)
+    ref, K_ref = _no_shock_path(rules, cal, ss, sproc, S0, T, read)
     S[IS] = s_from_pd(pd_shock)
     print(f"\n  DYNAMIC IRF (states evolve; p^d shock to {100*pd_shock:.2f}%/qtr, "
           f"rho_s = {sproc['rho_s']})")
@@ -635,9 +739,10 @@ def dynamic_irf(rules, cal, ss, sproc, pd_shock=0.0198, T=25, rest_verbose=True)
     path = {k: [] for k in ("pd", "pd_ann", "Y", "Y_ann", "C", "I", "N", "spread",
                             "rdep", "r_wc", "K", "n", "Q_bD", "Q_bF", "sov_bp",
                             "d_rdep", "d_spread", "d_r_wc", "dQ_bD",
-                            "mu", "E_Om", "Y_F", "C_F", "n_F", "spread_F", "I_F")}
+                            "mu", "E_Om", "Y_F", "C_F", "n_F", "spread_F", "I_F",
+                            "m_cb", "M_cb", "Pi_cb")}
     for t in range(T):
-        o = read_at(rules, cal, ss, sproc, S)
+        o = read(rules, cal, ss, sproc, S)
         _append(path, _dynamic_row(o, ref[t], S, K_ref[t], cal, ss))
         if t in (0, 1, 2, 4, 6, 8, 12, 16, 20, 24):
             print(f"   {t:3d} {path['pd'][-1]:6.2f} {path['pd_ann'][-1]:6.2f} "
@@ -650,8 +755,11 @@ def dynamic_irf(rules, cal, ss, sproc, pd_shock=0.0198, T=25, rest_verbose=True)
         S = rules.grid.clip(Sn)[0]
         esc = np.abs(Sn - S) > 1e-12
         if esc.any():
-            escapes.append((t, [(_SNAMES[i], 100 * (Sn[i] / S0[i] - 1),
-                                 100 * (S[i] / S0[i] - 1)) for i in np.flatnonzero(esc)]))
+            # the TPI book is zero at rest, so its escapes are reported in levels
+            escapes.append((t, [(_SNAMES[i], *((100 * (Sn[i] / S0[i] - 1),
+                                                100 * (S[i] / S0[i] - 1))
+                                               if abs(S0[i]) > 1e-12 else (Sn[i], S[i])))
+                                for i in np.flatnonzero(esc)]))
     _print_dynamic_summary(path, rules, cal, ss, sproc, S0, S, pd_shock, T, escapes)
     return {k: np.array(v) for k, v in path.items()}
 

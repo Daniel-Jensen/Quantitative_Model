@@ -107,7 +107,7 @@ git history preserves them).
   CHEBYSHEV COLLOCATION (Bocola's own design): `state_grid.py`,
   `decision_rules.py`, `point_map.py`, `collocation.py` (the Newton),
   `recursive_main.py` (time iteration, now only a warm start),
-  `recursive_experiment.py` (risk + TFP)
+  `recursive_experiment.py` (risk + TFP), `tpi_experiment.py` (the TPI backstop)
 - `reporting/` — `prints.py` (SS table), `plots.py` (figures)
 - `tests/` — regression suite
 
@@ -121,7 +121,7 @@ Z-decay path), and the TPI book: the Eurosystem's D-bond holdings and its gross
 obligation to the D banks (both zero at the SS, bands symmetric round 0, so the
 TPI-off model nests the 10-state one to solver tolerance). At each grid point
 FOURTEEN unknowns are solved (the thirteen market-clearing/Euler unknowns plus the
-TPI purchase `m_cb`) (the per-period image of the old stacked system)
+TPI variable `x_cb`; the per-period image of the old stacked system),
 with Bocola's closed-form occasionally-binding μ. Expectations are genuine
 multi-branch Gauss-Hermite quadrature over the s-innovation × the default regime
 d′ ∈ {0,1} — see `decision_rules.regime_table`.
@@ -170,7 +170,7 @@ forward) are numba-JITed with an exact pure-numpy fallback (`cal["use_numba"]`).
 | `solver_recursive/point_map.py` | The per-point period map (image of the old stacked system): 13 residuals at one grid point given the frozen continuation rules. Bocola closed-form μ; quadrature over the s-innovation × the default regime; Z_D read from the state. |
 | `solver_recursive/state_grid.py` | Smolyak sparse grid + Chebyshev basis, with `refine=(dim, m)` for a dense tensor factor on one dimension; `build_state_box`, `default_prob`, `s_process_params`. |
 | `solver_recursive/collocation.py` | THE SOLVER. `make_residual` (the global F(theta), image of `residual_model.m`), `parsolve` (port of his damped FD Newton), `krylov_solve`, `solve_collocation`. |
-| `solver_recursive/recursive_main.py`, `recursive_experiment.py` | Time iteration (warm start only) + SS anchors; the risk + TFP experiments and the solve ladder. |
+| `solver_recursive/recursive_main.py`, `recursive_experiment.py`, `tpi_experiment.py` | Time iteration (warm start only) + SS anchors; the risk + TFP experiments and the solve ladder (with the TPI cap homotopy); the TPI against no TPI (rest point, IRF with footprint, bond-price legs, price impact, KT check). |
 | `fast_kernels.py` | numba kernels for EGM backward + distribution forward; exact numpy fallback when numba is absent (`cal["use_numba"]`). |
 | `household.py`, `distribution.py` | EGM with GHH utility; stationary distribution and forward iteration. |
 | `trade.py` | CES basket and bilateral flows with PER-COUNTRY home bias and the country-mass ratio (`size_ratio`); `omega_home_F` is derived from `omega_home_D` and the sizes so trade balances at p = 1. |
@@ -178,7 +178,7 @@ forward) are numba-JITed with an exact pure-numpy fallback (`cal["use_numba"]`).
 | `prints.py` | Console reporting: `banner`, `print_ss_table`, and THE UNIT CONVENTION (`bp_ann`, `ann_pct`, `ann_prob`, and the `BOCOLA_IRF_*` benchmarks). Rates are annualised bp; p^d is printed quarterly AND annual; flow responses in level % with a ×4 annualised companion — Bocola's Table 5 unit. |
 | `plots.py` | Every global figure; written to `plots.OUTDIR` (default `results/GLOBAL/figures/`, set by `run.py`). |
 | `export.py` | Writes `results/GLOBAL/data/comparison_irfs.json` for `compare.py` (the SSJ twin is `linear_ssj/reporting/export.py`). |
-| `run.py` (repo root) | THE PIPELINE: `compute_global` (SS → TFP → risk pass-through → decompositions → accuracy → save) and `plot_global` (figures from the saved data). ~100 min at `S_REFINE = 5`; `--quick` ~10 min. |
+| `run.py` (repo root) | THE PIPELINE: `compute_global` (SS → TFP → risk pass-through → decompositions → accuracy → TPI → save) and `plot_global` (figures from the saved data). `RUN_TPI = True` adds one solve (the coarse cap homotopy, then the refined grid). The 12-state grid costs ~1.5x the old 10-state one. |
 | `tests/` | Regression suite (see below). |
 
 ## Running and testing
@@ -226,8 +226,8 @@ git history (last present at `0c99013`).
 
 ```bash
 # from the repo root
-python3 run.py global                                 # full projection pipeline (SS+TFP+risk)
-python3 run.py global --quick                         # coarse grid (comparison preview)
+python3 run.py global                                 # full projection pipeline (SS+TFP+risk+TPI)
+python3 run.py global --quick                         # coarse grid (preview, NOT converged)
 python3 -m global_projection.solver_recursive.recursive_experiment   # risk pass-through only
 python3 "Claude files/global_projection/tests/test_ss_identities.py"      # SS theory identities (fast)
 python3 "Claude files/global_projection/tests/test_fast_kernels.py"       # numba/numpy kernel equivalence (fast)
@@ -236,9 +236,9 @@ python3 "Claude files/global_projection/tests/test_no_unbound_names.py"   # stat
 python3 "Claude files/global_projection/tests/test_collocation.py"        # THE SOLVER: packing, the six identity
                                                            #   residuals, the refined grid, and a real
                                                            #   d=0 solve to max|F| ~ 1e-9 (~90 s)
-python3 "Claude files/global_projection/tests/test_recursive_nesting.py"  # SS rest point (N1) + the pi=0 grid-wide
-                                                           #   solve (N2, a hard gate since the
-                                                           #   collocation Newton replaced time iteration)
+python3 "Claude files/global_projection/tests/test_recursive_nesting.py"  # SS rest point (N1), the pi=0 grid-wide
+                                                           #   solve (N2), the TPI swap + risk transfer
+                                                           #   (N3) and the union budget identity (N4)
 ```
 
 **Comment convention** (enforced across `global_projection/`): every module and every
@@ -328,21 +328,45 @@ Console output lives in `prints.py`, never inside the model blocks.
   stack (`solver_pf/`: transition + solvers + risk_branch) was deleted 2026-08-11
   and the Chebyshev-Smolyak projection solver is now the ONLY machinery (TFP is a
   deterministic 7th state Z_D).
-- **THE LTRO BACKSTOP WAS DELETED 2026-10-01 (branch `OMT-fix`); a TPI bond-purchase
-  backstop replaces it** (plan: `/Users/Huawei/.claude/plans/plan-changes-to-implement-hidden-cerf.md`,
-  write-up to come in `Claude files/docs/tpi_backstop_plan.md`). The deletion was verified
-  bit-for-bit: every two-regime output of the period map, collocation, readers, IRFs,
-  decompositions, accuracy and the solve ladder is identical to the pre-deletion code.
-  The regime index is the default indicator d' again (`decision_rules.REGIMES = (0, 1)`).
-  The LTRO's design and results (Bocola's `residual_model_ltro_firstperiod.m`,
-  `ltro_D = 0.012`, the never-fired read) are in `Claude files/docs/ltro_backstop_plan.md`
-  and git history (last present at `1612f29`). **PREDECESSOR OF BOTH, RETIRED:** a
-  one-sided yield peg with real purchases that only shrank the divertable base -- it
-  could only remove the LIQUIDITY premium (0.2-0.7% of the price here, 0.63% at the
-  crisis corner against a 22.2% gap) because it worked by pushing `mu` down and `mu` is
-  floored at zero. `liquidity_ceiling_report` is that diagnostic, kept. The TPI design
-  closes that channel on purpose (purchased bonds are swapped for a safe CB claim, so
-  the divertable base does not move) and acts through the continuation instead.
+- **TPI = A SPREAD-CAP BOND-PURCHASE BACKSTOP (2026-10-02, branch `OMT-fix`; replaces the
+  LTRO).** Design, derivations and results: `Claude files/docs/tpi_backstop_plan.md`. In the
+  no-default regime the Eurosystem buys the D bond whenever `y_D - y_F` (HM flow yields)
+  would exceed `cal["tpi_cap_bp"]`, i.e. `Q_bD >= delta_D/(delta_D + y_F + cap)`, and pays
+  with a SAFE claim `Z = Q_bD*M` on itself held by the D banks (paying `1 + rdep_D`). Held to
+  maturity, nothing bought in default, P&L `Pi = Xi*M_lag - O_lag` remitted by capital key
+  (`tpi_key_D = 0.071`: D issuance; the rest lowers F taxes). `tpi_on = False` (default)
+  nests the no-TPI model.
+  **A PURCHASE IS A SWAP TODAY AND A RISK TRANSFER TOMORROW.** Assets, the divertable base
+  (single lambda), deposits, `P'` and `mu` do not move within the period; next period the
+  bank is owed `R*Q*dm` instead of `Xi'*dm` (N3 asserts both to 1e-12). This is the yield
+  peg's failure fixed on purpose: the peg could only remove the liquidity premium.
+  **STATES 12, UNKNOWNS 14.** `M_cb` (the book) and `O_cb` (the obligation; it carries last
+  period's price), both zero at the SS with bands symmetric round 0, so the M = O = 0 slice
+  IS the old 10-state grid and the TPI-off model nests it to solver tolerance (rules
+  5.5e-10). The box is a SHEAR, `z_bDD = b_DD + M`, `z_O = O - rho*M` (`state_grid`): on the
+  natural axes a forced purchase moved the price non-monotonically. The 14th unknown `x_cb`
+  is Garcia-Zangwill: `m = B*max(x,0)`, `Q_bD = floor + Q_ss*max(-x,0)` in the no-default
+  regime, so the stored rule is smooth across the floor (a stored `m` bought 19.7% of the
+  stock where the floor does not bind, by interpolation). Residual 8 is the D-bank FOC as a
+  Fischer-Burmeister KT pair with `b_DD >= 0` (the corner where the Eurosystem holds the
+  bank's whole book); residual 14 ties the stored `Q_bD` rule to that price. The
+  continuation reads `Q_bD'` off the stored rule: `max(-x',0)` inside the expectations
+  stalls the finite-difference Newton.
+  **ROOT IN ONE FORM, READ IN THE OTHER (`cal["tpi_gz"]`).** The GZ Newton also stalls
+  walking the cap down, so the solver roots the system in the Fischer-Burmeister form
+  (`tpi_gz = False`: x is the purchase share, residual 14 is `FB(x, (Q - floor)/Q_ss)`) and
+  hands back in the GZ form (`_tpi_form` converts at the nodes, exactly -- both forms
+  describe the same allocation there -- then `_tpi_polish` re-roots in 1-2 steps).
+  **SOLVE:** the no-TPI baseline, then a cap homotopy (`recursive_experiment._solve_tpi`,
+  700 bp -> target in 50 bp rungs, a failed rung retried at half the step), then the
+  s-refined grid (FB, then GZ). **PRICE IMPACT PER EURO IS SMALL:** at fixed rules 31% of the stock lifts
+  `Q_bD` 0.46% at the headline shock; with anticipation ~5x that; a cap far below the market
+  spread is met only at the corner (on the coarse grid: every cap <= 350 bp at p^d 4.8%).
+  **WALRAS:** `goods_F` is reported; it exposed a PRE-EXISTING leak (the constant household
+  anchor `hh_T` stands in for the working-capital flow), see STATE Part II. N4 checks that
+  the TPI's own flows cancel out of the union budget exactly (2e-10 at random points).
+  **PREDECESSORS, RETIRED:** the LTRO (deleted 2026-10-01, `ltro_backstop_plan.md`) and the
+  one-sided yield peg; `liquidity_ceiling_report` is the peg's diagnostic, kept.
 - **Predetermined deposit rate:** the rate paid at t was locked at t−1
   throughout (bank funding legs, household EGM returns, μ timing).
 - **Predetermined capital (Bocola eq. 6):** the stock producing at t was
@@ -388,8 +412,8 @@ Console output lives in `prints.py`, never inside the model blocks.
   offset it, turns the risk channel expansionary. Default is 0.)
 - **Walras redundancy:** goods_F and the current account are *dropped* from
   the residual system and monitored as diagnostics.
-- **Policy rules present:** the Bohn tax (the LTRO backstop was deleted 2026-10-01;
-  the TPI replacing it is in progress on `OMT-fix`). No macroprudential policy, by design.
+- **Policy rules present:** the Bohn tax and the TPI backstop above (off unless
+  `cal["tpi_on"]`). No macroprudential policy, by design.
 
 ### A. Sequence-space architecture (`linear_ssj/`)
 

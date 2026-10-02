@@ -326,3 +326,48 @@ def plot_risk_irf(path, filename="risk_irf_recursive.png", note=""):
 def plot_tfp_irf(path, filename="tfp_irf_recursive.png", note=""):
     # TFP IRF ALONG THE Z-DECAY PATH (the no-default rules), BOTH COUNTRIES.
     return _paper_irf(path, filename)
+
+
+# THE TPI OVERLAY: the headline risk shock with and without the backstop. (key, title,
+# y label, deviation panel?, annualise?) -- annualise only the quarterly flows; the last
+# row is the instrument's own footprint, without which the figure shows an effect with no
+# policy attached.
+TPI_PANELS = (("pd", "priced default probability $p^d$", "% per quarter", False, False),
+              ("Y", "GDP  $Y_D$", "% deviation (level)", True, True),
+              ("sov_bp", "sovereign spread  $y_D - y_F$", "bp ann.", False, False),
+              ("spread", "credit spread", "bp ann.", False, False),
+              ("dQ_bD", "D-sovereign price  $Q_{b,D}$", "% vs no-shock path", True, False),
+              ("n", "bank net worth  $n_D$", "% deviation", True, False),
+              ("C", "consumption  $C_D$", "% deviation (level)", True, True),
+              ("I", "investment  $I_D$", "% deviation (level)", True, True),
+              ("mu", "IC multiplier  $\\mu_D$", "level", False, False),
+              ("m_cb", "Eurosystem purchases  $m$", "% of SS D debt", False, False),
+              ("M_cb", "Eurosystem book  $M$", "% of SS D debt", False, False),
+              ("Pi_cb", "Eurosystem P&L remitted  $\\Pi$", "% of SS quarterly GDP",
+               True, False))
+
+
+def plot_tpi_irf(res, filename="tpi_irf.png", note=""):
+    # THE HEADLINE RISK SHOCK WITH AND WITHOUT THE TPI, plus the TPI's footprint.
+    # Two scenarios, ordered by policy strength, so they take the ends of the sequential
+    # ramp; each starts from its OWN rest point, so a gap at q0 that the footprint shows
+    # was not bought is the announcement.
+    runs = (("no TPI", res["irf_off"], ACTIVATION_RAMP[0]),
+            (f"TPI, spread cap {res['cap_bp']:.0f} bp", res["irf_on"], ACTIVATION_RAMP[2]))
+    q = np.arange(len(runs[0][1]["Y"]))
+    fig, axes = plt.subplots(3, 4, figsize=(18.8, 9.9), layout="constrained")
+    for ax, (key, title, ylab, dev, an) in zip(axes.ravel(), TPI_PANELS):
+        for label, path, color in runs:
+            ax.plot(q, np.asarray(path[key], dtype=float), color=color, lw=1.8, label=label)
+        _style(ax, title, ylab, zero=dev)
+        if an:
+            _annual_axis(ax)
+    handles, labels = axes.ravel()[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc="outside lower center", ncol=2, fontsize=9,
+               frameon=False)
+    fig.suptitle("Sovereign-risk shock with and without the TPI backstop"
+                 + (f"\n{note}" if note else "")
+                 + "\nright-hand axis on the flow panels: annualised (x4)",
+                 fontsize=11.5, color=INK)
+    _save(fig, filename)
+    return os.path.join(OUTDIR, filename)
