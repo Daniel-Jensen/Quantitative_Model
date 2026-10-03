@@ -2499,6 +2499,8 @@ the committed calibration with a Prony / companion-eigenvalue extractor
 > **Mechanism (quick run, exact reads):** the TPI raises the D bond's price almost entirely
 > through the CONTINUATION (the floor under its future resale value: +9.03 of +9.23% at the
 > headline shock), not the risk premium (-0.01%). `run.py` now runs the global model on a click.
+> **2026-10-03:** the full run's no-TPI model on the 115-point grid reproduces the published
+> numbers (impact output -0.1106% vs -0.1105%); the TPI's refined solve now walks 3 -> 5 nodes.
 
 **Branch:** `file-reorganisation` | **Date:** 2026-07-07 | **Status:** Bocola (2016) / Cole-Kehoe sovereign-risk mechanism implemented and verified; **risk channel added** via two-branch default-branch pricing (standalone `global_projection/` model)
 

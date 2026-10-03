@@ -14,6 +14,24 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-10-03 — The TPI's refined solve made robust; no-TPI results saved first (`OMT-fix`)
+
+The first full run (2026-10-02, 15:34) converged the no-TPI model on the 115-point grid in 4
+Newton steps, reproducing the published 10-state numbers (impact output -0.1106% against
+-0.1105%, bond price -9.2633% against -9.263%), and walked the TPI cap 700 -> 200 bp on the
+coarse grid without a failed rung. Seeded straight from the coarse TPI rules, the TPI's
+5-node refined Newton then took DAMPED steps (7.6e-3 -> 5.7e-3 -> 3.3e-3, steps 1/2, 1/4, 1/2),
+where a 3-node refined solve from the same seed converges quadratically in 5 (2.4e-6 -> 8.1e-10).
+
+- `_refine_s` walks the TPI 3 -> 5 nodes in s (the 3-node solve supplies the s-cross terms
+  the coarse seed lacks) and gives the TPI's refined Newton 20 steps instead of 12. The
+  no-TPI path is unchanged.
+- `run.py` saves every no-TPI object, and the coarse no-TPI baseline the TPI starts from
+  (`rules_base_coarse.pkl`), BEFORE the TPI experiment, so the longest solve in the
+  pipeline cannot take the rest down with it.
+- The run's progress also showed the Mac sleeping on battery overnight; `caffeinate`
+  cannot prevent lid-closed sleep on battery, so a full run needs the lid open or power.
+
 ## 2026-10-02 — run.py runs on a click; the TPI figures; the mechanism verified (`OMT-fix`)
 
 - **`run.py` defaults to `MODEL = "global"` and gains `QUICK`.** A plain `python3 run.py` (an

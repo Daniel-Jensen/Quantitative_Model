@@ -137,16 +137,8 @@ def compute_global(quick=False):
         accuracy = accuracy_report(rules, cal, ss, sproc, S_rest, T=ACCURACY_T,
                                    label="sovereign-risk rules")
 
-        # 6. the TPI backstop: the same economy with the Eurosystem's spread cap switched on
-        tpi = rules_tpi = None
-        if RUN_TPI:
-            banner(f"TPI backstop — spread cap {cal['tpi_cap_bp']:.0f} bp/yr over the F bond")
-            tpi, rules_tpi = tpi_experiment.run(cal, ss, sproc, rules, base[0],
-                                                s_refine=settings["S_REFINE"],
-                                                mu_vec=RISK_MU_VEC, pd_shock=RISK_SHOCK_PD)
-            print_tpi_report(tpi, BOND_CHANNELS)
-
-        # 7. save every computed object
+        # 6. save every no-TPI object NOW: the TPI below is the longest solve in the pipeline,
+        #    and nothing computed above should depend on it finishing
         banner(f"Saving -> {data}")
         save(data / "settings", settings)
         save(data / "calibration", cal)
@@ -158,14 +150,24 @@ def compute_global(quick=False):
         save(data / "output_decomposition", output_dec)
         save(data / "bond_decomposition", bond_dec)
         save(data / "accuracy", accuracy)
-        if tpi is not None:
-            save(data / "tpi", tpi)
-        for name, r in (("rules_tfp", rules_tfp), ("rules_risk", rules), ("rules_tpi", rules_tpi)):
-            if r is not None:
-                with open(data / f"{name}.pkl", "wb") as fh:   # the solved decision rules
-                    pickle.dump(r, fh)
+        # the solved decision rules, and the coarse no-TPI baseline the TPI solve starts from
+        for name, r in (("rules_tfp", rules_tfp), ("rules_risk", rules),
+                        ("rules_base_coarse", base[0])):
+            with open(data / f"{name}.pkl", "wb") as fh:
+                pickle.dump(r, fh)
         export_irfs(risk, tfp, sproc, RISK_SHOCK_PD, TFP_SHOCK, data / "comparison_irfs.json",
                     grid_note=" [--quick: coarse grid]" if quick else "")
+
+        # 7. the TPI backstop: the same economy with the Eurosystem's spread cap switched on
+        if RUN_TPI:
+            banner(f"TPI backstop — spread cap {cal['tpi_cap_bp']:.0f} bp/yr over the F bond")
+            tpi, rules_tpi = tpi_experiment.run(cal, ss, sproc, rules, base[0],
+                                                s_refine=settings["S_REFINE"],
+                                                mu_vec=RISK_MU_VEC, pd_shock=RISK_SHOCK_PD)
+            print_tpi_report(tpi, BOND_CHANNELS)
+            save(data / "tpi", tpi)
+            with open(data / "rules_tpi.pkl", "wb") as fh:
+                pickle.dump(rules_tpi, fh)
         print(f"  {len(list(data.iterdir()))} files written")
         print(f"\nTOTAL  {time.perf_counter() - t0:.0f}s")
 

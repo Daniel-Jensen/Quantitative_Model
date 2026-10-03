@@ -261,7 +261,15 @@ def _refine_s(rules, cal, ss, sproc, box, s_refine, backend, verbose):
     # the Newton's basin.
     nreg = rules.n_regimes
     okj = wj = None
+    tpi = bool(cal["tpi_on"])
     ladder = [m for m in (5, 9, 17) if 1 < m < s_refine] + [s_refine]
+    # WITH THE TPI ON THE WALK STARTS AT 3 NODES IN s: the same s levels as the coarse grid
+    # but with the s-cross terms the coarse seed lacks, which the TPI's corner states need.
+    # Measured: seeded straight from the coarse rules the 5-node TPI Newton took damped
+    # steps (7.6e-3 -> 5.7e-3 -> 3.3e-3); the 3-node one converged quadratically from the
+    # same seed (7.2e-3 -> 2.7e-3 -> 2.4e-6 -> 8.1e-10)
+    if tpi and s_refine > 3:
+        ladder = [3] + ladder
     for m_s in ladder:
         gfine = build_state_box(ss, cal, mu=box["mu"], mu_vec=box["mu_vec"],
                                 rot=box["rot"], centre=box["centre"], refine=(IS, m_s),
@@ -270,12 +278,11 @@ def _refine_s(rules, cal, ss, sproc, box, s_refine, backend, verbose):
             print(f"  s-refined grid: {gfine.n} points x {nreg} regimes "
                   f"({m_s} nodes, degree {m_s - 1} in s)")
         fine = _seed_from(RuleSet(gfine, nreg), rules)
-        tpi = bool(cal["tpi_on"])
         if tpi:                                 # root in the FB form, hand back in GZ
             _tpi_form(fine, cal, ss, gz=False)
         okj, itj, wj = _stage(fine, cal, ss, sproc, tuple(range(nreg)), False,
                               f"joint (s={m_s})", verbose, backend=backend,
-                              warm=REFINE_WARM_SWEEPS, maxit=12)
+                              warm=REFINE_WARM_SWEEPS, maxit=20 if tpi else 12)
         if tpi:
             ok_gz, _, wj = _tpi_polish(fine, cal, ss, sproc, f"joint (s={m_s})", verbose,
                                        backend)
