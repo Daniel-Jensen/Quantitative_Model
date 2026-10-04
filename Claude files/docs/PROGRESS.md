@@ -14,6 +14,19 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-10-04 — The collocation Jacobian runs on every core, bit-identically (`OMT-fix`)
+
+`cal["n_jobs"]` was documented as the FD-Jacobian worker count but read by nothing (a leftover of
+the deleted perfect-foresight solver), so every Newton step built its Jacobian serially: ~25 min
+per step on the 115-point grid, ~8 hours of awake machine time for a full run with the TPI.
+`collocation._PoolJacobian` now farms the columns out to spawned worker processes (0 = every
+core, 1 = serial), each computing its columns with the serial formula.
+- **Bit-identical:** the full coarse Jacobian (1000 x 1000) serial vs pooled, TPI on and off:
+  `np.array_equal` True, max|diff| 0.0. `test_collocation` and N2 reproduce 8 Newton steps and
+  max|F| 1.34e-10 exactly.
+- **Faster:** 71 s -> 19 s per coarse Jacobian on 8 workers (with another solve on one core);
+  the solve tests run in ~43 s instead of ~90 s.
+
 ## 2026-10-03 — The TPI's refined solve made robust; no-TPI results saved first (`OMT-fix`)
 
 The first full run (2026-10-02, 15:34) converged the no-TPI model on the 115-point grid in 4

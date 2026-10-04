@@ -316,7 +316,8 @@ def get_calibration():
         tol_dist=1e-12,
         tol_mkt=1e-12,         # SS stage-1 hybr xtol
         tol_transition=1e-10,  # 7T acceptance; do NOT tighten (hybr plateaus ~5e-11)
-        n_jobs=0,              # FD-Jacobian workers; 0 -> os.cpu_count()
+        n_jobs=0,              # collocation FD-Jacobian workers; 0 -> os.cpu_count(), 1 -> serial
+                               # (bit-identical either way; collocation._PoolJacobian)
         use_numba=True,        # JIT EGM/distribution kernels; numpy fallback otherwise
     )
     # DERIVED: the size-consistent foreign-goods weight (see omega_home_D above).

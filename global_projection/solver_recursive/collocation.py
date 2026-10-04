@@ -26,6 +26,10 @@
 # damped map.
 #
 # Nothing inside point_map.py changes. Residuals per (point, regime): 14 + 6 = 20.
+import multiprocessing as mp
+import os
+from concurrent.futures import ProcessPoolExecutor
+
 import numpy as np
 from scipy.linalg import lu_factor, lu_solve
 from scipy.optimize import newton_krylov
@@ -144,6 +148,61 @@ def _fd_jacobian(F, x, f, eps):
     return J
 
 
+# THE SAME JACOBIAN ON EVERY CORE. Its columns are independent residual evaluations, so
+# they are farmed out to worker processes, each holding its own copy of the residual
+# (built once per solve); every column is computed with the serial formula above, so the
+# matrix is BIT-IDENTICAL to _fd_jacobian's (checked). cal["n_jobs"] sets the workers
+# (0 = every core, 1 = serial). Measured: ~25 min per Jacobian on the 115-point grid
+# serially, which made a full run with the TPI ~8 hours of awake machine time.
+_WORKER = {}
+
+
+def _worker_init(args):
+    # BUILD THE RESIDUAL ONCE IN EACH SPAWNED WORKER.
+    _WORKER["F"] = make_residual(*args)
+
+
+def _worker_columns(x, f, eps, cols):
+    # A BLOCK OF JACOBIAN COLUMNS, EXACTLY AS _fd_jacobian COMPUTES THEM.
+    F = _WORKER["F"]
+    block = np.empty((f.size, len(cols)))
+    for j, i in enumerate(cols):
+        xp = x.copy()
+        xp[i] += eps
+        block[:, j] = (F(xp) - f) / eps
+    return cols, block
+
+
+class _PoolJacobian:
+    # THE FD JACOBIAN ON A PROCESS POOL (spawned: safe on macOS and with BLAS threads).
+
+    def __init__(self, args, n):
+        # START n WORKERS, EACH BUILDING THE RESIDUAL FROM args.
+        self.n = n
+        self.pool = ProcessPoolExecutor(max_workers=n, mp_context=mp.get_context("spawn"),
+                                        initializer=_worker_init, initargs=(args,))
+
+    def __call__(self, F, x, f, eps):
+        # COLUMNS IN 4n CHUNKS (load balance), ASSEMBLED IN THEIR SERIAL ORDER.
+        chunks = np.array_split(np.arange(x.size), 4 * self.n)
+        J = np.empty((f.size, x.size))
+        jobs = [self.pool.submit(_worker_columns, x, f, eps, c) for c in chunks if c.size]
+        for job in jobs:
+            cols, block = job.result()
+            J[:, cols] = block
+        return J
+
+    def close(self):
+        # STOP THE WORKERS.
+        self.pool.shutdown()
+
+
+def _n_workers(cal):
+    # cal["n_jobs"]: 0 = every core, 1 = serial.
+    n = int(cal.get("n_jobs", 0))
+    return (os.cpu_count() or 1) if n <= 0 else n
+
+
 def _factor(J):
     # LU FACTORISATION, OR None WHEN THE JACOBIAN IS SINGULAR / NON-FINITE.
     try:
@@ -174,7 +233,7 @@ def _line_search(F, x, dx, gap, cc, backtrack):
 
 def parsolve(F, x0, cc=1.0, tol=1e-20, maxcount=60, eps=1e-6, verbose=True,
              blowup=100.0, backtrack=True, label="", stall_step=1e-3, jac_every=1,
-             floor_tol=1e-8):
+             floor_tol=1e-8, jacobian=None):
     # DAMPED NEWTON WITH A FORWARD-DIFFERENCE JACOBIAN -- the port of parsolve.m.
     # Ryan Decker's routine as Bocola ships it: build J column by column at step eps,
     # take x <- x - cc*(J\f), stop when sum(f^2) <= tol, abort if it exceeds `blowup`.
@@ -197,7 +256,7 @@ def parsolve(F, x0, cc=1.0, tol=1e-20, maxcount=60, eps=1e-6, verbose=True,
         if gap <= tol:
             break
         if lu is None or (count - 1) % jac_every == 0:
-            J = _fd_jacobian(F, x, f, eps)
+            J = (_fd_jacobian if jacobian is None else jacobian)(F, x, f, eps)
             lu = _factor(J)
         dx = _newton_direction(lu, J, f)
         xn, fn, gn, step = _line_search(F, x, dx, gap, cc, backtrack)
@@ -287,9 +346,16 @@ def solve_collocation(rules, cal, ss, sproc, regimes=(0, 1), no_default=False,
     if backend == "parsolve":
         # tol is on max|F|; parsolve's own test is on the SUM OF SQUARES, as in the
         # original, so convert. m*tol^2 is the sum that corresponds to a uniform max.
-        x, ok, its, worst = parsolve(F, x0, cc=cc, tol=m * tol ** 2, maxcount=maxit,
-                                     verbose=verbose, label=label, jac_every=jac_every,
-                                     floor_tol=10.0 * tol)
+        nj = _n_workers(cal)
+        jac = (_PoolJacobian((rules, cal, ss, sproc, regimes, no_default, n_gh), nj)
+               if nj > 1 else None)
+        try:
+            x, ok, its, worst = parsolve(F, x0, cc=cc, tol=m * tol ** 2, maxcount=maxit,
+                                         verbose=verbose, label=label, jac_every=jac_every,
+                                         floor_tol=10.0 * tol, jacobian=jac)
+        finally:
+            if jac is not None:
+                jac.close()
     else:
         x, ok, its, worst = krylov_solve(F, x0, f_tol=tol, maxiter=maxit,
                                          verbose=verbose, label=label)

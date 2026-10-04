@@ -2,8 +2,9 @@
 
 ## Where things are now — 2026-10-01
 
-**A full global run with the TPI takes ~7-8 hours of AWAKE machine time: keep the lid open or the
-power on (caffeinate cannot stop lid-closed sleep on battery).**
+**A full global run with the TPI needs a few hours of AWAKE machine time (the collocation Jacobian
+now runs on every core, 2026-10-04): keep the lid open or the power on (caffeinate cannot stop
+lid-closed sleep on battery).**
 A plain `python3 run.py` (an editor "Run" click) now runs the GLOBAL model with the TPI (`MODEL` and
 `QUICK` in its configuration block). Run everything with `python3 run.py [ssj|global|both]` (set
 `SSJ_PYTHON` at its top for the SSJ model); results land in
