@@ -14,6 +14,27 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-10-05 — The TPI at full resolution: smoothing continuation, results (`OMT-fix`)
+
+The final click-path run (2026-10-04) converged and saved every no-TPI object on the 115-point
+grid, walked the TPI cap 700 -> 200 bp and solved the 3-node refinement, then STALLED in the 5-node
+TPI solve (steps cut to 1/256, max|F| ~1.4e-3). Diagnosed: the 5-node grid puts nodes right at the
+floor's boundary (the floor binds at 43 of 115 nodes, including 20 of 23 at p^d 1.58%/qtr), and at
+`tpi_eps` = 1e-5 each is a near-kink for the Newton's 1e-6 finite-difference step.
+- `tpi_eps` 1e-5 -> **1e-4** (biases economically invisible, measured: purchases of 2e-8 to 3e-7 of
+  the stock where the floor is slack, D-bank holdings of 2e-7 to 5e-7 at the corner) and **`TPI_EPS_LADDER` = (1e-2, 1e-3)**: each
+  refined TPI solve walks the smoothing in. Measured on the 5-node grid: 5, 11 and 7 Newton steps
+  (each ending quadratically) and a 2-step hand-back, max|F| 2.2e-9.
+- **Results** (full grid; `results/GLOBAL/`, `Claude files/docs/tpi_backstop_plan.md` §9.2): the
+  announcement lowers the rest-point lending spread 89 -> 53 bp and raises output 0.18%; on the
+  headline shock the Eurosystem buys 43% of the stock on impact, the spread is capped at 200 bp
+  (302 without), bank net worth falls 1.5% (4.2%) and impact output -0.080% (-0.128%), but the
+  downturn is longer (trough -0.147% at q6): along the no-default path the bonds' excess return
+  goes to the Eurosystem, 92.9% of it on to F by the capital key. The coarse preview's opposite
+  impact sign was a grid artefact.
+- The TPI part was completed by the production `_refine_s` and `tpi_experiment.compare` on the
+  run's saved no-TPI rules (`results/GLOBAL/run.log` says so); `run.py` itself carries the fix.
+
 ## 2026-10-04 — The collocation Jacobian runs on every core, bit-identically (`OMT-fix`)
 
 `cal["n_jobs"]` was documented as the FD-Jacobian worker count but read by nothing (a leftover of

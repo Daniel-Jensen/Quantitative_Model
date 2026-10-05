@@ -67,14 +67,21 @@ WARM_SWEEPS = 12
 REFINE_WARM_SWEEPS = 20
 
 # THE TPI CAP HOMOTOPY, annualised bp. A purchase moves the price only through the
-# continuation and by very little (+0.46% for 31% of the stock at the headline shock), so
-# a cap below the market spread is met at the CORNER -- the Eurosystem holding the D
+# continuation and by very little (+0.61% for 30% of the stock at the headline shock), so
+# a cap far below the market spread is met at the CORNER -- the Eurosystem holding the D
 # bank's whole book -- and the Newton reaches that corner only by degrees. The cap is
 # walked down from TPI_CAP_START (where it binds nowhere on the box) in TPI_CAP_STEP
 # rungs, and a rung that does not root is retried at half the step, down to TPI_MIN_STEP.
 TPI_CAP_START = 700.0
 TPI_CAP_STEP = 50.0
 TPI_MIN_STEP = 6.25
+# THE TPI's SMOOTHING, WALKED IN ON THE REFINED GRID (then cal["tpi_eps"]). The refined
+# grid puts nodes right at the floor's boundary (p^d 1.58%/qtr at s = +0.707), where the
+# Newton has to decide node by node whether the floor binds; with the final smoothing
+# from the start that switch is a near-kink and the 5-node solve stalled (steps cut to
+# 1/256, measured). A wide smoothing makes it a smooth transition the Newton can follow,
+# and each tighter stage starts next to its answer.
+TPI_EPS_LADDER = (1e-2, 1e-3)
 
 
 def _seed_from(rules_fine, rules_coarse):
@@ -278,12 +285,20 @@ def _refine_s(rules, cal, ss, sproc, box, s_refine, backend, verbose):
             print(f"  s-refined grid: {gfine.n} points x {nreg} regimes "
                   f"({m_s} nodes, degree {m_s - 1} in s)")
         fine = _seed_from(RuleSet(gfine, nreg), rules)
-        if tpi:                                 # root in the FB form, hand back in GZ
+        if not tpi:
+            okj, itj, wj = _stage(fine, cal, ss, sproc, tuple(range(nreg)), False,
+                                  f"joint (s={m_s})", verbose, backend=backend,
+                                  warm=REFINE_WARM_SWEEPS, maxit=12)
+        else:                                   # root in the FB form, hand back in GZ
             _tpi_form(fine, cal, ss, gz=False)
-        okj, itj, wj = _stage(fine, cal, ss, sproc, tuple(range(nreg)), False,
-                              f"joint (s={m_s})", verbose, backend=backend,
-                              warm=REFINE_WARM_SWEEPS, maxit=20 if tpi else 12)
-        if tpi:
+            eps, warm = cal["tpi_eps"], REFINE_WARM_SWEEPS
+            for e in [e for e in TPI_EPS_LADDER if e > eps] + [eps]:
+                cal["tpi_eps"] = e
+                okj, itj, wj = _stage(fine, cal, ss, sproc, tuple(range(nreg)), False,
+                                      f"joint (s={m_s}, eps={e:.0e})", verbose,
+                                      backend=backend, warm=warm, maxit=20)
+                warm = 0
+            cal["tpi_eps"] = eps
             ok_gz, _, wj = _tpi_polish(fine, cal, ss, sproc, f"joint (s={m_s})", verbose,
                                        backend)
             okj = okj and ok_gz

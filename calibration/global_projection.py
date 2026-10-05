@@ -244,12 +244,16 @@ def get_calibration():
         # Eurosystem buys whatever holds y_D - y_F <= tpi_cap_bp, in the no-default regime
         # only. It has to sit ABOVE the expected-loss spread wherever it binds, or the
         # instrument stops being a backstop and becomes a cross-border transfer (the
-        # headline p^d = 1.98%/qtr shock prices a 300 bp spread, ~90 bp at the rest point).
-        # tpi_eps smooths the two complementarity pairs: the bias is eps^2/(2*gap), so
-        # 1e-5 puts it below the period map's 1e-10 arithmetic floor away from the kink.
+        # headline p^d = 1.98%/qtr shock prices a 300 bp spread, 56 bp at the rest point).
+        # tpi_eps smooths the two complementarity pairs: the bias is at most eps^2/(2*gap) --
+        # at 1e-4, purchases of 2e-8 to 3e-7 of the stock where the floor is slack and a
+        # D-bank holding of 2e-7 to 5e-7 at the corner (measured), economically invisible. 1e-5 was too tight for the
+        # Newton's 1e-6 finite-difference step: near the floor's boundary the Jacobian was
+        # off by several percent and the refined TPI solve converged only linearly
+        # (measured: 7.6e-4 -> 4.5e-4 -> 3.2e-4 on the 115-point grid).
         tpi_on=False,
         tpi_cap_bp=200.0,
-        tpi_eps=1e-5,
+        tpi_eps=1e-4,
         # the form the rules are READ in (Garcia-Zangwill, kink-exact); the solver roots
         # the system in the Fischer-Burmeister form and converts (recursive_experiment)
         tpi_gz=True,

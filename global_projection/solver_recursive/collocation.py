@@ -153,7 +153,9 @@ def _fd_jacobian(F, x, f, eps):
 # (built once per solve); every column is computed with the serial formula above, so the
 # matrix is BIT-IDENTICAL to _fd_jacobian's (checked). cal["n_jobs"] sets the workers
 # (0 = every core, 1 = serial). Measured: ~25 min per Jacobian on the 115-point grid
-# serially, which made a full run with the TPI ~8 hours of awake machine time.
+# serially, which made a full run with the TPI ~8 hours of awake machine time. The workers
+# are spawned at every solve and import the model from disk then: editing model code while
+# a run is in progress would hand them different code from the main process.
 _WORKER = {}
 
 

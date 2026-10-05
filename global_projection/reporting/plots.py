@@ -369,9 +369,12 @@ def plot_tpi_irf(res, filename="tpi_irf.png", note=""):
             ax.set_xlim(q[0], q[-1])
         ax = flat[-1]
         m = np.asarray(res["irf_on"]["m_cb"], dtype=float)
-        M = np.asarray(res["irf_on"]["M_cb"], dtype=float)
+        # the path records the book CARRIED INTO each quarter; the book after the quarter's
+        # purchases is next quarter's carried book, so an impact purchase shows at q0
+        M = np.r_[np.asarray(res["irf_on"]["M_cb"], dtype=float)[1:], np.nan]
         ax.bar(q, m, color=ACTIVATION_RAMP[1], width=0.75, label="purchases $m$", zorder=3)
-        ax.plot(q, M, color=ACTIVATION_RAMP[2], lw=1.8, label="book $M$", zorder=4)
+        ax.plot(q, M, color=ACTIVATION_RAMP[2], lw=1.8, label="book after purchases $M$",
+                zorder=4)
         _paper_axes(ax, "(i) Eurosystem footprint (TPI)", "% of SS D debt", zero=False)
         ax.set_xlim(q[0] - 0.5, q[-1] + 0.5)
         # below 0.01% of the stock is the smoothing of the purchase rule, not a purchase

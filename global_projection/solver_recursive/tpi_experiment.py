@@ -7,10 +7,11 @@
 # Held to maturity; nothing is bought in the default regime.
 #
 # WHAT IT CAN DO IS SMALL PER EURO AND THE CAP DECIDES THE SIZE. At fixed rules a purchase
-# of 31% of the stock lifts Q_bD by 0.24% at the rest point and 0.46% at the headline shock
-# (price_impact), because the bank prices the bond off its own continuation and the swap
-# only de-risks that. A cap below the market spread is therefore met at the CORNER: the
-# Eurosystem holds the D bank's whole book, b_DD = 0, and the D-bank FOC is slack.
+# of 30% of the stock lifts Q_bD by 0.24% at the rest point and 0.61% at the headline shock
+# (price_impact, 115-point grid), because the bank prices the bond off its own continuation
+# and the swap only de-risks that. A cap far below the market spread is therefore met at the
+# CORNER: the Eurosystem holds the D bank's whole book, b_DD = 0, and the D-bank FOC is slack
+# (21 of the 23 nodes at p^d 4.8%/qtr; at the headline shock the purchase is interior).
 #
 # run() solves the TPI economy on the pipeline's own grid, reusing its no-TPI rules and
 # coarse baseline, and reports: the rest point with and without (the ANNOUNCEMENT effect --

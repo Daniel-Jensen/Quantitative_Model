@@ -136,7 +136,8 @@ country — which now carry Bocola's identity residual `log(guess/implied)`). Th
 coefficient vector goes to one damped Newton with a finite-difference Jacobian
 (`parsolve`, dense) or Newton-Krylov (`krylov`, Jacobian-free) on the refined grid.
 The FD Jacobian's columns run on every core (`cal["n_jobs"]`: 0 = all, 1 = serial;
-`collocation._PoolJacobian`, spawned workers, bit-identical to the serial one).
+`collocation._PoolJacobian`, spawned workers, bit-identical to the serial one). The workers
+re-import the model at every solve: **do not edit model code while a run is in progress.**
 Solve ladder, also his: coarse μ=1 grid → d=0 at π=0 → d=1 by haircut homotopy
 (0.85/0.70/0.55/0.45) → joint → SEED the s-refined grid and re-solve there.
 Time iteration (`recursive_main.time_iteration`) survives ONLY as the warm start that
@@ -362,9 +363,21 @@ Console output lives in `prints.py`, never inside the model blocks.
   describe the same allocation there -- then `_tpi_polish` re-roots in 1-2 steps).
   **SOLVE:** the no-TPI baseline, then a cap homotopy (`recursive_experiment._solve_tpi`,
   700 bp -> target in 50 bp rungs, a failed rung retried at half the step), then the
-  s-refined grid (FB, then GZ). **PRICE IMPACT PER EURO IS SMALL:** at fixed rules 31% of the stock lifts
-  `Q_bD` 0.46% at the headline shock; with anticipation ~5x that; a cap far below the market
-  spread is met only at the corner (on the coarse grid: every cap <= 350 bp at p^d 4.8%).
+  s-refined grid 3 -> 5 nodes (FB, then GZ), each refined solve walking the smoothing in
+  (`TPI_EPS_LADDER` 1e-2 -> 1e-3 -> `tpi_eps` = 1e-4): the 5-node grid puts nodes on the
+  floor's boundary (it binds at 43 of 115) and at the final smoothing from the start the
+  Newton stalled.
+  **RESULTS (full grid, cap 200 bp, `Claude files/docs/tpi_backstop_plan.md` §9.2):** the
+  announcement lowers the rest-point lending spread 89 -> 53 bp, output +0.18%, nothing bought;
+  on the headline shock the Eurosystem buys 43% of the stock on impact, impact output -0.080%
+  (no TPI -0.128%), bank net worth -1.5% (-4.2%), but the downturn lasts longer (trough -0.147%
+  at q6): the IRF conditions on no default, and there the bonds' excess return goes to the
+  Eurosystem and by the capital key 92.9% on to F.
+  **PRICE IMPACT PER EURO IS SMALL:** at fixed rules 30% of the stock lifts `Q_bD` 0.61% at
+  the headline shock (0.24% at rest), against +3.8% for the solved TPI economy, most of it
+  through the continuation; a cap far below the market spread is met only at the corner (21 of
+  the 23 nodes at p^d 4.8%/qtr), while at the headline shock the purchase is interior (the D
+  bank keeps 39% of the stock).
   **WALRAS:** `goods_F` is reported; it exposed a PRE-EXISTING leak (the constant household
   anchor `hh_T` stands in for the working-capital flow), see STATE Part II. N4 checks that
   the TPI's own flows cancel out of the union budget exactly (2e-10 at random points).

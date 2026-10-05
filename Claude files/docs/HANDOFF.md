@@ -2,9 +2,11 @@
 
 ## Where things are now — 2026-10-01
 
-**A full global run with the TPI needs a few hours of AWAKE machine time (the collocation Jacobian
-now runs on every core, 2026-10-04): keep the lid open or the power on (caffeinate cannot stop
-lid-closed sleep on battery).**
+**A full global run with the TPI needs ~4-5 hours of AWAKE machine time on 8 cores (measured: the
+TPI's refined solve alone took 3.6 h): keep the lid open and the power on (caffeinate cannot stop
+lid-closed sleep on battery). Do not edit model code while a run is in progress: the Jacobian's
+worker processes re-import it at every solve.** Full-resolution TPI results (2026-10-05) are in
+`results/GLOBAL/` and `Claude files/docs/tpi_backstop_plan.md` §9.2.
 A plain `python3 run.py` (an editor "Run" click) now runs the GLOBAL model with the TPI (`MODEL` and
 `QUICK` in its configuration block). Run everything with `python3 run.py [ssj|global|both]` (set
 `SSJ_PYTHON` at its top for the SSJ model); results land in

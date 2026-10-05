@@ -145,12 +145,17 @@ rotation does the work, with centre 0, so every other coordinate and the slice a
 ## 8. Obstacles (deliverable 10) and how each was met
 
 1. **The price impact per euro is small, so the cap decides the size.** At fixed rules a
-   purchase of 31% of the stock lifts `Q_bD` 0.24% at rest and 0.46% at the headline shock.
-   With anticipation (the solved TPI rules) it is ~5× larger, but a cap far below the market
-   spread is still met only at the corner, the Eurosystem holding the D bank's whole book.
+   purchase of 30% of the stock lifts `Q_bD` 0.24% at rest and 0.61% at the headline shock
+   (115-point grid; 0.46% for 31% on the coarse grid). The solved TPI economy prices the bond
+   3.8% above the no-TPI one at the shock, most of it through the continuation (§9.2). A cap
+   far below the market spread is met only at the corner, the Eurosystem holding the D bank's
+   whole book: at 21 of the 23 nodes at p^d = 4.8%/qtr. At the headline shock (302 bp against
+   the 200 bp cap) the purchase is interior.
    Below the expected-loss spread the instrument is a cross-border transfer, not a backstop.
 2. **Two kinks** (the purchase switch and the `b_DD` corner). Met with Garcia–Zangwill for
-   the purchase pair, Fischer–Burmeister for the corner, and a **cap homotopy**
+   the purchase pair, Fischer–Burmeister for the corner, a **smoothing continuation** on the
+   refined grid (ε = 1e-2 → 1e-3 → `tpi_eps` = 1e-4; at the final 1e-5 first chosen, the
+   finite-difference step of 1e-6 saw a near-kink and the 5-node solve stalled), and a **cap homotopy**
    (`recursive_experiment._solve_tpi`: 700 bp, where the cap binds nowhere on the box, down to
    the target in 50 bp rungs in the FB form, a failed rung retried at half the step, then
    handed back in the GZ form). §3 records the formulations that failed and why.
@@ -208,6 +213,69 @@ bought 53% of the stock on impact and then asked for more bonds than the D bank 
 place the floor's boundary, even for the smooth `x`. `tpi_experiment` therefore clears both
 economies' IRFs at every quarter.
 
-### 9.2 The full run (`S_REFINE = 5`)
+### 9.2 The full resolution (`S_REFINE = 5`, 115 points), cap 200 bp — 2026-10-05
 
-*(running 2026-10-02; filled when it completes)*
+**Solve.** The no-TPI model on the 115-point grid reproduces the published numbers (impact
+output −0.1105% read off the fitted rules and −0.1278% cleared exactly, bond price −9.2633%). The
+cap ladder roots every rung 700 → 200 bp; the TPI's refined solve walks 3 → 5 nodes in `s` with the
+smoothing continuation ε = 1e-2 → 1e-3 → 1e-4 (§8) and ends at max|F| 2.2e-9. Without the
+continuation the 5-node solve stalled: the refined grid puts nodes right at the floor's boundary —
+the floor binds at **43 of the 115 no-default nodes**, the whole p^d = 4.8%/qtr level and 20 of the
+23 nodes at p^d = 1.58%/qtr — and with the final smoothing from the start each of those is a
+near-kink. 21 nodes, all at p^d = 4.8%/qtr, sit at the corner (the D bank holds none of the bond).
+On the solved rules: nothing is bought in default (x ≡ 0); the spread never exceeds the cap (max
+199.999995 bp; at nodes on the boundary it sits up to 1 bp below it, the ε = 1e-4 smoothing); the
+complementarity products sit at the smoothing's bias, |m·gap| = ε²/4 = 2.5e-9 at every node (the
+GZ read) and |b_DD·foc| ≤ 6.6e-9 (the FB pair's ε²/2 = 5e-9 plus the solve's tolerance).
+
+**The announcement (rest point, nothing bought).**
+
+| object | no TPI | TPI | diff |
+|---|---|---|---|
+| sovereign spread, bp/yr | 55.8 | 51.6 | −4.3 |
+| lending spread, bp/yr | 88.7 | 52.6 | −36.1 |
+| `mu_D` (IC multiplier) | 0.0110 | 0.0066 | −0.0045 |
+| `n_D` (D-bank net worth) | 1.9395 | 1.9480 | +0.44% |
+| `Y_D` (D output) | 0.99941 | 1.00116 | +0.18% |
+| `I_D` (D investment) | 0.20460 | 0.20574 | +0.56% |
+
+**The headline shock (p^d → 1.98%/qtr, both paths cleared exactly every quarter).** The TPI
+fires once: the Eurosystem buys **43.3% of the SS stock on impact**, the spread is held at the cap
+(200 bp, against 302 without), and from the next quarter the spread sits below the cap, nothing
+more is bought and the book runs off at the bonds' maturity rate (11.5% of the stock still held
+entering q24). The purchase is interior: the D bank keeps 39% of the stock and its FOC holds (the
+corner is reached only at the p^d = 4.8%/qtr nodes).
+
+| | no TPI | TPI |
+|---|---|---|
+| output, impact | −0.128% | **−0.080%** |
+| output, trough | −0.128% (q0); above 0 from q3 | **−0.147% (q6)**; −0.071% at q24 |
+| consumption, impact / trough | −0.02% / −0.04% | −0.24% / −0.34% |
+| bank net worth | −4.17% on impact, above its no-shock path from q3 | −1.47% on impact, −1.23% at q4, −0.63% at q8 |
+| lending spread, impact | 180 bp | 34 bp, rising to 83 bp at q6 |
+| D bond price vs no-shock path, impact | −8.91% | −5.68% |
+
+Impact output, exact decomposition (pp): credit spread −0.218 → −0.024, deposit rate +0.116 →
++0.001 (without the TPI the deposit rate falls 54 bp and cushions the wage bill; with it, 0.6 bp),
+relative price −0.026 → −0.057.
+
+**Why the bond is worth more on impact** (+3.82%, the FOC legs, residual 0.0000%): the
+continuation price +3.25 (the floor under future resale values), the liquidity premium +0.37 (the
+bank constraint relaxed), the risk premium +0.30 (the banks de-risked), the expected loss +0.05,
+discounting −0.16. A one-off purchase at fixed rules moves the price +0.24% (rest) / +0.61%
+(shock) per 30% of the stock.
+
+**Why the downturn is longer with the TPI.** Along this path no default occurs, so the risk
+transfer of §4 runs in its no-default direction: the D banks sold 43% of the stock to the
+Eurosystem at the floor and hold the safe claim instead, so the bonds' excess return over the
+deposit rate — the default premium and the price recovery, which in the no-TPI economy rebuild
+bank net worth within three quarters — accrues to the Eurosystem (its P&L is +0.34% of quarterly
+GDP at q1, declining to 0.05% at q24), and the capital key sends 92.9% of it to F households. D
+bank net worth stays down, the lending spread rises after impact, and D consumption falls. **The
+IRF conditions on no default, so it shows what the insurance costs and none of what it pays**:
+the welfare comparison needs the default branch, where the Eurosystem — and, by the capital key,
+mostly F — takes the haircut instead of the D banks.
+
+**The coarse preview (§9.1) is superseded.** On the coarse grid the TPI never fired at the
+headline shock and output fell more with it; both were coarse-grid artefacts, and its +9.2% price
+effect fell to +3.8%.

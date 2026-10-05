@@ -2502,6 +2502,11 @@ the committed calibration with a Prony / companion-eigenvalue extractor
 > **2026-10-03:** the full run's no-TPI model on the 115-point grid reproduces the published
 > numbers (impact output -0.1106% vs -0.1105%); the TPI's refined solve now walks 3 -> 5 nodes.
 > **2026-10-04:** the collocation Jacobian runs on every core (`n_jobs`), bit-identically.
+> **2026-10-05, FULL-RESOLUTION TPI RESULTS** (cap 200 bp; `tpi_backstop_plan.md` §9.2): at rest
+> the lending spread falls 89 -> 53 bp and output rises 0.18% with nothing bought; on the headline
+> shock the Eurosystem buys 43% of the stock on impact, impact output -0.080% (vs -0.128%), but the
+> downturn is longer (trough -0.147% at q6) because the bonds' excess return goes to the Eurosystem
+> (92.9% on to F) along the no-default path. `tpi_eps` = 1e-4 with a smoothing continuation.
 
 **Branch:** `file-reorganisation` | **Date:** 2026-07-07 | **Status:** Bocola (2016) / Cole-Kehoe sovereign-risk mechanism implemented and verified; **risk channel added** via two-branch default-branch pricing (standalone `global_projection/` model)
 
