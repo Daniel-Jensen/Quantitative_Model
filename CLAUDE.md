@@ -182,7 +182,7 @@ forward) are numba-JITed with an exact pure-numpy fallback (`cal["use_numba"]`).
 | `prints.py` | Console reporting: `banner`, `print_ss_table`, and THE UNIT CONVENTION (`bp_ann`, `ann_pct`, `ann_prob`, and the `BOCOLA_IRF_*` benchmarks). Rates are annualised bp; p^d is printed quarterly AND annual; flow responses in level % with a ×4 annualised companion — Bocola's Table 5 unit. |
 | `plots.py` | Every global figure; written to `plots.OUTDIR` (default `results/GLOBAL/figures/`, set by `run.py`). |
 | `export.py` | Writes `results/GLOBAL/data/comparison_irfs.json` for `compare.py` (the SSJ twin is `linear_ssj/reporting/export.py`). |
-| `run.py` (repo root) | THE PIPELINE: `compute_global` (SS → TFP → risk pass-through → decompositions → accuracy → TPI → save) and `plot_global` (figures from the saved data). `RUN_TPI = True` adds one solve (the coarse cap homotopy, then the refined grid). The 12-state grid costs ~1.5x the old 10-state one. |
+| `run.py` (repo root) | THE PIPELINE: `compute_global` (SS → TFP → risk pass-through → decompositions → accuracy → TPI → save) and `plot_global` (figures from the saved data). `RUN_TPI = True` adds one solve (the coarse cap homotopy, then the refined grid); `TPI_CAP` sets the cap (bp/yr, or `"rest"` = defend the no-TPI rest-point spread, ~56 bp). The 12-state grid costs ~1.5x the old 10-state one. |
 | `tests/` | Regression suite (see below). |
 
 ## Running and testing

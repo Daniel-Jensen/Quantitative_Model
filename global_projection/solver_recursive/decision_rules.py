@@ -1,60 +1,19 @@
-# DECISION-RULE LAYER: PER-REGIME CHEBYSHEV COEFFICIENTS ON THE STATE GRID.
-# Every equilibrium object is approximated as a rule x(j, S) with SEPARATE
-# coefficient sets for each regime j, the default indicator (see regime_table). Two kinds:
-#   SOLVE   -- the pointwise Newton unknowns: N, Kp, rdep and household saving A per
-#              country, the terms of trade p, BOTH sovereign prices Q_bD/Q_bF and the
-#              cross-border holdings b_DF/b_FD, and the TPI variable x_cb (purchases
-#              and the price's slack over the floor in one smooth rule; point_map).
-#              (SOLVE7 is a back-compat alias; the name is historical, the tuple is 14
-#              long.)
-#   DERIVED -- objects READ OFF the Euler recursions given the frozen continuation
-#              (point_map computes them): the banker valuations alpha, the
-#              consumptions, r_wc.
-# Both are stored and interpolated (continuation + simulation need them). Storage
-# layout is the one place the stacking convention lives -- every caller takes the
-# order from SOLVE rather than repeating it, because a duplicated literal is exactly
-# how the 7 -> 11 change silently broke recursive_main._sweep's x_ss.
+# DECISION RULES: PER-REGIME CHEBYSHEV FITS ON THE STATE GRID.
 import numpy as np
 
-# BOTH SOVEREIGN MARKETS CLEAR. Each bond used to be FORCE-FED to the banks:
-# b_D_D = (1-shareF)*B' at a FIXED SS share, with the price then read off the
-# D bank's Euler given that imposed quantity. Neither intermediary had a demand
-# schedule and no market cleared. Now both banks' D-bond FOCs are residuals, b_DF is
-# an unknown, b_DD = B' - b_DF clears the market by construction, and Q_bD is the
-# price that does it. Q_bD stays a STORED rule (the continuation needs Q_bD'), it is
-# just no longer read off a recursion.
-# A_D IS SOLVED TOO -- THE UNION DEPOSIT MARKET. Under the old NATIONAL clearing each
-# household was force-fed its own bank's funding need (A_D = dep_D/P_CES_D) and the F
-# household's Euler was computed and DROPPED, so consumption was the bookkeeping
-# residual of the bank balance sheet: C_D = W/P_CES + inc - A_D with the two gross legs
-# ~8 and C_D ~0.79, income contributing 2% of the movement against 42% from each gross
-# leg. A_D is now the D household's CHOICE (euler_D), euler_F is restored as a residual,
-# and union clearing is an EXPLICIT residual with A_F a genuine unknown too. A_F was
-# briefly left as the residual OF the clearing identity -- algebraically the same system,
-# but the Newton then had A_F absorbing 100% of any union funding swing (a 2% capital
-# move is ~0.18 of funding, ~23% of a household's consumption), C_F slammed into its
-# clip plateau and hybr made ZERO progress at 6/19 points. Both savings solved, clearing
-# scaled by SS deposits, is the conditioned form of the identical equilibrium.
-# x_cb, THE TPI VARIABLE, is last so every positional read of the first 13 is unchanged.
-# It is fitted in LEVELS (it changes sign at the floor's boundary).
+# the Newton unknowns at each grid point; the TPI variable x_cb is last
 SOLVE = ("N_D", "N_F", "Kp_D", "Kp_F", "rdep_D", "rdep_F", "p",
          "Q_bD", "b_DF", "Q_bF", "b_FD", "A_D", "A_F", "x_cb")
-SOLVE7 = SOLVE                              # back-compat alias (older imports)
-# banker valuations + household aggregates, all READ OFF the recursions/closure
+SOLVE7 = SOLVE  # back-compat alias
+# objects read off the recursions, stored for the continuation
 DERIVED = ("alpha_D", "alpha_F", "C_D", "C_F",
            "r_wc_D", "r_wc_F")
-STORE_RULES = SOLVE7 + DERIVED            # interpolated for continuation/sim
+STORE_RULES = SOLVE7 + DERIVED
 ALL_RULES = STORE_RULES
-# back-compat alias (older imports)
+# back-compat alias
 DERIVED4 = DERIVED
 
-# RULES INTERPOLATED IN LOGS (Bocola parameterises every policy as exp(ss + gamma)).
-# Fitting log x rather than x makes the interpolant positive by construction, so the
-# hard clips that used to protect positivity are unnecessary and the fit stops having
-# to represent a plateau. Values are STORED in levels throughout (warm starts, damping
-# and every caller are unchanged); only the Chebyshev fit and evaluation go through
-# the transform. rdep is a rate that may legitimately go negative, so it is carried as
-# the GROSS rate 1 + r -- Bocola's R -- which is positive.
+# rules fitted in logs, or as gross rates, so the fit stays positive
 LOG_RULES = frozenset({"N_D", "N_F", "Kp_D", "Kp_F", "p",
                        "alpha_D", "alpha_F", "Q_bD", "Q_bF", "b_DF", "b_FD",
                        "C_D", "C_F", "A_D", "A_F"})
@@ -63,7 +22,7 @@ _FIT_FLOOR = 1e-12
 
 
 def to_fit(name, v):
-    # LEVELS -> THE QUANTITY ACTUALLY FITTED BY THE CHEBYSHEV COLLOCATION.
+    # LEVELS -> THE QUANTITY THE CHEBYSHEV FIT USES.
     if name in GROSS_RULES:
         return np.log(np.maximum(1.0 + np.asarray(v, dtype=float), _FIT_FLOOR))
     if name in LOG_RULES:
@@ -71,23 +30,18 @@ def to_fit(name, v):
     return np.asarray(v, dtype=float)
 
 
-# THE REGIMES. The index a rule is stored under IS the default indicator d' of the
-# period: 0 = no default, 1 = the haircut is realised. (A compound (d', CB-active m')
-# table carried the LTRO backstop; it was deleted 2026-10-01 together with the LTRO.)
+# the regime index is the default indicator: 0 = no default, 1 = default
 REGIMES = (0, 1)
 
 
 def regime_table(n_regimes):
-    # THE DEFAULT INDICATOR OF EVERY REGIME INDEX, single-sourced.
+    # THE DEFAULT INDICATOR OF EACH REGIME.
     assert int(n_regimes) == len(REGIMES), "the model has exactly two regimes: d = 0, 1"
     return REGIMES
 
 
 def from_fit(name, y):
-    # FITTED QUANTITY -> LEVELS (the inverse of to_fit).
-    # The exponent is clamped only to keep a diverging transient iterate FINITE
-    # (exp overflows to inf at ~709, and inf propagates into every expectation);
-    # +-50 spans 1e-22 .. 5e21, so it is unreachable by any admissible value.
+    # FITTED QUANTITY -> LEVELS; THE CLIP ONLY KEEPS A DIVERGING ITERATE FINITE.
     if name in GROSS_RULES:
         return np.exp(np.clip(y, -50.0, 50.0)) - 1.0
     if name in LOG_RULES:
@@ -99,22 +53,17 @@ class RuleSet:
     # COEFFICIENTS AND POINT VALUES FOR EVERY RULE IN EVERY REGIME.
 
     def __init__(self, grid, n_regimes=2):
-        # EMPTY CONTAINER BOUND TO ONE GRID (values (n,) PER RULE PER REGIME).
+        # AN EMPTY RULE SET ON ONE GRID.
         self.grid = grid
         self.n_regimes = int(n_regimes)
         self.reg = regime_table(self.n_regimes)
         self.vals = {k: [np.empty(grid.n) for _ in self.reg] for k in ALL_RULES}
         self.coef = {k: [None for _ in self.reg] for k in ALL_RULES}
-        # quadrature order the rules were SOLVED under; time_iteration stamps it and
-        # every reader (IRFs, decompositions, accuracy) uses it, so a solve at n_gh=5
-        # is never read back at n_gh=7 and charged the difference as approximation error
+        # the quadrature order the rules were solved with, reused by every reader
         self.n_gh = None
 
     def set_values(self, name, d, values, weights=None, ridge=0.0):
-        # SET POINT VALUES FOR ONE RULE IN ONE REGIME AND REFIT ITS COEFFICIENTS.
-        # Values are stored in LEVELS; the fit is on to_fit(name, .) so the log rules
-        # are collocated in logs. weights/ridge (optional) switch to the masked
-        # ridge-LS fit; the default (both absent) keeps the exact square solve.
+        # SET ONE RULE'S VALUES IN ONE REGIME AND REFIT IT.
         self.vals[name][d] = np.asarray(values, dtype=float).copy()
         y = to_fit(name, self.vals[name][d])
         if weights is None and ridge == 0.0:
@@ -123,16 +72,16 @@ class RuleSet:
             self.coef[name][d] = self.grid.fit_weighted(y, weights, ridge)
 
     def eval(self, name, d, x):
-        # EVALUATE ONE RULE IN REGIME d AT NATURAL-COORDINATE POINTS x.
+        # EVALUATE ONE RULE IN REGIME d AT POINTS x.
         return from_fit(name, self.grid.eval(self.coef[name][d], x))
 
     def eval_all(self, d, x):
-        # EVALUATE EVERY RULE IN REGIME d AT POINTS x -> DICT OF ARRAYS.
+        # EVALUATE EVERY RULE IN REGIME d AT POINTS x.
         B = self.grid.basis(x)
         return {k: from_fit(k, B @ self.coef[k][d]) for k in ALL_RULES}
 
     def copy(self):
-        # DEEP-ENOUGH COPY FOR A FROZEN CONTINUATION (values + coefficients).
+        # A COPY FOR A FROZEN CONTINUATION.
         rs = RuleSet(self.grid, self.n_regimes)
         rs.n_gh = self.n_gh
         for k in ALL_RULES:
@@ -144,10 +93,7 @@ class RuleSet:
 
     @classmethod
     def from_ss(cls, grid, ss, cal, n_regimes=2):
-        # STEADY-STATE COLD START IN EVERY REGIME. Constant SS everywhere EXCEPT
-        # Kp_D/Kp_F, which track the state's own K so the Jermann inversion is
-        # feasible at every grid point (SS-constant Kp asks for an infeasible
-        # I/K at high-K corners); N is normalised to 1 at the SS.
+        # STEADY-STATE COLD START IN EVERY REGIME.
         rs = cls(grid, n_regimes)
         bk_D, bk_F = ss["ss_bank_D"], ss["ss_bank_F"]
         const = dict(N_D=1.0, N_F=1.0,
@@ -158,13 +104,13 @@ class RuleSet:
                      b_DF=cal["b_D_F_ss"], b_FD=cal["b_F_D_ss"],
                      C_D=ss["C_D_ss"], C_F=ss["C_F_ss"],
                      A_D=ss["A_D_ss"], A_F=ss["A_F_ss"], x_cb=0.0,
-                     # r_wc = rdep + lambda*mu/Omega, constant at the SS
+                     # r_wc = rdep + the credit spread at the SS
                      r_wc_D=cal["r_dep_D_target"] + cal["credit_spread_target_D"],
                      r_wc_F=cal["r_dep_F_target"] + cal["credit_spread_target_F"])
         for k, v in const.items():
             for d in range(rs.n_regimes):
                 rs.set_values(k, d, np.full(grid.n, v))
-        for d in range(rs.n_regimes):           # Kp tracks the K state (feasible)
+        for d in range(rs.n_regimes):  # Kp tracks the K state so investment is feasible everywhere
             rs.set_values("Kp_D", d, grid.points[:, 0].copy())
             rs.set_values("Kp_F", d, grid.points[:, 1].copy())
         return rs

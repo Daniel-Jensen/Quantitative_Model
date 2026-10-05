@@ -1,24 +1,4 @@
-# THE TPI BACKSTOP: EUROSYSTEM PURCHASES OF THE D BOND AGAINST A SPREAD CAP.
-# In the no-default regime the Eurosystem buys whatever holds y_D - y_F <= tpi_cap_bp
-# (point_map._tpi_rule) and pays for it with a safe claim on itself, so a purchase is a
-# SWAP inside the D bank's book today -- assets, the divertable base, deposits and mu do
-# not move -- and a RISK TRANSFER tomorrow: the bank is owed (1+R)*Q per bond instead of
-# the bond's payoff, by far the better deal in default. The P&L is shared by capital key.
-# Held to maturity; nothing is bought in the default regime.
-#
-# WHAT IT CAN DO IS SMALL PER EURO AND THE CAP DECIDES THE SIZE. At fixed rules a purchase
-# of 30% of the stock lifts Q_bD by 0.24% at the rest point and 0.61% at the headline shock
-# (price_impact, 115-point grid), because the bank prices the bond off its own continuation
-# and the swap only de-risks that. A cap far below the market spread is therefore met at the
-# CORNER: the Eurosystem holds the D bank's whole book, b_DD = 0, and the D-bank FOC is slack
-# (21 of the 23 nodes at p^d 4.8%/qtr; at the headline shock the purchase is interior).
-#
-# run() solves the TPI economy on the pipeline's own grid, reusing its no-TPI rules and
-# coarse baseline, and reports: the rest point with and without (the ANNOUNCEMENT effect --
-# a cap that never binds at rest still moves the price there, through the continuation),
-# the headline risk IRF with the TPI's footprint, the bond-price legs of the difference,
-# the price impact of a purchase at rest and in stress, and the complementarity
-# conditions on the solved rules.
+# THE TPI EXPERIMENT: THE ECONOMY WITH AND WITHOUT THE EUROSYSTEM'S SPREAD CAP.
 import numpy as np
 from scipy.optimize import root
 
@@ -31,21 +11,21 @@ from global_projection.solver_recursive.recursive_experiment import (
 from global_projection.solver_recursive.output_decomposition import decompose_bond_price
 
 PD_SHOCK, T_IRF = 0.0198, 25
-# the D-bond FOC legs decompose_bond_price reads
+# bond-FOC legs read by decompose_bond_price
 _BOND_KEYS = ("rdep_D", "E_Om_D", "E_payD", "E_payD_nodef", "E_Om_payD", "lam_bD_mu_D", "Q_bD")
-# forced purchases for the price-impact report, as fractions of the SS D debt stock
+# purchases for the price-impact report, as shares of the SS debt stock
 IMPACT_M = (0.05, 0.10, 0.20, 0.30)
 
 
 def _sov_bp(o, cal):
-    # THE D-F SOVEREIGN SPREAD IN HM FLOW YIELDS, ANNUALISED bp.
+    # THE D-F SOVEREIGN SPREAD, ANNUALISED bp.
     yD = cal["delta_b_D"] * (1.0 - o["Q_bD"]) / o["Q_bD"]
     yF = cal["delta_b_F"] * (1.0 - o["Q_bF"]) / o["Q_bF"]
     return 4e4 * (yD - yF)
 
 
 def rest_point_row(rules, cal, ss, sproc):
-    # WHERE THE ECONOMY RESTS -- the announcement effect, with nothing bought there.
+    # THE REST POINT, WHERE NOTHING IS BOUGHT.
     S = stochastic_rest_point(rules, cal, ss, sproc, verbose=False)
     o = read_at(rules, cal, ss, sproc, S.copy())
     return dict(Q_bD=o["Q_bD"], sov_bp=_sov_bp(o, cal), mu=o["mu_D"], E_Om=o["E_Om_D"],
@@ -55,17 +35,13 @@ def rest_point_row(rules, cal, ss, sproc):
 
 
 def price_impact(rules, cal, ss, sproc, S, ms=IMPACT_M):
-    # dQ/dm AT FIXED RULES: the period map cleared with the purchase FORCED.
-    # The TPI rule is switched off for the read so that m is an input, not a choice; the
-    # continuation is the solved rule set, so this is the price impact of a one-off
-    # purchase that the next period's rules then carry (the risk transfer), not of the
-    # announcement.
+    # THE PRICE IMPACT OF A FORCED ONE-OFF PURCHASE, RULES HELD FIXED.
     c = dict(cal, tpi_on=False)
     ngh = rules.n_gh or 5
     x0 = np.array([float(rules.eval(k, 0, np.atleast_2d(S))[0]) for k in SOLVE])[:-1]
     rows = []
     for m in (0.0,) + tuple(ms):
-        # off, the TPI variable IS the purchase in units of the SS stock
+        # with the TPI off, the last unknown is the purchase itself
         f = lambda z: point_residuals(S, 0, np.append(z, m), rules, c, ss, sproc,
                                       n_gh=ngh)[0][:-1]
         sol = root(f, x0, method="hybr", tol=1e-12)
@@ -77,8 +53,7 @@ def price_impact(rules, cal, ss, sproc, S, ms=IMPACT_M):
 
 
 def complementarity(rules, cal, ss, sproc):
-    # THE TWO KT PAIRS ON THE SOLVED RULES, at every no-default node: m >= 0 against
-    # Q_bD >= the floor, and b_DD >= 0 against the D-bank FOC gap <= 0.
+    # THE TWO COMPLEMENTARITY PAIRS AT EVERY NO-DEFAULT NODE.
     rows = []
     for i in range(rules.grid.n):
         x = np.array([rules.vals[k][0][i] for k in SOLVE])
@@ -98,29 +73,26 @@ def complementarity(rules, cal, ss, sproc):
 
 def run(cal, ss, sproc, rules_off, base, s_refine=S_REFINE, mu_vec=None,
         pd_shock=PD_SHOCK):
-    # SOLVE THE TPI ECONOMY AND SET IT AGAINST THE NO-TPI ONE (rules_off, its base).
+    # SOLVE THE TPI ECONOMY AND COMPARE IT WITH THE NO-TPI ONE.
     rules_on = solve_recursive(dict(cal, tpi_on=True), ss, sproc, mu_vec=mu_vec,
                                s_refine=s_refine, base=base)
     return compare(cal, ss, sproc, rules_on, rules_off, pd_shock), rules_on
 
 
 def compare(cal, ss, sproc, rules_on, rules_off, pd_shock=PD_SHOCK):
-    # EVERY READ OF THE TWO SOLVED ECONOMIES (the report run() hands to prints).
+    # EVERY COMPARISON OF THE TWO SOLVED ECONOMIES.
     c_on, c_off = dict(cal, tpi_on=True), dict(cal, tpi_on=False)
     out = dict(cap_bp=cal["tpi_cap_bp"], key_D=cal["tpi_key_D"],
                cap_solved=getattr(rules_on, "tpi_cap_solved", None),
                solve_ok=bool(getattr(rules_on, "solve_ok", True)))
     out["rest_off"] = rest_point_row(rules_off, c_off, ss, sproc)
     out["rest_on"] = rest_point_row(rules_on, c_on, ss, sproc)
-    # BOTH PATHS ARE CLEARED EXACTLY at every quarter: the TPI's policy is kinked (the
-    # floor, the corner), and a fitted read off-node does not respect the corner -- the
-    # fitted TPI path asked for more bonds than the D bank held (b_DD -120%, measured)
+    # both paths are solved exactly each quarter: fitted reads break the corner
     out["irf_off"] = dynamic_irf(rules_off, c_off, ss, sproc, pd_shock=pd_shock, T=T_IRF,
                                  rest_verbose=False, exact=True)
     out["irf_on"] = dynamic_irf(rules_on, c_on, ss, sproc, pd_shock=pd_shock, T=T_IRF,
                                 rest_verbose=False, exact=True)
-    # the bond-price legs of the TPI's effect on impact: each economy at the shock from
-    # its own rest point (so the difference carries the announcement as well), cleared
+    # bond-price legs on impact, each economy shocked from its own rest point
     reads = []
     for r, c in ((rules_on, c_on), (rules_off, c_off)):
         S = stochastic_rest_point(r, c, ss, sproc, verbose=False)

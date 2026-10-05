@@ -7,6 +7,9 @@ TPI's refined solve alone took 3.6 h): keep the lid open and the power on (caffe
 lid-closed sleep on battery). Do not edit model code while a run is in progress: the Jacobian's
 worker processes re-import it at every solve.** Full-resolution TPI results (2026-10-05) are in
 `results/GLOBAL/` and `Claude files/docs/tpi_backstop_plan.md` §9.2.
+`TPI_CAP` in `run.py` picks the cap: 200 (default, the documented results) or `"rest"` (defend the
+no-TPI rest-point spread, ~56 bp; not yet run, expect the corner almost everywhere and a longer
+solve). `RISK_SHOCK_PD` is 0.02 now (a 2.00%/qtr shock, not the documented 1.98%).
 A plain `python3 run.py` (an editor "Run" click) now runs the GLOBAL model with the TPI (`MODEL` and
 `QUICK` in its configuration block). Run everything with `python3 run.py [ssj|global|both]` (set
 `SSJ_PYTHON` at its top for the SSJ model); results land in

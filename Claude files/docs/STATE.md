@@ -2507,6 +2507,9 @@ the committed calibration with a Prony / companion-eigenvalue extractor
 > shock the Eurosystem buys 43% of the stock on impact, impact output -0.080% (vs -0.128%), but the
 > downturn is longer (trough -0.147% at q6) because the bonds' excess return goes to the Eurosystem
 > (92.9% on to F) along the no-default path. `tpi_eps` = 1e-4 with a smoothing continuation.
+> **2026-10-05, later:** `run.py` has a `TPI_CAP` switch (`"rest"` = defend the no-TPI rest-point
+> spread, ~56 bp; not yet run). `RISK_SHOCK_PD` is now 0.02, so the next run's headline shock is
+> 2.00%/qtr; every result above is at 1.98%.
 
 **Branch:** `file-reorganisation` | **Date:** 2026-07-07 | **Status:** Bocola (2016) / Cole-Kehoe sovereign-risk mechanism implemented and verified; **risk channel added** via two-branch default-branch pricing (standalone `global_projection/` model)
 

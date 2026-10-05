@@ -14,6 +14,25 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-10-05 — `TPI_CAP` switch in run.py; comments cut back in the core files (`OMT-fix`)
+
+- **`run.py` `TPI_CAP`** sets the TPI's spread cap: bp/yr (default 200, the documented results)
+  or `"rest"`, the no-TPI economy's rest-point spread (55.84 bp on the current solution): the
+  Eurosystem defends the steady-state spread. It is resolved after the no-TPI solve and before
+  anything is saved, so `calibration.json` carries the cap the TPI ran at. NOT YET RUN at
+  `"rest"`: a continuation from the solved 200 bp rules was started and stopped on request.
+  Expect the cap to bind near the rest point (expected default losses alone are worth 246 bp/yr
+  over the F bond at the headline shock, 41 bp at rest) and the D banks to sell their whole
+  holding, i.e. a transfer from F rather than a backstop.
+- **Comments** in the eight core files (`run.py`, `calibration/global_projection.py`,
+  `point_map`, `collocation`, `recursive_experiment`, `tpi_experiment`, `state_grid`,
+  `decision_rules`) cut from 1,283 to 337 lines: a one-line header per module and function, one
+  short sentence where a line needs it. Code verified identical (every comment-stripped line and
+  the AST, against snapshots); fast tests pass. The histories that lived in the comments are in
+  this file, STATE.md, the plan docs and git history.
+- `RISK_SHOCK_PD` in `run.py` is now 0.02 (user edit): the next run shocks p^d to 2.00%/qtr;
+  every result documented so far is at 1.98%. `Claude files/data/README.md` deleted (user).
+
 ## 2026-10-05 — The TPI at full resolution: smoothing continuation, results (`OMT-fix`)
 
 The final click-path run (2026-10-04) converged and saved every no-TPI object on the 115-point
