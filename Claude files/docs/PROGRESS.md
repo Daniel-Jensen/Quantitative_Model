@@ -14,6 +14,23 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-10-06: Household budget, the working-capital flow replaces the constant anchor (`hh-budget-fix`)
+
+- **The flaw** (found 2026-10-02 by the F goods-market check): the household's claim on its
+  bank is charged the working-capital repayment (1+r_wc)*L_wc each quarter, but the firm's
+  receipts that fund it, zeta*r_wc*w*N + L_wc, reached households only as the constant
+  `hh_T_D/F` = 0.583, fixed at its steady-state value. Off the SS households were credited or
+  debited by however much that flow moved: an accounting leak into the goods market, not
+  economics. Every global impulse response carried it.
+- **The patch:** households receive the state-dependent flow each period
+  (`point_map._households`); `hh_T` becomes a residual anchor that calibrates to ~1e-7. The
+  steady state is bit-identical; the union budget now closes off the SS (N4, 2e-10) except the
+  documented fixed-F-treasury term.
+- **Solver:** from the SS seed the Newton cannot find the corrected economy, so the first d = 0
+  solve walks the flow in (`recursive_experiment._stage_wc`, weights 0 / 0.2 / 0.5 / 1, 3-5
+  steps each), as the haircut homotopy does for default. N2 uses the same ladder. N1-N4 pass.
+- **Every global result predating this commit must be regenerated.**
+
 ## 2026-10-05 — `TPI_CAP` switch in run.py; comments cut back in the core files (`OMT-fix`)
 
 - **`run.py` `TPI_CAP`** sets the TPI's spread cap: bp/yr (default 200, the documented results)

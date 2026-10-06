@@ -112,9 +112,26 @@ def _build_rules(cal, ss, sproc, mu, mu_vec, rotate, nreg, verbose):
     return rules, dict(mu=mu, mu_vec=mu_vec, rot=rot, centre=centre, box_kw=box_kw)
 
 
+WC_LADDER = (0.0, 0.2, 0.5, 1.0)
+
+
+def _stage_wc(rules, cal, ss, sproc, regimes, no_default, label, verbose):
+    # THE FIRST d = 0 SOLVE, WALKING THE WORKING-CAPITAL FLOW INTO THE HOUSEHOLD BUDGET.
+    # From the steady-state seed the Newton cannot find the corrected economy directly; from
+    # the solution with the flow held at its SS value it takes 3-5 steps per rung.
+    for k, w in enumerate(WC_LADDER):
+        cal["wc_flow_D"] = cal["wc_flow_F"] = w
+        calibrate_household_anchors(cal, ss, sproc)  # the anchor absorbs the SS flow at w < 1
+        ok, it, wst = _stage(rules, cal, ss, sproc, regimes, no_default, f"{label} wc={w:.1f}",
+                             verbose, **({} if k == 0 else {"warm": 0}))
+    cal.pop("wc_flow_D", None); cal.pop("wc_flow_F", None)
+    calibrate_household_anchors(cal, ss, sproc)
+    return ok, it, wst
+
+
 def _solve_baseline(rules, cal, ss, sproc, D_REG, backend, verbose):
     # THE NO-TPI BASELINE: d = 0, THEN THE HAIRCUT HOMOTOPY, THEN THE JOINT SOLVE.
-    ok0, it0, w0 = _stage(rules, cal, ss, sproc, (0,), True, "d0", verbose)
+    ok0, it0, w0 = _stage_wc(rules, cal, ss, sproc, (0,), True, "d0", verbose)
     for k in STORE_RULES:  # start the default regime from d = 0
         rules.set_values(k, D_REG, rules.vals[k][0].copy())
     rec_target = cal["recovery_rate_D"]
@@ -611,7 +628,7 @@ def solve_tfp(cal, ss, sproc, mu=1):
     grid = build_state_box(ss, cal, mu=mu, **BOX_KW)
     rules = RuleSet.from_ss(grid, ss, cal)
     rules.n_gh = N_GH
-    _stage(rules, cal, ss, sproc, (0,), True, "TFP d0", True)
+    _stage_wc(rules, cal, ss, sproc, (0,), True, "TFP d0", True)
     return rules
 
 
