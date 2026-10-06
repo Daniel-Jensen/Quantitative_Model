@@ -22,7 +22,7 @@ from global_projection.solver_recursive.decision_rules import RuleSet
 from global_projection.solver_recursive.point_map import point_residuals
 from global_projection.solver_recursive.recursive_main import (time_iteration, calibrate_household_anchors,
                             ss_state, ss_x)
-from global_projection.solver_recursive.recursive_experiment import BOX_KW, advance
+from global_projection.solver_recursive.recursive_experiment import BOX_KW, WC_LADDER, advance
 from global_projection.solver_recursive.collocation import (solve_collocation, TOL_MAXF, RES_NAMES,
                                           N_RES_POINT)
 
@@ -125,8 +125,9 @@ def _union_identity(o, x, cal, ss):
     gap = ((o["Y_D"] - PD * CD - o["I_D"] - NXD - cal["G_D"])
            + sz * p * (o["Y_F"] - PF * CF - o["I_F"] - NXF - cal["G_F"]))
     treas = sz * p * cal["delta_b_F"] * cal["B_gov_F_ss"] * (o["Q_bF"] - ss["Q_bF_ss"])
-    wcD = cal["zeta_wc_D"] * o["r_wc_D"] * o["w_D"] * x[0] + o["L_wc_D"] - PD * ss["hh_T_D"]
-    wcF = cal["zeta_wc_F"] * o["r_wc_F"] * o["w_F"] * x[1] + o["L_wc_F"] - PF * ss["hh_T_F"]
+    # the working-capital flow is in the household budget, so only the residual anchor remains
+    wcD = -PD * ss["hh_T_D"]
+    wcF = -PF * ss["hh_T_F"]
     return gap - treas - wcD - sz * p * wcF - (o["save_union"] - o["dep_union"])
 
 
@@ -175,9 +176,15 @@ def test_n2_no_default_grid_solve():
     rules.n_gh = 5
     time_iteration(rules, cal, ss, sp, regimes=(0,), no_default=True, damp=0.5,
                    tol=1e-4, max_it=12, n_gh=5, verbose=False)                               # warm start only
-    ok, its, worst = solve_collocation(rules, cal, ss, sp, regimes=(0,),
-                                       no_default=True, n_gh=5, backend="parsolve",
-                                       maxit=20, verbose=False, label=" N2")
+    # the working-capital flow is walked into the household budget, as the solve ladder does
+    for w in WC_LADDER:
+        cal["wc_flow_D"] = cal["wc_flow_F"] = w
+        calibrate_household_anchors(cal, ss, sp)
+        ok, its, worst = solve_collocation(rules, cal, ss, sp, regimes=(0,),
+                                           no_default=True, n_gh=5, backend="parsolve",
+                                           maxit=20, verbose=False, label=" N2")
+    cal.pop("wc_flow_D"); cal.pop("wc_flow_F")
+    calibrate_household_anchors(cal, ss, sp)
     assert ok, f"N2: collocation solve did not converge (max|F| = {worst:.2e})"
     assert worst <= 10 * TOL_MAXF, f"N2: max|F| = {worst:.2e}"
     print(f"    N2 (grid-wide solve at pi=0): converged in {its} Newton steps, "

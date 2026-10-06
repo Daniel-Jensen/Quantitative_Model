@@ -398,8 +398,16 @@ def _households(v, cal, ss):
     nreg, R = v.nreg, v.R
     frisch_D, frisch_F = cal["frisch_D"], cal["frisch_F"]
     sigD, sigF = cal["sigma_D"], cal["sigma_F"]
-    v.inc_D = (v.w_D / v.P_CES_D) * v.N_D + (v.Div_D - v.Tax_D) / v.P_CES_D + ss.get("hh_T_D", 0.0)
-    v.inc_F = (v.w_F / v.P_CES_F) * v.N_F + (v.Div_F - v.Tax_F) / v.P_CES_F + ss.get("hh_T_F", 0.0)
+    # the firm's working-capital receipts, zeta*r_wc*w*N + L_wc, go to its owners each period; the
+    # repayment (1+r_wc)*L_wc is charged to the household's claim next period (Wp). A constant
+    # stood in for this flow before, which leaked its movement into the goods market off the SS.
+    # wc_flow_D/F (default 1) weight the flow only for the solver's homotopy (_stage_wc).
+    wcf_D = cal.get("wc_flow_D", 1.0) * (cal["zeta_wc_D"] * v.r_wc_D * v.w_D * v.N_D + v.L_wc_D)
+    wcf_F = cal.get("wc_flow_F", 1.0) * (cal["zeta_wc_F"] * v.r_wc_F * v.w_F * v.N_F + v.L_wc_F)
+    v.inc_D = ((v.w_D / v.P_CES_D) * v.N_D + (v.Div_D - v.Tax_D + wcf_D) / v.P_CES_D
+               + ss.get("hh_T_D", 0.0))
+    v.inc_F = ((v.w_F / v.P_CES_F) * v.N_F + (v.Div_F - v.Tax_F + wcf_F) / v.P_CES_F
+               + ss.get("hh_T_F", 0.0))
     # F's claim: its bank's obligation less the cross-border position
     v.W_F = v.P_F - v.V_dep / (v.sz * v.p)
     # consumption, smoothly bounded

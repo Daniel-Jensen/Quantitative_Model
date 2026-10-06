@@ -45,13 +45,9 @@ def ss_x(ss, cal):
 
 def calibrate_household_anchors(cal, ss, sproc, tol=1e-13, max_it=12):
     # SET ss["hh_T_D/F"] SO THE BUDGET GIVES C = C_ss AT THE SS (with A = dep/P_CES
-    # = A_ss, deposits clearing by quantity).
-    # C is linear in hh_T, so ONE zero-anchor evaluation would pin it -- except when
-    # that trial evaluation lands on a GUARD. At hh_T = 0 the household is short the
-    # whole working-capital repayment (1+r_wc)*L_wc, which puts C below the 0.3*C_ss
-    # floor in _sclip; anchoring off the clipped value then leaves a permanent gap of
-    # exactly that size and the SS stops being a rest point. Iterating to a fixed point
-    # is self-correcting whatever guards are active, and costs a handful of evaluations.
+    # = A_ss, deposits clearing by quantity). The working-capital flow is now in the budget, so
+    # this is a residual anchor, zero up to the SS solve's tolerance; iterating to a fixed point
+    # keeps it robust to the smooth guards.
     ss["hh_T_D"] = 0.0
     ss["hh_T_F"] = 0.0
     grid = build_state_box(ss, cal, mu=1)

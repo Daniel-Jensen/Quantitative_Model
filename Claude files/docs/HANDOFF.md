@@ -2,6 +2,10 @@
 
 ## Where things are now — 2026-10-01
 
+**2026-10-06, `hh-budget-fix`:** households now receive the working-capital flow instead of the
+constant `hh_T` anchor (PROGRESS 2026-10-06). The SS is unchanged; every global impulse response
+changes and must be regenerated before it is quoted.
+
 **A full global run with the TPI needs ~4-5 hours of AWAKE machine time on 8 cores (measured: the
 TPI's refined solve alone took 3.6 h): keep the lid open and the power on (caffeinate cannot stop
 lid-closed sleep on battery). Do not edit model code while a run is in progress: the Jacobian's
