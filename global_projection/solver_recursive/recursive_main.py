@@ -20,28 +20,27 @@ from global_projection.solver_recursive.state_grid import build_state_box, NSTAT
 
 
 def ss_state(ss, cal, sproc):
-    # THE SS POINT IN THE 10-STATE VECTOR
-    # [K_D, K_F, P_D, P_F, b_DD, b_DF, b_FD, V_dep, s, Z_D]. b_DD/b_DF are the
+    # THE SS POINT IN THE 12-STATE VECTOR
+    # [K_D, K_F, P_D, P_F, b_DD, b_DF, b_FD, V_dep, s, Z_D, M_cb, O_cb]. b_DD/b_DF are the
     # two banks' carried holdings of the D sovereign and b_FD is the D bank's carried
     # holding of the F sovereign (both splits endogenous); V_dep is the carried
     # cross-border deposit position W_D - P_D, the margin national clearing suppressed.
     # It is ZERO at the symmetric SS, where each household's claim equals its own bank's
-    # obligation. The CB backstop carries no state, so the SS point is the same vector
-    # whether or not the facility is on -- which is what makes phi = 0 nest exactly.
+    # obligation. The TPI book M_cb/O_cb is empty at the SS, whether or not the TPI is on.
     b_DF = cal["b_D_F_ss"]
     return np.array([ss["Kap_D_ss"], ss["Kap_F_ss"],
                      ss["ss_bank_D"]["P_state_ss"], ss["ss_bank_F"]["P_state_ss"],
                      cal["B_gov_D_ss"] - b_DF, b_DF, cal["b_F_D_ss"], 0.0,
-                     sproc["s_star"], cal["Z_ss_D"]])
+                     sproc["s_star"], cal["Z_ss_D"], 0.0, 0.0])
 
 
 def ss_x(ss, cal):
-    # THE SS VALUES OF THE THIRTEEN UNKNOWNS, in decision_rules.SOLVE order.
+    # THE SS VALUES OF THE FOURTEEN UNKNOWNS, in decision_rules.SOLVE order (no purchases).
     return np.array([1.0, 1.0, ss["Kap_D_ss"], ss["Kap_F_ss"],
                      cal["r_dep_D_target"], cal["r_dep_F_target"], ss["p_ss"],
                      ss["Q_bD_ss"], cal["b_D_F_ss"],
                      ss["Q_bF_ss"], cal["b_F_D_ss"],
-                     ss["A_D_ss"], ss["A_F_ss"]])
+                     ss["A_D_ss"], ss["A_F_ss"], 0.0])
 
 
 def calibrate_household_anchors(cal, ss, sproc, tol=1e-13, max_it=12):
@@ -70,14 +69,14 @@ def calibrate_household_anchors(cal, ss, sproc, tol=1e-13, max_it=12):
 
 
 def solve_point(S, d, cont, cal, ss, sproc, x0, no_default=False, n_gh=7,
-                x_ss=None, no_cb=False):
+                x_ss=None):
     # SOLVE THE MARKET-CLEARING UNKNOWNS AT ONE POINT (FROZEN CONTINUATION).
     # hybr from the warm start (the common case: one cheap solve near the fixed
     # point); a single fallback from the SS guess only if that misses.
     def f(x):
         try:
             return point_residuals(S, d, x, cont, cal, ss, sproc, n_gh=n_gh,
-                                   no_default=no_default, no_cb=no_cb)[0]
+                                   no_default=no_default)[0]
         except (ValueError, RuntimeError, FloatingPointError):
             return np.full(len(SOLVE7), 10.0)
 
@@ -93,7 +92,7 @@ def solve_point(S, d, cont, cal, ss, sproc, x0, no_default=False, n_gh=7,
     for xt in (best[0], x0):
         try:
             _, out = point_residuals(S, d, xt, cont, cal, ss, sproc, n_gh=n_gh,
-                                     no_default=no_default, no_cb=no_cb)
+                                     no_default=no_default)
             return xt, out, best[1]
         except (ValueError, RuntimeError, FloatingPointError):
             continue
@@ -101,7 +100,7 @@ def solve_point(S, d, cont, cal, ss, sproc, x0, no_default=False, n_gh=7,
 
 
 def _sweep(rules, cont, cal, ss, sproc, regimes, no_default, n_gh,
-           keep_tol=1e-3, no_cb=False):
+           keep_tol=1e-3):
     # ONE TIME-ITERATION SWEEP: SOLVE EVERY POINT, RETURN NEW RULE VALUE ARRAYS.
     # A point whose solve does not clear (fn > keep_tol) RETAINS the previous
     # iterate's values -- a failed corner must never poison the continuation.
@@ -115,8 +114,7 @@ def _sweep(rules, cont, cal, ss, sproc, regimes, no_default, n_gh,
             S = rules.grid.points[i]
             x0 = np.array([rules.vals[k][d][i] for k in SOLVE7])
             x, out, fn = solve_point(S, d, cont, cal, ss, sproc, x0,
-                                     no_default=no_default, n_gh=n_gh, x_ss=x_ss,
-                                     no_cb=no_cb)
+                                     no_default=no_default, n_gh=n_gh, x_ss=x_ss)
             worst = max(worst, fn if np.isfinite(fn) else 1e3)
             if (not np.isfinite(fn)) or fn > keep_tol:   # retain old values, mask fit
                 n_fail += 1
@@ -171,7 +169,7 @@ def p_block_rotation(ss, cal, sproc, eps=1e-3, mu=1, mu_vec=None, probe_kw=None)
 
 def time_iteration(rules, cal, ss, sproc, regimes=(0, 1),
                    no_default=False, damp=0.5, tol=1e-7, max_it=60,
-                   n_gh=7, verbose=False, no_cb=False):
+                   n_gh=7, verbose=False):
     # TIME-ITERATE THE RULES TO A FIXED POINT (IN PLACE).
     # Returns (converged, iters, worst_point_residual, n_fail). n_fail is part of the
     # contract because the exit test needs BOTH a settled rule AND every point
@@ -191,7 +189,7 @@ def time_iteration(rules, cal, ss, sproc, regimes=(0, 1),
     for it in range(max_it):
         cont = rules.copy()                       # frozen continuation
         new, worst, n_fail, wt = _sweep(rules, cont, cal, ss, sproc, regimes,
-                                        no_default, n_gh, no_cb=no_cb)
+                                        no_default, n_gh)
         change = _damped_update(rules, new, wt, regimes, damp, fit_mask, fit_fw, fit_ridge)
         if verbose:
             print(f"    [time-it {it + 1:2d}] max|F_point|={worst:.2e}  "

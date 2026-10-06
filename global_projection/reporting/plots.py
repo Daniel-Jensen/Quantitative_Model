@@ -18,8 +18,8 @@ OUTDIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.ab
 CHANNEL_COLORS = {"credit_spread": "#D55E00", "deposit_rate": "#0072B2",
                   "capital": "#009E73", "rel_price": "#7570B3",
                   "tfp": "#A6761D", "residual": "#9E9E9E"}
-# SEQUENTIAL ramp for backstop strength (an ORDERED variable, so one hue
-# light->dark, not categorical hues) and for the income quintiles.
+# SEQUENTIAL ramps (ORDERED variables, so one hue light->dark, not categorical hues):
+# policy scenarios in increasing strength, and the income quintiles.
 ACTIVATION_RAMP = ("#6BAED6", "#2171B5", "#08306B")
 QUINTILE_RAMP = ("#C7E0B4", "#8FC98A", "#4DA65B", "#1F7A3D", "#0B4526")
 SURFACE = "#FFFFFF"
@@ -55,115 +55,6 @@ def _style(ax, title, ylabel, xlabel="quarter", zero=True):
         # only for DEVIATION panels: on a level series (a bond price near 0.8, a spread
         # near 300bp) forcing zero into view squashes the variation being read
         ax.axhline(0, color=INK, lw=0.8)
-
-
-def plot_activation_irf(scenarios, filename="ltro_activation.png", note=""):
-    # OVERLAY THE PROJECTION-SOLVER IRFs UNDER OMT/TPI ACTIVATION SCENARIOS.
-    # scenarios = list of (label, paths, color); paths = dict of pre-computed %/bp
-    # series over the shock-decay horizon. Styled through _style like every other
-    # figure here (it used to set titles/labels by hand, so it did not match), and
-    # carrying the two series the DYNAMIC irf_series now exposes -- capital and bank
-    # net worth -- which are the accumulation channel the backstop is meant to protect.
-    n = len(scenarios[0][1]["Y_D"])
-    q = np.arange(n)
-    # the 5th field is ANNUALISE: on for the quarterly flows (Y, I, C), off for
-    # probabilities, rates already in annualised bp, prices and stocks
-    panels = (("pd", "priced default probability $p^d$", "% per quarter", False, False),
-              ("Y_D", "GDP  $Y_D$", "% deviation (level)", True, True),
-              # THE OBJECT THE POLICY TARGETS sits next to the object it acts through:
-              # the sovereign spread is what the peg compresses, the lending spread is
-              # what that compression is supposed to buy.
-              ("sov_bp", "sovereign spread  $y_D - y_F$", "bp ann.", False, False),
-              ("spread", "lending spread", "bp ann., deviation", False, False),
-              ("Q_bD", "D-sovereign bond price $Q_{b,D}$", "% deviation", True, False),
-              ("I_D", "investment $I_D$", "% deviation (level)", True, True),
-              ("C_D", "consumption $C_D$", "% deviation (level)", True, True),
-              ("K_D", "capital $K_D$", "% deviation", True, False),
-              ("n_D", "bank net worth $n_D$", "% deviation", True, False),
-              # THE BACKSTOP'S OWN FOOTPRINT. Without these the figure shows an effect
-              # with no instrument attached, and the whole question about a yield peg in
-              # this model is whether the quantity it needs is deliverable at all.
-              ("m_ltro", "LTRO drawn  $m$", "% of quarterly GDP", False, False),
-              ("mu", "IC multiplier  $\\mu_D$", "level", False, False))
-    have = [pn for pn in panels if pn[0] in scenarios[0][1]]
-    ncol = 4 if len(have) > 6 else 3
-    nrow = -(-len(have) // ncol)
-    fig, axes = plt.subplots(nrow, ncol, figsize=(4.7 * ncol, 3.3 * nrow),
-                             layout="constrained")
-    for ax, (key, title, ylab, pct, an) in zip(np.atleast_1d(axes).ravel(), have):
-        for label, paths, color in scenarios:
-            ax.plot(q, paths[key], color=color, lw=1.8, label=label)
-        _style(ax, title, ylab, zero=pct)
-        if pct:
-            ax.yaxis.set_major_formatter(lambda v, _: f"{v:+.2f}")
-        if an:
-            _annual_axis(ax)
-    for ax in np.atleast_1d(axes).ravel()[len(have):]:
-        ax.set_visible(False)
-    handles, labels = np.atleast_1d(axes).ravel()[0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc="outside lower center", ncol=len(scenarios),
-               fontsize=9, frameon=False)
-    fig.suptitle("Sovereign-risk shock under an LTRO backstop, by activation probability"
-                 + (f"\n{note}" if note else "")
-                 + "\nright-hand axis on the flow panels: annualised (x4)",
-                 fontsize=11.5, color=INK)
-    _save(fig, filename)
-    return os.path.join(OUTDIR, filename)
-
-
-# THE CERTAINTY CURVE. x is the ANNOUNCED probability of the backstop, y is where the
-# economy RESTS under it -- with the facility never drawn. Every other figure here plots
-# a response over TIME at a given policy; this one plots the ergodic point AGAINST the
-# policy, which is the object the announcement experiment is about.
-CERTAINTY_PANELS = (
-    ("cred", "credit spread  $\\lambda\\mu/\\mathbb{E}[\\Omega]$", "bp ann., level"),
-    ("mu",   "IC multiplier  $\\mu_D$", "level"),
-    ("sov",  "sovereign spread  $y_D-y_F$", "bp ann., vs no backstop"),
-    ("Q",    "D-sovereign price  $q^D$", "% vs no backstop"),
-    ("Y",    "output  $Y_D$", "% vs no backstop"),
-    ("I",    "investment  $I_D$", "% vs no backstop"),
-)
-
-
-def plot_certainty_curve(phis, series, converged=None, note="",
-                         filename="ltro_certainty_curve.png"):
-    # WHERE THE ECONOMY RESTS AS A FUNCTION OF THE ANNOUNCED PROBABILITY.
-    # phis in [0,1]; series maps each key of CERTAINTY_PANELS to a value per phi.
-    # `converged` (optional, one bool per phi) marks activations whose solve did NOT
-    # reach the acceptance floor: those points are drawn HOLLOW and joined by a dashed
-    # segment, because a number that did not root should not look like one that did.
-    phis = np.asarray(phis, dtype=float) * 100.0
-    ok = np.ones(len(phis), bool) if converged is None else np.asarray(converged, bool)
-    have = [pn for pn in CERTAINTY_PANELS if pn[0] in series]
-    ncol = 3
-    nrow = -(-len(have) // ncol)
-    fig, axes = plt.subplots(nrow, ncol, figsize=(4.7 * ncol, 3.4 * nrow),
-                             layout="constrained")
-    col = ACTIVATION_RAMP[-1]
-    for ax, (key, title, ylab) in zip(np.atleast_1d(axes).ravel(), have):
-        v = np.asarray(series[key], dtype=float)
-        # solid through the converged points, dashed into any that stopped short
-        ax.plot(phis[ok], v[ok], color=col, lw=2.0, zorder=3)
-        if (~ok).any():
-            j = int(np.argmax(~ok))
-            ax.plot(phis[j - 1:j + 1], v[j - 1:j + 1], color=col, lw=2.0, ls="--",
-                    zorder=3)
-        ax.plot(phis[ok], v[ok], "o", color=col, ms=6, zorder=4)
-        ax.plot(phis[~ok], v[~ok], "o", mfc=SURFACE, mec=col, mew=1.8, ms=6, zorder=4)
-        _style(ax, title, ylab, xlabel="announced probability of the backstop, %",
-               zero=not key.startswith(("cred", "mu")))
-    for ax in np.atleast_1d(axes).ravel()[len(have):]:
-        ax.set_visible(False)
-    sub = ("hollow marker: the solve did not reach the acceptance floor"
-           if (~ok).any() else "")
-    fig.suptitle("The announcement effect: where the economy rests against the announced"
-                 " probability of an LTRO backstop"
-                 + (f"\n{note}" if note else "")
-                 + "\nthe facility is NEVER DRAWN at any point on these curves"
-                 + (f"\n{sub}" if sub else ""),
-                 fontsize=11.5, color=INK)
-    _save(fig, filename)
-    return os.path.join(OUTDIR, filename)
 
 
 def _stacked_channels(ax, dec, chans, title, ylab=None, ann=True,
@@ -435,3 +326,131 @@ def plot_risk_irf(path, filename="risk_irf_recursive.png", note=""):
 def plot_tfp_irf(path, filename="tfp_irf_recursive.png", note=""):
     # TFP IRF ALONG THE Z-DECAY PATH (the no-default rules), BOTH COUNTRIES.
     return _paper_irf(path, filename)
+
+
+# THE TPI FIGURES, PAPER SCHEME. The two economies are an ORDERED policy variable, so they
+# take the two ends of the sequential ramp, and they differ in dash pattern too so the pair
+# survives greyscale. Every path is cleared exactly at every quarter (tpi_experiment).
+TPI_RUNS = (("irf_off", ACTIVATION_RAMP[0], "--", "No TPI"),
+            ("irf_on", ACTIVATION_RAMP[2], "-", "TPI"))
+# (key, title, y label, deviation panel?) -- flows are level % deviations from the
+# no-shock path of the same economy, rates are annualised basis points
+TPI_PANELS = (("sov_bp", "Sovereign spread $y_D - y_F$", "bp per year", False),
+              ("dQ_bD", "D bond price $Q_{b,D}$", "% vs no-shock path", True),
+              ("n", "D bank net worth $n_D$", "% vs no-shock path", True),
+              ("spread", "Lending spread", "bp per year", False),
+              ("Y", "GDP $Y_D$", "% vs no-shock path", True),
+              ("C", "Consumption $C_D$", "% vs no-shock path", True),
+              ("I", "Investment $I_D$", "% vs no-shock path", True),
+              ("d_rdep", "Deposit rate $r^{dep}_D$", "bp per year, vs no-shock", True))
+
+
+def plot_tpi_irf(res, filename="tpi_irf.png", note=""):
+    # THE HEADLINE RISK SHOCK WITH AND WITHOUT THE TPI, AND THE EUROSYSTEM's FOOTPRINT.
+    # Each economy starts from its OWN rest point, so a gap at q0 that the footprint panel
+    # shows was not bought is the announcement. note is accepted and not drawn (paper
+    # scheme: the caption carries it).
+    cap = float(res["cap_bp"])
+    q = np.arange(len(res["irf_on"]["Y"]))
+    with plt.rc_context(PAPER_RC):
+        fig, axes = plt.subplots(3, 3, figsize=(13.2, 10.2), layout="constrained")
+        flat = axes.ravel()
+        for i, (key, title, ylab, dev) in enumerate(TPI_PANELS):
+            ax = flat[i]
+            for run, colour, ls, lab in TPI_RUNS:
+                ax.plot(q, np.asarray(res[run][key], dtype=float), color=colour, ls=ls,
+                        lw=1.8, label=lab, zorder=3)
+            if key == "sov_bp":
+                ax.axhline(cap, color=INK_MUTED, lw=0.9, ls=":", zorder=2)
+                ax.annotate(f"cap {cap:.0f} bp", (q[-1], cap), xytext=(0, 4),
+                            textcoords="offset points", ha="right", va="bottom",
+                            fontsize=8.5, color=INK_MUTED)
+            _paper_axes(ax, f"({chr(97 + i)}) {title}", ylab, zero=dev)
+            ax.set_xlim(q[0], q[-1])
+        ax = flat[-1]
+        m = np.asarray(res["irf_on"]["m_cb"], dtype=float)
+        # the path records the book CARRIED INTO each quarter; the book after the quarter's
+        # purchases is next quarter's carried book, so an impact purchase shows at q0
+        M = np.r_[np.asarray(res["irf_on"]["M_cb"], dtype=float)[1:], np.nan]
+        ax.bar(q, m, color=ACTIVATION_RAMP[1], width=0.75, label="purchases $m$", zorder=3)
+        ax.plot(q, M, color=ACTIVATION_RAMP[2], lw=1.8, label="book after purchases $M$",
+                zorder=4)
+        _paper_axes(ax, "(i) Eurosystem footprint (TPI)", "% of SS D debt", zero=False)
+        ax.set_xlim(q[0] - 0.5, q[-1] + 0.5)
+        # below 0.01% of the stock is the smoothing of the purchase rule, not a purchase
+        if np.max(np.abs(m)) < 1e-2 and np.max(np.abs(M)) < 1e-2:
+            ax.cla()
+            _paper_axes(ax, "(i) Eurosystem footprint (TPI)", "% of SS D debt", zero=False)
+            ax.set_xlim(q[0] - 0.5, q[-1] + 0.5)
+            ax.set_ylim(-1.0, 1.0)
+            ax.text(0.5, 0.5, "nothing bought on this path:\nthe gap in (a)-(h) is the "
+                    "announcement", transform=ax.transAxes, ha="center", va="center",
+                    fontsize=9.5, color=INK)
+        else:
+            ax.legend(fontsize=8.5, frameon=False, loc="upper right")
+        flat[0].legend(fontsize=9, frameon=False, loc="upper right")
+        _save(fig, filename)
+    return os.path.join(OUTDIR, filename)
+
+
+def plot_tpi_mechanism(res, bond_channels, filename="tpi_mechanism.png"):
+    # WHY THE TPI MOVES THE PRICE: the announcement at rest, the bond-price legs of its
+    # effect at the shock, and what a purchase alone would do at fixed rules.
+    cap = float(res["cap_bp"])
+    off, on = res["rest_off"], res["rest_on"]
+    with plt.rc_context(PAPER_RC):
+        fig, axes = plt.subplots(1, 3, figsize=(15.0, 4.9), layout="constrained")
+        # (a) the rest point: both spreads, with and without, nothing bought
+        ax = axes[0]
+        labels = ("Sovereign spread", "Lending spread")
+        vals = ((off["sov_bp"], on["sov_bp"]), (off["spread_bp"], on["spread_bp"]))
+        xs = np.arange(len(labels))
+        for j, (_, colour, _, lab) in enumerate(TPI_RUNS):
+            bars = ax.bar(xs + (j - 0.5) * 0.36, [v[j] for v in vals], width=0.34,
+                          color=colour, label=lab, zorder=3)
+            for b in bars:
+                ax.annotate(f"{b.get_height():.0f}", (b.get_x() + b.get_width() / 2,
+                            b.get_height()), xytext=(0, 3), textcoords="offset points",
+                            ha="center", fontsize=8.5, color=INK)
+        ax.set_xticks(xs, labels)
+        _paper_axes(ax, "(a) At rest: the announcement, nothing bought", "bp per year",
+                    zero=False)
+        ax.set_xlabel("")
+        ax.legend(fontsize=9, frameon=False, loc="upper right")
+        # (b) the bond-price legs of the TPI's effect at the shock (they sum to the total)
+        ax = axes[1]
+        legs = [(lab, float(np.asarray(res["bond_legs"][k])[0])) for k, lab in bond_channels]
+        total = float(np.asarray(res["bond_legs"]["total"])[0])
+        ys = np.arange(len(legs))[::-1]
+        ax.barh(ys, [v for _, v in legs], color=[ACTIVATION_RAMP[2] if v >= 0 else
+                                                  ACTIVATION_RAMP[0] for _, v in legs],
+                height=0.62, zorder=3)
+        for y, (_, v) in zip(ys, legs):
+            # every label to the RIGHT of zero, clear of the category names
+            ax.annotate(f"{v:+.2f}", (max(v, 0.0), y), xytext=(4, 0),
+                        textcoords="offset points", ha="left", va="center",
+                        fontsize=8.5, color=INK)
+        ax.margins(x=0.12)
+        ax.set_yticks(ys, [lab for lab, _ in legs])
+        ax.axvline(0.0, color="#B0B0B0", lw=0.7, zorder=1)
+        _paper_axes(ax, f"(b) Why the bond is worth more at the shock\n"
+                        f"(TPI minus no TPI: {total:+.2f}% of $Q_{{b,D}}$)",
+                    "", zero=False)
+        ax.set_xlabel("% of the bond price", fontsize=9, color=INK)
+        # (c) the price impact of a one-off purchase at fixed rules, rest vs shock
+        ax = axes[2]
+        for key, colour, marker, lab in (("impact_rest", ACTIVATION_RAMP[1], "o", "at rest"),
+                                         ("impact_shock", ACTIVATION_RAMP[2], "s",
+                                          "at the headline shock")):
+            rows = res[key]
+            mm = [100 * r["m"] for r in rows]
+            dq = [100 * (r["Q_bD"] / rows[0]["Q_bD"] - 1) for r in rows]
+            ax.plot(mm, dq, color=colour, marker=marker, lw=1.6, ms=5, label=lab, zorder=3)
+        _paper_axes(ax, "(c) A one-off purchase alone (rules fixed)",
+                    "D bond price, % change", zero=True)
+        ax.set_xlabel("purchase, % of SS D debt", fontsize=9, color=INK)
+        ax.legend(fontsize=9, frameon=False, loc="upper left")
+        fig.text(0.5, -0.02, f"TPI spread cap {cap:.0f} bp per year over the F bond",
+                 ha="center", fontsize=9, color=INK_MUTED)
+        _save(fig, filename)
+    return os.path.join(OUTDIR, filename)

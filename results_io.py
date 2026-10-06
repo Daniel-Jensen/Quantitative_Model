@@ -23,7 +23,7 @@ def model_dirs(base, fresh=False):
     """<base>/data and <base>/figures (created) and the <base>/run.log path.
 
     fresh=True empties data/ and figures/ first, so a run's outputs are one consistent
-    set: a quick preview must not leave a previous full run's LTRO figures beside it.
+    set: a quick preview must not leave a previous full run's policy figures beside it.
     """
     base = Path(base)
     for sub in ("data", "figures"):

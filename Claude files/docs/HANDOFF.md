@@ -2,9 +2,32 @@
 
 ## Where things are now — 2026-10-01
 
-Run everything with `python3 run.py [ssj|global|both]` (set `SSJ_PYTHON` at its top); results land in
-`results/<SSJ|GLOBAL>/{data,figures,run.log}` and `results/COMPARISON/`. The LTRO sweep is OFF
-(`RUN_LTRO = False` in `run.py`). These docs, all notes/reports and all tests live in `Claude files/`;
+**A full global run with the TPI needs ~4-5 hours of AWAKE machine time on 8 cores (measured: the
+TPI's refined solve alone took 3.6 h): keep the lid open and the power on (caffeinate cannot stop
+lid-closed sleep on battery). Do not edit model code while a run is in progress: the Jacobian's
+worker processes re-import it at every solve.** Full-resolution TPI results (2026-10-05) are in
+`results/GLOBAL/` and `Claude files/docs/tpi_backstop_plan.md` §9.2.
+`TPI_CAP` in `run.py` picks the cap: 200 (default, the documented results) or `"rest"` (defend the
+no-TPI rest-point spread, ~56 bp; not yet run, expect the corner almost everywhere and a longer
+solve). `RISK_SHOCK_PD` is 0.02 now (a 2.00%/qtr shock, not the documented 1.98%).
+A plain `python3 run.py` (an editor "Run" click) now runs the GLOBAL model with the TPI (`MODEL` and
+`QUICK` in its configuration block). Run everything with `python3 run.py [ssj|global|both]` (set
+`SSJ_PYTHON` at its top for the SSJ model); results land in
+`results/<SSJ|GLOBAL>/{data,figures,run.log}` and `results/COMPARISON/`.
+
+**Branch `OMT-fix` (in progress): the LTRO backstop is deleted and a TPI bond-purchase backstop is
+being built in its place**, in gated steps (plan: `/Users/Huawei/.claude/plans/plan-changes-to-implement-hidden-cerf.md`).
+Steps 1-5 are done: the LTRO deleted (bit-for-bit), the TPI book as states `M_cb`/`O_cb` and
+unknown `x_cb` (TPI off: solved model equal to solver tolerance), the goods_F diagnostic, the TPI
+itself (spread-cap floor, KT corner, sheared box, FB-rooted / GZ-read solve) and its experiment
+(`tpi_experiment.py`, `RUN_TPI` in `run.py`, `tpi_irf.png`). Design and results:
+`Claude files/docs/tpi_backstop_plan.md`. Open: the full run's numbers in that file's section 9,
+and the CAP itself is a calibration decision (200 bp ships; on the coarse grid caps <= 350 bp put
+the riskiest node at the corner). A full global run now costs ~1.5x (12 states, 115 refined
+points) plus the TPI solve.
+**Open issue found in step 3 (pre-existing, not the TPI):** the union budget leaks off the SS
+because `hh_T_D/F` (0.583) is a constant standing in for the working-capital flow; on impact of the
+headline shock the leak is ~0.15% of D output. See STATE Part II and PROGRESS 2026-10-02. These docs, all notes/reports and all tests live in `Claude files/`;
 the map is `Claude files/REFACTOR_ARCHITECTURE.md`.
 
 ## Repository layout changed — 2026-09-30 (no economics changes)
@@ -24,7 +47,7 @@ supersedes the other:
 | Interpreter | `/opt/anaconda3/envs/ssj/bin/python` | plain `python3` |
 | Method | linearised, sequence-space Jacobians | nonlinear Chebyshev-Smolyak collocation |
 | Entry point | `python3 run.py ssj` | `python3 run.py global` |
-| Carries | sticky prices, nominal deposits, GK structural refactor, `experiments/` E1-E4, the paper's current figures | occasionally-binding IC, exogenous priced default risk, LTRO backstop |
+| Carries | sticky prices, nominal deposits, GK structural refactor, `experiments/` E1-E4, the paper's current figures | occasionally-binding IC, exogenous priced default risk, TPI backstop (in progress; the LTRO is deleted) |
 
 They share no model code and no interpreter; their calibrations sit side by side in `calibration/` but hold different values. **Their impulse
 magnitudes are not comparable** — say which pipeline a number came from before

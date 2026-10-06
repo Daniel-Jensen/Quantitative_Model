@@ -1,6 +1,7 @@
 # CONSOLE REPORTING: STEADY-STATE TABLE. The projection experiments
 # (solver_recursive/) print their own IRF tables inline; this keeps output
 # formatting out of the model code.
+import numpy as np
 
 
 # UNIT CONVENTION FOR EVERY NUMBER THE EXPERIMENTS PRINT (2026-08-28).
@@ -178,8 +179,8 @@ def print_sovereign_spread(legs, label=""):
     # it is the CEILING on an instrument that acts only through that leg. The reason this
     # table exists: a bank-liquidity facility can touch the liquidity leg and nothing
     # else, and on this calibration that leg is ~2% of the D-F spread, which is why the
-    # LTRO moves the credit spread by tens of basis points and the sovereign spread by
-    # single digits. Legs are removals, not a partition -- y is convex in q.
+    # retired LTRO moved the credit spread by tens of basis points and the sovereign spread
+    # by single digits. Legs are removals, not a partition -- y is convex in q.
     from global_projection.solver_recursive.output_decomposition import SOVEREIGN_LEGS
     print(f"\n  SOVEREIGN SPREAD DECOMPOSITION{(' - ' + label) if label else ''}"
           f"   (annualised bp)")
@@ -209,3 +210,52 @@ def print_bond_decomposition(bdec, channels):
     for k, lab in channels:
         print(f"    {lab:<36s} impact {bdec[k][0]:+8.4f}%")
     print(f"    {'TOTAL':<36s} impact {bdec['total'][0]:+8.4f}%")
+
+
+def print_tpi_report(res, bond_channels):
+    # THE TPI AGAINST NO TPI: REST POINT, IMPACT, FOOTPRINT, PRICE IMPACT, KT CONDITIONS.
+    cap = res["cap_bp"]
+    solved = res["cap_solved"]
+    print(f"\n  TPI: spread cap {cap:.0f} bp/yr over the F bond, capital key D "
+          f"{res['key_D']:.3f}"
+          + ("" if res["solve_ok"] else f"   [NOT ROOTED at the target: last cap "
+                                         f"solved {solved}]"))
+    off, on = res["rest_off"], res["rest_on"]
+    print("\n  REST POINT (nothing is bought here: the gap is the ANNOUNCEMENT)")
+    print(f"   {'object':<26s}{'no TPI':>12s}{'TPI':>12s}{'diff':>12s}")
+    for k, lab in (("Q_bD", "Q_bD"), ("sov_bp", "sovereign spread bp/yr"),
+                   ("spread_bp", "credit spread bp/yr"), ("mu", "mu_D"),
+                   ("E_Om", "E[Omega_D]"), ("alpha", "alpha_D (franchise)"),
+                   ("n", "n_D (bank net worth)"), ("Y", "Y_D"), ("C", "C_D"),
+                   ("I", "I_D"), ("M", "Eurosystem book, % of B"),
+                   ("m", "purchases, % of B")):
+        print(f"   {lab:<26s}{off[k]:12.5f}{on[k]:12.5f}{on[k] - off[k]:+12.5f}")
+    io, im = res["irf_off"], res["irf_on"]
+    print("\n  HEADLINE RISK SHOCK, impact (q0) and trough        no TPI        TPI")
+    for k, lab in (("Y", "GDP % (level)"), ("sov_bp", "sovereign spread bp/yr"),
+                   ("spread", "credit spread bp/yr"), ("n", "bank net worth %"),
+                   ("dQ_bD", "Q_bD % vs no-shock")):
+        print(f"   {lab:<26s} q0  {io[k][0]:+10.4f} {im[k][0]:+10.4f}"
+              f"    min {np.min(io[k]):+10.4f} {np.min(im[k]):+10.4f}")
+    print(f"   footprint: peak purchases {np.max(im['m_cb']):.2f}% of B in one quarter, "
+          f"peak book {np.max(im['M_cb']):.2f}% of B, "
+          f"worst P&L {np.min(im['Pi_cb']):+.4f}% of quarterly GDP")
+    print("\n  BOND-PRICE LEGS OF THE TPI's EFFECT (% of Q_bD, TPI minus no TPI)")
+    for k, lab in bond_channels:
+        print(f"    {lab:<36s} q0 {res['bond_legs'][k][0]:+8.4f}%")
+    print(f"    {'TOTAL':<36s} q0 {res['bond_legs']['total'][0]:+8.4f}%")
+    for tag, rows in (("at the rest point", res["impact_rest"]),
+                      ("at the headline shock", res["impact_shock"])):
+        q0 = rows[0]["Q_bD"]
+        print(f"\n  PRICE IMPACT OF A ONE-OFF PURCHASE {tag} (rules fixed)")
+        for r in rows:
+            print(f"    m = {100 * r['m']:5.1f}% of B: Q_bD {100 * (r['Q_bD'] / q0 - 1):+7.3f}%"
+                  f"  spread {r['sov_bp']:7.1f} bp  mu_D {r['mu']:.4f}  b_DD {r['b_DD']:.3f}"
+                  f"  (resid {r['resid']:.0e})")
+    kt = res["kt"]
+    print(f"\n  COMPLEMENTARITY on the solved rules ({kt['n']} no-default nodes): floor binds "
+          f"at {kt['n_binding']}, corner b_DD = 0 at {kt['n_corner']}")
+    print(f"    m >= 0: min {kt['min_m']:+.1e}   Q >= floor: min gap {kt['min_gap']:+.1e}"
+          f"   max|m*gap| {kt['max_m_gap']:.1e}")
+    print(f"    b_DD >= 0: min {kt['min_b']:+.1e}   FOC gap <= 0: max {kt['max_foc']:+.1e}"
+          f"   max|b_DD*gap| {kt['max_b_foc']:.1e}")

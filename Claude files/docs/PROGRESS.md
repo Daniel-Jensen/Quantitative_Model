@@ -14,6 +14,211 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-10-05 — `TPI_CAP` switch in run.py; comments cut back in the core files (`OMT-fix`)
+
+- **`run.py` `TPI_CAP`** sets the TPI's spread cap: bp/yr (default 200, the documented results)
+  or `"rest"`, the no-TPI economy's rest-point spread (55.84 bp on the current solution): the
+  Eurosystem defends the steady-state spread. It is resolved after the no-TPI solve and before
+  anything is saved, so `calibration.json` carries the cap the TPI ran at. NOT YET RUN at
+  `"rest"`: a continuation from the solved 200 bp rules was started and stopped on request.
+  Expect the cap to bind near the rest point (expected default losses alone are worth 246 bp/yr
+  over the F bond at the headline shock, 41 bp at rest) and the D banks to sell their whole
+  holding, i.e. a transfer from F rather than a backstop.
+- **Comments** in the eight core files (`run.py`, `calibration/global_projection.py`,
+  `point_map`, `collocation`, `recursive_experiment`, `tpi_experiment`, `state_grid`,
+  `decision_rules`) cut from 1,283 to 337 lines: a one-line header per module and function, one
+  short sentence where a line needs it. Code verified identical (every comment-stripped line and
+  the AST, against snapshots); fast tests pass. The histories that lived in the comments are in
+  this file, STATE.md, the plan docs and git history.
+- `RISK_SHOCK_PD` in `run.py` is now 0.02 (user edit): the next run shocks p^d to 2.00%/qtr;
+  every result documented so far is at 1.98%. `Claude files/data/README.md` deleted (user).
+
+## 2026-10-05 — The TPI at full resolution: smoothing continuation, results (`OMT-fix`)
+
+The final click-path run (2026-10-04) converged and saved every no-TPI object on the 115-point
+grid, walked the TPI cap 700 -> 200 bp and solved the 3-node refinement, then STALLED in the 5-node
+TPI solve (steps cut to 1/256, max|F| ~1.4e-3). Diagnosed: the 5-node grid puts nodes right at the
+floor's boundary (the floor binds at 43 of 115 nodes, including 20 of 23 at p^d 1.58%/qtr), and at
+`tpi_eps` = 1e-5 each is a near-kink for the Newton's 1e-6 finite-difference step.
+- `tpi_eps` 1e-5 -> **1e-4** (biases economically invisible, measured: purchases of 2e-8 to 3e-7 of
+  the stock where the floor is slack, D-bank holdings of 2e-7 to 5e-7 at the corner) and **`TPI_EPS_LADDER` = (1e-2, 1e-3)**: each
+  refined TPI solve walks the smoothing in. Measured on the 5-node grid: 5, 11 and 7 Newton steps
+  (each ending quadratically) and a 2-step hand-back, max|F| 2.2e-9.
+- **Results** (full grid; `results/GLOBAL/`, `Claude files/docs/tpi_backstop_plan.md` §9.2): the
+  announcement lowers the rest-point lending spread 89 -> 53 bp and raises output 0.18%; on the
+  headline shock the Eurosystem buys 43% of the stock on impact, the spread is capped at 200 bp
+  (302 without), bank net worth falls 1.5% (4.2%) and impact output -0.080% (-0.128%), but the
+  downturn is longer (trough -0.147% at q6): along the no-default path the bonds' excess return
+  goes to the Eurosystem, 92.9% of it on to F by the capital key. The coarse preview's opposite
+  impact sign was a grid artefact.
+- The TPI part was completed by the production `_refine_s` and `tpi_experiment.compare` on the
+  run's saved no-TPI rules (`results/GLOBAL/run.log` says so); `run.py` itself carries the fix.
+
+## 2026-10-04 — The collocation Jacobian runs on every core, bit-identically (`OMT-fix`)
+
+`cal["n_jobs"]` was documented as the FD-Jacobian worker count but read by nothing (a leftover of
+the deleted perfect-foresight solver), so every Newton step built its Jacobian serially: ~25 min
+per step on the 115-point grid, ~8 hours of awake machine time for a full run with the TPI.
+`collocation._PoolJacobian` now farms the columns out to spawned worker processes (0 = every
+core, 1 = serial), each computing its columns with the serial formula.
+- **Bit-identical:** the full coarse Jacobian (1000 x 1000) serial vs pooled, TPI on and off:
+  `np.array_equal` True, max|diff| 0.0. `test_collocation` and N2 reproduce 8 Newton steps and
+  max|F| 1.34e-10 exactly.
+- **Faster:** 71 s -> 19 s per coarse Jacobian on 8 workers (with another solve on one core);
+  the solve tests run in ~43 s instead of ~90 s.
+
+## 2026-10-03 — The TPI's refined solve made robust; no-TPI results saved first (`OMT-fix`)
+
+The first full run (2026-10-02, 15:34) converged the no-TPI model on the 115-point grid in 4
+Newton steps, reproducing the published 10-state numbers (impact output -0.1106% against
+-0.1105%, bond price -9.2633% against -9.263%), and walked the TPI cap 700 -> 200 bp on the
+coarse grid without a failed rung. Seeded straight from the coarse TPI rules, the TPI's
+5-node refined Newton then took DAMPED steps (7.6e-3 -> 5.7e-3 -> 3.3e-3, steps 1/2, 1/4, 1/2),
+where a 3-node refined solve from the same seed converges quadratically in 5 (2.4e-6 -> 8.1e-10).
+
+- `_refine_s` walks the TPI 3 -> 5 nodes in s (the 3-node solve supplies the s-cross terms
+  the coarse seed lacks) and gives the TPI's refined Newton 20 steps instead of 12. The
+  no-TPI path is unchanged.
+- `run.py` saves every no-TPI object, and the coarse no-TPI baseline the TPI starts from
+  (`rules_base_coarse.pkl`), BEFORE the TPI experiment, so the longest solve in the
+  pipeline cannot take the rest down with it.
+- The run's progress also showed the Mac sleeping on battery overnight; `caffeinate`
+  cannot prevent lid-closed sleep on battery, so a full run needs the lid open or power.
+
+## 2026-10-02 — run.py runs on a click; the TPI figures; the mechanism verified (`OMT-fix`)
+
+- **`run.py` defaults to `MODEL = "global"` and gains `QUICK`.** A plain `python3 run.py` (an
+  editor "Run" click) used to start with the SSJ model under the ssj conda env, which is
+  absent on this machine, so it stopped with "SSJ interpreter not found" before the global
+  model or the TPI started. `QUICK = True` is the coarse preview (~1 h with the TPI);
+  `--quick` still forces it.
+- **Two TPI figures, paper scheme** (`plots.plot_tpi_irf`, `plots.plot_tpi_mechanism`):
+  the headline shock with and without the TPI (sovereign spread against the cap, bond price,
+  bank net worth, lending spread, GDP, consumption, investment, deposit rate, the Eurosystem's
+  purchases and book), and the mechanism (both spreads at rest, the bond-price legs of the
+  TPI's effect at the shock, the price impact of a one-off purchase at fixed rules).
+- **Mechanism checks on the solved TPI rules (quick run):** in the default regime x = 0 at
+  every node (nothing bought); where the floor binds the spread is the cap to 1e-6 bp (200.000000,
+  the Eurosystem holding 81.12% of the stock at the corner, b_DD 6e-9, foc_D -7.9e-3 < 0);
+  no node exceeds the cap. With exact reads the bond-price legs of the TPI's effect at the
+  shock close exactly (FOC residual 0.0000%) and the effect is almost all the CONTINUATION
+  price (+9.03 of +9.23%): the TPI works as a floor under the bond's future resale value, not
+  by de-risking the banks (risk premium -0.01%). Coarse magnitudes; the refined run decides.
+
+## 2026-10-02 — The TPI switched on: floor, complementarity, solve ladder, experiment (steps 4-5, `OMT-fix`)
+
+The Eurosystem now buys the D bond in the no-default regime whenever the D-F spread would
+exceed `tpi_cap_bp` (default 200 bp/yr), holding it to maturity against a safe claim on itself
+(`Claude files/docs/tpi_backstop_plan.md`). `tpi_on = False` stays the default and is bit-for-bit
+the no-TPI model (413 period-map items unchanged).
+
+- **Period map.** The 14th unknown `x_cb` (Garcia-Zangwill: `m = B*max(x,0)`,
+  `Q_bD = floor + Q_ss*max(-x,0)`); residual 8 the D-bank FOC as a Fischer-Burmeister KT pair with
+  `b_DD >= 0` (the corner where the Eurosystem holds the bank's whole book, exact clearing);
+  residual 14 ties the stored `Q_bD` rule to the price. `w_F`, `P_CES_F`, `Q_floor`, `foc_D` are
+  new outputs.
+- **The box is a shear** (`z_bDD = b_DD + M`, `z_O = O - rho*M`, `m_band = 1`): on the natural
+  axes a forced purchase moved the price non-monotonically (-0.5% at 5% of the stock, +0.3% at
+  30%, `mu_D` 4x); on the shear it is monotone (+0.46% for 31% of the stock at the headline shock).
+- **Formulation, measured.** A smooth min stalls (no slope in `m` below the floor); FB on a stored
+  `m` roots every cap but its fit buys 19.7% of the stock where the floor is slack (Gibbs);
+  GZ stalls along the cap walk. Shipped: root in FB, hand back in GZ (exact at the nodes,
+  2.2e-9), polish 1-2 steps.
+- **Solve ladder.** `_solve_tpi`: from the no-TPI baseline, the cap walked 700 -> target in 50 bp
+  rungs (FB), each rung 4-6 Newton steps on the coarse grid; a failed rung is retried at half
+  the step. On the coarse grid the floor binds only at the riskiest node (p^d 4.8%/qtr), interior
+  down to 400 bp (purchases 3% / 15% / 29% / 46% / 67% of the stock at 600/550/500/450/400 bp)
+  and at the corner from 350 bp.
+- **Gates.** N3: a purchase is a swap today (assets, divertable base, deposits, P', mu unchanged
+  to 1e-12) and a risk transfer tomorrow, exactly `[(1-f)+omega_ent*kappa_D]*(RQ - Xi')*dm` in
+  both regimes. N4: every budget sums to the union goods market at random points, TPI on (both
+  forms) or off, to 2e-10. KT conditions on the solved rules: reported by `tpi_experiment`.
+- **`tpi_experiment.py`** (rest point with and without, headline IRF with the footprint,
+  bond-price legs of the difference, price impact of a forced purchase, KT check),
+  `prints.print_tpi_report`, `plots.plot_tpi_irf`, `run.py` `RUN_TPI` (saves `data/tpi` and
+  `rules_tpi.pkl`, draws `tpi_irf.png`). **Its IRFs are CLEARED at every quarter**
+  (`dynamic_irf(exact=True)`, both economies): read off the fitted rules, the TPI path bought
+  53% of the stock on impact and then asked for more bonds than the D bank held (b_DD -120%),
+  running into the box wall for 24 of 25 quarters; cleared, neither path leaves the box.
+- **Quick run (coarse grid, a preview, 60 min end to end), cap 200 bp.** KT on the solved rules
+  to 1e-9 (floor binds at 1 node, corner at 1). The announcement: at the rest point (nothing
+  bought) the sovereign spread falls 62 -> 35 bp, the credit spread 79 -> 71 bp, alpha_D RISES
+  (the franchise channel does not dominate), Y_D +0.06%. The headline shock, cleared: the TPI
+  never fires (impact spread 164 bp, under the cap, against 419 without), the credit spread
+  stays 0 and bank net worth falls 3.9% (5.2% without), but output falls MORE on impact
+  (-0.31% vs -0.12%): the relative-price channel (-0.40 pp; p +3.0% vs +0.25%) outweighs the
+  removed credit spread (+0.13 pp), because D demand falls harder as the deposit rate rises
+  (+19 bp, against -44 bp without). To be confirmed on the refined grid.
+
+## 2026-10-02 — F goods-market diagnostic; a pre-existing Walras leak found (step 3, `OMT-fix`)
+
+`point_map` now reports `goods_F` (F goods-market residual, never a solver target). Output only:
+the 413 period-map items stay bit-identical. **Finding: the global model's union budget does not
+close off the steady state, and the TPI is not the cause.** Measured on the solved TPI-off quick
+rules: `goods_F` is 1.3e-10 at the SS, up to 9.0e-3 of F output at the solved nodes (the K_F,
+P_F, Z_D nodes), and -1.9e-4 of F output on impact of the headline risk shock (-1.5e-3 of D
+output in union terms, against a D output response of -0.11%), decaying to -7.9e-5 by q11.
+Summing every budget in the period map gives the identity, checked node by node to 4.8e-6 (the
+smooth guards' bias):
+
+    Y_D*goods_D + sz*p*Y_F*goods_F = sz*p*delta_F*B_F*(Q_bF - Q_ss)          (<= 5.9e-3)
+                                   + sum_c [zeta*r_wc*w*N + L_wc - P_CES*hh_T]_c   (<= 6.9e-2)
+
+The first term is the documented Tier-3 cut (fixed `B_F`, `Tax_F`). The second is new: the rep-agent
+anchor `hh_T_D/F` = 0.583 per capita is a CONSTANT standing in for the working-capital flow
+(1+r_wc)*L_wc, which moves with hours, wages and the lending spread. The TPI's own flows (O, Z, M,
+kappa*Pi, (1-kappa)*Pi) cancel out of the sum exactly, so the identity's remainder is the TPI gate.
+Fixing the anchor changes every global result and is a separate decision.
+
+## 2026-10-02 — TPI book added as two states and one unknown, switched off (step 2, `OMT-fix`)
+
+**No economics change with the TPI off, verified three ways.** The Eurosystem's holdings of
+the D bond `M_cb` and its gross obligation to the D banks `O_cb` are new states (12 in all),
+its purchases `m_cb` a new unknown and stored rule (14 unknowns, 20 rules per regime), with
+the accounting live: gross debt `B_D = b_DD + b_DF + M`, clearing `b_DD = B' - b_DF - M`, the
+safe claim `Z = Q_bD*M` in the D bank's assets and divertable base, `O_lag` in its payoff,
+the P&L `Pi = Xi*M_lag - O_lag` remitted by capital key (`tpi_key_D = 0.071`: D issuance,
+F taxes), and the laws of motion `M' = (1-delta)*surv*M + m`, `O' = (1+rdep_D)*Z`.
+
+- **Period map bit-for-bit:** fed the old 10-state rules with `M = O = m = 0` padded on, all
+  413 period-map items (both regimes, three calibration variants, perturbed states and rules,
+  the SS, the household anchors) are identical to `1612f29`. Every new term adds an exact 0.0.
+- **Solved model to solver tolerance:** the new states' bands are symmetric round 0, so every
+  node with `M = O = 0` is a node of the old grid and the 12-state interpolant restricted to
+  that slice IS the 10-state one. `run.py global --quick` on both codes: risk rules at all 21
+  slice nodes agree to 5.5e-10 (relative), the risk IRF to 4.5e-9, the decompositions and the
+  rest point to ~5e-10, the TFP IRF to 2e-6 pp; `m_cb` is 1e-23 everywhere. Quick run 824 s
+  against 528 s (25 coarse points x 20 rules against 21 x 19).
+- **Tests:** N1 prints the step-1 residuals digit for digit plus `tpi = 0`; N2 converges
+  (15 Newton steps, max|F| 7.3e-10); the refined grid is 115 points (was 95).
+- `accuracy._EQN` now imports `collocation.RES_NAMES` instead of keeping a hand copy.
+
+## 2026-10-01 — LTRO backstop deleted (step 1 of the TPI rework, branch `OMT-fix`)
+
+**No economics changes to the two-regime model, verified bit-for-bit.** The stochastic LTRO
+backstop is removed from the global pipeline to make room for a TPI bond-purchase backstop
+(ECB holdings as two new states, purchases as a new unknown, a spread-cap floor; plan in
+`/Users/Huawei/.claude/plans/plan-changes-to-implement-hidden-cerf.md`). A harness recording
+440 outputs (period map on perturbed rules in both regimes and under calibration variants,
+collocation residual and Newton, time iteration, readers, IRFs, decompositions, accuracy, and the
+solve ladder with its Newton stages stubbed, every printed line included) matches a frozen copy of
+`1612f29` exactly. The only differences are the seven deleted output keys (`phi`, `m_ltro_D/F`,
+`n_IC_D/F`, `lev_IC_D/F`); every other value in those output dictionaries is identical.
+
+- **Regimes:** the regime index is the default indicator d' again, `decision_rules.REGIMES = (0, 1)`;
+  `regime_table` asserts two regimes. `_regime_weights` drops the activation probability.
+- **Incentive constraint:** the facility terms `(n+m)/(lambda*(A-m))` are gone; the closed-form
+  `mu` reads the bank's own net worth and divertable base again.
+- **Deleted:** `ltro_experiment.py`, `bond_spread_experiment.py`, `recursive_experiment.LTRO_LADDER`
+  and `_solve_facility`, the `no_cb`/`with_cb` plumbing in `collocation`, `recursive_main` and
+  `recursive_experiment`, `plots.plot_activation_irf`/`plot_certainty_curve`, the calibration keys
+  `phi_ltro`, `ltro_D/F`, `ltro_s_thr/width`, and `RUN_LTRO`/`LTRO_*` in `run.py`.
+- **`decomposition_experiment`** now loops over named calibration scenarios (`SCENARIOS`, default
+  the no-backstop baseline) instead of LTRO activations, so the TPI can be dropped in as a scenario.
+- **Tests:** `test_collocation` and `test_recursive_nesting` build two-regime rules; the LTRO tests
+  (four-regime solve, N3 activation nesting, N4 facility accounting) are deleted, to be replaced
+  by the TPI-off nesting and swap-accounting gates in step 2/4.
+
 ## 2026-10-01 — Global code refactored into stage functions; run.py is the pipeline; results/
 
 **No economics changes, verified bit-for-bit.** A harness recording 3,123 outputs of every

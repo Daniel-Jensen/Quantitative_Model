@@ -15,7 +15,9 @@
 >
 > **2026-10-01:** the living docs (this file, PROGRESS, HANDOFF) and every other AI-generated
 > note, report and test now live in `Claude files/` (mirrored paths); `run.py` writes every result
-> to `results/<SSJ|GLOBAL>/` and the LTRO sweep is off by default (`RUN_LTRO = False`).
+> to `results/<SSJ|GLOBAL>/`. **Later the same day (branch `OMT-fix`) the LTRO backstop was
+> deleted** from the global pipeline, bit-for-bit neutral for the two-regime model; a TPI
+> bond-purchase backstop is being built in its place (Part II, first note).
 >
 > **2026-09-30 layout change (no economics changes):** `code/` → `linear_ssj/` +
 > `global_projection/` + shared `calibration/`, one entry point `run.py`, and `compare.py`
@@ -2466,6 +2468,48 @@ the committed calibration with a Prony / companion-eigenvalue extractor
 ---
 
 # Part II — Global-projection pipeline (`global_projection/`)
+
+> **2026-10-01, branch `OMT-fix`: the LTRO backstop is DELETED; a TPI replaces it.** The
+> regime table is back to the default indicator d' in {0, 1}; `phi_ltro`, `ltro_D/F`,
+> `ltro_experiment.py` and the facility terms in the incentive constraint are gone. Verified
+> bit-for-bit against `1612f29` on 440 recorded outputs (see PROGRESS). The LTRO numbers
+> quoted below and in `Claude files/docs/ltro_backstop_plan.md` describe deleted code.
+> The TPI design: Eurosystem holdings M and its obligation to D banks O as two new states,
+> purchases m >= 0 as a new unknown against a spread cap over the F bond (complementarity),
+> bonds swapped for a safe CB claim so the divertable base does not move, profit and loss
+> shared by capital key (0.071 D), active only in the no-default regime, held to maturity.
+> **2026-10-02 (step 2):** the book is in the code as two states (`M_cb`, `O_cb`; 12 in all)
+> and one unknown (`m_cb`; 14), switched OFF: the solved model reproduces the 10-state one to
+> solver tolerance (risk rules 5.5e-10, IRFs 4.5e-9). The s-refined grid is now 115 points.
+> **2026-10-02 (step 3), OPEN ISSUE -- the global model leaks off the SS, independent of the
+> TPI.** `goods_F` (now reported) is 1.3e-10 at the SS but -1.9e-4 of F output on impact of the
+> headline risk shock (-1.5e-3 of D output in union terms) and up to 9.0e-3 at the solved nodes.
+> It is fully explained (to 4.8e-6) by the fixed F treasury (documented Tier-3 cut) plus the
+> rep-agent anchor `hh_T_D/F` = 0.583: a constant standing in for the state-dependent
+> working-capital flow (1+r_wc)*L_wc. See PROGRESS 2026-10-02 for the identity.
+> **2026-10-02 (steps 4-5): the TPI is implemented** (`tpi_on`, default off; cap `tpi_cap_bp`
+> = 200 bp/yr; `Claude files/docs/tpi_backstop_plan.md`). 12 states, 14 unknowns, 20 rules x 2
+> regimes; the box is a shear on the book's reachable set; the solver roots the purchase
+> complementarity in the Fischer-Burmeister form and hands the rules back in the
+> Garcia-Zangwill form. Gates: N3 (swap + risk transfer, exact), N4 (union budget, 2e-10),
+> KT conditions on the solved rules (`tpi_experiment.complementarity`). Price impact per euro
+> is small (+0.46% on Q_bD for 31% of the stock at the headline shock, fixed rules), so a cap
+> far below the market spread is met at the CORNER: on the coarse grid every cap <= 350 bp
+> puts the riskiest node (p^d 4.8%/qtr) there, the Eurosystem holding the D bank's whole book.
+> **Mechanism (quick run, exact reads):** the TPI raises the D bond's price almost entirely
+> through the CONTINUATION (the floor under its future resale value: +9.03 of +9.23% at the
+> headline shock), not the risk premium (-0.01%). `run.py` now runs the global model on a click.
+> **2026-10-03:** the full run's no-TPI model on the 115-point grid reproduces the published
+> numbers (impact output -0.1106% vs -0.1105%); the TPI's refined solve now walks 3 -> 5 nodes.
+> **2026-10-04:** the collocation Jacobian runs on every core (`n_jobs`), bit-identically.
+> **2026-10-05, FULL-RESOLUTION TPI RESULTS** (cap 200 bp; `tpi_backstop_plan.md` §9.2): at rest
+> the lending spread falls 89 -> 53 bp and output rises 0.18% with nothing bought; on the headline
+> shock the Eurosystem buys 43% of the stock on impact, impact output -0.080% (vs -0.128%), but the
+> downturn is longer (trough -0.147% at q6) because the bonds' excess return goes to the Eurosystem
+> (92.9% on to F) along the no-default path. `tpi_eps` = 1e-4 with a smoothing continuation.
+> **2026-10-05, later:** `run.py` has a `TPI_CAP` switch (`"rest"` = defend the no-TPI rest-point
+> spread, ~56 bp; not yet run). `RISK_SHOCK_PD` is now 0.02, so the next run's headline shock is
+> 2.00%/qtr; every result above is at 1.98%.
 
 **Branch:** `file-reorganisation` | **Date:** 2026-07-07 | **Status:** Bocola (2016) / Cole-Kehoe sovereign-risk mechanism implemented and verified; **risk channel added** via two-branch default-branch pricing (standalone `global_projection/` model)
 

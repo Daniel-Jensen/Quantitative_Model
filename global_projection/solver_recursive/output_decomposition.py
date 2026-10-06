@@ -23,7 +23,7 @@ from global_projection.solver_recursive.point_map import point_residuals
 from global_projection.solver_recursive.decision_rules import SOLVE7
 from global_projection.solver_recursive.recursive_main import ss_state
 from global_projection.solver_recursive.state_grid import (IK_D, IK_F, IP_D, IP_F, IBDD, IBDF, IBFD, IV,
-                                         IS, IZ)
+                                         IS, IZ, IM, IO)
 
 # per-period objects recorded along a simulated path
 REC_KEYS = ("Y_D", "C_D", "I_D", "N_D", "Kap_prod_D", "Z_D", "P_CES_D", "p",
@@ -101,7 +101,7 @@ def simulate(rules, cal, ss, sproc, s_path, endogenous_states=True, refine=False
     counts = {"slack": 0, "fail": 0}
     for t in range(T):
         S[IS] = s_path[t]
-        off_box = max(off_box, _box_excursion(S, rules.grid.lo, rules.grid.hi))
+        off_box = max(off_box, float(np.max(rules.grid.outside(S))))
         S = rules.grid.clip(S)[0]
         o = _read(rules, cal, ss, sproc, S)
         if refine and o["_resid"] > 1e-11:
@@ -116,12 +116,6 @@ def simulate(rules, cal, ss, sproc, s_path, endogenous_states=True, refine=False
     rec["n_fail"] = counts["fail"]
     rec["s"] = np.asarray(s_path, dtype=float)
     return rec
-
-
-def _box_excursion(S, lo, hi):
-    # HOW FAR S LIES OUTSIDE THE BOX, AS A FRACTION OF BOX WIDTH (0 INSIDE).
-    span = np.maximum(hi - lo, 1e-12)
-    return float(np.max(np.maximum((lo - S) / span, (S - hi) / span)))
 
 
 def _refined_read(rules, cal, ss, sproc, S, o, counts):
@@ -148,6 +142,7 @@ def _next_state(o, S0, s_t):
     S[IBDD], S[IBDF] = o["b_D_D_new"], o["b_D_F_new"]
     S[IBFD] = o["b_F_D_new"]
     S[IV] = o["Vp_dep"]
+    S[IM], S[IO] = o["M_cb_new"], o["Op_cb"]
     S[IS], S[IZ] = s_t, S0[IZ]
     return S
 
