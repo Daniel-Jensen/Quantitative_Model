@@ -1,0 +1,367 @@
+% !TEX root = ../main.tex
+% Numbers: global projection, household-budget-fix solution (6 Oct 2026), five nodes in the
+% risk factor and last quarter's spread as a thirteenth state (125 collocation points); every
+% economy solved to the collocation tolerance at every node. Headline welfare: Monte Carlo
+% with every quarter cleared exactly (40 histories of 600 quarters, common shocks and default
+% draws); the announcement component by exact clearing; the national-income decomposition by
+% the solution's expectation operator. Results: results/WELFARE/<economy>/; drivers and the
+% table generator in Claude files/global_projection/policy_rules/.
+\section{Welfare and the design of the backstop}
+\label{sec:welfare}
+
+Along a history without default, a purchase of the $D$ bond hands the Eurosystem the excess return
+the selling banks would have earned, and the state in which the insurance pays never arrives. We
+therefore rank backstop rules by households' expected welfare over every history, including those in
+which the backstop is activated and the sovereign defaults. We define the welfare criterion
+and the rules, report welfare when the Eurosystem's profits are shared by the capital key, trace why
+the vulnerable member loses, and then let that member keep the profits.
+
+\subsection{The welfare criterion}
+\label{sec:welfare-criterion}
+
+\paragraph{Household welfare.}
+Welfare is that of each country's representative household, with discount factor
+$\hat\beta=1/(1+\bar r)$ and period utility $\log x_{X,t}$ ($\sigma_X=1$ in \eqref{eq:hh-objective}),
+where $x_{X,t}=C_{X,t}-v(N_{X,t})$ is the GHH composite. As a function of the aggregate state $S_t$
+and the default regime $d_t$,
+\begin{equation}
+V_X(S_t,d_t)=\log x_X(S_t,d_t)+\hat\beta\,\E_t\bigl[V_X(S_{t+1},d_{t+1})\bigr],
+\qquad X\in\{D,F\},
+\label{eq:welfare-bellman}
+\end{equation}
+where the expectation is the equilibrium's own, \eqref{eq:expectation}, with next quarter's regime
+drawn at the priced probability $\pi^{d}(s_t)$. Default is not absorbing, so
+\eqref{eq:welfare-bellman} averages over histories with any number of defaults.
+
+\paragraph{Aggregation across countries.}
+Union welfare weights every household equally,
+\begin{equation}
+W(S_t,d_t)=\frac{V_D(S_t,d_t)+\varkappa\,V_F(S_t,d_t)}{1+\varkappa}.
+\label{eq:union-welfare}
+\end{equation}
+where $\varkappa$ is the size of $F$ relative to $D$. The countries are identical per capita in the steady state, so transfers between them move $W$ only
+at second order: $W$ measures efficiency, $V_D$ and $V_F$ incidence.
+
+\paragraph{Announcement state and consumption equivalents.}
+Every rule is announced at $\mathcal S_0$, the stochastic rest point without a backstop (no
+Eurosystem holdings, a 57\,bp spread, no default), so comparisons include the transition to the new
+rest point. The consumption equivalent $\tau_X$ is the permanent transfer, as a share of rest-point
+consumption $\bar C_X$, that would make households of $X$ without a backstop as well off as under
+the rule,
+\begin{equation}
+\E_0\sum_{t=0}^{\infty}\hat\beta^{\,t}\log\bigl(x^{0}_{X,t}+\tau_X\bar C_X\bigr)
+=V^{\text{rule}}_X(\mathcal S_0,0),
+\label{eq:ce}
+\end{equation}
+where $x^{0}$ is the composite without a backstop. The union equivalent $\tau_U$, the same transfer in
+both countries, is to first order the population average of $\tau_D$ and $\tau_F$.
+
+\paragraph{Decompositions.}
+We decompose welfare changes in two ways. The \emph{quiet history}, with no shocks or default,
+isolates the \emph{announcement} because no purchases occur. The difference between total welfare
+and the quiet history measures the contribution of \emph{crisis purchases}. We also decompose welfare
+into output, terms of trade, investment, net exports and work through the national-income identity
+$C_X=(Y_X-I_X-NX_X)/P^{c}_X$.
+
+\subsection{Level and change rules}
+\label{sec:welfare-rules}
+
+The Eurosystem announces a target for its holdings of the $D$ sovereign, as a share of the
+steady-state stock $\bar B_D$, that responds to the spread $\mathrm{sp}_t$ of \eqref{eq:spread-def}
+(percentage points per year) and to its change:
+\begin{equation}
+\theta_t=\gamma_L\bigl(\mathrm{sp}_t-\bar s\bigr)+\gamma_\Delta\bigl(\mathrm{sp}_t-\mathrm{sp}_{t-1}\bigr).
+\label{eq:gamma-rule}
+\end{equation}
+As under the spread cap of \cref{sec:policy}, the Eurosystem never sells and buys nothing in default:
+\begin{equation}
+m_t=\bar B_D\max\Bigl\{0,\ \min\{\theta_t,\bar\theta\}-(1-\delta_b)h_tM_{t-1}/\bar B_D\Bigr\},
+\qquad m_t=0\ \text{if}\ d_t=1,
+\label{eq:gamma-purchases}
+\end{equation}
+with book $M_t=(1-\delta_b)h_tM_{t-1}+m_t$. The reference spread $\bar s$ is the pre-crisis
+rest-point spread, 57\,bp, and the issuer limit $\bar\theta=0.5$ is never approached. The coefficient
+$\gamma_L$ is the share of the stock held per percentage point of spread above $\bar s$. With
+$\gamma_L=0.15$, a crisis that takes the spread to 299\,bp without a backstop sets a target of 36\% of
+the stock, close to the 37\% that the cap of \cref{sec:policy} buys in that state when
+$\overline{\text{Spread}}=200$\,bp. We compare the level rule $R_L$ ($\gamma_\Delta=0$), the change
+rule $R_\Delta$ ($\gamma_L=0$) and the combined rule $R_{L+\Delta}$. Under $R_L$ intervention persists
+while financing conditions remain impaired; under $R_\Delta$ the Eurosystem arrests a disorderly rise
+in the spread and stops once the market settles. The constant cap is the limit of $R_L$ as
+$\gamma_L\to\infty$ with $\bar s$ equal to the cap.
+
+\subsection{Welfare under the capital key}
+\label{sec:welfare-results}
+
+\Cref{tab:welfare} reports the welfare of each rule when the Eurosystem's profits and losses are
+shared by the capital key ($\kappa_D=0.071$, $D$'s share of the profits; \cref{sec:policy}). Union welfare rises
+under every rule, by $0.003$ to $0.011\%$ of consumption, and all of the gain comes from the
+announcement. The promise lowers the rest-point lending spread, from 98 to 86\,bp under
+$\gamma_L=0.1$, and so raises output before a single bond is bought. Crisis purchases are worth
+slightly less than nothing to the union ($-0.0014$ to $-0.0001\%$): they insure $D$'s banks, but they
+also set off the transfer problem of \cref{sec:welfare-channels}.
+
+Households in $D$ lose $0.03$ to
+$0.13\%$ of consumption and those in $F$ gain $0.007$ to $0.028\%$, both more under stronger rules.
+Between a half and two-thirds of $D$'s loss comes from crisis purchases, because that is when the
+Eurosystem collects the premia it then pays out mostly abroad. Under the level, change and combined
+rules its expected profits are positive: it buys when the market spread exceeds the expected-loss
+spread, and so collects the risk and liquidity premia the selling banks would otherwise have earned.
+Expected discounted profits range from $0.5$ to $3.6\%$ of quarterly $D$ output, and $92.9\%$ of them
+accrue to $F$ under the capital key. The 200\,bp cap buys less often but in larger amounts, which
+leaves its expected profit too imprecisely estimated to distinguish from zero.
+
+\begin{table}[tbp]
+  \centering
+  \begin{threeparttable}
+  \caption{Welfare of announced backstops, profits and losses shared by capital key}
+  \label{tab:welfare}
+  \footnotesize\setlength{\tabcolsep}{3.5pt}
+  \begin{tabular}{lcc rrr rr r rr}
+    \toprule
+    & & & \multicolumn{3}{c}{Welfare (\% of consumption)} & \multicolumn{2}{c}{Announcement}
+      & & \multicolumn{2}{c}{Purchases} \\
+    \cmidrule(lr){4-6}\cmidrule(lr){7-8}\cmidrule(lr){10-11}
+    Rule & $\gamma_L$ & $\gamma_\Delta$ & Union & $D$ & $F$ & Union & $D$
+      & Profit & Freq. & Book \\
+    \midrule
+    % generated by welfare_tables.py: capital key
+    Level & 0.025 & 0 & 0.0031 & $-0.028$ & 0.0070 & 0.0032 & $-0.010$ & 0.9 & 10.7 & 1.2 \\
+     & 0.05 & 0 & 0.0046 & $-0.047$ & 0.0110 & 0.0049 & $-0.016$ & 1.6 & 11.4 & 2.2 \\
+     & 0.10 & 0 & 0.0067 & $-0.075$ & 0.0168 & 0.0073 & $-0.026$ & 2.5 & 11.3 & 3.9 \\
+     & 0.15 & 0 & 0.0080 & $-0.097$ & 0.0211 & 0.0090 & $-0.033$ & 3.1 & 10.9 & 5.3 \\
+     & 0.20 & 0 & 0.0091 & $-0.115$ & 0.0246 & 0.0105 & $-0.041$ & 3.6 & 10.5 & 6.5 \\
+    Change & 0 & 0.025 & 0.0026 & $-0.029$ & 0.0066 & 0.0028 & $-0.012$ & 0.5 & 8.0 & 0.6 \\
+     & 0 & 0.05 & 0.0053 & $-0.060$ & 0.0135 & 0.0056 & $-0.028$ & 1.0 & 9.7 & 1.3 \\
+     & 0 & 0.10 & 0.0105 & $-0.127$ & 0.0276 & 0.0116 & $-0.067$ & 1.8 & 10.8 & 2.5 \\
+    Combined & 0.05 & 0.025 & 0.0063 & $-0.068$ & 0.0156 & 0.0068 & $-0.027$ & 1.8 & 10.3 & 2.6 \\
+     & 0.05 & 0.05 & 0.0082 & $-0.092$ & 0.0207 & 0.0090 & $-0.041$ & 2.0 & 9.8 & 3.0 \\
+     & 0.10 & 0.025 & 0.0078 & $-0.088$ & 0.0199 & 0.0087 & $-0.034$ & 2.6 & 10.5 & 4.1 \\
+     & 0.10 & 0.05 & 0.0095 & $-0.106$ & 0.0240 & 0.0106 & $-0.046$ & 2.6 & 9.9 & 4.4 \\
+    Cap 200\,bp &  &  & 0.0095 & $-0.127$ & 0.0266 & 0.0102 & $-0.055$ & 1.3 & 1.5 & 4.6 \\
+    \bottomrule
+  \end{tabular}
+  \begin{tablenotes}\footnotesize
+  \item Welfare: consumption equivalents \eqref{eq:ce} at $\mathcal S_0$, by simulation with every
+  quarter cleared exactly (40 histories of 600 quarters); union: population-weighted,
+  \eqref{eq:union-welfare}. Announcement: the quiet history (no innovation, no default), cleared
+  exactly. Profit: expected discounted profit of the Eurosystem over 600 quarters, \% of quarterly
+  $D$ output. Purchases: share of quarters in which the Eurosystem buys more than 0.1\% of the stock,
+  and its average book, \% of the stock. Sampling standard errors: $D$ between 0.0006 and 0.009, $F$ at
+  most 0.001 (for the cap, 0.012 and 0.0014).
+  \end{tablenotes}
+  \end{threeparttable}
+\end{table}
+
+\subsection{Sources of the vulnerable member's loss}
+\label{sec:welfare-channels}
+
+Under the capital key $D$ suffers a transfer problem. For the level rule the present value of $D$'s
+output barely moves (\cref{tab:welfare-channels}), but purchasing power moves abroad: the coupons on
+the bonds the Eurosystem has acquired accrue mainly to $F$, and with home bias that shifts world
+expenditure towards $F$ goods. With a trade elasticity of 0.5, the adjustment requires a large
+deterioration in $D$'s terms of trade. For $\gamma_L=0.1$ it costs $0.11\%$ of consumption, partly
+offset by $0.04\%$ less disutility of work. The transfer also makes $D$'s economy more volatile: under
+$\gamma_L=0.1$ the standard deviation of output rises from $0.24\%$ without a backstop to $0.46\%$,
+against $0.27$ to $0.29\%$ under the level and change rules when $D$ keeps the profits.
+
+Keeping the profits in $D$ removes the transfer problem but not a second force, the fall in the
+relative price of $D$'s good, which operates however the profits are allocated.
+Relaxing the financial constraint expands $D$'s production: for $\gamma_L=0.1$ the extra output is
+worth $0.48\%$ of consumption. Little of it stays in $D$. The lower relative price of $D$'s good
+absorbs $0.24\%$ and the extra investment $0.23\%$, which leaves consumption barely higher, and the
+additional hours cost $0.11\%$. At the new rest point output is $0.34\%$ higher, consumption slightly
+lower and the price of the $F$ good $1.6\%$ higher. With a trade elasticity below one, much of the
+gain from easier credit is exported to the core through the cheaper goods $D$ sells it.
+
+\begin{table}[tbp]
+  \centering
+  \begin{threeparttable}
+  \caption{Sources of the welfare change, \% of consumption}
+  \label{tab:welfare-channels}
+  \footnotesize
+  \begin{tabular}{l rrrrr r}
+    \toprule
+    & Output & Terms of & Invest- & Net & Work & Total \\
+    & & trade & ment & exports & & \\
+    \midrule
+    \multicolumn{7}{l}{\emph{$D$, profits shared by capital key}} \\
+    Level, $\gamma_L=0.1$          & $-0.009$ & $-0.108$ & $-0.014$ & $-0.023$ & $0.043$ & $-0.111$ \\
+    Change, $\gamma_\Delta=0.05$  & $-0.057$ & $-0.120$ & $0.006$ & $-0.029$ & $0.066$ & $-0.134$ \\
+    Cap 200\,bp                    & $-0.096$ & $-0.202$ & $0.006$ & $-0.051$ & $0.112$ & $-0.230$ \\
+    \multicolumn{7}{l}{\emph{$D$, profits kept by $D$ ($\kappa_D=1$)}} \\
+    Level, $\gamma_L=0.1$          & $0.484$ & $-0.237$ & $-0.228$ & $0.008$ & $-0.110$ & $-0.084$ \\
+    Cap 200\,bp                    & $0.534$ & $-0.262$ & $-0.252$ & $0.010$ & $-0.122$ & $-0.092$ \\
+    \multicolumn{7}{l}{\emph{$F$, profits shared by capital key}} \\
+    Level, $\gamma_L=0.1$          & $0.036$ & $0.013$ & $-0.013$ & $0.002$ & $-0.019$ & $0.019$ \\
+    Cap 200\,bp                    & $0.065$ & $0.024$ & $-0.023$ & $0.004$ & $-0.035$ & $0.036$ \\
+    \bottomrule
+  \end{tabular}
+  \begin{tablenotes}\footnotesize
+  \item First-order decomposition of the change in the present value of the GHH composite,
+  $x=C-v(N)$ with $C=(Y-I-NX)/P^{c}$, at $\mathcal S_0$, by the solution's expectation operator,
+  expressed as a permanent consumption transfer. Output: the present value of output at
+  rest-point prices; terms of trade: the change in its value from the price of the consumption
+  basket; work: $-v(N)$. The totals for $D$ differ from the simulated ones of \cref{tab:welfare};
+  the split between channels is the object of interest.
+  \end{tablenotes}
+  \end{threeparttable}
+\end{table}
+
+\subsection{Who bears the profits and losses}
+\label{sec:welfare-key}
+
+If the Eurosystem's profits and losses on $D$ bonds accrue to $D$'s treasury ($\kappa_D=1$), as the
+November 2012 agreement to pass the Securities Markets Programme's income on Greek bonds back to
+Greece partly arranged \citep{eurogroup2012}, the union gains two to three and a half times as much
+from the same rule (\cref{tab:welfare-key}): $0.0187\%$ against $0.0067\%$ of consumption under
+$\gamma_L=0.1$.
+
+Almost all of the extra gain comes from a stronger announcement. Profits retained at home raise the
+value banks place on future net worth, $\E[\Omega_D]$, and by \eqref{eq:mu-closed} a higher
+$\E[\Omega_D]$ relaxes the constraint at given net worth and assets: a banker who values continuing
+in business more has less to gain from diverting. Under $\gamma_L=0.1$, $\E[\Omega_D]$ at the rest
+point rises from $1.159$ without a backstop to $1.173$, against $1.164$ under the capital key. The
+multiplier falls from $0.0120$ to $0.0066$ ($0.0105$ under the capital key) and the lending spread to
+54\,bp (86\,bp). Crisis purchases remain worth almost nothing to the union.
+
+$D$ still loses under every rule, which is perhaps surprising once the transfer problem has gone.
+Crisis purchases now insure it, worth up to $0.026\%$ of consumption, but the stronger announcement
+expands its output further and passes more of the gain to $F$ through its relative price, at a cost
+of $0.05$ to $0.19\%$. The insurance grows with the strength of the rule, so under the strongest level
+rule $D$ loses $0.076\%$, against $0.115\%$ under the capital key.
+
+\begin{table}[tbp]
+  \centering
+  \begin{threeparttable}
+  \caption{Welfare when $D$ keeps the Eurosystem's profits and losses}
+  \label{tab:welfare-key}
+  \footnotesize\setlength{\tabcolsep}{3.5pt}
+  \begin{tabular}{lcc rrr rr r rr}
+    \toprule
+    & & & \multicolumn{3}{c}{Welfare (\% of consumption)} & \multicolumn{2}{c}{Announcement}
+      & & \multicolumn{2}{c}{Purchases} \\
+    \cmidrule(lr){4-6}\cmidrule(lr){7-8}\cmidrule(lr){10-11}
+    Rule & $\gamma_L$ & $\gamma_\Delta$ & Union & $D$ & $F$ & Union & $D$
+      & Profit & Freq. & Book \\
+    \midrule
+    % generated by welfare_tables.py: national
+    Level & 0.05 & 0 & 0.0158 & $-0.085$ & 0.0284 & 0.0150 & $-0.082$ & 1.7 & 11.0 & 2.3 \\
+     & 0.10 & 0 & 0.0187 & $-0.098$ & 0.0332 & 0.0184 & $-0.104$ & 2.8 & 11.1 & 4.2 \\
+     & 0.15 & 0 & 0.0186 & $-0.092$ & 0.0324 & 0.0188 & $-0.105$ & 3.8 & 11.0 & 5.9 \\
+     & 0.20 & 0 & 0.0171 & $-0.076$ & 0.0287 & 0.0176 & $-0.094$ & 4.4 & 11.0 & 7.4 \\
+    Change & 0 & 0.025 & 0.0092 & $-0.049$ & 0.0165 & 0.0091 & $-0.046$ & 0.5 & 8.0 & 0.7 \\
+     & 0 & 0.05 & 0.0166 & $-0.098$ & 0.0309 & 0.0168 & $-0.101$ & 1.0 & 9.7 & 1.3 \\
+     & 0 & 0.10 & 0.0264 & $-0.162$ & 0.0500 & 0.0271 & $-0.188$ & 1.8 & 10.7 & 2.5 \\
+    Cap 200\,bp &  &  & 0.0214 & $-0.123$ & 0.0394 & 0.0211 & $-0.132$ & 2.4 & 1.8 & 6.0 \\
+    \bottomrule
+  \end{tabular}
+  \begin{tablenotes}\footnotesize
+  \item As \cref{tab:welfare}, with the Eurosystem's profits and losses on $D$ bonds remitted to $D$'s
+  treasury ($\kappa_D=1$).
+  \end{tablenotes}
+  \end{threeparttable}
+\end{table}
+
+\subsection{Level against change}
+\label{sec:welfare-level-change}
+
+\Cref{fig:welfare-frontier} plots the union's gain against $D$'s loss for every rule. Under the
+capital key (panel a) the level, change and combined rules and the 200\,bp cap lie on one frontier:
+at equal loss for $D$, no rule departs from the level rules by more than $0.001$ points, within one
+and a half standard errors. Along it the union gains $0.08$ to $0.11$ points of consumption per point
+$D$ loses, less for stronger rules. Both the union's gain and $D$'s loss still rise at the strongest
+rules we solve, so there is no interior optimum.
+
+Rules at the same point of the frontier nonetheless behave differently. The change rule with
+$\gamma_\Delta=0.05$ and the level rule with $\gamma_L=0.05$ cost $D$ similar amounts, but the change
+rule holds a smaller book, $1.3\%$ of the stock against $2.2\%$, and destabilises $D$'s output less,
+with a standard deviation of $0.29\%$ against $0.36\%$. It also compresses the tail of spreads less:
+the 95th percentile is 189\,bp, against 170\,bp under the level rule and 193\,bp without a backstop.
+The level rule keeps buying while spreads stay high, and so builds the larger book whose excess
+return $D$ pays abroad.
+
+When $D$ keeps the profits (panel b), the statistic the rule responds to matters for strong rules.
+Weak level and change rules both yield $0.19$ union points per point of $D$'s loss. At a loss for $D$
+of $0.098\%$, however, the level rule with $\gamma_L=0.1$ raises union welfare by $0.0187\%$ and the
+change rule with $\gamma_\Delta=0.05$ by $0.0166\%$, four standard errors apart. Three quarters of the
+difference is in the announcement, which lowers the rest-point lending spread to 54\,bp under the
+level rule and 56\,bp under the change rule.
+
+Beyond $\gamma_L=0.1$ the level rule's announcement stops growing: the rest-point lending spread
+stays at 52 to 56\,bp and the union's gain at $0.017$ to $0.019\%$. Its crisis purchases, now
+insurance for $D$, keep growing, so $D$'s loss falls. Perhaps surprisingly, the rule with
+$\gamma_L=0.2$ costs $D$ less than that with $\gamma_L=0.05$ ($0.076$ against $0.085\%$) and gives $F$
+as much. Its union gain of $0.017\%$ is one the change rule delivers only at a loss to $D$ of about
+$0.10\%$.
+
+Union gains above about $0.019\%$ require responding to the change in the spread, or the cap. With
+$\gamma_\Delta=0.1$ the rest-point lending spread falls to 6\,bp, $D$'s bank constraint almost stops
+binding at rest and the union gains $0.026\%$, but $D$ loses $0.162\%$: each further point of union
+gain costs $D$ eight to nine points, about twice the average along the level rules.
+
+\begin{figure}[tbp]
+  \centering
+  \includegraphics[width=\textwidth]{figures/fig_welfare_frontier}
+  \caption{Union welfare gain against the loss of $D$'s households. Consumption equivalents in \% of
+  consumption, by simulation with every quarter cleared exactly; bars are 95\% sampling intervals, for
+  the union an upper bound.
+  (a) Profits and losses shared by capital key. (b) Profits and losses kept by $D$. Labels give
+  $\gamma_L$ or $\gamma_\Delta$; combined rules give both.}
+  \label{fig:welfare-frontier}
+\end{figure}
+
+\subsection{Across households}
+\label{sec:welfare-households}
+
+The representative households hide how each member's loss or gain is shared within it. To measure
+the incidence, the incomplete-markets households of \cref{sec:Households} re-solve their savings
+problem under each economy's prices and aggregate law of motion, without feedback to market clearing
+(\cref{tab:welfare-households}). Under $\gamma_L=0.1$ every quintile of $D$ loses about $0.10\%$ of
+consumption ($0.08\%$ for the poorest). The loss is nearly flat because a terms-of-trade loss falls on
+every household in proportion to the basket it buys; households above the poorest fifth lose slightly
+more, consistent with a deposit rate about 1\,bp lower. The gain in $F$ rises with income, from
+$0.010$ to $0.016\%$, consistent with a higher deposit rate. The change and combined rules distribute
+their losses alike. When $D$ keeps the profits its deposit rate rises and its richest fifth loses
+least ($0.05\%$ against about $0.07\%$). Because these households take the aggregate law of motion as
+given, they misstate the level of $D$'s loss; only the shape of the incidence is informative.
+
+\begin{table}[tbp]
+  \centering
+  \begin{threeparttable}
+  \caption{Welfare across the household distribution, \% of consumption}
+  \label{tab:welfare-households}
+  \footnotesize\setlength{\tabcolsep}{4pt}
+  \begin{tabular}{l rrrrr r r}
+    \toprule
+    & \multicolumn{6}{c}{$D$, by quintile of income} & $F$ \\
+    \cmidrule(lr){2-7}
+    Rule & Q1 & Q2 & Q3 & Q4 & Q5 & All & All \\
+    \midrule
+    % generated by welfare_tables.py: households
+    Level, $\gamma_L=0.1$ & $-0.084$ & $-0.099$ & $-0.100$ & $-0.101$ & $-0.096$ & $-0.099$ & 0.0142 \\
+    Change, $\gamma_\Delta=0.05$ & $-0.108$ & $-0.128$ & $-0.131$ & $-0.133$ & $-0.130$ & $-0.129$ & 0.0192 \\
+    Combined, $(0.1,0.05)$ & $-0.152$ & $-0.179$ & $-0.183$ & $-0.185$ & $-0.178$ & $-0.180$ & 0.0257 \\
+    Level, $\gamma_L=0.1$, $\kappa_D=1$ & $-0.072$ & $-0.078$ & $-0.070$ & $-0.066$ & $-0.047$ & $-0.070$ & 0.0274 \\
+    \bottomrule
+  \end{tabular}
+  \begin{tablenotes}\footnotesize
+  \item Incomplete-markets households of each country under the solved aggregate law of motion, at
+  $\mathcal S_0$; Q1 is the poorest fifth by steady-state income (labour, transfers and interest).
+  Uniform proportional rise in every household's GHH composite worth the welfare change, converted
+  to consumption at the group's ratio of composite to consumption. Profits and losses shared by
+  capital key unless stated.
+  \end{tablenotes}
+  \end{threeparttable}
+\end{table}
+
+\subsection{What the welfare analysis implies}
+\label{sec:welfare-implications}
+
+Under the capital key, the level, change and combined rules lie on essentially the same welfare
+frontier. What matters is how much sovereign risk the Eurosystem ultimately absorbs rather than which
+statistic of the spread triggers purchases. The allocation of profits has much larger welfare
+consequences. Returning those profits to the vulnerable member substantially strengthens the
+announcement effect and shifts the frontier outward, although the member continues to lose because
+easier financing lowers the relative price of its own output. A Pareto-improving backstop therefore
+requires the purchase rule to be accompanied by an explicit fiscal transfer.

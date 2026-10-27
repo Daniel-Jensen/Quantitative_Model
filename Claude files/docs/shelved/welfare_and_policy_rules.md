@@ -6,6 +6,11 @@ driver, and `ca58548`, a work-in-progress snapshot of the welfare section). Solv
 in the git-ignored `results/WELFARE/` and `results/POLICY/`. Everything below was computed on the
 code calibration (leverage 5, 100 bp wedge, union deposit clearing), not the paper's.
 
+The paper's section 6 ("Welfare", built on these results) was removed from the Overleaf
+project on 2026-10-27 (Overleaf commit `ff260e4`; last version with it `6f346c3`). Its LaTeX
+source and the welfare frontier figure are kept in `viva_section6_welfare/` beside this file;
+the figure path in the source is `figures/fig_welfare_frontier`.
+
 The long-term list in `TODO.md` carries the two ideas worth reviving: the level-versus-change
 backstop with its welfare evaluation, and the warranted floor.
 

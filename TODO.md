@@ -123,8 +123,6 @@ needs a decision or a justification.
 - [ ] Fill the \placeholder items: source for the idiosyncratic income process (0.9, 0.2);
       HFCS distributional moments; sensitivity of output to zeta; the reason for the payout
       share f = 0.08; the year of the relative-size ratio 11.3.
-- [ ] The paper's section 6 (welfare) rests on shelved work (section 8): decide whether it stays
-      in the viva draft.
 - [ ] Pull the local Overleaf clone before editing it; it lags Overleaf.
 
 ## 4. Global model, numerical
@@ -173,7 +171,8 @@ needs a decision or a justification.
       to the trade elasticity (0.5 in the code, 1.5 in the paper), why the level rule saturates
       when D keeps the profits, and the household overlay bias (section 2). Must be redone on
       the paper's model after sections 1-2. Code: local branch `shelved/policy-rules-welfare`;
-      record: `Claude files/docs/shelved/welfare_and_policy_rules.md`.
+      record: `Claude files/docs/shelved/welfare_and_policy_rules.md`; the paper's former
+      section 6 (removed from Overleaf 2026-10-27): `Claude files/docs/shelved/viva_section6_welfare/`.
 - [ ] **Warranted floor.** A cap that moves with fundamentals: cap(s) = EL(s) + tau, where EL(s)
       is the spread an unconstrained risk-neutral investor would charge for expected default
       loss at risk state s. The backstop then removes only the balance-sheet premium and never
