@@ -20,9 +20,14 @@ nothing else; at the start of each session Claude deletes ticked items and recor
 - [ ] [Daniel] **Fix the working-capital wedge** to zeta (r_wc - r)/(1 + r), with dividends
   carrying producers' surplus (impact output roughly 2.5x larger; backstop impact sign flips).
 - [ ] [Daniel] **Implement national deposit clearing**, including the steady-state external
-  balance (p_bar ≠ 1) and D banks' holdings of F bonds.
+  balance (p_bar ≠ 1) and D banks' holdings of F bonds (the paper is silent; the six Greek EBA
+  banks held Bunds worth 0.11% of their assets). Precondition for the paper calibration: the
+  steady state imposes one union deposit market, which clears only a symmetric economy.
 - [ ] [Adam] **Put the paper's calibration into the code** (`calibration/global_projection.py`;
-  rho_s is hard-coded 0.95 in the grid builder). Values: STATE section 1.
+  rho_s is hard-coded 0.95 in the grid builder). Values: STATE section 1. Propose the changes
+  for approval first (a first attempt, 7c683bb, was reverted). Size the sovereign stocks to the
+  own-sovereign shares (in closed form at p = 1, D debt is 52.6% of annual GDP against the 40%
+  EBA banks held) and state the tax rule by its Bohn coefficient (gamma_tau = 0.01).
 - [ ] [joint] **Bring the default branch onto its solved domain** (D-bank holdings 0.238 against
   a floor of 0.690): stock-and-share state space, then choose the post-default fiscal rule.
 - [ ] [joint] **Decide the remittance rule and capital-account closure**: mark-to-market vs
@@ -35,7 +40,10 @@ nothing else; at the start of each session Claude deletes ticked items and recor
 - [ ] [Daniel] **Solve the paper calibration** once the items above are in; report fitted and
   exactly cleared output side by side (kink risk, STATE section 2).
 - [ ] [joint] Run `TPI_CAP = "rest"` (defend the no-backstop rest-point spread, about 56 bp).
-- [ ] [Adam] Commit `bohn.py` and `risk_process.py` with their constants updated to the paper.
+- [ ] [Adam] Update the constants of `bohn.py` and `risk_process.py` to the paper (committed with
+  the old calibration's; at the paper's they reproduce appendix B's table and roots).
+- [ ] [Adam] Approve or revert the unapproved reader-path fix in `eba_descriptives.py`, then
+  re-run the recovered empirical scripts to confirm they reproduce (DATA.md section 3).
 - [ ] [Daniel] Record sources for the unscripted calibration values (DATA.md section 4).
 - [ ] [joint] Reconcile the data mismatches: lending spreads, overdraft rise, rest-point hazard,
   duration (DATA.md).
