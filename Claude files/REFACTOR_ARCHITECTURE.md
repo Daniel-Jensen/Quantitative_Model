@@ -194,8 +194,7 @@ EBA disclosure files, which are not in `data/`; see `data/README.md` in this fol
   `calibration` imports neither (`test_isolation.py`).
 - **Claude files.** Documentation, notes, reports, logs and tests written by Claude go in
   `Claude files/`, at their mirrored path. The exceptions are files that tools or code read
-  at fixed paths (`CLAUDE.md`, `.claude/`, `.githooks/`, `results/`, the root documents
-  `TODO.md`, `GLOSSARY.md` and `DATA.md`, and the research inputs
+  at fixed paths (`CLAUDE.md`, `.claude/`, `.githooks/`, `results/`, and the research inputs
   under `data/`, `Empirics/outputs/`, `experiments/` and `diagnostics/regimes/`). The commit
   hooks require `Claude files/docs/{STATE,PROGRESS}.md`. Quote the path in shell
   commands.
@@ -295,7 +294,7 @@ Task-specific references added 2026-10-26: `Claude files/docs/reference/global_s
 | `Claude files/docs/PROGRESS.md` | Changelog — dated development timeline (git history + findings); one entry per code commit (enforced by the two doc hooks; `core.hooksPath` is `.githooks` in this clone, checked 2026-10-26) |
 | `Claude files/docs/SPEC.md` | Research goals, functional requirements, modelling choices, calibration targets, **and the paper's theoretical framing/narrative** (merged in from the retired `docs/FRAMING_HANDOFF.md`) |
 | `Claude files/docs/eba_calibration.md` | **REBUILT 2026-07-31.** Identified EBA parameter→moment map (maturity ladder→`delta_b`, GK-eligible assets→`theta`, measured EAD→`omega_K`, Acharya–Steffen MTM), the **identification ledger** (identified / bounded / still-free / deliberately-rejected), and the **GK feasibility** finding (GK-1). The 2026-07-22 build is retained below it as history. |
-| `TODO.md`, `GLOSSARY.md`, `DATA.md` (repository root) | Open work; symbols, code names and branches; data sources and the provenance of every data number. There is no handoff file (retired 2026-10-27) |
+| `Claude files/docs/TODO.md`, `GLOSSARY.md`, `DATA.md` | Open work with owners; symbols, code names and branches; data sources and the provenance of every data number. They sit with STATE, PROGRESS and SPEC; only `CLAUDE.md` is at the root. There is no handoff file (retired 2026-10-27) |
 | `Claude files/docs/cb_mechanism.md` | **CANONICAL (2026-08-19).** What the TPI central bank is, how it transmits, the 2×2 sovereign-holdings matrix, and the reporting rules that follow. Supersedes ad-hoc CB descriptions elsewhere. Key results: the spread identity `rb_exp_D(+1) − rdep_D = 0.20·(rk_D(+1) − rdep_D)` means TPI's spread and investment effects are **one** effect; ~72% of the CB book is bought from **German** banks; concentration relief is a net-worth not a quantity effect; the "closed-loop pole" is a T=500 truncation artefact. (Its evidence folder `cb_audit/` was deleted 2026-10-14; git history.) |
 | `Claude files/docs/experiments_results.md` | **GENERATED — do not hand-edit.** Standard policy results: E1 backstop schedule, E2 ΔY decomposition, E3 S-1 writeoff. Regenerate with `experiments/run_all.py` (`--skip-e3` skips the two model re-solves, `--render-only` rebuilds from results on disk) |
 | `Claude files/docs/paper_draft_results.md` | **GENERATED — do not hand-edit.** First-draft tables and figures. Emitted by `experiments/paper_outputs.py`, which needs `experiments/e4_distribution.py`'s cache first. **Its figure captions are currently stale** — see `Claude files/docs/STATE.md`'s open items. |

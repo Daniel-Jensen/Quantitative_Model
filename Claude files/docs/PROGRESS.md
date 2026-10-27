@@ -16,6 +16,22 @@ retired session-handoff file; its content is in git history.
 
 ---
 
+## 2026-10-27: Project documents in one folder; old section drafts shelved (docs only)
+
+- TODO, GLOSSARY and DATA moved from the repository root to `Claude files/docs/`, beside STATE,
+  PROGRESS and SPEC. `CLAUDE.md` stays at the root because Claude Code loads it from there.
+- Shelved to `Claude files/docs/shelved/`: the September drafts of the paper's model and
+  calibration sections (`02-model.tex`, `02b-model-additions.tex`, `03-calibration.tex`,
+  `calibration_bank.tex`). They describe the old economy (one union funding market with real
+  interest parity, leverage 5, the 100 bp wedge) and nothing reads them.
+- Viva paper (Overleaf `47799f9`, `61cb438`, `5639c71`): the cross-border bond-pricing
+  conditions are back in the model section (removed from appendix A); the anticipation-of-default
+  paragraph is restored to its original text, without the Gauss-Hermite sentence (the quadrature
+  is described in the numerical-solution paragraph), and now defines the regime index d' and the
+  expectation over the risk factor.
+
+---
+
 ## 2026-10-27: Section 6 (welfare) removed from the viva draft (Overleaf `ff260e4`, repo `2cddb54`)
 
 - The welfare section rested on the shelved level-versus-change backstop, computed on the old

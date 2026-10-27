@@ -30,15 +30,18 @@ They share no model code and are calibrated differently; impulse magnitudes are 
    A number in this file, STATE or PROGRESS is historical unless it names the calibration and
    date that produced it and both still match the code.
 3. **Data numbers come with provenance.** Before quoting or changing a data-based calibration
-   value, check `DATA.md`: several have no script, and some do not reproduce from the stored
+   value, check `Claude files/docs/DATA.md`: several have no script, and some do not reproduce from the stored
    files.
 4. **Results are dated.** The reference global solution is the 6 Oct 2026 run on the code
    calibration; global impulse-response levels from before it are void.
 5. `experiments_results.md` and `paper_draft_results.md` are generated; never hand-edit them.
 
 ## Repository map
-- Root documents: `TODO.md` (the one list of open work), `GLOSSARY.md` (symbols, code names,
-  acronyms, branches), `DATA.md` (data sources, scripts and provenance of every data number).
+- Project documents, all in `Claude files/docs/`: `TODO.md` (the one list of open work),
+  `STATE.md` (current results), `PROGRESS.md` (changelog), `SPEC.md` (research goals),
+  `GLOSSARY.md` (symbols, code names, acronyms, branches), `DATA.md` (data sources, scripts and
+  provenance of every data number). This file stays at the root because Claude Code loads it
+  from there.
 - `run.py`: the single entry point; holds the global pipeline's settings (grid, shocks, TPI).
   `compare.py`: the two solvers' IRFs side by side.
 - `global_projection/`: `blocks/` (economic blocks), `solver_recursive/` (collocation solver,
@@ -58,8 +61,8 @@ They share no model code and are calibrated differently; impulse magnitudes are 
 - Never edit model code while a run is in progress (the Jacobian workers re-import it).
 - A compute run replaces that model's `results/.../data` and `figures`; `--quick` overwrites a
   full run.
-- New AI-written files go under `Claude files/`. Exceptions: `CLAUDE.md`, `TODO.md`,
-  `GLOSSARY.md`, `DATA.md`, `.claude/`, `.githooks/`, and outputs code reads (`data/eba_moments.json`, `Empirics/outputs/`,
+- New AI-written files go under `Claude files/`. Exceptions: `CLAUDE.md`, `.claude/`,
+  `.githooks/`, and outputs code reads (`data/eba_moments.json`, `Empirics/outputs/`,
   `experiments/results|paper|figures/`, `diagnostics/regimes/`, `results/`).
 - The modelling choices in `Claude files/docs/reference/` are deliberate. Read the entry before
   "fixing" one: several reversals are known to make sovereign risk expansionary.
@@ -114,7 +117,7 @@ Everything runs from the repo root; imports are package-qualified.
 - `Claude files/docs/tpi_backstop_plan.md`: the backstop's design and solution method.
 - `Claude files/docs/STATE.md` (Part I global, Part II SSJ): current results and calibration
   status only. History to 27 Oct 2026: `Claude files/docs/shelved/STATE_archive_2026-10-27.md`.
-- `Claude files/docs/PROGRESS.md`: changelog. Branch roles: `GLOSSARY.md` section 9.
+- `Claude files/docs/PROGRESS.md`: changelog. Branch roles: `Claude files/docs/GLOSSARY.md` section 9.
 - `Claude files/docs/SPEC.md`: research goals and the paper's framing.
 - `Claude files/REFACTOR_ARCHITECTURE.md`: full file map, environment and run guide.
 - `Claude files/docs/shelved/CLAUDE_pre_refactor_2026-10-26.md`: the old file, verbatim.

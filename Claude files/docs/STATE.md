@@ -3,7 +3,7 @@
 Current truth only, global model first. Every number names its solver, its calibration and the
 run that produced it. What is superseded is moved, verbatim, to
 `Claude files/docs/shelved/STATE_archive_2026-10-27.md` (the full history to 27 Oct 2026);
-the timeline is `PROGRESS.md`; open work is `TODO.md` at the repository root; symbols are in
+the timeline is `PROGRESS.md`; open work is `TODO.md`; symbols are in
 `GLOSSARY.md`; data provenance is in `DATA.md`.
 
 Rules for this file: replace a section when it is superseded and move the old text to the

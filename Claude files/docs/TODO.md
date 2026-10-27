@@ -166,6 +166,10 @@ needs a decision or a justification.
 ## 7. Documentation
 
 - [ ] [joint] Reconcile `Claude files/docs/SPEC.md` with the paper (last revised 2026-10-01).
+- [ ] [joint] The commit check (`.claude/hooks/require-docs-before-commit.sh`) inspects the code
+      repository even when a commit runs inside the Overleaf clone, so `git commit -a` there is
+      blocked by unrelated uncommitted code changes. It should use the repository the command
+      runs in.
 - [ ] [Adam] The handoff plugin (user-level Claude settings) writes `docs/handoff/HANDOFF.md` before
       compaction; disable it there or delete the file when it reappears.
 

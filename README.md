@@ -23,10 +23,14 @@ figures from that saved data into `results/<SSJ|GLOBAL>/figures/`; the console l
 `results/<SSJ|GLOBAL>/run.log` and the comparison is `results/COMPARISON/`. The SSJ model
 needs its own interpreter: set `SSJ_PYTHON` at the top of `run.py` or in the environment.
 
-Three documents sit beside this README: [TODO.md](TODO.md) (open work, ordered by what blocks
-the paper), [GLOSSARY.md](GLOSSARY.md) (notation, code names, acronyms, branches) and
-[DATA.md](DATA.md) (data sources, scripts and the provenance of every data number, for
-replication and later estimation).
+The project documents live together in [`Claude files/docs/`](<Claude files/docs>):
+[TODO.md](<Claude files/docs/TODO.md>) (open work, ordered by what blocks the paper),
+[STATE.md](<Claude files/docs/STATE.md>) (current results), [PROGRESS.md](<Claude files/docs/PROGRESS.md>)
+(changelog), [SPEC.md](<Claude files/docs/SPEC.md>) (research goals),
+[GLOSSARY.md](<Claude files/docs/GLOSSARY.md>) (notation, code names, acronyms, branches) and
+[DATA.md](<Claude files/docs/DATA.md>) (data sources, scripts and the provenance of every data
+number, for replication and later estimation). Only `CLAUDE.md` stays at the root, because
+Claude Code loads it from there.
 
 Documentation, notes, reports and tests written by Claude are kept apart in
 [`Claude files/`](<Claude files>), at the path each would otherwise have had (start with
