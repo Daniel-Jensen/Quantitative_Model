@@ -292,9 +292,9 @@ def default_prob(s):
 
 def s_process_params(cal):
     # THE AR(1) FOR THE RISK FACTOR s.
-    s_star = np.log(cal["pd_rest"] / (1.0 - cal["pd_rest"]))  # p^d at rest
-    rho_s = cal["rho_s"]
-    sigma_s = cal["sigma_s"]
+    s_star = np.log(0.001 / (1.0 - 0.001))  # p^d = 0.1% at rest
+    rho_s = 0.95  # Bocola's estimate
+    sigma_s = float(cal.get("sigma_s", 0.63))  # the calibration sets Bocola's effective 0.4455
     # Z_D is deterministic: it decays at rho_z with no innovation
     return dict(s_star=s_star, rho_s=rho_s, sigma_s=sigma_s,
                 z_star=cal["Z_ss_D"], rho_z=0.9)

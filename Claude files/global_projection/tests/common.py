@@ -13,7 +13,7 @@ _CACHE = {}
 def get_ss():
     # CALIBRATION + STEADY STATE, SOLVED ONCE AND CACHED FOR THE PROCESS.
     if "ss" not in _CACHE:
-        cal = get_calibration("bocola")  # the reference economy; the paper's needs national clearing
+        cal = get_calibration()
         _CACHE["cal"] = cal
         _CACHE["ss"] = solve_steady_state(cal, verbose=False)
     return _CACHE["cal"], _CACHE["ss"]

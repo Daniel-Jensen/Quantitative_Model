@@ -1,8 +1,7 @@
 # THE GREEK FISCAL REACTION FUNCTION (BOHN 1998) AND THE DEBT ROOT IT IMPLIES IN THE MODEL'S TAX RULE.
 # pb_t = a + b*debt_{t-1} + c*gap_t, annual, primary balance and debt in % of GDP, gap from HP(100) on
 # log real GDP. The model's rule T = Tbar + gamma*(B - Bbar) on quarterly output has an annual Bohn
-# coefficient 4*gamma, and debt root rho_B = (1 - delta_b) + (delta_b - gamma)/qbar, where qbar
-# prices the bond at the deposit rate plus the intermediation wedge (the paper's deterministic SS).
+# coefficient 4*gamma, and debt root rho_B = (1 - delta_b) + (delta_b - gamma)/qbar.
 # Writes Empirics/outputs/bohn_estimates.json (the calibration appendix's fiscal table).
 import json
 from pathlib import Path
@@ -13,9 +12,7 @@ import statsmodels.api as sm
 from statsmodels.tsa.filters.hp_filter import hpfilter
 
 ROOT = Path(__file__).resolve().parents[1]
-DELTA_B, R_BAR, WEDGE = 0.056, 0.003, 0.000125      # D coupon decay, deposit rate, wedge (quarterly)
-QBAR = DELTA_B / (R_BAR + WEDGE + DELTA_B)          # deterministic-SS bond price, 0.947
-BOHN_MODEL = 0.04                                    # the paper's annual Bohn coefficient (Mendoza-Ostry)
+DELTA_B, QBAR, RHO_B_MODEL = 0.056, 0.91057, 0.93   # coupon decay, deterministic-SS bond price, model root
 SAMPLES = [(1995, 2008), (1995, 2019), (2001, 2019), (2010, 2019)]
 
 
@@ -36,9 +33,9 @@ def main():
     cyc, _ = hpfilter(y, lamb=100)
     df = pd.DataFrame({"pb": pb, "debt_lag": debt.shift(1), "gap": 100.0 * cyc}).dropna()
 
-    rho_model = root_from_bohn(BOHN_MODEL)
-    out = dict(model=dict(rho_B=rho_model, gamma_quarterly=BOHN_MODEL / 4.0, bohn_annual=BOHN_MODEL, qbar=QBAR,
-                          half_life_quarters=float(np.log(0.5) / np.log(rho_model))),
+    gamma_model = DELTA_B - QBAR * (RHO_B_MODEL - (1.0 - DELTA_B))
+    out = dict(model=dict(rho_B=RHO_B_MODEL, gamma_quarterly=gamma_model, bohn_annual=4.0 * gamma_model,
+                          half_life_quarters=float(np.log(0.5) / np.log(RHO_B_MODEL))),
                stationarity_threshold_bohn=4.0 * DELTA_B * (1.0 - QBAR), estimates={})
     for a, b in SAMPLES:
         s = df.loc[a:b]
@@ -52,7 +49,7 @@ def main():
     path.write_text(json.dumps(out, indent=2))
 
     m = out["model"]
-    print(f"model: root {m['rho_B']:.4f}, gamma {m['gamma_quarterly']:.4f}/qtr, Bohn {m['bohn_annual']:.3f}, "
+    print(f"model: root {m['rho_B']}, gamma {m['gamma_quarterly']:.4f}/qtr, Bohn {m['bohn_annual']:.3f}, "
           f"half-life {m['half_life_quarters']:.1f} qtrs; stationary iff Bohn > {out['stationarity_threshold_bohn']:.3f}")
     for k, e in out["estimates"].items():
         hl = f"{e['half_life_quarters']:.0f} qtrs" if e["half_life_quarters"] else "explosive"

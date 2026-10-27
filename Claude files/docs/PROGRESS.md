@@ -16,23 +16,15 @@ retired session-handoff file; its content is in git history.
 
 ---
 
-## 2026-10-27: the paper calibration enters the code; empirical code recovered (calibration, data)
+## 2026-10-27: empirical code recovered; paper calibration transfer reverted (data)
 
-- The global model now carries the viva paper's calibration (`"paper"`, active) beside the
-  Bocola-based one behind the 6 Oct reference run (`"bocola"`, identical key for key). The risk
-  process's persistence and rest-point probability moved from the grid builder into the
-  calibration (rho_s 0.9, sigma_s 0.41); the fiscal rule reads the paper's annual Bohn coefficient
-  (0.04, gamma_tau 0.01); sovereign stocks are sized in closed form to the EBA own-sovereign
-  shares (14.4% D, 6.5% F) and the 12.7% foreign share, giving D debt of 52.6% of annual GDP.
-  Greek banks' Bund holdings (0.11% of assets) fill the one balance-sheet input the paper leaves
-  open. Checked at the steady-state prices without a solve: leverage 8, mu_bar 0.0010, the shares
-  exact. The paper calibration is not solvable until deposits clear nationally, because the
-  steady state imposes one union deposit market and a symmetric economy; tests stay on `"bocola"`.
 - The empirical code shelved in `c2d2337` (EBA descriptives, the Bocola-Greece moments, the
   cross-border EBA panel, the CDS scripts, Bocola's data archive) is back on `main`; the EBA
-  script reads the relocated reader. `bohn.py` and `risk_process.py` are committed with the
-  paper's process and fiscal rule and re-run: appendix B's risk-process table and implied debt
-  roots (1.030, 1.000, 0.988, 0.963; half-life 92.9 quarters at 0.04) reproduce.
+  script reads the relocated reader. `bohn.py` and `risk_process.py` are committed with their
+  original (Bocola-calibration) constants; the licensed LSEG CDS extract is git-ignored.
+- A transfer of the paper calibration into the global model and into those two scripts
+  (`7c683bb`) was reverted the same day at Adam's request: model code changes need his approval.
+  The global model, its tests and STATE are as before `7c683bb`.
 
 ## 2026-10-27: SPEC rewritten from the paper; TODO restructured; commit check fixed (docs and tooling)
 

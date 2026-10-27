@@ -21,9 +21,11 @@ Status legend used below:
    leverage, the Euribor-Eurepo wedge, CDS series, risk-process and Bohn estimates, lending
    rates) exist only on this laptop.
 2. The code that produced the EBA, leverage, wedge and CDS numbers was recovered from the
-   shelved branch on 2026-10-27; only `bohn.py` and `risk_process.py` have been re-run since.
+   shelved branch on 2026-10-27 and has not been re-run since.
 3. Some calibration inputs (government purchases, coupon decay, import share, relative size,
    and several validation moments) have no script anywhere (section 4).
+4. Two scripts in the tree still hard-code the old model calibration in their model-side
+   columns (section 6).
 
 ## 2. Raw sources
 
@@ -50,7 +52,6 @@ Paper calibration (section 4, appendix B). "Output" is in `Empirics/outputs/` un
 |---|---|---|---|
 | Own sovereign / bank assets 14.4% (GR), 6.5% (DE) | Gross direct long exposure to own sovereign over total assets; 6 Greek and 12 German EBA banks, 31 Dec 2010 | `eba_descriptives.py`, `eba_bank_panel.csv` (`sov_own / ta`) | Recovered; reproduces (0.1443, 0.0647). Net of shorts, Greek share 12.8% (`bocola_greece_moments.json`) |
 | Foreign share of D debt 12.7% | German banks' Greek holdings over Greek plus German banks' Greek holdings (7.93 / 62.38 EUR bn) | `eba_descriptives.py`, `eba_holder_groups.csv` | Recovered; reproduces (0.1272) |
-| D banks' F bonds / assets 0.11% (code only; not in the paper) | Six Greek banks' gross direct long Bund exposure over their total assets (EUR 0.41bn / 377.2bn) | `calibration/eba_moments.py` reader (`sovereign_book(df, "DE", GR_BANKS)`), computed in session 2026-10-27; no stored output | In tree reader; no script for the ratio |
 | All-foreign share 39.6%; EBA sample holds 27% of Greek debt (EUR 90.1bn of 330.6bn); holder shares GR 60.4, FR 11.2, DE 8.8, CY 6.4, BE 4.3, other 8.9% | Same panel | `eba_discipline.json` (`stocks`), `eba_holder_groups.csv` | Recovered; reproduces |
 | Greek sovereign / CT1 2.39 (EUR 54.4bn / 22.8bn) | Six Greek banks | `eba_discipline.json`, `eba_bank_panel.csv` | Recovered; reproduces |
 | Repricing loss 40% of Greek CT1; price fall 21.6% | Frozen 31 Dec 2010 maturity ladder revalued from the Dec 2010 to the Dec 2011 ten-year yield (12.01% to 21.14%), flat curve | `eba_discipline.json` (`shock`) | Recovered; reproduces (0.397, 0.216) |
@@ -58,10 +59,10 @@ Paper calibration (section 4, appendix B). "Output" is in `Empirics/outputs/` un
 | Wedge 5 bp (and 8 bp over 2002-2012) | Mean one-week Euribor minus Eurepo, annualised, 2002Q2-2009Q4 (Bocola's estimation sample) | same, from Bocola's `Data.xls` (`wedge_bp_pa`) | Recovered; reproduces (5.10, 8.23). Greek-bank variants (2-12 bp, 29 bp) in the same file |
 | Pre-crisis Greek-German ten-year spread 25.3 bp | Mean 2002Q2-2007Q2 | `greek_cds_bocola.json`; also `spreads_fred.csv` (25.2 on monthly averages) | Recovered / in tree |
 | Ten-year spread 306 bp in 2010Q1 | Quarterly mean of the monthly spread | `spreads_fred.csv` | In tree; reproduces |
-| Risk process: ρ_s and σ_s table (full sample 0.985 / 0.24, tranquil 0.75 / 0.19, CDS 0.75 / 0.65, ...), rescaling ratio 1.74, σ_s = 0.41 | OLS of the logit of the quarterly default probability implied by spreads at LGD 0.55; quarterly averages of one-year CDS and the ten-year spread | `greek_cds/risk_process.py`, `risk_process_estimates.json` | In tree; reproduces (re-run 2026-10-27 at ρ_s = 0.9, σ_s = 0.41). Bias correction to 0.89 (and ρ_s = 0.9) is hand algebra in appendix B |
+| Risk process: ρ_s and σ_s table (full sample 0.985 / 0.24, tranquil 0.75 / 0.19, CDS 0.75 / 0.65, ...), rescaling ratio 1.74, σ_s = 0.41 | OLS of the logit of the quarterly default probability implied by spreads at LGD 0.55; quarterly averages of one-year CDS and the ten-year spread | `greek_cds/risk_process.py`, `risk_process_estimates.json` | In tree; reproduces. Bias correction to 0.89 (and ρ_s = 0.9) is hand algebra in appendix B |
 | Default probability at rest, 0.092% (Greek one-year CDS, 2008Q3) | CDS-implied quarterly hazard at LGD 0.55 | not located | No script. The stored quarterly series (`greek_cds_series.csv`) gives 0.102% |
 | Greek CDS 1.5-2.3%/qtr between Oct 2009 and 23 Apr 2010; above 4% from May 2010 | Monthly averages of the CDS-implied hazard | `cds_panel.csv` | No script |
-| Bohn coefficients (1995-2008 -0.10, 1995-2019 0.01, 2001-2019 0.06, 2010-2019 0.15) | Primary balance on lagged debt and the HP(100) output gap, annual, Newey-West 2 lags | `greek_fiscal/bohn.py`, `bohn_estimates.json` | In tree; coefficients and appendix B's implied roots reproduce (re-run 2026-10-27 at q̄ = 0.947, Bohn 0.04) |
+| Bohn coefficients (1995-2008 -0.10, 1995-2019 0.01, 2001-2019 0.06, 2010-2019 0.15) | Primary balance on lagged debt and the HP(100) output gap, annual, Newey-West 2 lags | `greek_fiscal/bohn.py`, `bohn_estimates.json` | In tree; coefficients reproduce. Implied roots in the json use the old calibration (section 6) |
 | Lending spreads 290 bp (GR), 180 bp (DE), 2003-2007 | Composite cost of borrowing minus three-month Euribor | `lending_rates.csv` | Not reproduced: the obvious window gives 280 / 176 (section 6) |
 | Overdraft-spread rise 108 bp | Greek minus German overdraft rate, crisis (2010-2012H1) minus pre-crisis | `lending_rates.csv`; the `eba_descriptives.py` caption reports 84 to 193 bp | Pre-crisis window not recorded; 2005-2007 vs 2010-2012 gives 124 |
 | Investment fell 69.7% and GDP 27.4%, 2007Q4 to 2015Q3; PSI cut EUR 75bn and 33.7 points of debt ratio | Eurostat series above | `motivation_figures.py`, `greece_macro.csv` | In tree (output ignored) |
@@ -98,6 +99,11 @@ code or cached file records the calculation. Each needs a script before it can b
 
 ## 6. Known discrepancies
 
+- `risk_process.py` uses ρ_s = 0.95 and σ_s = 0.4455 for its model-side columns (share of
+  quarters above 2%, 5%, 9.1%), so those columns describe the old process, not the paper's.
+- `bohn.py` uses q̄ = 0.91057 and a debt root of 0.93, so the json's implied roots
+  (1.034, 1.002, 0.989, 0.964) and its "model" block differ from appendix B's (1.030, 0.9997,
+  0.988, 0.963 at q̄ = 0.947, Bohn 0.04).
 - Lending spreads, overdraft rise, the 2008Q3 default probability and the 4.4-year duration do
   not reproduce from the stored files (section 3).
 

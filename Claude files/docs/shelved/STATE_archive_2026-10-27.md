@@ -2929,29 +2929,3 @@ Walras forensics; TPI welfare results; C-1/S-1 open issues) is preserved in
 and in this file's git history (pre-2026-07-07 versions). The
 `/opt/anaconda3/envs/ssj` environment no longer exists; do not use the
 `audit`/`bank-cal` branches for new work.
-
----
-
-# Superseded 2026-10-27: STATE section 1 before the paper calibration entered the code
-
-## 1. Calibration status, as of 2026-10-27: the paper is ahead of the code
-
-The viva paper (sections 2 and 4, appendix B) and the code calibration
-(`calibration/global_projection.py`) describe different economies. Until they agree, every
-model number in the paper stays [TBC] and no code number goes into the paper.
-
-| | Paper (Overleaf, 2026-10-22) | Code (every global result below) |
-|---|---|---|
-| Deposit market | national clearing | one union market, real deposit-rate parity |
-| Leverage | 8 (Greek financial accounts, 7.98) | 5 (Bocola) |
-| Intermediation wedge r^k - r | 5 bp/yr (mu_bar = 0.0010) | 100 bp/yr (mu_bar ≈ 0.012) |
-| Own sovereign / bank assets | 14.4% (D), 6.5% (F) | 7.6% (Bocola's Italian banks) |
-| Foreign share of D debt | 12.7% (German banks) | 19.6% |
-| Relative size F/D | 11.3 | 8 |
-| sigma_s (risk-factor innovation s.d.) | 0.41 | 0.4455 |
-| rho_s (risk-factor persistence) | 0.9 | 0.95 |
-| Households, trade, fiscal | asymmetric (sigma 1.35, Frisch 0.5, home bias 0.68, eta 1.5, G 0.204/0.191, delta_b 0.056/0.039, Bohn 0.04) | symmetric per capita (log utility, Frisch 2, home bias 0.85, eta 0.5, G = 0, delta_b 0.056, debt root 0.93) |
-
-Unreconciled wording: the 6 Oct results call the code calibration "Daniel's calibration",
-while the 14 Oct calibration merge records Daniel's values as the paper's. The paper's values
-are the ones agreed with the coauthor.

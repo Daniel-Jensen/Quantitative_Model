@@ -10,7 +10,7 @@ from scipy.stats import chi2, norm
 
 ROOT = Path(__file__).resolve().parents[1]
 LGD = 0.55            # loss given default (Bocola; the model's 1 - recovery)
-RHO_MODEL, SIGMA_MODEL, PI_REST = 0.9, 0.41, 0.001   # the paper's process (appendix B)
+RHO_MODEL, SIGMA_MODEL, PI_REST = 0.95, 0.4455, 0.001
 
 
 def logit(p):
@@ -85,7 +85,7 @@ def main():
     for k, r in est.items():
         lo, hi = r["sigma_ci90"]
         print(f"{k:<26} {r['first']}-{r['last']}  T={r['T']:>3}  rho {r['rho']:.3f} ({r['se_rho']:.3f})"
-              f"  sigma {r['sigma']:.3f} [{lo:.2f}, {hi:.2f}]  sigma|rho={RHO_MODEL:g} {r['sigma_given_rho_model']:.3f}")
+              f"  sigma {r['sigma']:.3f} [{lo:.2f}, {hi:.2f}]  sigma|rho=.95 {r['sigma_given_rho_model']:.3f}")
     print(f"CDS/bond sigma ratio {ratio:.2f}; rescaled full-sample sigma {rescaled:.3f}")
     print("share of quarters above:", {k: (round(v['data'], 3), round(v['model'], 4)) for k, v in freq.items()})
     print("run-up:", runup)
