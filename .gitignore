@@ -27,3 +27,6 @@ replication/bocola2016/Matfiles/
 # the pre-2026-09-30 location of the same artefacts.
 results/
 outputs/
+
+# LSEG sovereign CDS extract: licensed, never committed (Claude files/docs/DATA.md)
+Empirics/greek_cds/data/

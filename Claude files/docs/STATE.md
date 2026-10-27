@@ -13,27 +13,47 @@ archive; never stack dated notes on top of each other; keep it under about 300 l
 
 # Part I: Global projection model (the paper's model)
 
-## 1. Calibration status, as of 2026-10-27: the paper is ahead of the code
+## 1. Calibration status, as of 2026-10-27: the paper's values are in the code, not yet solvable
 
-The viva paper (sections 2 and 4, appendix B) and the code calibration
-(`calibration/global_projection.py`) describe different economies. Until they agree, every
-model number in the paper stays [TBC] and no code number goes into the paper.
+`calibration/global_projection.py` now holds two calibrations. `"paper"` (the active one,
+`CALIBRATION` at the top of the file) carries every value of the viva paper's table 1;
+`"bocola"` is the calibration of every global result below and reproduces the 6 Oct run key
+for key. Until the paper calibration is solved, every model number in the paper stays [TBC].
 
-| | Paper (Overleaf, 2026-10-22) | Code (every global result below) |
+| | Paper (`"paper"`) | Reference run (`"bocola"`) |
 |---|---|---|
-| Deposit market | national clearing | one union market, real deposit-rate parity |
+| Deposit market | national clearing (not yet in the code) | one union market, real deposit-rate parity |
 | Leverage | 8 (Greek financial accounts, 7.98) | 5 (Bocola) |
 | Intermediation wedge r^k - r | 5 bp/yr (mu_bar = 0.0010) | 100 bp/yr (mu_bar ≈ 0.012) |
 | Own sovereign / bank assets | 14.4% (D), 6.5% (F) | 7.6% (Bocola's Italian banks) |
 | Foreign share of D debt | 12.7% (German banks) | 19.6% |
+| D banks' F bonds / assets | 0.11% (Greek banks' Bunds, EBA) | b_F_D_ss = 0.196 |
 | Relative size F/D | 11.3 | 8 |
 | sigma_s (risk-factor innovation s.d.) | 0.41 | 0.4455 |
 | rho_s (risk-factor persistence) | 0.9 | 0.95 |
-| Households, trade, fiscal | asymmetric (sigma 1.35, Frisch 0.5, home bias 0.68, eta 1.5, G 0.204/0.191, delta_b 0.056/0.039, Bohn 0.04) | symmetric per capita (log utility, Frisch 2, home bias 0.85, eta 0.5, G = 0, delta_b 0.056, debt root 0.93) |
+| Households, trade, fiscal | asymmetric (sigma 1.35, Frisch 0.5, epsilon 11, home bias 0.68, eta 1.5, G 0.204/0.191, delta_b 0.056/0.039, Bohn 0.04) | symmetric per capita (log utility, Frisch 2, epsilon 6, home bias 0.85, eta 0.5, G = 0, delta_b 0.056, debt root 0.93) |
 
-Unreconciled wording: the 6 Oct results call the code calibration "Daniel's calibration",
-while the 14 Oct calibration merge records Daniel's values as the paper's. The paper's values
-are the ones agreed with the coauthor.
+**Why the paper calibration cannot be solved yet.** The steady-state solver imposes one union
+deposit market and sets beta_F = beta_D, which clears both national deposit markets only when
+the two countries are mirror images per capita. The paper's G, coupon decay and own-sovereign
+shares differ across countries, so household saving and bank deposit supply no longer match
+country by country, and stage 2 stops at its symmetry check. National deposit clearing (TODO,
+Code) is the precondition, not a refinement.
+
+**Sovereign stocks are sized in closed form.** In the deterministic steady state every bank
+asset earns r + wedge, so capital, the working-capital loan and bond prices are known before the
+model is solved and each share target is linear in the stocks. At the paper's values: D debt
+2.10 (quarterly GDP), 52.6% of annual GDP against the 40% of Greek GDP held by EBA banks; F debt
+0.78, 19.5% of annual GDP; F banks hold 0.267 of the D stock (12.7%), D banks 0.014 of F bonds per
+D capita. Evaluated through the model's own bank block at these prices (no solve), leverage is
+8.000, mu_bar 0.0010, the own shares 14.40% and 6.50%, and the bank's capital identity closes to
+3e-14. The shares are exact at p = 1; national clearing moves p_bar off one, so they will need
+re-sizing (or a steady-state loop) once it is in.
+
+**Fiscal rule.** The paper states the rule by its annual Bohn coefficient 4 gamma_tau = 0.04, so
+gamma_tau = 0.01 is now read directly; the Bocola calibration still inverts its debt root. At
+the deterministic bond price 0.947 the paper's coefficient gives a debt root 0.9926, half-life
+92.9 quarters (the paper's "about 23 years").
 
 ## 2. Open numerical risk under the paper's wedge
 
@@ -47,7 +67,7 @@ responses are compared.
 
 ## 3. Reference solution: the 6 Oct 2026 household-fix run
 
-The run of `main` after the household budget fix (PR #36), on the code calibration (section 1):
+The run of `main` after the household budget fix (PR #36), on the `"bocola"` calibration (section 1):
 real deposit parity, 115-point grid, a 2.00%/qtr headline shock decaying at rho_s = 0.95, and
 the 200 bp spread cap as the backstop. Source: `results/GLOBAL/run.log`. Spreads in bp/yr;
 output and net worth in % of the economy's own rest point. Every global impulse-response level

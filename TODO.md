@@ -20,9 +20,8 @@ nothing else; at the start of each session Claude deletes ticked items and recor
 - [ ] [Daniel] **Fix the working-capital wedge** to zeta (r_wc - r)/(1 + r), with dividends
   carrying producers' surplus (impact output roughly 2.5x larger; backstop impact sign flips).
 - [ ] [Daniel] **Implement national deposit clearing**, including the steady-state external
-  balance (p_bar ≠ 1) and D banks' holdings of F bonds.
-- [ ] [Adam] **Put the paper's calibration into the code** (`calibration/global_projection.py`;
-  rho_s is hard-coded 0.95 in the grid builder). Values: STATE section 1.
+  balance (p_bar ≠ 1). The paper calibration (now in the code) cannot be solved without it; its
+  sovereign stocks are sized at p = 1 and need re-sizing at p_bar (STATE section 1).
 - [ ] [joint] **Bring the default branch onto its solved domain** (D-bank holdings 0.238 against
   a floor of 0.690): stock-and-share state space, then choose the post-default fiscal rule.
 - [ ] [joint] **Decide the remittance rule and capital-account closure**: mark-to-market vs
@@ -35,9 +34,6 @@ nothing else; at the start of each session Claude deletes ticked items and recor
 - [ ] [Daniel] **Solve the paper calibration** once the items above are in; report fitted and
   exactly cleared output side by side (kink risk, STATE section 2).
 - [ ] [joint] Run `TPI_CAP = "rest"` (defend the no-backstop rest-point spread, about 56 bp).
-- [ ] [Adam] **Recover the empirical code** from commit `c2d2337` on `cross-border-empirics`
-  (list in DATA.md).
-- [ ] [Adam] Commit `bohn.py` and `risk_process.py` with their constants updated to the paper.
 - [ ] [Daniel] Record sources for the unscripted calibration values (DATA.md section 4).
 - [ ] [joint] Reconcile the data mismatches: lending spreads, overdraft rise, rest-point hazard,
   duration (DATA.md).

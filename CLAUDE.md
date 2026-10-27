@@ -22,9 +22,10 @@ Deliverable: the viva paper, Overleaf project 698b4f88aeef1d0e1d08cc0c; the loca
 They share no model code and are calibrated differently; impulse magnitudes are not comparable.
 
 ## Source of truth
-1. **Paper and code calibrations differ** (STATE section 1 has the side-by-side table and the
-   open kink risk under the paper's 5 bp wedge). While they differ, paper model numbers stay
-   [TBC] and no code number goes into the paper. Re-check both before repeating any value.
+1. **The paper calibration is in the code but not yet solved** (`"paper"` in
+   `calibration/global_projection.py`; every existing global result is on `"bocola"`; STATE
+   section 1 has both, and the open kink risk under the 5 bp wedge). Until the paper calibration
+   is solved, paper model numbers stay [TBC] and no `"bocola"` number goes into the paper.
 2. **Code over prose.** Parameter values come from the calibration files; mechanisms from the
    period map (`global_projection/solver_recursive/point_map.py`) or the SSJ equation files.
    A number in this file, STATE or PROGRESS is historical unless it names the calibration and
