@@ -10,7 +10,7 @@ Completed work never stays here: delete the item and record it in
 `Claude files/docs/PROGRESS.md` with the date and the PR or commit. Git records who changed
 what; PROGRESS adds the economics. Last revised 2026-10-27.
 
-Symbols: `GLOSSARY.md`. Data provenance: `DATA.md`. Current results:
+Symbols: `Claude files/docs/GLOSSARY.md`. Data provenance: `Claude files/docs/DATA.md`. Current results:
 `Claude files/docs/STATE.md`. The two audits cited below are
 `Claude files/diagnostics/model_audit/THEORETICAL_REAUDIT.md` (14 Oct) and
 `RESERVES_DEPOSITS_CB_REVIEW.md` (15 Oct); the first audit's reports were deleted, and its only
@@ -143,7 +143,7 @@ needs a decision or a justification.
       branch of `collateral_quality_D/F`; add the name to the banned-names scan in
       `Claude files/linear_ssj/tests/test_nkpc_blocks.py`.
 
-## 6. Data and replication (detail in `DATA.md`)
+## 6. Data and replication (detail in `Claude files/docs/DATA.md`)
 
 - [ ] [Adam] **Recover the empirical code from the shelved branch.** The scripts behind the EBA
       exposures, foreign share, leverage 7.98, the 5 bp wedge, the CDS series and the lending

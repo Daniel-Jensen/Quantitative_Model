@@ -18,8 +18,9 @@ retired session-handoff file; its content is in git history.
 
 ## 2026-10-27: Project documents in one folder; old section drafts shelved (docs only)
 
-- TODO, GLOSSARY and DATA moved from the repository root to `Claude files/docs/`, beside STATE,
-  PROGRESS and SPEC. `CLAUDE.md` stays at the root because Claude Code loads it from there.
+- GLOSSARY and DATA moved from the repository root to `Claude files/docs/`, beside STATE,
+  PROGRESS and SPEC: they are written for Claude. TODO stays at the root as the authors' list of
+  open work; `CLAUDE.md` stays there because Claude Code loads it from there.
 - Shelved to `Claude files/docs/shelved/`: the September drafts of the paper's model and
   calibration sections (`02-model.tex`, `02b-model-additions.tex`, `03-calibration.tex`,
   `calibration_bank.tex`). They describe the old economy (one union funding market with real

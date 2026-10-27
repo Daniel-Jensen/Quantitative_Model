@@ -37,8 +37,8 @@ They share no model code and are calibrated differently; impulse magnitudes are 
 5. `experiments_results.md` and `paper_draft_results.md` are generated; never hand-edit them.
 
 ## Repository map
-- Project documents, all in `Claude files/docs/`: `TODO.md` (the one list of open work),
-  `STATE.md` (current results), `PROGRESS.md` (changelog), `SPEC.md` (research goals),
+- `TODO.md` (root): the one list of open work, for both authors. The documents written for
+  Claude are in `Claude files/docs/`: `STATE.md` (current results), `PROGRESS.md` (changelog), `SPEC.md` (research goals),
   `GLOSSARY.md` (symbols, code names, acronyms, branches), `DATA.md` (data sources, scripts and
   provenance of every data number). This file stays at the root because Claude Code loads it
   from there.
@@ -61,8 +61,8 @@ They share no model code and are calibrated differently; impulse magnitudes are 
 - Never edit model code while a run is in progress (the Jacobian workers re-import it).
 - A compute run replaces that model's `results/.../data` and `figures`; `--quick` overwrites a
   full run.
-- New AI-written files go under `Claude files/`. Exceptions: `CLAUDE.md`, `.claude/`,
-  `.githooks/`, and outputs code reads (`data/eba_moments.json`, `Empirics/outputs/`,
+- New AI-written files go under `Claude files/`. Exceptions: `CLAUDE.md`, `TODO.md`,
+  `.claude/`, `.githooks/`, and outputs code reads (`data/eba_moments.json`, `Empirics/outputs/`,
   `experiments/results|paper|figures/`, `diagnostics/regimes/`, `results/`).
 - The modelling choices in `Claude files/docs/reference/` are deliberate. Read the entry before
   "fixing" one: several reversals are known to make sovereign risk expansionary.
