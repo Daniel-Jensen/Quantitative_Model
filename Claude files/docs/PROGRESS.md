@@ -16,6 +16,24 @@ retired session-handoff file; its content is in git history.
 
 ---
 
+## 2026-10-27: SPEC rewritten from the paper; TODO restructured; commit check fixed (docs and tooling)
+
+- SPEC.md now states the viva paper's question (which risks a backstop removes and which it only
+  redistributes), positioning, model, policy experiment (credible cap, announcement and
+  intervention effects, the 2×2 matrix of unwarranted-spread targets and uncertain execution) and
+  framing rules. The sequence-space-era SPEC, whose claims rested on a model without a risk
+  premium and on results since reversed, is kept verbatim in `shelved/SPEC_2026-10-01.md`.
+- TODO.md is organised as Code, Paper, VIVA and Post-VIVA; the sequence-space items are dropped
+  (STATE still records that model's state). Ticked items are cleared into PROGRESS at the start of
+  each session. Found while restructuring: the paper's section 3 matrix has no solved
+  counterpart (now a Paper item).
+- The commit check now gates only commits in this repository, so commits inside the Overleaf
+  clone are no longer blocked by uncommitted code changes here.
+- The handoff plugin is disabled for this project (local settings), so no handoff file is
+  written at compaction.
+
+---
+
 ## 2026-10-27: Project documents in one folder; old section drafts shelved (docs only)
 
 - GLOSSARY and DATA moved from the repository root to `Claude files/docs/`, beside STATE,

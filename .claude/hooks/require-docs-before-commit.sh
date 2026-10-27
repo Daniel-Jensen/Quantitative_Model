@@ -22,7 +22,29 @@ cmd="$(printf '%s' "$input" | jq -r '.tool_input.command // ""' 2>/dev/null)"
 # quoted strings, etc.). Anything else: stay silent => default allow.
 printf '%s' "$cmd" | grep -Eq '(^|[;&|]+[[:space:]]*)git[[:space:]]+commit([[:space:]]|$)' || exit 0
 
-root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+# The commit runs in the directory the command cds into before `git commit` (relative to the
+# tool call's cwd), not necessarily in this project. Only this project's commits are gated,
+# so a commit inside a nested repository (the Overleaf clone) passes untouched.
+start="$(printf '%s' "$input" | jq -r '.cwd // ""' 2>/dev/null)"
+[ -n "$start" ] || start="$(pwd)"
+dir="$(printf '%s' "$cmd" | python3 -c '
+import os, re, shlex, sys
+cmd, d = sys.stdin.read(), sys.argv[1]
+for seg in re.split(r"&&|\|\||;|\|", cmd):
+    try:
+        tok = shlex.split(seg)
+    except ValueError:
+        continue
+    if len(tok) >= 2 and tok[0] == "cd":
+        d = os.path.normpath(os.path.join(d, os.path.expanduser(tok[1])))
+    elif len(tok) >= 2 and tok[0] == "git" and "commit" in tok:
+        break
+print(d)
+' "$start" 2>/dev/null)" || dir="$start"
+[ -n "$dir" ] || dir="$start"
+root="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)" || exit 0
+project="$(git -C "${CLAUDE_PROJECT_DIR:-$start}" rev-parse --show-toplevel 2>/dev/null)" || exit 0
+[ "$root" = "$project" ] || exit 0
 cd "$root" 2>/dev/null || exit 0
 
 # Files this commit will touch: staged, plus tracked-modified if -a/--all.
