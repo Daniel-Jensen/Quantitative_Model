@@ -1,7 +1,7 @@
 # A TPI backstop in the global model: design, derivations, obstacles
 
 **Date:** 2026-10-02 · **Branch:** `OMT-fix` · **Replaces:** the stochastic LTRO backstop
-(`ltro_backstop_plan.md`, deleted from the code 2026-10-01, kept here as history).
+(`shelved/ltro_backstop_plan.md`, deleted from the code 2026-10-01, kept as history).
 **Pipeline:** global projection only (`global_projection/`). The sequence-space model's TPI
 (`linear_ssj/solve/tpi.py`) is a different object and is not touched.
 
@@ -279,3 +279,51 @@ mostly F — takes the haircut instead of the D banks.
 **The coarse preview (§9.1) is superseded.** On the coarse grid the TPI never fired at the
 headline shock and output fell more with it; both were coarse-grid artefacts, and its +9.2% price
 effect fell to +3.8%.
+
+---
+
+## Design summary (relocated from CLAUDE.md, 2026-10-26)
+
+Carried over verbatim. The results paragraphs that sat between SOLVE and WALRAS (6 Oct 2026 run, price impact, accuracy) are in `STATE.md` Part II with their calibration label.
+
+- **TPI = A SPREAD-CAP BOND-PURCHASE BACKSTOP (2026-10-02, branch `OMT-fix`; replaces the
+  LTRO).** Design, derivations and results: `Claude files/docs/tpi_backstop_plan.md`. In the
+  no-default regime the Eurosystem buys the D bond whenever `y_D - y_F` (HM flow yields)
+  would exceed `cal["tpi_cap_bp"]`, i.e. `Q_bD >= delta_D/(delta_D + y_F + cap)`, and pays
+  with a SAFE claim `Z = Q_bD*M` on itself held by the D banks (paying `1 + rdep_D`). Held to
+  maturity, nothing bought in default, P&L `Pi = Xi*M_lag - O_lag` remitted by capital key
+  (`tpi_key_D = 0.071`: D issuance; the rest lowers F taxes). `tpi_on = False` (default)
+  nests the no-TPI model.
+  **A PURCHASE IS A SWAP TODAY AND A RISK TRANSFER TOMORROW.** Assets, the divertable base
+  (single lambda), deposits, `P'` and `mu` do not move within the period; next period the
+  bank is owed `R*Q*dm` instead of `Xi'*dm` (N3 asserts both to 1e-12). This is the yield
+  peg's failure fixed on purpose: the peg could only remove the liquidity premium.
+  **STATES 12, UNKNOWNS 14.** `M_cb` (the book) and `O_cb` (the obligation; it carries last
+  period's price), both zero at the SS with bands symmetric round 0, so the M = O = 0 slice
+  IS the old 10-state grid and the TPI-off model nests it to solver tolerance (rules
+  5.5e-10). The box is a SHEAR, `z_bDD = b_DD + M`, `z_O = O - rho*M` (`state_grid`): on the
+  natural axes a forced purchase moved the price non-monotonically. The 14th unknown `x_cb`
+  is Garcia-Zangwill: `m = B*max(x,0)`, `Q_bD = floor + Q_ss*max(-x,0)` in the no-default
+  regime, so the stored rule is smooth across the floor (a stored `m` bought 19.7% of the
+  stock where the floor does not bind, by interpolation). Residual 8 is the D-bank FOC as a
+  Fischer-Burmeister KT pair with `b_DD >= 0` (the corner where the Eurosystem holds the
+  bank's whole book); residual 14 ties the stored `Q_bD` rule to that price. The
+  continuation reads `Q_bD'` off the stored rule: `max(-x',0)` inside the expectations
+  stalls the finite-difference Newton.
+  **ROOT IN ONE FORM, READ IN THE OTHER (`cal["tpi_gz"]`).** The GZ Newton also stalls
+  walking the cap down, so the solver roots the system in the Fischer-Burmeister form
+  (`tpi_gz = False`: x is the purchase share, residual 14 is `FB(x, (Q - floor)/Q_ss)`) and
+  hands back in the GZ form (`_tpi_form` converts at the nodes, exactly -- both forms
+  describe the same allocation there -- then `_tpi_polish` re-roots in 1-2 steps).
+  **SOLVE:** the no-TPI baseline, then a cap homotopy (`recursive_experiment._solve_tpi`,
+  700 bp -> target in 50 bp rungs, a failed rung retried at half the step), then the
+  s-refined grid 3 -> 5 nodes (FB, then GZ), each refined solve walking the smoothing in
+  (`TPI_EPS_LADDER` 1e-2 -> 1e-3 -> `tpi_eps` = 1e-4): the 5-node grid puts nodes on the
+  floor's boundary (it binds at 43 of 115) and at the final smoothing from the start the
+  Newton stalled.
+  **WALRAS:** `goods_F` is reported; it exposed a leak from the constant household anchor
+  `hh_T` standing in for the working-capital flow, FIXED 2026-10-06 (`hh-budget-fix`: households
+  receive the flow); `goods_F` is now ~1e-5 of GDP off the SS. N4 checks that the TPI's own
+  flows cancel out of the union budget exactly (2e-10 at random points).
+  **PREDECESSORS, RETIRED:** the LTRO (deleted 2026-10-01, `shelved/ltro_backstop_plan.md`) and the
+  one-sided yield peg; `liquidity_ceiling_report` is the peg's diagnostic, kept.

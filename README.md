@@ -23,6 +23,11 @@ figures from that saved data into `results/<SSJ|GLOBAL>/figures/`; the console l
 `results/<SSJ|GLOBAL>/run.log` and the comparison is `results/COMPARISON/`. The SSJ model
 needs its own interpreter: set `SSJ_PYTHON` at the top of `run.py` or in the environment.
 
+Three documents sit beside this README: [TODO.md](TODO.md) (open work, ordered by what blocks
+the paper), [GLOSSARY.md](GLOSSARY.md) (notation, code names, acronyms, branches) and
+[DATA.md](DATA.md) (data sources, scripts and the provenance of every data number, for
+replication and later estimation).
+
 Documentation, notes, reports and tests written by Claude are kept apart in
 [`Claude files/`](<Claude files>), at the path each would otherwise have had (start with
 [REFACTOR_ARCHITECTURE.md](<Claude files/REFACTOR_ARCHITECTURE.md>) for the repository map).

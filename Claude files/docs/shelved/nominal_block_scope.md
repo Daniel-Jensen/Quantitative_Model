@@ -1,7 +1,10 @@
 # Scope: a nominal block for the monetary union
 
 **Date:** 2026-08-29
-**Status:** design, not implemented.
+**Status:** design, not implemented. **SHELVED 2026-10-07** (user decision): real deposit
+parity stays the global model's baseline; neither this block nor the union-real-rate shortcut
+(`git stash` entry "SHELVED 2026-10-07 (world-deposit-rate)") is to be resumed without the
+user's go-ahead.
 **Why now:** with `size_F/size_D = 8` the *union-wide* deposit-rate leak is closed
 (rdep_F moves −1.4 bp/yr against −13.2 bp/yr at equal country size). What remains is
 **D-specific and flexible-price**, and it is now the single largest gap to Bocola's

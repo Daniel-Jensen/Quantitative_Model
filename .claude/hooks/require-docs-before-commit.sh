@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # PreToolUse(Bash) gate: block `git commit` of model/code changes unless the
-# living docs (STATE.md, PROGRESS.md, HANDOFF.md) are updated in the SAME commit.
+# living docs (STATE.md, PROGRESS.md) are updated in the SAME commit.
 #
 # Project policy: keep the docs in lockstep with the code — not just CLAUDE.md.
 # Reads the tool-call JSON on stdin; on a policy violation it emits a PreToolUse
@@ -40,13 +40,13 @@ printf '%s\n' "$staged" | grep -Eq '^(code/|audit_artifacts/)|\.py$' || exit 0
 
 # Which required living docs are missing from the commit?
 missing=""
-for d in "Claude files/docs/STATE.md" "Claude files/docs/PROGRESS.md" "Claude files/docs/HANDOFF.md"; do
+for d in "Claude files/docs/STATE.md" "Claude files/docs/PROGRESS.md"; do
   printf '%s\n' "$staged" | grep -qxF "$d" || missing="$missing $d"
 done
 
 [ -z "$missing" ] && exit 0
 
-reason="Commit blocked by project policy (.claude/hooks/require-docs-before-commit.sh): model/code changes are staged, but these living docs are NOT updated in this commit:${missing}. Update each so it reflects the change — STATE.md (current state / calibration / findings), PROGRESS.md (changelog entry for this commit), HANDOFF.md (session status / priorities) — plus CLAUDE.md if instructions changed. Stage the doc updates and re-commit. To change the required set or lift this gate, edit the hook or run /hooks."
+reason="Commit blocked by project policy (.claude/hooks/require-docs-before-commit.sh): model/code changes are staged, but these living docs are NOT updated in this commit:${missing}. Update each so it reflects the change — STATE.md (current state / calibration / findings) and PROGRESS.md (changelog entry for this commit), plus TODO.md if open work changed, DATA.md if a data number changed, and CLAUDE.md if instructions changed. Stage the doc updates and re-commit. To change the required set or lift this gate, edit the hook or run /hooks."
 
 jq -cn --arg r "$reason" \
   '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}' 2>/dev/null || exit 0

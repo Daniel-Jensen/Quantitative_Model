@@ -72,7 +72,7 @@ Quantitative_Model/
 │
 └── Claude files/            AI-GENERATED SUPPLEMENTARY FILES, mirroring their original paths
     ├── REFACTOR_ARCHITECTURE.md   this file
-    ├── docs/                living docs (STATE, PROGRESS, HANDOFF, SPEC), audit trail, mechanism
+    ├── docs/                living docs (STATE, PROGRESS, SPEC), audit trail, mechanism
     │                        notes, methods notes and appendix (.tex/.pdf), referee reports,
     │                        the generated experiment reports, design specs
     ├── global_projection/tests/   the global model's regression tests
@@ -194,9 +194,10 @@ EBA disclosure files, which are not in `data/`; see `data/README.md` in this fol
   `calibration` imports neither (`test_isolation.py`).
 - **Claude files.** Documentation, notes, reports, logs and tests written by Claude go in
   `Claude files/`, at their mirrored path. The exceptions are files that tools or code read
-  at fixed paths (`CLAUDE.md`, `.claude/`, `.githooks/`, `results/`, and the research inputs
+  at fixed paths (`CLAUDE.md`, `.claude/`, `.githooks/`, `results/`, the root documents
+  `TODO.md`, `GLOSSARY.md` and `DATA.md`, and the research inputs
   under `data/`, `Empirics/outputs/`, `experiments/` and `diagnostics/regimes/`). The commit
-  hooks require `Claude files/docs/{STATE,PROGRESS,HANDOFF}.md`. Quote the path in shell
+  hooks require `Claude files/docs/{STATE,PROGRESS}.md`. Quote the path in shell
   commands.
 - **Global code style.** Every module and function in `global_projection/` opens with one
   ALL-CAPS comment saying what it is. Console output lives in `reporting/prints.py`.
@@ -236,3 +237,66 @@ map exactly, the credit spread rises +90.6 bp/yr, and `Q_bD` (the D bond price) 
 
 Older entries in [docs/PROGRESS.md](docs/PROGRESS.md) and [docs/audit.md](docs/audit.md) (in this
 folder) use the old paths. Read them through this table.
+
+---
+
+## Environment and run modes (relocated from CLAUDE.md, 2026-10-26)
+
+Two solvers now live in this repository, at non-overlapping paths, and they
+need DIFFERENT interpreters. Pick the one that matches the code you are editing.
+
+**Everything runs from the repo root**, which must be on `sys.path`: imports are
+package-qualified (`from calibration.ssj import …`, `from linear_ssj.model.full_model
+import …`, `from global_projection.blocks.bank import …`). The unified entry point
+picks the right interpreter for you:
+
+```bash
+python3 run.py                    # MODEL and QUICK from run.py's configuration block
+                                  #   ("global", full solve): what an editor "Run" click does
+python3 run.py ssj                # SSJ pipeline, in a subprocess under SSJ_PYTHON
+python3 run.py global [--quick]   # global pipeline, in this python3 process, step by step
+python3 run.py both   [--quick]   # both, then the comparison
+python3 run.py both --plots-only  # redraw every figure from the saved data, no solving
+python3 run.py compare            # comparison only, from the saved data
+```
+
+Every run computes first and saves everything to `results/<SSJ|GLOBAL>/data/` (plain
+`.json` + `.npz` via `results_io.py`; the global rules as `.pkl`), then draws every
+figure FROM THE SAVED DATA into `results/<SSJ|GLOBAL>/figures/`, and logs the console to
+`results/<SSJ|GLOBAL>/run.log`; the comparison goes to `results/COMPARISON/`. A compute
+run REPLACES that model's `data/` and `figures/`, so a `--quick` preview overwrites a full
+run. `results/` is git-ignored. `run.py` holds the global pipeline's settings (grid
+resolution, shocks, which experiments run); the model parameters stay in `calibration/`.
+
+**A. Sequence-space (SSJ) pipeline — `linear_ssj/`.** Always use
+`/opt/anaconda3/envs/ssj/bin/python`. The base Anaconda environment has a broken
+`liblapack` symlink that causes silent numerical failures.
+
+```bash
+conda activate ssj
+/opt/anaconda3/envs/ssj/bin/python -m linear_ssj.main
+```
+
+**B. Global projection pipeline — `global_projection/`.** Plain `python3`
+(numpy/scipy/matplotlib). It does NOT use `sequence_jacobian` and must not be
+run under the `ssj` environment.
+
+```bash
+python3 run.py global              # the pipeline lives in run.py: compute_global / plot_global
+```
+
+## Docs reference (relocated from CLAUDE.md, 2026-10-26)
+
+Task-specific references added 2026-10-26: `Claude files/docs/reference/global_solver.md`, `global_modelling_choices.md`, `ssj_pipeline.md`.
+
+| File | Contains |
+|------|----------|
+| `Claude files/docs/STATE.md` | Current truth only: calibration status (paper vs code), the reference global solution, welfare results, SSJ live calibration and open issues. History to 2026-10-27 in `docs/shelved/STATE_archive_2026-10-27.md` |
+| `Claude files/docs/PROGRESS.md` | Changelog — dated development timeline (git history + findings); one entry per code commit (enforced by the two doc hooks; `core.hooksPath` is `.githooks` in this clone, checked 2026-10-26) |
+| `Claude files/docs/SPEC.md` | Research goals, functional requirements, modelling choices, calibration targets, **and the paper's theoretical framing/narrative** (merged in from the retired `docs/FRAMING_HANDOFF.md`) |
+| `Claude files/docs/eba_calibration.md` | **REBUILT 2026-07-31.** Identified EBA parameter→moment map (maturity ladder→`delta_b`, GK-eligible assets→`theta`, measured EAD→`omega_K`, Acharya–Steffen MTM), the **identification ledger** (identified / bounded / still-free / deliberately-rejected), and the **GK feasibility** finding (GK-1). The 2026-07-22 build is retained below it as history. |
+| `TODO.md`, `GLOSSARY.md`, `DATA.md` (repository root) | Open work; symbols, code names and branches; data sources and the provenance of every data number. There is no handoff file (retired 2026-10-27) |
+| `Claude files/docs/cb_mechanism.md` | **CANONICAL (2026-08-19).** What the TPI central bank is, how it transmits, the 2×2 sovereign-holdings matrix, and the reporting rules that follow. Supersedes ad-hoc CB descriptions elsewhere. Key results: the spread identity `rb_exp_D(+1) − rdep_D = 0.20·(rk_D(+1) − rdep_D)` means TPI's spread and investment effects are **one** effect; ~72% of the CB book is bought from **German** banks; concentration relief is a net-worth not a quantity effect; the "closed-loop pole" is a T=500 truncation artefact. (Its evidence folder `cb_audit/` was deleted 2026-10-14; git history.) |
+| `Claude files/docs/experiments_results.md` | **GENERATED — do not hand-edit.** Standard policy results: E1 backstop schedule, E2 ΔY decomposition, E3 S-1 writeoff. Regenerate with `experiments/run_all.py` (`--skip-e3` skips the two model re-solves, `--render-only` rebuilds from results on disk) |
+| `Claude files/docs/paper_draft_results.md` | **GENERATED — do not hand-edit.** First-draft tables and figures. Emitted by `experiments/paper_outputs.py`, which needs `experiments/e4_distribution.py`'s cache first. **Its figure captions are currently stale** — see `Claude files/docs/STATE.md`'s open items. |
+| `Claude files/docs/superpowers/specs/2026-08-01-policy-experiments-design.md` | Design spec for the `experiments/` package |

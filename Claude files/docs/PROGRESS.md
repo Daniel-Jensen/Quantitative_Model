@@ -2,17 +2,140 @@
 
 Reverse-chronological development log for the two-country MU-HANK sovereign-risk
 model (Greece 2010–12 / ECB TPI). **Newest first.** Reverse-engineered from the
-git history (135 commits, first commit 2026-05-14), `Claude files/docs/STATE.md`,
-`Claude files/docs/audit.md`, `Claude files/docs/eba_calibration.md`, and `Claude files/docs/HANDOFF.md` — the detailed
-derivations live in those docs; this file is the timeline.
+git history (135 commits, first commit 2026-05-14) and the project's living documents;
+the detailed derivations live in STATE (and its archive) and `eba_calibration.md`; this file
+is the timeline.
 
 Convention: `[hash]` is a commit on `main`; dates are commit dates. Doc-sync
-policy: every commit touching model/code (`code/**`, `*.py`) gets an entry here.
+policy: every commit that stages a `*.py` file gets an entry here and updates STATE.md.
 Enforced by `.claude/hooks/require-docs-before-commit.sh` (Claude Code commits)
 and `.githooks/pre-commit` (terminal commits; enable with
-`git config core.hooksPath .githooks`).
+`git config core.hooksPath .githooks`). Entries before 2026-10-27 mention HANDOFF.md, the
+retired session-handoff file; its content is in git history.
 
 ---
+
+## 2026-10-27: Living documents restructured (docs only, uncommitted on `policy-rules`)
+
+- STATE.md cut from 2,925 to about 230 lines of current truth, global model first: the
+  paper-versus-code calibration table, the open kink risk, the 6 Oct reference solution, the
+  welfare results, the policy economies saved in `results/POLICY/`, the SSJ live calibration and
+  its open issues. The old file is kept verbatim in
+  `Claude files/docs/shelved/STATE_archive_2026-10-27.md`.
+- HANDOFF.md retired, with the plugin's `docs/handoff/HANDOFF.md`. Its open items moved to
+  `TODO.md`, its branch list to `GLOSSARY.md`; the rest was history already in STATE or here.
+- New root documents: `TODO.md` (the one list of open work, ordered by what blocks the paper),
+  `GLOSSARY.md` (paper notation with code names, spreads, policy and numerical terms, SSJ names,
+  issue codes, branches), `DATA.md` (data sources, scripts and the provenance of every data
+  number in the paper).
+- Found while writing DATA.md: the scripts behind the EBA exposures, the foreign share, leverage
+  7.98, the 5 bp wedge and the CDS series exist only in commit `c2d2337` (shelved
+  `cross-border-empirics`); `Empirics/outputs/` is git-ignored; about a dozen calibration and
+  validation numbers have no script; the lending spreads (290/180 bp), the 108 bp overdraft rise,
+  the 0.092% rest-point hazard and the 4.4-year duration do not reproduce from the stored files;
+  the risk-process and Bohn scripts still carry the old model constants.
+- CLAUDE.md: the dated calibration status moved to STATE; root documents added to the map and
+  the file-location exceptions. Both commit hooks now require STATE and PROGRESS only.
+- `ltro_backstop_plan.md` and `nominal_block_scope.md` moved to `Claude files/docs/shelved/`.
+
+---
+
+## 2026-10-26: CLAUDE.md cut to an always-relevant core (docs only, uncommitted on `policy-rules`)
+
+- CLAUDE.md went from 752 lines (~17k tokens a request) to a short core: research question,
+  solver separation, source-of-truth rules, safeguards, reasoning standards, minimal commands.
+- Detail moved, not deleted: `Claude files/docs/reference/global_solver.md`,
+  `global_modelling_choices.md`, `ssj_pipeline.md`; dated results to STATE (Parts I and II); the
+  TPI design summary to `tpi_backstop_plan.md`; branches to HANDOFF; environment and the docs
+  table to `REFACTOR_ARCHITECTURE.md`. Verbatim copy of the old file:
+  `Claude files/docs/shelved/CLAUDE_pre_refactor_2026-10-26.md`.
+- Stale statements corrected on the move (each marked `[corrected 2026-10-26]`): the closed-form
+  multiplier replaces the old Fischer-Burmeister description, deleted perfect-foresight names
+  (`_RECAP_LADDER`, `def_price`/`def_real`, the transition tolerances), the TFP state's position,
+  the period map's residual count, the Jacobian-invariant search directory, `reporting/export.py`.
+- Recorded as dated status, to re-verify: the paper's calibration and national deposit clearing
+  are ahead of the code; the 5 bp paper wedge may bring back the kink identification problem.
+- The project-history paragraph formerly in CLAUDE.md, verbatim (its claim that the paper's
+  figures run on SSJ is no longer true of the viva paper):
+
+  > The `global_projection/` model was built in July 2026 as a standalone Bocola-faithful
+  > replacement for the sequence-space code. **It did not replace it.** Both are live:
+  > the sequence-space pipeline carries the sticky-price / nominal-deposit model, the
+  > `experiments/` results set (E1–E4) and the paper's current figures; the global
+  > pipeline carries the nonlinear occasionally-binding solution. The SSJ-era audit
+  > trail (six structural fixes W-1…TPI-1, Walras forensics) lived in `audit.md`, `walras_forensics.md`
+  > and `verification_report.md`, all deleted 2026-10-14 with the other audits and referee reports (git history).
+
+---
+
+## 2026-10-08: Welfare and the level-versus-change backstop (VIVA section 6), uncommitted on `policy-rules`
+
+- **The rule** (`solver_recursive/gamma_rule.py`): the Eurosystem's D-bond holdings target is
+  theta = gamma_L (sp - sbar) + gamma_D (sp - sp_lag), a share of the SS stock (sp in pp/yr, sbar
+  = the no-backstop rest spread 0.5678), smoothly capped at 0.5, no sales, nothing bought in
+  default. The change term needs a 13th state, last quarter's spread, appended only on grids built
+  with `sp_band` (`state_grid.ISP`, `STATE_NAMES_LAG`); 12-state grids, pickles and scripts are
+  untouched (W1 below: the embedding is exact). `point_map`, `recursive_experiment.advance`,
+  `stochastic_rest_point` and `accuracy` carry the state when present.
+- **The solver** (`solver_recursive/rule_homotopy.py`): continuation in (gamma_L, gamma_D) from the
+  embedded no-backstop economy with a chain-rule Jacobian through the interpolant (221 period-map
+  calls per node instead of 5000 per column; equal to the finite difference to ~1e-6). Every
+  economy solved to max|F| <= 1e-9 at every node, ~1-5 min each on a loaded machine. A node on the
+  mu = 0 kink makes Newton converge at ~0.5 a step whatever the Jacobian; the chord step is kept
+  while the residual falls by 20%.
+- **Welfare** (`solver_recursive/welfare.py`, `welfare_households.py`): the linear Bellman operator
+  on the collocation grid for any flow, the quiet history, regime-aware simulation (fitted or
+  exactly cleared), and the incomplete-markets households re-solved under the solved aggregate law
+  of motion. Drivers, all in `Claude files/global_projection/policy_rules/`: `run_welfare.py`
+  (solve), `welfare_eval.py` (grid welfare), `quiet_exact.py`, `welfare_mc_exact.py` (headline),
+  `welfare_sim.py`, `welfare_channels.py`, `welfare_hh_eval.py`, `welfare_tables.py`,
+  `welfare_figures.py`. Results in `results/WELFARE/<economy>/`.
+- **Tests:** `Claude files/global_projection/tests/test_welfare_rule.py` (W1 embedding exact, W2
+  purchase algebra at every node, W3 the operator preserves constants, W4 chain-rule Jacobian =
+  finite difference); the existing fast global tests pass.
+- **Accuracy finding (numerical, not economic):** D's rest point is <1% of the bank's deposit
+  obligation from the mu = 0 kink; the grid-solved welfare of D is inconsistent with the fitted
+  dynamics by ~5e-4 in period utility per quarter, the size of D's welfare effects. Nine s-nodes do
+  not help. The grid present values of Eurosystem P&L and purchases are contaminated by unreachable
+  negative-book nodes. Headline welfare is therefore the exactly cleared Monte Carlo.
+- **All 21 economies measured** (13 capital key, 8 with kappa_D = 1). New economic finding from the
+  second batch: when D keeps the P&L the level rule's announcement SATURATES (rest lending spread
+  52-56 bp for gamma_L 0.10-0.20) while its crisis insurance for D keeps growing, so D's loss falls
+  with gamma_L beyond 0.1; the change rule keeps relaxing (rest lending spread 5.5 bp at gamma_D =
+  0.10, constraint almost slack) and alone reaches union gains above ~0.019, at about twice the
+  marginal cost to D. Corrected text ranges: union after-shock component -0.0014 to -0.0001 (was
+  stated as -0.0011 to -0.0002); D's after-shock component under the capital key down to -0.074 (was
+  -0.06); D's sampling s.e. up to 0.009 (was "below 0.006"). `welfare_numbers.py` now prints
+  conservative union and between-rule standard errors (per-history values are kept only for the
+  no-backstop economy, so the D-F and between-rule covariances are bounded, not estimated).
+- **Paper:** in `06-welfare.tex` the profit-allocation subsection now precedes "Level against
+  change", which it explains; frontier figure labels separated.
+- Results: see STATE.md, "Welfare and the level-versus-change backstop".
+
+## 2026-10-07: Parity kept; the warranted floor and a policy-rule driver committed (`policy-rules`)
+
+- **Decision (user):** real deposit parity stays the global model's baseline. The union-real-rate
+  shortcut (D pays F's real rate plus the debt-elastic premium, the expected terms-of-trade change
+  dropped) is shelved as `git stash` "SHELVED 2026-10-07 (world-deposit-rate)". It leaves the
+  valuation gain on the cross-border deposit position unassigned (the F goods market then fails to
+  clear by ~1.4e-4 of GDP in the crisis state, ten times parity's ~1e-5), its full-grid solve
+  stopped at max|F| = 4.8e-3, and it overshoots (impact output -1.1% coarse, -2.6% full). Its
+  unconverged results are kept in `results/GLOBAL_union_unconverged_2026-10-06`; `results/GLOBAL`
+  again holds the converged 6 Oct household-fix run. The nominal block (`nominal_block_scope.md`)
+  is shelved too.
+- **The warranted floor** (`solver_recursive/warranted.py`): the cap moves with the expected-loss
+  spread, cap(s) = EL(s) + tau (+ a uniform shift used only as a homotopy), where EL(s) is the
+  spread of the price an unconstrained risk-neutral investor discounting at the riskless F yield
+  would pay. Written 5-6 Oct on top of 78f53c5 and never committed until now; `_tpi_floor` now
+  takes s. Constant caps are untouched (`cap_bp` returns `tpi_cap_bp` unless
+  `tpi_rule == "warranted"`).
+- **`Claude files/global_projection/policy_rules/run_policy.py`** solves a policy economy the way
+  `run.py` solves the 200 bp cap (coarse baseline, the policy walked in on the coarse grid, the
+  s-refined grid 3 -> 5 with the smoothing eased in, the GZ hand-back) and evaluates it on the
+  exact-clearing basis VIVA section 5 uses. Results go to `results/POLICY/<job>/`. The pre-fix
+  drivers are preserved in `Claude files/global_projection/warranted_floor/`.
+- Calibration unchanged: the 6 Oct run uses Daniel's pre-fix calibration (nothing in
+  `calibration/`, `run.py` or the steady state changed between 78f53c5 and 583caa2).
 
 ## 2026-10-06: Household budget, the working-capital flow replaces the constant anchor (`hh-budget-fix`)
 
