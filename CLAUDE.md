@@ -37,8 +37,8 @@ They share no model code and are calibrated differently; impulse magnitudes are 
 5. `experiments_results.md` and `paper_draft_results.md` are generated; never hand-edit them.
 
 ## Repository map
-- `TODO.md` (root): the one list of open work, for both authors, in four parts: Code, Paper,
-  VIVA, Post-VIVA. At the start of every session, delete any ticked item (`- [x]`) and record
+- `TODO.md` (root): the one list of open work, for both authors, in three parts: Code, Paper,
+  Post-VIVA. At the start of every session, delete any ticked item (`- [x]`) and record
   it in PROGRESS with the date and PR or commit.
 - The documents written for Claude are in `Claude files/docs/`: `STATE.md` (current results),
   `PROGRESS.md` (changelog), `SPEC.md` (research question, model, policy experiment, framing),

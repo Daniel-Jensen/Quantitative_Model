@@ -163,6 +163,21 @@ comparable.
   (`cal["wc_rebate"] = 1.0` instead hands it to households as a dividend, which
   makes the spread a pure intra-period transfer and, with no GHH wealth effect to
   offset it, turns the risk channel expansionary. Default is 0.)
+- **Banker's discount factor in basket units (2026-10-27, deliberate):** Λ = β^int (x_t/x_{t+1})^σ
+  prices home-good payoffs without the ratio P^c_t/P^c_{t+1} of consumer price indices, and
+  β^int ≠ β_X. This is the paper's (branch-sdf), read as bankers being a separate family whose
+  valuation is anchored on the aggregate composite; the omitted term is of order the import
+  share times the movement in the terms of trade. Households' deposit Euler does carry it.
+- **F treasury (2026-10-27):** F's stock is held at B̄_F and F taxes balance its budget each
+  period at the current F bond price, T_F = G_F + δ_F B̄_F (1 − q^F_t) − Π^cb_F (the paper's
+  equilibrium condition (ii)). Before, T_F stayed at its steady-state level net of the
+  remittance, so the F budget leaked when q^F moved (about 2e-4 of F output on impact).
+- **Cross-border bond conditions (2026-10-27):** each bank prices the foreign sovereign at
+  its return in home goods, with p_{t+1}/p_t (D bank, F bond) or p_t/p_{t+1} (F bank, D bond),
+  as the paper's (bondD-foreign)-(bondF-foreign). Net worth already valued the realised legs
+  at p_{t+1}; the pricing conditions now match it.
+- **Bohn response at the traded price (2026-10-27):** gamma_tau is inverted from the debt root
+  at the price banks pay (q̄, inside the wedge), as the paper's (debt-root), not the risk-free price.
 - **Walras redundancy:** goods_F and the current account are *dropped* from
   the residual system and monitored as diagnostics.
 - **Policy rules present:** the Bohn tax and the TPI backstop above (off unless

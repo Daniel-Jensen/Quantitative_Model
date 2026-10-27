@@ -16,14 +16,14 @@ Status legend used below:
 
 ## 1. The replication risk in brief
 
-1. `Empirics/outputs/` is git-ignored (only the Markov-switching outputs and `spreads_fred.csv`
-   are committed). The files most of the paper's calibration rests on (EBA exposures, Greek
-   leverage, the Euribor-Eurepo wedge, CDS series, risk-process and Bohn estimates, lending
-   rates) exist only on this laptop.
+1. Since 2026-10-27 the derived tables in `Empirics/outputs/` (json, csv) are tracked in git;
+   figures are regenerated, and the quarterly CDS series (`greek_cds_series.csv`) stays out
+   because it derives from the licensed LSEG extract. Raw downloads under `data/` and the CDS
+   extract remain untracked.
 2. The code that produced the EBA, leverage, wedge and CDS numbers was recovered from the
-   shelved branch on 2026-10-27 and has not been re-run since.
-3. Some calibration inputs (government purchases, coupon decay, import share, relative size,
-   and several validation moments) have no script anywhere (section 4).
+   shelved branch and re-run on 2026-10-27: every output is identical to the stored one.
+3. The chat-computed moments are now scripted (`Empirics/validation_moments.py`, section 4),
+   except coupon decay, the import share and the basis-adjusted hazard.
 4. Two scripts in the tree still hard-code the old model calibration in their model-side
    columns (section 6).
 
@@ -60,32 +60,37 @@ Paper calibration (section 4, appendix B). "Output" is in `Empirics/outputs/` un
 | Pre-crisis Greek-German ten-year spread 25.3 bp | Mean 2002Q2-2007Q2 | `greek_cds_bocola.json`; also `spreads_fred.csv` (25.2 on monthly averages) | Recovered / in tree |
 | Ten-year spread 306 bp in 2010Q1 | Quarterly mean of the monthly spread | `spreads_fred.csv` | In tree; reproduces |
 | Risk process: ρ_s and σ_s table (full sample 0.985 / 0.24, tranquil 0.75 / 0.19, CDS 0.75 / 0.65, ...), rescaling ratio 1.74, σ_s = 0.41 | OLS of the logit of the quarterly default probability implied by spreads at LGD 0.55; quarterly averages of one-year CDS and the ten-year spread | `greek_cds/risk_process.py`, `risk_process_estimates.json` | In tree; reproduces. Bias correction to 0.89 (and ρ_s = 0.9) is hand algebra in appendix B |
-| Default probability at rest, 0.092% (Greek one-year CDS, 2008Q3) | CDS-implied quarterly hazard at LGD 0.55 | not located | No script. The stored quarterly series (`greek_cds_series.csv`) gives 0.102% |
+| Default probability at rest, 0.102% (Greek one-year CDS, 2008Q3) | Mean of daily one-year CDS from the first quote (21 Jul 2008) to end-September, 22.4 bp, as a quarterly hazard at LGD 0.55 | `cds_panel.csv`; `greek_cds_series.csv` | Reproduces. The paper's former 0.092% was not reproducible and was corrected on Overleaf on 2026-10-27 |
 | Greek CDS 1.5-2.3%/qtr between Oct 2009 and 23 Apr 2010; above 4% from May 2010 | Monthly averages of the CDS-implied hazard | `cds_panel.csv` | No script |
 | Bohn coefficients (1995-2008 -0.10, 1995-2019 0.01, 2001-2019 0.06, 2010-2019 0.15) | Primary balance on lagged debt and the HP(100) output gap, annual, Newey-West 2 lags | `greek_fiscal/bohn.py`, `bohn_estimates.json` | In tree; coefficients reproduce. Implied roots in the json use the old calibration (section 6) |
-| Lending spreads 290 bp (GR), 180 bp (DE), 2003-2007 | Composite cost of borrowing minus three-month Euribor | `lending_rates.csv` | Not reproduced: the obvious window gives 280 / 176 (section 6) |
-| Overdraft-spread rise 108 bp | Greek minus German overdraft rate, crisis (2010-2012H1) minus pre-crisis | `lending_rates.csv`; the `eba_descriptives.py` caption reports 84 to 193 bp | Pre-crisis window not recorded; 2005-2007 vs 2010-2012 gives 124 |
+| Lending spreads 280 bp (GR), 176 bp (DE), 2003-2007 | Composite cost of borrowing minus three-month Euribor, monthly mean Jan 2003 to Dec 2007 | `lending_rates.csv` | Reproduces (279.5, 175.9). The paper's former 290 / 180 corrected on Overleaf, 2026-10-27 |
+| Overdraft-spread rise 108 bp | Greek minus German overdraft rate, crisis (2010-2012H1) minus pre-crisis | `eba_descriptives.py` (section 3 of its console report), `lending_rates.csv` | Reproduces: 84.6 bp (2005-2007) to 192.2 bp (2010-2012H1), a rise of 107.5 |
 | Investment fell 69.7% and GDP 27.4%, 2007Q4 to 2015Q3; PSI cut EUR 75bn and 33.7 points of debt ratio | Eurostat series above | `motivation_figures.py`, `greece_macro.csv` | In tree (output ignored) |
-| Duration of Greek banks' Greek book 4.4 years | Macaulay duration at a 4.5% discount rate | not located | No script. The stored ladder gives 3.5 years at the end-2010 Greek yield (`eba_discipline.json`) and an average maturity of 25.6 quarters (`bocola_greece_moments.json`) |
+| Duration of Greek banks' Greek book 4.4 years | Macaulay duration of the six Greek banks' end-2010 maturity ladder at a 4.5% yield and 4.7% coupon | `calibration/eba_moments.py`: `ladder_value_and_duration(sovereign_ladder(df, "GR", GR_BANKS), 0.045, COUPON_GGB)` | Reproduces (4.36). At the end-2010 Greek yield of 12.0% the same ladder gives 3.5 years (`eba_discipline.json`); the gap is the discount rate |
 | PSI recovery 46.5% face value, 35-41% NPV | Zettelmeyer, Trebesch and Gulati (2013) | literature | Cited |
 
-## 4. Numbers with no script
+## 4. Numbers once computed only in chat
 
-Computed or looked up during chat sessions; the source series is named in the paper but no
-code or cached file records the calculation. Each needs a script before it can be replicated.
+`Empirics/validation_moments.py` (2026-10-27) now computes these from Eurostat, the ECB, FRED and
+the stored EBA, IMF and CDS outputs, caching the downloads in `validation_inputs.json` and
+writing `validation_moments.json` (paper value, reproduced value, construction).
 
-- Government purchases / GDP, 0.204 (GR) and 0.191 (DE): Eurostat `nama_10_gdp`.
-- Coupon decay 0.056 (GR) and 0.039 (DE): Eurostat government-securities statistics
-  (`eurostat_irt` in the bibliography). 0.056 coincides with Bocola's Italian value.
-- Home bias 0.68: Greek import share of consumption 32% in 2012.
-- Relative size 11.3: German over Greek nominal GDP; the year is still a placeholder.
-- Real deposit rate 1.11%, 1999-2007 (validation of Bocola's 1.2%).
-- Bond-implied hazards 0.23% (1999-2007) and 0.02-0.05% (basis-adjusted).
-- Liquid deposits 84% of Greek GDP.
-- Greek bank assets 1.7 times GDP; EBA-held Greek debt 40% of Greek GDP.
-- Debt outstanding 162% (GR) and 80% (DE) of GDP in 2012: Eurostat `gov_10dd`.
-- Greek primary surpluses of 3.5-4.2% of GDP in 2016-2018.
-- Default probability 9.1% averaged over 2010-2011 (the exceedance benchmark).
+| Number | Construction | Status |
+|---|---|---|
+| Government purchases / GDP 0.204 (GR), 0.191 (DE) | General-government final consumption / GDP, mean 1999-2010 | Reproduces (0.2041, 0.1915). Window recovered by search; the original was not recorded |
+| Relative size 11.3 | German / Greek nominal GDP, 2006 | Reproduces (11.32). Year recovered; the paper's placeholder can read 2006 |
+| Liquid deposits 84% of Greek GDP | Households' and NPISHs' currency and deposits (F2) / GDP, 2008 | Reproduces (84.6%) |
+| Greek bank assets 1.7 times GDP | Total assets of the six Greek EBA banks / GDP, 2010 | Reproduces (1.69) |
+| EBA-held Greek debt 40% of GDP | EBA sample's Greek sovereign / GDP, 2010 | Reproduces (40.3%) |
+| Debt 164% (GR), 80% (DE) of GDP, 2012 | Eurostat `gov_10dd_edpt1` | Reproduces on the current vintage (164.1, 79.8); the paper's former 162% corrected 2026-10-27 |
+| Greek primary surpluses 3.5-4.2% of GDP, 2016-2018 | IMF DataMapper | Reproduces (3.50, 4.19, 4.14) |
+| Bond-implied hazard 0.23%, 1999-2007 | Mean GR-DE ten-year spread (49.8 bp) as a quarterly hazard at LGD 0.55 | Reproduces (0.226%) |
+| Default probability 9.1%, 2010-2011 | Greek one-year CDS through Bocola's conversion, LGD 0.55 (`greek_cds/greek.py`) | Reproduces (9.09%) |
+| Real deposit rate 1.15%, 1999-2007 | Euro-area three-month Euribor minus HICP inflation | Reproduces the corrected value; the paper's former 1.11% had no recorded construction |
+| Home bias 0.68 (import share 32%, 2012) | Greek imports / GDP is 33.4% in 2012 and 31.0% in 2011; imports / final consumption 36.3% | Not reproduced |
+| Bond-implied hazard 0.02-0.05%, basis-adjusted | Construction not recovered | Not reproduced |
+| Coupon decay 0.056 (GR), 0.039 (DE) | Eurostat government-securities statistics (`eurostat_irt`); 0.056 is Bocola's Italian value | No script |
+| Greek CDS 1.5-2.3%/qtr, Oct 2009 to 23 Apr 2010; above 4% from May 2010 | Monthly averages of the CDS-implied hazard | No script |
 
 ## 5. Data behind the SSJ model (documented elsewhere)
 
@@ -104,8 +109,9 @@ code or cached file records the calculation. Each needs a script before it can b
 - `bohn.py` uses q̄ = 0.91057 and a debt root of 0.93, so the json's implied roots
   (1.034, 1.002, 0.989, 0.964) and its "model" block differ from appendix B's (1.030, 0.9997,
   0.988, 0.963 at q̄ = 0.947, Bohn 0.04).
-- Lending spreads, overdraft rise, the 2008Q3 default probability and the 4.4-year duration do
-  not reproduce from the stored files (section 3).
+- Re-running `greek_cds/greek.py` on top of its own cached series appends duplicate columns
+  (`*.1`) to `greek_cds_series.csv`, because the script concatenates fresh frames onto the file
+  it reads. Values are unaffected; restore the file or run with a clean cache.
 
 ## 7. Rebuilding
 
@@ -119,6 +125,8 @@ python Empirics/eba_descriptives.py                # EBA panel, exposures, repri
 python Empirics/bocola_greece/moments.py           # leverage, Euribor-Eurepo, multiplier
 python Empirics/greek_cds/risk_process.py          # risk-process table
 python Empirics/greek_fiscal/bohn.py               # Bohn regressions
+python Empirics/greek_cds/greek.py                 # CDS -> default probability (Bocola's conversion)
+python Empirics/validation_moments.py              # chat-era moments (section 4)
 python calibration/eba_moments.py                  # SSJ EBA moments
 ```
 

@@ -1,0 +1,97 @@
+{
+  "source": "EBA 2011 EU-wide stress test, sovereign exposures 31 Dec 2010",
+  "stocks": {
+    "n_banks": 90,
+    "n_holding_GR": 58,
+    "GR_sov_held_by_sample_EURbn": 90.1456128180647,
+    "GR_general_govt_debt_2010_EURbn": 330.57,
+    "sample_share_of_GR_debt": 0.27269750073528964,
+    "domestic_share_of_sample_GR_book": 0.6039905069196031,
+    "foreign_share_of_sample_GR_book": 0.3960094930803969,
+    "net_over_gross_GR": 0.9172537632714972,
+    "phi_bD_D_sovereign_over_CT1": 2.3903393491183067,
+    "phi_bD_F_Germany_only": 0.06940011438110816,
+    "phi_bD_F_core_bloc": 0.05860449604819322,
+    "phi_bD_D_market_value_over_CT1": 1.8375861219959282
+  },
+  "shock": {
+    "yields": {
+      "2010-12": 0.1201,
+      "2011-12": 0.2114,
+      "2012-02": 0.2924
+    },
+    "loss_over_CT1": {
+      "BE": {
+        "y2011": 0.029464490851629284,
+        "y2012": 0.043283795201350166,
+        "psi_lo": 0.04042896336396392,
+        "psi_hi": 0.03226607541015042
+      },
+      "CY": {
+        "y2011": 0.23558591581059174,
+        "y2012": 0.3660364317925007,
+        "psi_lo": 0.5848103993395076,
+        "psi_hi": 0.5007286896019606
+      },
+      "DE": {
+        "y2011": 0.012842070495110948,
+        "y2012": 0.019067193651541293,
+        "psi_lo": 0.02460578234524061,
+        "psi_hi": 0.020441775482374122
+      },
+      "FR": {
+        "y2011": 0.01053708088301043,
+        "y2012": 0.015940538478478213,
+        "psi_lo": 0.02477712278319997,
+        "psi_hi": 0.021035110535838994
+      },
+      "GR": {
+        "y2011": 0.3974920702409341,
+        "y2012": 0.616111520275841,
+        "psi_lo": 1.0009673498045202,
+        "psi_hi": 0.8575469888574215
+      },
+      "OTHER": {
+        "y2011": 0.0019037385809824224,
+        "y2012": 0.0029583074914891973,
+        "psi_lo": 0.005069932684664593,
+        "psi_hi": 0.00436079902825935
+      },
+      "CORE": {
+        "y2011": 0.01067350526266127,
+        "y2012": 0.015964321864386365,
+        "psi_lo": 0.021525106474807057,
+        "psi_hi": 0.018008836711915464
+      }
+    },
+    "macaulay_duration_y": {
+      "BE": 5.848493930105023,
+      "CY": 3.5287173081095284,
+      "DE": 4.535584462575051,
+      "FR": 3.786044912144331,
+      "GR": 3.493152209739677,
+      "OTHER": 3.320928630529374,
+      "CORE": 4.328307997867824
+    },
+    "price_fall_2011_frac": 0.21631207674184583,
+    "note": "A frozen 31-Dec-2010 book revalued at the 10-year benchmark yield. The flat-curve assumption UNDERSTATES the 2011H2 loss: the Greek curve inverted and short paper traded on recovery, not on yield.",
+    "impulse_check": {
+      "delta_b=0.056": {
+        "delta_b": 0.056,
+        "q_at_ss": 0.9403553810985249,
+        "q_at_shock": 0.8929508220914935,
+        "actuarial_price_fall": 0.05041132316556041,
+        "observed_price_fall": 0.21631207674184583,
+        "pi_matching_observed": 0.12357628462099196
+      },
+      "delta_b=0.0777": {
+        "delta_b": 0.0777,
+        "q_at_ss": 0.9562846994046643,
+        "q_at_shock": 0.9133124594900052,
+        "actuarial_price_fall": 0.04493665949210679,
+        "observed_price_fall": 0.21631207674184583,
+        "pi_matching_observed": 0.1364448146038968
+      }
+    }
+  }
+}

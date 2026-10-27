@@ -1,0 +1,100 @@
+{
+  "G_over_GDP": {
+    "paper": [
+      0.204,
+      0.191
+    ],
+    "reproduced": [
+      0.2040894277294718,
+      0.19146907946399364
+    ],
+    "construction": "general-government final consumption / GDP, current prices, mean 1999-2010 (window recovered: the original was not recorded)",
+    "reproduces": true
+  },
+  "relative_size_DE_EL": {
+    "paper": 11.3,
+    "reproduced": 11.321476685134641,
+    "construction": "German / Greek nominal GDP, 2006 (year recovered)",
+    "reproduces": true
+  },
+  "import_share_EL_2012": {
+    "paper": 0.32,
+    "reproduced": {
+      "imports_over_gdp": 0.3342838484512036,
+      "imports_over_final_consumption": 0.36255613242965246,
+      "imports_over_gdp_2011": 0.30985379039194005
+    },
+    "construction": "Greek imports of goods and services, 2012; no national-accounts ratio gives 32%",
+    "reproduces": false
+  },
+  "real_deposit_rate_1999_2007": {
+    "paper": 1.11,
+    "reproduced": 1.1528071101851853,
+    "construction": "euro-area three-month Euribor minus HICP inflation (yoy), monthly mean, % a year",
+    "reproduces": false
+  },
+  "bond_hazard_1999_2007": {
+    "paper": 0.23,
+    "reproduced": 0.22610071076238913,
+    "construction": "mean GR-DE ten-year spread 1999-2007 as a quarterly hazard at LGD 0.55, %",
+    "reproduces": true
+  },
+  "bond_hazard_basis_adjusted": {
+    "paper": [
+      0.02,
+      0.05
+    ],
+    "reproduced": null,
+    "construction": "construction not recovered",
+    "reproduces": false
+  },
+  "liquid_deposits_over_gdp_EL": {
+    "paper": 0.84,
+    "reproduced": 0.8455855310942576,
+    "construction": "households' and NPISHs' currency and deposits (F2) / GDP, 2008",
+    "reproduces": true
+  },
+  "greek_bank_assets_over_gdp": {
+    "paper": 1.7,
+    "reproduced": 1.6870117111415737,
+    "construction": "total assets of the six Greek EBA banks / Greek GDP, 2010",
+    "reproduces": true
+  },
+  "eba_held_greek_debt_over_gdp": {
+    "paper": 0.4,
+    "reproduced": 0.4031728218241147,
+    "construction": "Greek sovereign held by the EBA sample / Greek GDP, 2010",
+    "reproduces": true
+  },
+  "debt_over_gdp_2012": {
+    "paper": [
+      162,
+      80
+    ],
+    "reproduced": [
+      164.1,
+      79.8
+    ],
+    "construction": "general-government gross debt, % of GDP, 2012 (current vintage)",
+    "reproduces": "DE only"
+  },
+  "greek_primary_surplus_2016_2018": {
+    "paper": [
+      3.5,
+      4.2
+    ],
+    "reproduced": [
+      3.4971198069169,
+      4.1924539480884,
+      4.1436043489021
+    ],
+    "construction": "IMF DataMapper primary balance, % of GDP",
+    "reproduces": true
+  },
+  "default_probability_2010_2011": {
+    "paper": 9.1,
+    "reproduced": 9.085395643787281,
+    "construction": "Greek one-year CDS, 2010Q1-2011Q4, Bocola's conversion at LGD 0.55, % a quarter (from greek_cds/greek.py)",
+    "reproduces": true
+  }
+}

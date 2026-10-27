@@ -159,7 +159,9 @@ def _government(v, cal, ss):
     v.Xi_D = v.surv * (db_D + (1.0 - db_D) * v.Q_bD)
     v.Pi_cb = v.Xi_D * v.M_lag - v.O_lag
     kD = cal["tpi_key_D"]
-    v.Tax_F = ss["gs_F"]["Tax_ss"] - (1.0 - kD) * v.Pi_cb / (v.sz * v.p)
+    # F's stock is held at B_F, so F taxes balance its budget at today's F bond price
+    db_F, B_F = cal["delta_b_F"], cal["B_gov_F_ss"]
+    v.Tax_F = cal["G_F"] + db_F * B_F * (1.0 - v.Q_bF) - (1.0 - kD) * v.Pi_cb / (v.sz * v.p)
     v.coupon_D = cal["delta_b_D"] * v.B_D * v.surv
     v.new_D = (cal["G_D"] + v.coupon_D - v.Tax_D - kD * v.Pi_cb) / v.Q_bD
     v.Bp_D = (1.0 - cal["delta_b_D"]) * v.B_D * v.surv + v.new_D
@@ -344,15 +346,16 @@ def _bond_demands(v, cal):
                                    for j in range(nreg)])
     v.E_payF = _expect(wgt, payF)
     v.E_Om_payF = _expect(wgt, [v.Om_F[j] * payF[j] for j in range(nreg)])
-    # the D bank's F-bond FOC, with its cross-border adjustment cost
-    v.E_Om_payF_D = _expect(wgt, [v.Om_D[j] * payF[j] for j in range(nreg)])
+    # the D bank's F-bond FOC, with its cross-border adjustment cost; the F bond pays in
+    # F goods, so its return to the D bank carries the change in the terms of trade
+    v.E_Om_payF_D = _expect(wgt, [v.Om_D[j] * payF[j] * R[j]["p"] / v.p for j in range(nreg)])
     v.dmd_F_home = v.E_Om_F * (1.0 + v.rdep_F) + cal["lambda_bF_F"] * v.mu_F
     v.dmd_F_for = v.E_Om_D * (1.0 + v.rdep_D) + cal["lambda_bF_D"] * v.mu_D
     v.adj_D = 1.0 + cal["psi_bF_D"] * (v.b_F_D_new - cal["b_F_D_ss"]) / cal["B_gov_F_ss"]
     # the D bank's D-bond demand price
     v.dmd_D = v.E_Om_D * (1.0 + v.rdep_D) + cal["lambda_bD_D"] * v.mu_D
-    # the F bank's D-bond FOC, with its cross-border adjustment cost
-    v.E_Om_payD_F = _expect(wgt, [v.Om_F[j] * payD[j] for j in range(nreg)])
+    # the F bank's D-bond FOC, with its cross-border adjustment cost and the terms of trade
+    v.E_Om_payD_F = _expect(wgt, [v.Om_F[j] * payD[j] * v.p / R[j]["p"] for j in range(nreg)])
     v.dmd_F = v.E_Om_F * (1.0 + v.rdep_F) + cal["lambda_bD_F"] * v.mu_F
     v.adj_F = 1.0 + cal["psi_bD_F"] * (v.b_D_F_new - cal["b_D_F_ss"]) / cal["B_gov_D_ss"]
 

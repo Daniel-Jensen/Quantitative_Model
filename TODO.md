@@ -1,8 +1,7 @@
 # TODO
 
-The single list of open work, in four parts: **Code** (the model and its data), **Paper** (the
-viva paper's text), **VIVA** (what we must be able to defend in the examination) and
-**Post-VIVA** (the research agenda after it). Within each part, items run in priority order.
+The single list of open work, in three parts: **Code** (the model and its data), **Paper** (the
+viva paper's text) and **Post-VIVA** (the research agenda after it). Within each part, items run in priority order.
 
 Each item is a prompt; detail lives in STATE, DATA, GLOSSARY and the audits in
 `Claude files/diagnostics/model_audit/`. Every item carries an owner: [joint] by default;
@@ -35,20 +34,19 @@ nothing else; at the start of each session Claude deletes ticked items and recor
 - [ ] [joint] **Decide the reserve remuneration rate** (national deposit rate vs a union rate).
 - [ ] [joint] **Decide HA vs RA framing**: bring the household distribution into equilibrium or
   call the model representative-agent with an overlay; fix the overlay's r_wc B_L income bias.
-- [ ] [joint] Fix the small discrepancies: p_t / p_{t+1} in the cross-border bond conditions,
-  fixed F taxes, gamma_tau at the risk-free price, consumer prices in the banker's discount factor.
 - [ ] [Daniel] **Solve the paper calibration** once the items above are in; report fitted and
   exactly cleared output side by side (kink risk, STATE section 2).
 - [ ] [joint] Run `TPI_CAP = "rest"` (defend the no-backstop rest-point spread, about 56 bp).
 - [ ] [Adam] Update the constants of `bohn.py` and `risk_process.py` to the paper (committed with
   the old calibration's; at the paper's they reproduce appendix B's table and roots).
-- [ ] [Adam] Approve or revert the unapproved reader-path fix in `eba_descriptives.py`, then
-  re-run the recovered empirical scripts to confirm they reproduce (DATA.md section 3).
-- [ ] [Daniel] Record sources for the unscripted calibration values (DATA.md section 4).
-- [ ] [joint] Reconcile the data mismatches: lending spreads, overdraft rise, rest-point hazard,
-  duration (DATA.md).
-- [ ] [joint] Script the validation moments computed only in chat (DATA.md section 4).
-- [ ] [joint] Decide which derived outputs in `Empirics/outputs/` to track in git.
+- [ ] [joint] Re-solve the reference (Bocola) calibration to measure the three
+  equilibrium-condition fixes of 2026-10-27 (terms of trade in the cross-border bond
+  conditions, F budget balance, gamma_tau at the traded price; STATE section 4).
+- [ ] [Daniel] Record sources for coupon decay (0.056, 0.039) and the 32% import share behind
+  home bias 0.68, which no national-accounts ratio reproduces (DATA.md section 4).
+- [ ] [joint] Recover or drop the basis-adjusted bond hazard (0.02-0.05%) in appendix B.
+- [ ] [Adam] Stop `greek_cds/greek.py` appending duplicate columns to its cached series on
+  re-runs (DATA.md section 6).
 
 ## Paper
 
@@ -65,18 +63,11 @@ nothing else; at the start of each session Claude deletes ticked items and recor
 - [ ] [joint] **Say the backstop insures banks against default** (pari passu haircuts), and
   report outcomes including default.
 - [ ] [joint] Cut the flight-to-safety claim; note the total-spread cap responds to r_D - r_F.
+- [ ] [joint] State that the banker's discount factor omits the ratio of consumer price indices
+  (a choice; of order the import share times the terms-of-trade movement).
 - [ ] [joint] Fill every [TBC] once Code is done.
 - [ ] [joint] Fill the \placeholder items (income process source, HFCS moments, zeta
-  sensitivity, payout share f, year of the 11.3 size ratio).
-
-## VIVA
-
-- [ ] [joint] **Why output falls more with the cap than without**, though bank net worth falls
-  half as much (STATE section 3); re-establish the capital-key transfer explanation.
-- [ ] [joint] **The credit spread is a near-cancellation** of two terms near 0.127 a quarter, so
-  E[Omega] accuracy is first order.
-- [ ] [joint] **The floor at the corner** depends on the untargeted psi.
-- [ ] [joint] **Defend exogenous default** and the absence of fiscal moral hazard.
+  sensitivity, payout share f; the 11.3 size ratio is German over Greek GDP in 2006).
 
 ## Post-VIVA
 

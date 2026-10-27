@@ -231,11 +231,11 @@ def solve_steady_state(cal, verbose=True):
     for c in ("D", "F"):
         Kap[c], fm[c], bk[c] = _country_blocks(cal, rk[c], p_ss, mc[c], Q_b["D"], Q_b["F"],
                                                *books[c], c)
-    # the traded bond prices are the IC-consistent ones, not the risk-free ones
+    # the traded bond prices are the IC-consistent ones, not the risk-free ones; the tax
+    # level and the Bohn response gamma_tau are both set at them
     Q_bD_ss, Q_bF_ss = bk["D"]["Q_bdom_IC"], bk["F"]["Q_bdom_IC"]
     for c, Q in (("D", Q_bD_ss), ("F", Q_bF_ss)):
-        gs[c] = dict(gs[c], Q_B_ss=Q,
-                     Tax_ss=cal[f"G_{c}"] + cal[f"delta_b_{c}"] * cal[f"B_gov_{c}_ss"] * (1.0 - Q))
+        gs[c] = govt_steady_state(cal, cal[f"r_dep_{c}_target"], c, Q_B_ss=Q)
     cal["chi_D"] = fm["D"]["chi"]
     cal["chi_F"] = fm["F"]["chi"]
     cal["p_ss"]  = p_ss

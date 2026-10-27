@@ -26,7 +26,13 @@ replication/bocola2016/Matfiles/
 # after any calibration change, so a committed copy goes stale immediately). outputs/ is
 # the pre-2026-09-30 location of the same artefacts.
 results/
-outputs/
+/outputs/
+# Empirics/outputs: the small derived tables the paper's numbers rest on are tracked (json, csv);
+# figures are regenerated. The quarterly CDS series derives from the licensed LSEG extract.
+Empirics/outputs/*
+!Empirics/outputs/*.json
+!Empirics/outputs/*.csv
+Empirics/outputs/greek_cds_series.csv
 
 # LSEG sovereign CDS extract: licensed, never committed (Claude files/docs/DATA.md)
 Empirics/greek_cds/data/

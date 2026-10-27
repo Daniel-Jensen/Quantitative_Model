@@ -1,0 +1,649 @@
+{
+  "bocola_table1": {
+    "exp_bg": {
+      "value": 0.076,
+      "source": "EBA 2011 net direct holdings of Italian government debt, 5 largest Italian banks, over Bankscope consolidated total assets at end-2010. Archive: 160091/2098237.6 = 0.076298."
+    },
+    "pi": {
+      "value": 0.056,
+      "source": "Fraction of bonds maturing per quarter. Archive computes a 17.90-quarter average maturity from the EBA maturity ladder; 1/0.056 = 17.9 quarters. The paper's text says '18 months', which is inconsistent with its own Table 1 and archive - read as 18 QUARTERS."
+    },
+    "g_ratio": {
+      "value": 0.198,
+      "source": "Average government-spending-output ratio; AR(1) on the spending-output ratio, 1999Q1-2009Q4."
+    },
+    "rho_g": {
+      "value": 0.894,
+      "source": "Same AR(1)."
+    },
+    "sigma_g": {
+      "value": 0.012,
+      "source": "Same AR(1)."
+    },
+    "i_over_y": {
+      "value": 0.213,
+      "source": "Sample average of the investment-output ratio."
+    },
+    "hours": {
+      "value": 0.318,
+      "source": "Sample average of hours worked."
+    },
+    "R_bg": {
+      "value": 1.003,
+      "source": "Sample average of the risk-free rate, gross quarterly (0.3%/qtr = 1.2%/yr)."
+    },
+    "alpha": {
+      "value": 0.3,
+      "source": "Sample average of the labour income share."
+    },
+    "nu_inv": {
+      "value": 0.5,
+      "source": "Inverse Frisch elasticity; chosen for a Frisch elasticity of 2."
+    },
+    "lev_bg": {
+      "value": 5.0,
+      "source": "NOT a data moment. 'The parameter q is chosen so that the model produces a leverage ratio of 5 in a balanced growth path, in the range of values used in the literature.'"
+    },
+    "gamma_t": {
+      "value": 1.0,
+      "source": "Fiscal rule; lump-sum taxes so the choice is near-inert."
+    },
+    "adj_bg": {
+      "value": 0.0,
+      "source": "Capital adjustment costs zero along the BGP, by convention."
+    },
+    "q_b_bg": {
+      "value": 1.0,
+      "source": "Bond price normalised to one."
+    }
+  },
+  "bocola_mu_posterior": {
+    "mean": 0.001,
+    "ci90": [
+      0.0002,
+      0.0021
+    ],
+    "source": "Table 2, mu_bg x 100: prior Normal(0.96, 25) - i.e. centred on the Gertler-Karadi (2011) calibrated value - posterior mean 0.10, 90% credible set [0.02, 0.21]. Observables: GDP growth and the constructed multiplier series, 2002Q2-2009Q4 (31 quarters)."
+  },
+  "windows": {
+    "bocola_estimation_2002Q2_2009Q4": [
+      "2002-Q2",
+      "2009-Q4"
+    ],
+    "bocola_figure1_2002Q2_2012Q4": [
+      "2002-Q2",
+      "2012-Q4"
+    ],
+    "greek_precrisis_1999Q1_2007Q2": [
+      "1999-Q1",
+      "2007-Q2"
+    ],
+    "greek_precrisis_2002Q2_2007Q2": [
+      "2002-Q2",
+      "2007-Q2"
+    ],
+    "greek_crisis_2010Q1_2012Q4": [
+      "2010-Q1",
+      "2012-Q4"
+    ]
+  },
+  "verification": {
+    "lev_max_err": 0.0,
+    "spread_max_err": 8.35073196919214e-06,
+    "mu_max_err_archive": 8.701530785737953e-05,
+    "mu_max_err_paper": 5.4623402715605826e-05,
+    "mu_max_err_given_stored_spread": 0.0
+  },
+  "italy": {
+    "bocola_estimation_2002Q2_2009Q4": {
+      "spread_bp_pa": 5.103426750412349,
+      "lev_mean": 8.154798204034163,
+      "mu_mean": 0.0011817147393200973,
+      "mu_median": 0.000586703800268985,
+      "n": 31
+    },
+    "bocola_figure1_2002Q2_2012Q4": {
+      "spread_bp_pa": 8.228039943481127,
+      "lev_mean": 8.60961836119025,
+      "mu_mean": 0.001955910744836456,
+      "mu_median": 0.0006778739238123173,
+      "n": 43
+    },
+    "greek_precrisis_2002Q2_2007Q2": {
+      "spread_bp_pa": 1.5819671138111735,
+      "lev_mean": 7.571525879196353,
+      "mu_mean": 0.00031783178958692815,
+      "mu_median": 0.0004867483336781376,
+      "n": 21
+    },
+    "greek_crisis_2010Q1_2012Q4": {
+      "spread_bp_pa": 16.299957358908806,
+      "lev_mean": 9.784570433843475,
+      "mu_mean": 0.003955917092420381,
+      "mu_median": 0.002713292369736158,
+      "n": 12
+    }
+  },
+  "comparability_italy": {
+    "corr": 0.9735585484008905,
+    "mean_bocola": 8.277498924871855,
+    "mean_eurostat": 8.362911170306498
+  },
+  "leverage": {
+    "lev_eurostat_GR": {
+      "bocola_estimation_2002Q2_2009Q4": {
+        "n": 31,
+        "mean": 10.500768711551743,
+        "median": 8.51901851486746,
+        "min": 6.817998408583381,
+        "max": 21.826866859840564
+      },
+      "bocola_figure1_2002Q2_2012Q4": {
+        "n": 43,
+        "mean": 16.454782271380246,
+        "median": 9.279176505241605,
+        "min": -75.83101050047826,
+        "max": 75.3916500489009
+      },
+      "greek_precrisis_1999Q1_2007Q2": {
+        "n": 34,
+        "mean": 7.037439355649575,
+        "median": 7.413585667737532,
+        "min": 3.7554744385018504,
+        "max": 9.384733492410096
+      },
+      "greek_precrisis_2002Q2_2007Q2": {
+        "n": 21,
+        "mean": 7.981151578993392,
+        "median": 7.8064352387129565,
+        "min": 6.817998408583381,
+        "max": 9.384733492410096
+      },
+      "greek_crisis_2010Q1_2012Q4": {
+        "n": 12,
+        "mean": 31.835983967603884,
+        "median": 35.69607827359619,
+        "min": -75.83101050047826,
+        "max": 75.3916500489009
+      }
+    },
+    "lev_eurostat_IT": {
+      "bocola_estimation_2002Q2_2009Q4": {
+        "n": 31,
+        "mean": 8.185252015162975,
+        "median": 7.751553865779848,
+        "min": 6.6913011625497285,
+        "max": 10.970828698804066
+      },
+      "bocola_figure1_2002Q2_2012Q4": {
+        "n": 43,
+        "mean": 8.759540155558794,
+        "median": 8.390889445889808,
+        "min": 6.6913011625497285,
+        "max": 12.15339090858809
+      },
+      "greek_precrisis_1999Q1_2007Q2": {
+        "n": 34,
+        "mean": 7.395774356859302,
+        "median": 7.443414161295086,
+        "min": 5.310546273513154,
+        "max": 8.983617102104954
+      },
+      "greek_precrisis_2002Q2_2007Q2": {
+        "n": 21,
+        "mean": 7.609215680241934,
+        "median": 7.507617676795347,
+        "min": 6.6913011625497285,
+        "max": 8.983617102104954
+      },
+      "greek_crisis_2010Q1_2012Q4": {
+        "n": 12,
+        "mean": 10.24311785158133,
+        "median": 9.930885768702952,
+        "min": 9.044105423843543,
+        "max": 12.15339090858809
+      }
+    },
+    "lev_bsi_GR": {
+      "bocola_estimation_2002Q2_2009Q4": {
+        "n": 31,
+        "mean": 12.749150386044544,
+        "median": 12.570214776632302,
+        "min": 10.474007082176524,
+        "max": 16.112447116455133
+      },
+      "bocola_figure1_2002Q2_2012Q4": {
+        "n": 43,
+        "mean": 12.37316272160523,
+        "median": 12.546788960665385,
+        "min": 8.73226245395108,
+        "max": 16.112447116455133
+      },
+      "greek_precrisis_1999Q1_2007Q2": {
+        "n": 34,
+        "mean": 11.841806450783483,
+        "median": 12.182309446980591,
+        "min": 9.983000693940642,
+        "max": 13.892924357476634
+      },
+      "greek_precrisis_2002Q2_2007Q2": {
+        "n": 21,
+        "mean": 12.176259354685433,
+        "median": 12.482252010723862,
+        "min": 10.474007082176524,
+        "max": 12.92594668659691
+      },
+      "greek_crisis_2010Q1_2012Q4": {
+        "n": 12,
+        "mean": 11.401861255137,
+        "median": 11.580489776009754,
+        "min": 8.73226245395108,
+        "max": 13.308766800665936
+      }
+    },
+    "lev_bsi_IT": {
+      "bocola_estimation_2002Q2_2009Q4": {
+        "n": 31,
+        "mean": 13.719582780118525,
+        "median": 13.720438778275897,
+        "min": 12.792838070047384,
+        "max": 14.71665794850998
+      },
+      "bocola_figure1_2002Q2_2012Q4": {
+        "n": 43,
+        "mean": 12.972752772388283,
+        "median": 13.277991783989288,
+        "min": 10.171265944876286,
+        "max": 14.71665794850998
+      },
+      "greek_precrisis_1999Q1_2007Q2": {
+        "n": 34,
+        "mean": 13.972387313003722,
+        "median": 13.963771469202344,
+        "min": 12.9253343930196,
+        "max": 14.71665794850998
+      },
+      "greek_precrisis_2002Q2_2007Q2": {
+        "n": 21,
+        "mean": 14.058327867454343,
+        "median": 14.207111331105883,
+        "min": 12.9253343930196,
+        "max": 14.71665794850998
+      },
+      "greek_crisis_2010Q1_2012Q4": {
+        "n": 12,
+        "mean": 11.043441919085163,
+        "median": 11.0131639635741,
+        "min": 10.171265944876286,
+        "max": 12.613787985313648
+      }
+    }
+  },
+  "negative_equity_quarters": {
+    "GR": [
+      "2012-Q1"
+    ],
+    "IT": []
+  },
+  "wedge_bp_pa": {
+    "spread_1w_q": {
+      "bocola_estimation_2002Q2_2009Q4": {
+        "mean": 5.103426750411822,
+        "median": 2.696711196774615,
+        "min": -12.448050853368,
+        "max": 41.574690884436,
+        "n": 31
+      },
+      "bocola_figure1_2002Q2_2012Q4": {
+        "mean": 8.22803994348025,
+        "median": 3.6809018602834698,
+        "min": -12.448050853368,
+        "max": 52.044120902772,
+        "n": 43
+      },
+      "greek_precrisis_1999Q1_2007Q2": {
+        "mean": 1.5819671138111944,
+        "median": 2.547444219276329,
+        "min": -12.448050853368,
+        "max": 6.032310311432,
+        "n": 21
+      },
+      "greek_precrisis_2002Q2_2007Q2": {
+        "mean": 1.5819671138111944,
+        "median": 2.547444219276329,
+        "min": -12.448050853368,
+        "max": 6.032310311432,
+        "n": 21
+      },
+      "greek_crisis_2010Q1_2012Q4": {
+        "mean": 16.299957358907022,
+        "median": 11.420446086502,
+        "min": 2.5844423689402873,
+        "max": 52.044120902772,
+        "n": 12
+      }
+    },
+    "wedge_depGR_over_eonia": {
+      "bocola_estimation_2002Q2_2009Q4": {
+        "mean": 45.210982799873115,
+        "median": 15.58968253968,
+        "min": -27.434594391116,
+        "max": 262.62357864357597,
+        "n": 31
+      },
+      "bocola_figure1_2002Q2_2012Q4": {
+        "mean": 131.72051158321233,
+        "median": 26.666666666664,
+        "min": -27.434594391116,
+        "max": 461.86157059314803,
+        "n": 43
+      },
+      "greek_precrisis_1999Q1_2007Q2": {
+        "mean": 17.005128800627954,
+        "median": 10.438645774511999,
+        "min": -114.245689982532,
+        "max": 382.366459627328,
+        "n": 30
+      },
+      "greek_precrisis_2002Q2_2007Q2": {
+        "mean": 7.0770009124692645,
+        "median": 11.739412761148001,
+        "min": -27.434594391116,
+        "max": 26.666666666664,
+        "n": 21
+      },
+      "greek_crisis_2010Q1_2012Q4": {
+        "mean": 355.20346094017196,
+        "median": 326.61058567036605,
+        "min": 203.258260869564,
+        "max": 461.86157059314803,
+        "n": 12
+      }
+    },
+    "wedge_depGR_over_depDE": {
+      "bocola_estimation_2002Q2_2009Q4": {
+        "mean": 45.946236559138576,
+        "median": 32.333333333332,
+        "min": -7.0,
+        "max": 197.999999999996,
+        "n": 31
+      },
+      "bocola_figure1_2002Q2_2012Q4": {
+        "mean": 112.51162790697533,
+        "median": 35.333333333332,
+        "min": -7.0,
+        "max": 374.66666666666396,
+        "n": 43
+      },
+      "greek_precrisis_1999Q1_2007Q2": {
+        "mean": 36.5111111111104,
+        "median": 28.666666666666,
+        "min": -77.99999999999599,
+        "max": 383.333333333332,
+        "n": 30
+      },
+      "greek_precrisis_2002Q2_2007Q2": {
+        "mean": 26.079365079363807,
+        "median": 28.999999999999996,
+        "min": -7.0,
+        "max": 42.333333333332,
+        "n": 21
+      },
+      "greek_crisis_2010Q1_2012Q4": {
+        "mean": 284.4722222222203,
+        "median": 269.666666666664,
+        "min": 114.999999999996,
+        "max": 374.66666666666396,
+        "n": 12
+      }
+    },
+    "wedge_depIT_over_eonia": {
+      "bocola_estimation_2002Q2_2009Q4": {
+        "mean": -60.16536128614607,
+        "median": -71.699206349204,
+        "min": -131.970770750988,
+        "max": 74.72589246502,
+        "n": 31
+      },
+      "bocola_figure1_2002Q2_2012Q4": {
+        "mean": 0.8135348390280931,
+        "median": -56.97186147186,
+        "min": -131.970770750988,
+        "max": 286.58694083694,
+        "n": 43
+      },
+      "greek_precrisis_1999Q1_2007Q2": {
+        "mean": -88.56153786603615,
+        "median": -84.22827812284001,
+        "min": -141.325757575756,
+        "max": -52.28602484472,
+        "n": 30
+      },
+      "greek_precrisis_2002Q2_2007Q2": {
+        "mean": -76.60553877006782,
+        "median": -71.699206349204,
+        "min": -126.521417179308,
+        "max": -52.28602484472,
+        "n": 21
+      },
+      "greek_crisis_2010Q1_2012Q4": {
+        "mean": 158.34234982906133,
+        "median": 114.03675481523001,
+        "min": 60.258260869564005,
+        "max": 286.58694083694,
+        "n": 12
+      }
+    }
+  },
+  "mu_greece": {
+    "GR lev x euro-area 1w spread": {
+      "bocola_estimation_2002Q2_2009Q4": {
+        "n": 31,
+        "mean": 0.0018093500009290274,
+        "median": 0.0006070653043641028,
+        "min": -0.0022661433002899196,
+        "max": 0.02211800508918251
+      },
+      "bocola_figure1_2002Q2_2012Q4": {
+        "n": 43,
+        "mean": 0.005137195387664033,
+        "median": 0.0008260679761550553,
+        "min": -0.049527253230417775,
+        "max": 0.0890863585374111
+      },
+      "greek_precrisis_1999Q1_2007Q2": {
+        "n": 21,
+        "mean": 0.0003331743368911305,
+        "median": 0.0004846353909340998,
+        "min": -0.0022661433002899196,
+        "max": 0.0010240818388997314
+      },
+      "greek_precrisis_2002Q2_2007Q2": {
+        "n": 21,
+        "mean": 0.0003331743368911305,
+        "median": 0.0004846353909340998,
+        "min": -0.0022661433002899196,
+        "max": 0.0010240818388997314
+      },
+      "greek_crisis_2010Q1_2012Q4": {
+        "n": 12,
+        "mean": 0.013734129303396125,
+        "median": 0.009681547627730672,
+        "min": -0.049527253230417775,
+        "max": 0.0890863585374111
+      }
+    },
+    "GR lev x GR deposit premium": {
+      "bocola_estimation_2002Q2_2009Q4": {
+        "n": 31,
+        "mean": 0.018145604997582374,
+        "median": 0.0031167457274840133,
+        "min": -0.005902970096913666,
+        "max": 0.12359943293623048
+      },
+      "bocola_figure1_2002Q2_2012Q4": {
+        "n": 43,
+        "mean": -0.0518617691326738,
+        "median": 0.004587110847023027,
+        "min": -5.628507071782515,
+        "max": 0.44831355412689056
+      },
+      "greek_precrisis_1999Q1_2007Q2": {
+        "n": 30,
+        "mean": 0.0010299634806743905,
+        "median": 0.0021560816069221,
+        "min": -0.021611393336567628,
+        "max": 0.04076437497548136
+      },
+      "greek_precrisis_2002Q2_2007Q2": {
+        "n": 21,
+        "mean": 0.0011923547549068838,
+        "median": 0.002423117788586458,
+        "min": -0.005902970096913666,
+        "max": 0.004694172500526257
+      },
+      "greek_crisis_2010Q1_2012Q4": {
+        "n": 12,
+        "mean": -0.23271415230250228,
+        "median": 0.2175291390236489,
+        "min": -5.628507071782515,
+        "max": 0.44831355412689056
+      }
+    },
+    "GR lev x GR-DE deposit gap": {
+      "bocola_estimation_2002Q2_2009Q4": {
+        "n": 31,
+        "mean": 0.0157585380750011,
+        "median": 0.006373334439304897,
+        "min": -0.0014995631278544733,
+        "max": 0.09610846138435718
+      },
+      "bocola_figure1_2002Q2_2012Q4": {
+        "n": 43,
+        "mean": 0.021453444707542884,
+        "median": 0.006921732893653994,
+        "min": -1.9935367436830618,
+        "max": 0.3973029829093366
+      },
+      "greek_precrisis_1999Q1_2007Q2": {
+        "n": 30,
+        "mean": 0.004800912085584483,
+        "median": 0.005770684431157644,
+        "min": -0.014654465708400911,
+        "max": 0.04086324195881863
+      },
+      "greek_precrisis_2002Q2_2007Q2": {
+        "n": 21,
+        "mean": 0.005055631454464486,
+        "median": 0.005980277135049111,
+        "min": -0.0014995631278544733,
+        "max": 0.007142746717756984
+      },
+      "greek_crisis_2010Q1_2012Q4": {
+        "n": 12,
+        "mean": 0.03616528684160917,
+        "median": 0.18591350343646945,
+        "min": -1.9935367436830618,
+        "max": 0.3973029829093366
+      }
+    },
+    "IT lev x euro-area 1w spread": {
+      "bocola_estimation_2002Q2_2009Q4": {
+        "n": 31,
+        "mean": 0.0011730440416162454,
+        "median": 0.0005811335785987599,
+        "min": -0.002080432302131354,
+        "max": 0.011240821883963529
+      },
+      "bocola_figure1_2002Q2_2012Q4": {
+        "n": 43,
+        "mean": 0.0020231449065826164,
+        "median": 0.0006818687380697304,
+        "min": -0.002080432302131354,
+        "max": 0.013437097904005624
+      },
+      "greek_precrisis_1999Q1_2007Q2": {
+        "n": 21,
+        "mean": 0.0003162444778595103,
+        "median": 0.0004923532998913824,
+        "min": -0.002080432302131354,
+        "max": 0.0011103947928973801
+      },
+      "greek_precrisis_2002Q2_2007Q2": {
+        "n": 21,
+        "mean": 0.0003162444778595103,
+        "median": 0.0004923532998913824,
+        "min": -0.002080432302131354,
+        "max": 0.0011103947928973801
+      },
+      "greek_crisis_2010Q1_2012Q4": {
+        "n": 12,
+        "mean": 0.004219238807745742,
+        "median": 0.002752620536687784,
+        "min": 0.0006017378771780656,
+        "max": 0.013437097904005624
+      }
+    }
+  },
+  "mapping": [
+    {
+      "calibration": "paper as written (GK wedge)",
+      "theta": 5.0,
+      "sigma_bp_pa": 100.0,
+      "mu": 0.012309207287050717,
+      "inv_mu": 81.23999999999998,
+      "odds": 80.23999999999998,
+      "sigma_theta_bp_pa": 500.0
+    },
+    {
+      "calibration": "Bocola Table 1 + 8bp/yr",
+      "theta": 5.0,
+      "sigma_bp_pa": 8.19,
+      "mu": 0.0010196471946007253,
+      "inv_mu": 980.7313797313798,
+      "odds": 979.7313797313798,
+      "sigma_theta_bp_pa": 40.949999999999996
+    },
+    {
+      "calibration": "Bocola estimated mu_bg",
+      "theta": 5.0,
+      "sigma_bp_pa": 8.032032032032031,
+      "mu": 0.001,
+      "inv_mu": 1000.0,
+      "odds": 999.0,
+      "sigma_theta_bp_pa": 40.16016016016016
+    },
+    {
+      "calibration": "Greek pre-crisis lev + 8bp/yr",
+      "theta": 7.98,
+      "sigma_bp_pa": 8.19,
+      "mu": 0.0016263685625859902,
+      "inv_mu": 614.866779280313,
+      "odds": 613.866779280313,
+      "sigma_theta_bp_pa": 65.3562
+    },
+    {
+      "calibration": "Greek pre-crisis lev + GR dep premium",
+      "theta": 7.98,
+      "sigma_bp_pa": 7.0770009124692645,
+      "mu": 0.0014056601040864304,
+      "inv_mu": 711.4095342770805,
+      "odds": 710.4095342770805,
+      "sigma_theta_bp_pa": 56.47446728150474
+    }
+  ],
+  "exposure": {
+    "Italy, Bocola top-5 (archive)": {
+      "net_over_ta": 0.0762978415790471,
+      "gross_over_ta": NaN,
+      "avg_maturity_q": 17.902924,
+      "n_banks": 5
+    },
+    "Greece, 6 EBA banks": {
+      "net_over_ta": 0.1282493729543676,
+      "gross_over_ta": 0.14434550478904074,
+      "avg_maturity_q": 25.61901376686273,
+      "n_banks": 6
+    }
+  }
+}

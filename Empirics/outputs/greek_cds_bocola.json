@@ -1,0 +1,253 @@
+{
+  "parameters": {
+    "lambda": 0.21,
+    "haircut_bocola": 0.55,
+    "haircut_model_tpi": 0.7,
+    "haircut_market_convention": 0.6,
+    "sdf_b": 0.9982,
+    "sdf_omega": 0.95,
+    "pre_crisis_correction": 0.9039,
+    "esdf_projection": {
+      "a0": 0.44797128766054234,
+      "a1": 0.1782264929541167,
+      "max_abs_err": 0.00565875501450671
+    }
+  },
+  "greece_conversion": {
+    "pre_crisis_2002Q2_2007Q2": {
+      "quarters": 21,
+      "lev_GR_mean": 7.981151578993392,
+      "leverage_usable": true,
+      "correction_mean": 0.9039252636875181,
+      "mult_bocola": 1.6435004794318508,
+      "mult_model": 1.2913218052678828,
+      "breakeven_cds_bp_bocola": 24.352041090389747,
+      "breakeven_cds_bp_model": 30.99350684231422,
+      "bond_spread_GR_bp": 25.269841269841283,
+      "bond_spread_IT_bp": 22.514285714285727,
+      "cds_1y_IT_bp": 3.4846672543443185
+    },
+    "cds_era_2006Q1_2007Q2": {
+      "quarters": 6,
+      "lev_GR_mean": 8.558615940057285,
+      "leverage_usable": true,
+      "correction_mean": 0.9204870703423548,
+      "mult_bocola": 1.6736128551679175,
+      "mult_model": 1.3149815290605067,
+      "breakeven_cds_bp_bocola": 23.907555641776568,
+      "breakeven_cds_bp_model": 30.42779808953381,
+      "bond_spread_GR_bp": 28.7777777777778,
+      "bond_spread_IT_bp": 26.433333333333366,
+      "cds_1y_IT_bp": 2.4061431563001294
+    },
+    "bocola_window_2002Q2_2009Q4": {
+      "quarters": 31,
+      "lev_GR_mean": 10.500768711551743,
+      "leverage_usable": true,
+      "correction_mean": 0.9362904641126308,
+      "mult_bocola": 1.7023462983866013,
+      "mult_model": 1.3375578058751867,
+      "breakeven_cds_bp_bocola": 23.574685595847313,
+      "breakeven_cds_bp_model": 30.00414530380566,
+      "bond_spread_GR_bp": 54.91397849462367,
+      "bond_spread_IT_bp": 40.333333333333336,
+      "cds_1y_IT_bp": 15.947196713317771
+    },
+    "crisis_2010Q1_2011Q4": {
+      "quarters": 8,
+      "lev_GR_mean": 40.22578902442858,
+      "leverage_usable": false,
+      "correction_mean": 1.0534472046261312,
+      "mult_bocola": 1.9153585538656928,
+      "mult_model": 1.5049245780373304,
+      "breakeven_cds_bp_bocola": 20.893953859392052,
+      "breakeven_cds_bp_model": 26.59230491195352,
+      "bond_spread_GR_bp": 974.4583333333334,
+      "bond_spread_IT_bp": 205.35000000000002,
+      "cds_1y_IT_bp": 156.82671639642444
+    },
+    "full_2002Q2_2011Q4": {
+      "quarters": 39,
+      "lev_GR_mean": 16.59820877573161,
+      "leverage_usable": false,
+      "correction_mean": 0.9603226160128361,
+      "mult_bocola": 1.7460411200233377,
+      "mult_model": 1.3718894514469087,
+      "breakeven_cds_bp_bocola": 23.024791906318022,
+      "breakeven_cds_bp_model": 29.304280608041115,
+      "bond_spread_GR_bp": 243.53846153846155,
+      "bond_spread_IT_bp": 74.182905982906,
+      "cds_1y_IT_bp": 44.84555972523709
+    }
+  },
+  "italy_benchmark": {
+    "pre_crisis_2002Q2_2007Q2": {
+      "cds_1y_bp": 3.4846672543443185,
+      "bond_10y_bp": 22.514285714285727,
+      "bond_over_cds": 6.460957121865014,
+      "p_phys_from_cds_pct_q": 0.014086086696716123,
+      "p_phys_from_bond_pct_q": 0.09082523793071051,
+      "ratio_to_model_0p10": 0.14086086696716124
+    },
+    "cds_era_2006Q1_2007Q2": {
+      "cds_1y_bp": 2.4061431563001294,
+      "bond_10y_bp": 26.433333333333366,
+      "bond_over_cds": 10.985769181738666,
+      "p_phys_from_cds_pct_q": 0.009680862094630673,
+      "p_phys_from_bond_pct_q": 0.10676604063242486,
+      "ratio_to_model_0p10": 0.09680862094630673
+    },
+    "bocola_window_2002Q2_2009Q4": {
+      "cds_1y_bp": 15.947196713317771,
+      "bond_10y_bp": 40.333333333333336,
+      "bond_over_cds": 2.5291801473578297,
+      "p_phys_from_cds_pct_q": 0.06720402020740802,
+      "p_phys_from_bond_pct_q": 0.1649728189226406,
+      "ratio_to_model_0p10": 0.6720402020740802
+    },
+    "crisis_2010Q1_2011Q4": {
+      "cds_1y_bp": 156.82671639642444,
+      "bond_10y_bp": 205.35000000000002,
+      "bond_over_cds": 1.3094069984920114,
+      "p_phys_from_cds_pct_q": 0.6529699980145094,
+      "p_phys_from_bond_pct_q": 0.8593871187183678,
+      "ratio_to_model_0p10": 6.529699980145093
+    },
+    "full_2002Q2_2011Q4": {
+      "cds_1y_bp": 44.84555972523709,
+      "bond_10y_bp": 74.182905982906,
+      "bond_over_cds": 1.6541861989774465,
+      "p_phys_from_cds_pct_q": 0.18736114386014674,
+      "p_phys_from_bond_pct_q": 0.30486737368295325,
+      "ratio_to_model_0p10": 1.8736114386014675
+    }
+  },
+  "greek_cds_available": true,
+  "vendor_validation": {
+    "quarters": 14,
+    "corr": 0.9928733468654922,
+    "mean_abs_pct_gap": 20.449919564522975,
+    "level_ratio": 1.1315720957091497
+  },
+  "market_recovery": {
+    "GR": 0.39719711827956994,
+    "IT": 0.39512685914260715
+  },
+  "staleness": {
+    "GR_6M": {
+      "quotes": 932,
+      "first": "2008-07-21",
+      "last": "2012-03-08",
+      "share_unchanged": 0.15021459227467812,
+      "mean_bp": 3878.461129828326
+    },
+    "GR_1Y": {
+      "quotes": 933,
+      "first": "2008-07-21",
+      "last": "2012-03-08",
+      "share_unchanged": 0.14040728831725616,
+      "mean_bp": 3134.9611393354758
+    },
+    "GR_2Y": {
+      "quotes": 933,
+      "first": "2008-07-21",
+      "last": "2012-03-08",
+      "share_unchanged": 0.12968917470525188,
+      "mean_bp": 2467.3008285101823
+    },
+    "GR_3Y": {
+      "quotes": 933,
+      "first": "2008-07-21",
+      "last": "2012-03-08",
+      "share_unchanged": 0.1382636655948553,
+      "mean_bp": 2128.047412647374
+    },
+    "GR_5Y": {
+      "quotes": 933,
+      "first": "2008-07-21",
+      "last": "2012-03-08",
+      "share_unchanged": 0.13183279742765272,
+      "mean_bp": 1775.2116077170417
+    },
+    "GR_7Y": {
+      "quotes": 933,
+      "first": "2008-07-21",
+      "last": "2012-03-08",
+      "share_unchanged": 0.12540192926045016,
+      "mean_bp": 1601.284697749196
+    },
+    "GR_10Y": {
+      "quotes": 933,
+      "first": "2008-07-21",
+      "last": "2012-03-08",
+      "share_unchanged": 0.1339764201500536,
+      "mean_bp": 1442.3692422293675
+    },
+    "IT_6M": {
+      "quotes": 1147,
+      "first": "2008-07-21",
+      "last": "2012-12-31",
+      "share_unchanged": 0.13949433304272013,
+      "mean_bp": 149.14997745562337
+    },
+    "IT_1Y": {
+      "quotes": 1148,
+      "first": "2008-07-21",
+      "last": "2012-12-31",
+      "share_unchanged": 0.12456445993031359,
+      "mean_bp": 160.91091833867597
+    },
+    "IT_2Y": {
+      "quotes": 1148,
+      "first": "2008-07-21",
+      "last": "2012-12-31",
+      "share_unchanged": 0.11149825783972125,
+      "mean_bp": 189.06539246263068
+    },
+    "IT_3Y": {
+      "quotes": 1148,
+      "first": "2008-07-21",
+      "last": "2012-12-31",
+      "share_unchanged": 0.11062717770034843,
+      "mean_bp": 209.43191904782233
+    },
+    "IT_5Y": {
+      "quotes": 1148,
+      "first": "2008-07-21",
+      "last": "2012-12-31",
+      "share_unchanged": 0.11149825783972125,
+      "mean_bp": 228.53971810853653
+    },
+    "IT_7Y": {
+      "quotes": 1148,
+      "first": "2008-07-21",
+      "last": "2012-12-31",
+      "share_unchanged": 0.0975609756097561,
+      "mean_bp": 229.71237231881534
+    },
+    "IT_10Y": {
+      "quotes": 1148,
+      "first": "2008-07-21",
+      "last": "2012-12-31",
+      "share_unchanged": 0.10540069686411149,
+      "mean_bp": 229.79716945984322
+    }
+  },
+  "greece_answer": {
+    "gfc_2008Q3_2009Q4": {
+      "cds_1y_bp": 113.46040231084912,
+      "p_phys_pct_q_D55": 0.46314537182900956,
+      "ratio_to_model_0p10": 4.6314537182900954
+    },
+    "sovereign_crisis_2010Q1_2011Q4": {
+      "cds_1y_bp": 2974.5415717701135,
+      "p_phys_pct_q_D55": 9.085395643787281,
+      "ratio_to_model_0p10": 90.85395643787282
+    },
+    "full_cds_2008Q3_2012Q1": {
+      "cds_1y_bp": 3517.526595035067,
+      "p_phys_pct_q_D55": 8.420432192332367,
+      "ratio_to_model_0p10": 84.20432192332366
+    }
+  }
+}

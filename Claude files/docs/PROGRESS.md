@@ -16,6 +16,31 @@ retired session-handoff file; its content is in git history.
 
 ---
 
+## 2026-10-27: three equilibrium conditions aligned with the paper; data reconciled and scripted (model, data)
+
+- **Model (not yet solved).** Banks now price the foreign sovereign at its return in home goods,
+  including the expected change in the terms of trade, as the paper's cross-border conditions
+  do; their net worth already valued the realised legs that way, so the portfolio choice and the
+  accounting were inconsistent. F taxes now balance F's budget each period at the current F bond
+  price with the stock fixed, closing the F budget leak (the F goods market had cleared only to
+  about 2e-4 of F output on impact). The Bohn response is inverted from the debt root at the
+  price banks pay, not the risk-free price (gamma 0.8% lower at the Bocola calibration). None
+  moves the deterministic steady state; the 6 Oct reference numbers predate all three. The
+  banker's discount factor in basket units is kept and recorded as a deliberate choice.
+- **Data.** The recovered empirical scripts were re-run and reproduce their stored outputs
+  exactly. Reconciled against the stored data: lending spreads 280/176 bp (not 290/180), the
+  2008Q3 CDS hazard 0.102% (not 0.092%), Greek 2012 debt 164% on the current Eurostat vintage
+  (not 162%) and the 1999-2007 real rate 1.15% (euro-area three-month Euribor less HICP
+  inflation; not 1.11%), all corrected on Overleaf; the 108 bp overdraft rise and the 4.4-year
+  duration (end-2010 ladder at a 4.5% yield) reproduce as stated. A new script computes the
+  moments once computed only in chat; nine of twelve reproduce (G/GDP on 1999-2010, the size
+  ratio in 2006), while the 32% import share, the basis-adjusted hazard and coupon decay remain
+  unsourced. The derived data tables in `Empirics/outputs/` are now tracked, except the quarterly
+  CDS series, which derives from the licensed extract.
+- **TODO.** The VIVA section and its four items (output with the cap, the credit-spread
+  near-cancellation, the floor at the corner, exogenous default) were dropped as overlapping
+  Code and Paper or already understood.
+
 ## 2026-10-27: empirical code recovered; paper calibration transfer reverted (data)
 
 - The empirical code shelved in `c2d2337` (EBA descriptives, the Bocola-Greece moments, the

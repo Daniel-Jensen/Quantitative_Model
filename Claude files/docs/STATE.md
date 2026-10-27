@@ -47,7 +47,8 @@ responses are compared.
 
 ## 3. Reference solution: the 6 Oct 2026 household-fix run
 
-The run of `main` after the household budget fix (PR #36), on the code calibration (section 1):
+The run of `main` after the household budget fix (PR #36), on the code calibration (section 1)
+and before the three equilibrium-condition fixes of 2026-10-27 (section 4):
 real deposit parity, 115-point grid, a 2.00%/qtr headline shock decaying at rho_s = 0.95, and
 the 200 bp spread cap as the backstop. Source: `results/GLOBAL/run.log`. Spreads in bp/yr;
 output and net worth in % of the economy's own rest point. Every global impulse-response level
@@ -96,8 +97,19 @@ the working-capital flow (an accounting error that leaked into the goods market)
 - The backstop (TPI) adds the Eurosystem book as two states (M_cb, O_cb) and purchases m_cb as
   an unknown under a complementarity condition; 12 states, 14 unknowns. A full run with the
   backstop needs 4-5 hours of awake machine time on 8 cores.
-- Known leak: the F treasury is held fixed (a documented simplification), so the F goods
-  market clears only up to about 2e-4 of F output on impact of the headline shock.
+- Three equilibrium conditions were brought into line with the paper on 2026-10-27, after the
+  reference run and not yet solved: (i) each bank prices the foreign sovereign at its return in
+  home goods, including the expected change in the terms of trade p_{t+1}/p_t (net worth
+  already valued the realised legs that way, so the portfolio choice and the accounting were
+  inconsistent); (ii) F taxes balance F's budget each period at the current F bond price with
+  the stock held at B_F, closing the F budget leak that left the F goods market clearing only
+  to about 2e-4 of F output on impact; (iii) the Bohn response gamma_tau is inverted from the
+  debt root at the price banks pay rather than the risk-free price (a 0.8% fall in gamma at
+  the Bocola calibration: the debt root moves from 0.9294 to its 0.93 target). None changes the
+  deterministic steady state; all three move the dynamics, (i) through the terms of trade and
+  (ii) through F household income. The section 3 numbers are on the code before them.
+- The banker's discount factor omits the ratio of consumer price indices, as the paper's
+  (branch-sdf) does; recorded as a deliberate choice in the modelling-choices reference.
 - Deliberate modelling choices and their reasons: `Claude files/docs/reference/global_modelling_choices.md`.
   Solver, grid and tolerances: `Claude files/docs/reference/global_solver.md`.
 

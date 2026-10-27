@@ -4,13 +4,15 @@
 # the debt stock. Debt still evolves endogenously under the Bohn tax.
 
 
-def govt_steady_state(cal, rdep_ss, country):
+def govt_steady_state(cal, rdep_ss, country, Q_B_ss=None):
     # STEADY-STATE GOVERNMENT BLOCK (NO DEFAULT, CONSTANT DEBT STOCK).
+    # Q_B_ss defaults to the risk-free price; the SS solve passes the price banks pay
     delta_b  = cal[f"delta_b_{country}"]
     B_gov_ss = cal[f"B_gov_{country}_ss"]
     G        = cal[f"G_{country}"]
 
-    Q_B_ss = delta_b / (rdep_ss + delta_b)
+    if Q_B_ss is None:
+        Q_B_ss = delta_b / (rdep_ss + delta_b)
     Tax_ss = G + delta_b * B_gov_ss * (1.0 - Q_B_ss)   # G + coupon = Tax + issuance
     # BOHN COEFFICIENT SOLVED FROM A TARGET DEBT ROOT. With B' = (1-delta_b)*x +
     # (G + delta_b*x - Tax)/Q and Tax = Tax_ss + gamma*(x - B_ss) on the surviving
