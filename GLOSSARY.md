@@ -141,7 +141,7 @@ SSJ. X ∈ {D, F} indexes countries throughout.
 | Branch | Role |
 |---|---|
 | `main` | Merge target. |
-| `policy-rules` | Working branch as of 2026-10-27 (welfare and policy economies). |
+| `shelved/policy-rules-welfare` | Local only. The welfare section, the policy-rule economies and the warranted floor, shelved on 2026-10-27 (`Claude files/docs/shelved/welfare_and_policy_rules.md`). |
 | `cross-border-empirics` | Shelved; commit `c2d2337` holds empirical code not yet on the working branch (see `DATA.md`). |
 | `bocola-rewrite`, `OMT-fix`, `hh-budget-fix` | Earlier global-model branches, merged into `main` (PRs #32, #35, #36). |
 | `add-nkpc`, `gk-structural-foc` | SSJ branches (sticky prices; the structural refactor), merged into `main` (PR #33 for the refactor). |

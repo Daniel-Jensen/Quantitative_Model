@@ -23,11 +23,7 @@ git history preserves them).
   CHEBYSHEV COLLOCATION (Bocola's own design): `state_grid.py`,
   `decision_rules.py`, `point_map.py`, `collocation.py` (the Newton),
   `recursive_main.py` (time iteration, now only a warm start),
-  `recursive_experiment.py` (risk + TFP), `tpi_experiment.py` (the TPI backstop),
-  `gamma_rule.py` + `rule_homotopy.py` (the level-and-change backstop and its continuation
-  solver), `welfare.py` + `welfare_households.py` (welfare; VIVA §6). A grid built with
-  `build_state_box(..., sp_band=(lo, hi))` carries a 13th state, last quarter's spread
-  (`ISP`, `STATE_NAMES_LAG`); every 12-state rule set and script is unchanged
+  `recursive_experiment.py` (risk + TFP), `tpi_experiment.py` (the TPI backstop).
 - `reporting/` — `prints.py` (SS table), `plots.py` (figures)
 - `tests/` — regression suite
 
@@ -96,9 +92,6 @@ forward) are numba-JITed with an exact pure-numpy fallback (`cal["use_numba"]`).
 | `plots.py` | Every global figure; written to `plots.OUTDIR` (default `results/GLOBAL/figures/`, set by `run.py`). |
 | `reporting/export.py` [corrected 2026-10-26] | Writes `results/GLOBAL/data/comparison_irfs.json` for `compare.py` (the SSJ twin is `linear_ssj/reporting/export.py`). |
 | `run.py` (repo root) | THE PIPELINE: `compute_global` (SS → TFP → risk pass-through → decompositions → accuracy → TPI → save) and `plot_global` (figures from the saved data). `RUN_TPI = True` adds one solve (the coarse cap homotopy, then the refined grid); `TPI_CAP` sets the cap (bp/yr, or `"rest"` = defend the no-TPI rest-point spread, ~56 bp). The 12-state grid costs ~1.5x the old 10-state one. |
-| `solver_recursive/gamma_rule.py` | The level-and-change backstop (VIVA §6, 2026-10-08): holdings target θ = γ_L(sp − s̄) + γ_Δ(sp − sp_lag) as a share of the SS stock (sp in pp/yr), capped at θ̄ = 0.5, no sales, nothing bought in default. `tpi_rule = "gamma"`; the 14th unknown stores the PRE-MAX purchase share, purchases are its smoothed positive part. |
-| `solver_recursive/rule_homotopy.py` | Embeds a 12-state rule set in the 13-state grid (exact), and solves rule economies by continuation in the rule coefficients with a CHAIN-RULE Jacobian (`ChainJacobian`): each node's 20 residuals depend on the rest of the grid only through the 20 rules at its 10 next-period points, so 221 period-map calls per node replace 5000 per column. Same matrix as the finite difference to ~1e-6; ~40 s for 5000 unknowns on 6 workers. |
-| `solver_recursive/welfare.py`, `welfare_households.py` | Welfare: the linear Bellman operator for any flow on the collocation grid (V_X = log x + β̂ E V′), quiet-history and simulated welfare (fitted or exactly cleared, both regimes); the incomplete-markets households re-solved under the solved aggregate law of motion (a distributional overlay). **The grid-solved welfare of D is not accurate enough to quote** (see VIVA §6 accuracy and `results/WELFARE/`): report the exactly cleared Monte Carlo. |
 | `tests/` | Regression suite (see below). |
 
 ## Running and testing
@@ -117,9 +110,6 @@ python3 "Claude files/global_projection/tests/test_no_unbound_names.py"   # stat
 python3 "Claude files/global_projection/tests/test_collocation.py"        # THE SOLVER: packing, the six identity
                                                            #   residuals, the refined grid, and a real
                                                            #   d=0 solve to max|F| ~ 1e-9 (~90 s)
-python3 "Claude files/global_projection/tests/test_welfare_rule.py"      # VIVA §6: lagged-spread embedding exact (W1),
-                                                           #   purchase algebra (W2), welfare operator (W3),
-                                                           #   chain-rule Jacobian = FD (W4); ~2 min
 python3 "Claude files/global_projection/tests/test_recursive_nesting.py"  # SS rest point (N1), the pi=0 grid-wide
                                                            #   solve (N2), the TPI swap + risk transfer
                                                            #   (N3) and the union budget identity (N4)

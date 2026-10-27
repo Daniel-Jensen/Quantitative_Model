@@ -291,7 +291,7 @@ Task-specific references added 2026-10-26: `Claude files/docs/reference/global_s
 
 | File | Contains |
 |------|----------|
-| `Claude files/docs/STATE.md` | Current truth only: calibration status (paper vs code), the reference global solution, welfare results, SSJ live calibration and open issues. History to 2026-10-27 in `docs/shelved/STATE_archive_2026-10-27.md` |
+| `Claude files/docs/STATE.md` | Current truth only: calibration status (paper vs code), the reference global solution, SSJ live calibration and open issues. History to 2026-10-27 in `docs/shelved/STATE_archive_2026-10-27.md` |
 | `Claude files/docs/PROGRESS.md` | Changelog — dated development timeline (git history + findings); one entry per code commit (enforced by the two doc hooks; `core.hooksPath` is `.githooks` in this clone, checked 2026-10-26) |
 | `Claude files/docs/SPEC.md` | Research goals, functional requirements, modelling choices, calibration targets, **and the paper's theoretical framing/narrative** (merged in from the retired `docs/FRAMING_HANDOFF.md`) |
 | `Claude files/docs/eba_calibration.md` | **REBUILT 2026-07-31.** Identified EBA parameter→moment map (maturity ladder→`delta_b`, GK-eligible assets→`theta`, measured EAD→`omega_K`, Acharya–Steffen MTM), the **identification ledger** (identified / bounded / still-free / deliberately-rejected), and the **GK feasibility** finding (GK-1). The 2026-07-22 build is retained below it as history. |

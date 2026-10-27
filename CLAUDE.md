@@ -42,11 +42,12 @@ They share no model code and are calibrated differently; impulse magnitudes are 
 - `run.py`: the single entry point; holds the global pipeline's settings (grid, shocks, TPI).
   `compare.py`: the two solvers' IRFs side by side.
 - `global_projection/`: `blocks/` (economic blocks), `solver_recursive/` (collocation solver,
-  experiments, TPI, welfare), `reporting/`, `steady_state.py`.
+  experiments, TPI), `reporting/`, `steady_state.py`.
 - `linear_ssj/`: `model/` (equation files; `full_model.build_block_list()` is the single model
   definition), `solve/`, `reporting/`, `main.py`.
 - `Empirics/`: data work; `Empirics/outputs/` is read by code.
-- `results/<SSJ|GLOBAL|COMPARISON|POLICY|WELFARE>/`: git-ignored outputs.
+- `results/<SSJ|GLOBAL|COMPARISON>/`: git-ignored outputs (`POLICY/` and `WELFARE/` belong to
+  shelved work).
 - `Claude files/`: every AI-written doc, note, report and test, at the path it would otherwise
   have (model code stays in its packages even when Claude wrote it). Quote the space in shell
   commands.
@@ -80,7 +81,7 @@ They share no model code and are calibrated differently; impulse magnitudes are 
 - The deterministic steady state is not the stochastic rest point. Global IRFs start at the
   rest point and are differenced against an unshocked path.
 - μ = max{., 0} is kinked. Where μ is near zero at rest the fitted rules misstate it: report
-  the exactly cleared response beside the fitted one, and quote TPI and welfare numbers only
+  the exactly cleared response beside the fitted one, and quote backstop and welfare numbers only
   on exact clearing.
 - Diagnostic expectation on a pure risk shock: the D bond price, both banks' net worth and D
   output and consumption should fall; the lending spread, D debt and taxes should rise. A
