@@ -69,8 +69,9 @@ They share no model code and are calibrated differently; impulse magnitudes are 
   `build_block_list()`; rebuild the regime cache before running `experiments/`.
 - A commit that stages any `.py` updates STATE and PROGRESS in the same commit (hooks enforce
   it; once per clone run `git config core.hooksPath .githooks`). Update `TODO.md` when open
-  work changes (every item has an owner; a finished item is deleted there and recorded in
-  PROGRESS with date, author and PR or commit) and `DATA.md` when a data number or its script changes.
+  work changes (every item has an owner of the open task, [joint] unless clearly one author's;
+  a finished item is deleted there and recorded in PROGRESS with the date and PR or commit,
+  without attribution) and `DATA.md` when a data number or its script changes.
 - There is no handoff file. Session state goes into STATE (results), TODO (open work) and
   PROGRESS (what was done). Delete `docs/handoff/HANDOFF.md` if the handoff plugin recreates it.
 - STATE holds current truth only: replace superseded sections and move the old text, verbatim,

@@ -6,7 +6,8 @@ git history (135 commits, first commit 2026-05-14) and the project's living docu
 the detailed derivations live in STATE (and its archive) and `eba_calibration.md`; this file
 is the timeline.
 
-Convention: `[hash]` is a commit on `main`; dates are commit dates. Doc-sync
+Convention: `[hash]` is a commit on `main`; dates are commit dates. Entries record what changed
+and its economics, not who did it (git records authorship). Doc-sync
 policy: every commit that stages a `*.py` file gets an entry here and updates STATE.md.
 Enforced by `.claude/hooks/require-docs-before-commit.sh` (Claude Code commits)
 and `.githooks/pre-commit` (terminal commits; enable with
@@ -15,15 +16,16 @@ retired session-handoff file; its content is in git history.
 
 ---
 
-## 2026-10-27: Section 6 (welfare) removed from the viva draft (Adam; Overleaf `ff260e4`, repo `2cddb54`)
+## 2026-10-27: Section 6 (welfare) removed from the viva draft (Overleaf `ff260e4`, repo `2cddb54`)
 
 - The welfare section rested on the shelved level-versus-change backstop, computed on the old
   code calibration (union deposit clearing, leverage 5, 100 bp wedge), so none of its numbers
   described the paper's economy. It had already been commented out of the master file; its
   source and the welfare frontier figure are now deleted from Overleaf and kept in
   `Claude files/docs/shelved/viva_section6_welfare/`. The question is on TODO's long-term list.
-- TODO.md items now carry owners ([Adam], [Daniel], [joint]); completed items are deleted there
-  and recorded here with date, author and PR or commit.
+- TODO.md items now carry owners of the open task ([joint] by default, [Adam] or [Daniel] only
+  where clearly one author's); completed items are deleted there and recorded here with the date
+  and the PR or commit. This file does not attribute work; git records who changed what.
 
 ---
 

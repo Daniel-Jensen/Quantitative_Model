@@ -2,12 +2,13 @@
 
 The single list of open work. Sections 1-7 block the viva paper, in order; section 8 is the
 long-term agenda. Each item says what is open and why it matters; detail lives where linked.
-Every item carries an owner: [Adam], [Daniel] or [joint] (an authorial decision both must
-agree). Assignments to Daniel are proposals until he confirms them.
+Every item carries an owner: [joint] by default; [Adam] or [Daniel] only where the task is
+clearly one author's (his own calibration values, his own local setup or branch). The tag says
+who owns the open task, not who did earlier work.
 
 Completed work never stays here: delete the item and record it in
-`Claude files/docs/PROGRESS.md` with the date, the author and the PR or commit. Git records who
-changed what; PROGRESS adds the economics. Last revised 2026-10-27.
+`Claude files/docs/PROGRESS.md` with the date and the PR or commit. Git records who changed
+what; PROGRESS adds the economics. Last revised 2026-10-27.
 
 Symbols: `GLOSSARY.md`. Data provenance: `DATA.md`. Current results:
 `Claude files/docs/STATE.md`. The two audits cited below are
@@ -21,18 +22,18 @@ Every saved global result belongs to an economy the paper no longer describes (u
 clearing, leverage 5, a 100 bp wedge). Until this section is done the paper's model values stay
 [TBC]. Comparison table: STATE section 1.
 
-- [ ] [Adam] **National deposit clearing.** Each bank funded only by its own households
+- [ ] [joint] **National deposit clearing.** Each bank funded only by its own households
       (dep_X = P^c_X HA_X), replacing the union market with real deposit-rate parity. Open: the
       steady-state external balance is unspecified (p_bar, the terms of trade at rest, is not 1
       under the asymmetric calibration), and D banks' holdings of F bonds were never calibrated.
-- [ ] [Adam] **Paper calibration values** into `calibration/global_projection.py`: leverage 8, wedge
+- [ ] [joint] **Paper calibration values** into `calibration/global_projection.py`: leverage 8, wedge
       5 bp/yr, own-sovereign 14.4% / 6.5% of bank assets, foreign share 12.7%, size 11.3,
       rho_s 0.9 (hard-coded 0.95 in the grid builder), sigma_s 0.41, sigma 1.35, Frisch 0.5,
       home bias 0.68, trade elasticity 1.5, epsilon 11, G 0.204 / 0.191, delta_b 0.056 / 0.039,
       annual Bohn coefficient 0.04.
 - [ ] [joint] **The model's open issues (section 2) that change equations** must be settled first:
       reserves, the working-capital wedge, the default-branch domain, the backstop closure.
-- [ ] [Adam] **Solve the paper calibration (needs an explicit go-ahead; about 4-5 hours with the
+- [ ] [joint] **Solve the paper calibration (needs an explicit go-ahead; about 4-5 hours with the
       backstop).** Then check the kink risk: report fitted and exactly cleared output responses
       side by side; if mu (the multiplier on the bank constraint) is near zero at the rest
       point, the output response is not numerically identified (STATE section 2).
@@ -66,7 +67,7 @@ needs a decision or a justification.
 - [ ] [joint] **Reserves remunerated at the national deposit rate (choice).** A union central bank
       paying a country-specific rate; under national clearing r_D and r_F diverge in a crisis,
       so a union rate would give reserves an excess return.
-- [ ] [Adam] **Sign of the funding-risk effect (interpretation).** The paper says sovereign risk
+- [ ] [joint] **Sign of the funding-risk effect (interpretation).** The paper says sovereign risk
       tightens the constraint through E[Omega] (the bank's expected marginal value of wealth);
       the algebra says it relaxes it through the franchise value. Reverse the sentence and
       show the three margins (franchise value, leverage, deposit rate).
@@ -76,12 +77,12 @@ needs a decision or a justification.
       Omega(1) > Omega(0) (ratio 1.29) comes from the franchise value alone. The "risk premium"
       is a premium for leverage risk on bank balance sheets, not a precautionary premium on
       household consumption.
-- [ ] [Adam] **The credit spread is a near-cancellation (numerical).** It is the difference of two
+- [ ] [joint] **The credit spread is a near-cancellation (numerical).** It is the difference of two
       terms near 0.127 a quarter, so the accuracy of E[Omega] is first order for every priced
       number.
 
 **Firms**
-- [ ] [Adam] **Working-capital wedge (accounting error, priority 1).** The labour condition charges
+- [ ] [joint] **Working-capital wedge (accounting error, priority 1).** The labour condition charges
       w(1 + zeta r_wc), but the loan is inter-period; the consistent wedge is
       zeta (r_wc - r)/(1 + r), with zeta the pre-financed share of the wage bill. Correcting it
       removes the deposit-rate cushion: no-backstop impact output -0.069% to -0.174%, and the
@@ -89,13 +90,13 @@ needs a decision or a justification.
       surplus, or the goods market leaks about 0.17% of output.
 
 **Default**
-- [ ] [Adam] **Default branch off its solved domain (accounting error).** After default, D-bank
+- [ ] [joint] **Default branch off its solved domain (accounting error).** After default, D-bank
       holdings are 0.238 against a box floor of 0.690, so every value that prices expected loss
       is extrapolated. Fix with a stock-and-share state space and a friction normalised by the
       current stock, then choose the post-default fiscal rule.
 
 **The backstop and the central bank**
-- [ ] [Adam] **The backstop economy is not closed as written (omission).** D-bond clearing must
+- [ ] [joint] **The backstop economy is not closed as written (omission).** D-bond clearing must
       include Eurosystem holdings (b^D_D + b^D_F + M = B_D); the state must carry the book M and
       the reserve obligation O; the purchase rule needs its complementarity conditions.
 - [ ] [joint] **The backstop insures bank balance sheets against default; the text says it does not
@@ -107,38 +108,38 @@ needs a decision or a justification.
       income on historical cost. The capital-key split ignores the November 2012 Eurogroup
       commitment to return SMP income to Greece. The capital account is nearly shut by the
       untargeted psi (cross-border holding cost). Together these generate the transfer problem.
-- [ ] [Adam] **Government budget gives each treasury the whole profit (error); kappa (the capital
+- [ ] [joint] **Government budget gives each treasury the whole profit (error); kappa (the capital
       key) is never stated in the paper** (code 0.071; size share 0.081).
-- [ ] [Adam] **The floor at the corner** is met by pushing F holdings below their anchor, so required
+- [ ] [joint] **The floor at the corner** is met by pushing F holdings below their anchor, so required
       purchases depend on the untargeted psi.
 - [ ] [joint] **Unsupported claims:** flight to safety (nothing in the model produces it); under
       national clearing the total-spread cap now responds to r_D - r_F.
 
 **Implementation discrepancies (small)**
-- [ ] [Adam] Cross-border bond conditions omit p_t / p_{t+1}; F taxes are held fixed (a budget leak of
+- [ ] [joint] Cross-border bond conditions omit p_t / p_{t+1}; F taxes are held fixed (a budget leak of
       about 2e-4 of F output); gamma_tau (tax response to debt) is evaluated at the risk-free
       price (root 0.9294); the banker's discount factor omits the change in consumer prices.
 
 ## 3. The viva paper
 
-- [ ] [Adam] Fill every [TBC] once sections 1-2 are done: rest-point mu, rest-point and impact
+- [ ] [joint] Fill every [TBC] once sections 1-2 are done: rest-point mu, rest-point and impact
       sovereign spread, bank-held debt / GDP, bank assets / GDP, deposits / GDP, the
       post-default tax cut, beta_X, chi_X, Z_X, T_X.
-- [ ] [Daniel] Fill the \placeholder items: source for the idiosyncratic income process (0.9, 0.2);
+- [ ] [joint] Fill the \placeholder items: source for the idiosyncratic income process (0.9, 0.2);
       HFCS distributional moments; sensitivity of output to zeta; the reason for the payout
       share f = 0.08; the year of the relative-size ratio 11.3.
 - [ ] [Adam] Pull the local Overleaf clone before editing it; it lags Overleaf.
 
 ## 4. Global model, numerical
 
-- [ ] [Adam] `TPI_CAP = "rest"` (defend the no-backstop rest-point spread, about 56 bp) never run;
+- [ ] [joint] `TPI_CAP = "rest"` (defend the no-backstop rest-point spread, about 56 bp) never run;
       expect the corner almost everywhere.
 
 ## 5. Sequence-space (SSJ) model
 
-- [ ] [Adam] Regenerate E1-E4 and the `experiments/paper/` figures; all predate the structural
+- [ ] [joint] Regenerate E1-E4 and the `experiments/paper/` figures; all predate the structural
       refactor (order in STATE section 6).
-- [ ] [Adam] Delete `psi_lambda_B` (collateral-friction amplification dial) and the risk-sensitive
+- [ ] [joint] Delete `psi_lambda_B` (collateral-friction amplification dial) and the risk-sensitive
       branch of `collateral_quality_D/F`; add the name to the banned-names scan in
       `Claude files/linear_ssj/tests/test_nkpc_blocks.py`.
 
@@ -151,20 +152,20 @@ needs a decision or a justification.
       four missing modules of `Empirics/greek_cds/`, `data/bocola2016/` and the Greek bank
       balance sheets.
 - [ ] [Adam] Commit `Empirics/greek_fiscal/bohn.py` and `Empirics/greek_cds/risk_process.py`.
-- [ ] [Adam] Decide which derived outputs to track (`Empirics/outputs/` is git-ignored).
+- [ ] [joint] Decide which derived outputs to track (`Empirics/outputs/` is git-ignored).
 - [ ] [Adam] Update stale model constants: `risk_process.py` uses rho_s 0.95 and sigma_s 0.4455;
       `bohn.py` uses q_bar 0.91057 and debt root 0.93.
 - [ ] [Daniel] Record the sources and calculations behind his calibration values that have no
       script: G/Y 0.204 / 0.191, coupon decay 0.056 / 0.039, import share 32%, relative size 11.3
       (DATA.md section 4).
-- [ ] [Adam] Script the validation moments computed in chat sessions and never saved (deposits
+- [ ] [joint] Script the validation moments computed in chat sessions and never saved (deposits
       84% of GDP, bond-implied hazards, bank assets / GDP and the rest of DATA.md section 4).
-- [ ] [Adam] Reconcile lending spreads 290 / 180 bp (stored data: 280 / 176), the 108 bp overdraft
+- [ ] [joint] Reconcile lending spreads 290 / 180 bp (stored data: 280 / 176), the 108 bp overdraft
       rise (124), the 0.092% rest-point hazard (0.102%) and the 4.4-year duration.
 
 ## 7. Documentation
 
-- [ ] [Adam] Reconcile `Claude files/docs/SPEC.md` with the paper (last revised 2026-10-01).
+- [ ] [joint] Reconcile `Claude files/docs/SPEC.md` with the paper (last revised 2026-10-01).
 - [ ] [Adam] The handoff plugin (user-level Claude settings) writes `docs/handoff/HANDOFF.md` before
       compaction; disable it there or delete the file when it reappears.
 
