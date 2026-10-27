@@ -15,6 +15,18 @@ retired session-handoff file; its content is in git history.
 
 ---
 
+## 2026-10-27: Section 6 (welfare) removed from the viva draft (Adam; Overleaf `ff260e4`, repo `2cddb54`)
+
+- The welfare section rested on the shelved level-versus-change backstop, computed on the old
+  code calibration (union deposit clearing, leverage 5, 100 bp wedge), so none of its numbers
+  described the paper's economy. It had already been commented out of the master file; its
+  source and the welfare frontier figure are now deleted from Overleaf and kept in
+  `Claude files/docs/shelved/viva_section6_welfare/`. The question is on TODO's long-term list.
+- TODO.md items now carry owners ([Adam], [Daniel], [joint]); completed items are deleted there
+  and recorded here with date, author and PR or commit.
+
+---
+
 ## 2026-10-27: Living documents restructured; welfare and policy-rule work shelved (docs only, `docs-restructure`)
 
 - STATE.md cut from 2,925 to about 230 lines of current truth, global model first: the
