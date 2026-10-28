@@ -1,0 +1,31 @@
+=== test_ss_identities
+test_ss_identities: ALL PASSED
+=== test_fast_kernels
+test_fast_kernels: ALL PASSED
+=== test_state_grid
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/Huawei/Desktop/Quantitative_Model/Claude files/global_projection/tests/test_state_grid.py", line 56, in test_state_box_and_s_process
+    assert sp["rho_s"] == 0.95                                # Bocola param(22)
+           ^^^^^^^^^^^^^^^^^^^
+AssertionError
+=== test_no_unbound_names
+  32 modules scanned, no unbound names: PASSED
+  planted defect detected: PASSED
+test_no_unbound_names: ALL PASSED
+=== test_calibrate_stochastic
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/Huawei/Desktop/Quantitative_Model/Claude files/global_projection/tests/test_calibrate_stochastic.py", line 45, in test_c1_converges_to_known_root
+    assert m is not None and np.all(np.abs(m - t) <= CS.TOL), "did not converge"
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: did not converge
+=== test_cross_border
+    X1: p' up 1% moves res13 by +0.009287 (= g*payF), res9 by -0.009407 (= -g/(1+g)*payD)
+test_cross_border X1 (p'/p valuation): PASSED
+    X2: spreads D 15.0 / F 5.0 bp: max|res| = 3.3e-10 (without the references: res9 -2.4e-04, res13 +2.3e-04)
+test_cross_border X2 (unequal spreads rest point): PASSED
+=== test_post_default
+test_post_default P3 (two-set packing): PASSED
+    P4: copy() copies and re-links the post-default set
+test_post_default P4 (copy): PASSED
+    P5: at the 23 post-default nodes beyond the handover the seeded continuation equals the old edge read
+test_post_default P5 (seed): PASSED

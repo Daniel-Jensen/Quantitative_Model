@@ -1,0 +1,117 @@
+--- a/global_projection/solver_recursive/point_map.py
++++ b/global_projection/solver_recursive/point_map.py
+@@ -116,16 +116,20 @@
+     return v
+ 
+ 
+-def _tpi_floor(Q_bF, cal):
++def _tpi_floor(Q_bF, cal, s=None):
+     # THE TPI FLOOR: THE D BOND PRICE AT WHICH y_D - y_F EQUALS THE CAP.
+     db_D, db_F = cal["delta_b_D"], cal["delta_b_F"]
+-    return db_D / (db_D + db_F * (1.0 - Q_bF) / Q_bF + cal["tpi_cap_bp"] / 4e4)
++    cap = cal["tpi_cap_bp"] / 4e4
++    # EXPERIMENT: a warranted cap, the fundamental (expected-loss) spread at s plus the tolerance
++    if s is not None and "tpi_fund_s" in cal:
++        cap = cap + np.interp(s, cal["tpi_fund_s"], cal["tpi_fund_spread"])
++    return db_D / (db_D + db_F * (1.0 - Q_bF) / Q_bF + cap)
+ 
+ 
+ def _tpi_purchase_and_price(v, cal, ss):
+     # PURCHASE AND PRICE FROM ONE SMOOTH VARIABLE x (GARCIA-ZANGWILL).
+     v.tpi = bool(cal["tpi_on"])
+-    v.Q_floor = _tpi_floor(v.Q_bF, cal)
++    v.Q_floor = _tpi_floor(v.Q_bF, cal, v.s)
+     v.Q_bD_slot = v.Q_bD
+     B = cal["B_gov_D_ss"]
+     if v.tpi and not v.d_reg and cal["tpi_gz"]:
+@@ -161,9 +165,13 @@
+     v.Xi_D = v.surv * (db_D + (1.0 - db_D) * v.Q_bD)
+     v.Pi_cb = v.Xi_D * v.M_lag - v.O_lag
+     kD = cal["tpi_key_D"]
+-    v.Tax_F = ss["gs_F"]["Tax_ss"] - (1.0 - kD) * v.Pi_cb / (v.sz * v.p)
++    # EXPERIMENT: income kept nationally (kD) but losses shared at a separate key; equal keys nest
++    kL = cal.get("tpi_key_D_loss", kD)
++    gain = _smax(v.Pi_cb, 0.0, 1e-6)
++    v.Pi_D = kD * gain + kL * (v.Pi_cb - gain)
++    v.Tax_F = ss["gs_F"]["Tax_ss"] - (v.Pi_cb - v.Pi_D) / (v.sz * v.p)
+     v.coupon_D = cal["delta_b_D"] * v.B_D * v.surv
+-    v.new_D = (cal["G_D"] + v.coupon_D - v.Tax_D - kD * v.Pi_cb) / v.Q_bD
++    v.new_D = (cal["G_D"] + v.coupon_D - v.Tax_D - v.Pi_D) / v.Q_bD
+     v.Bp_D = (1.0 - cal["delta_b_D"]) * v.B_D * v.surv + v.new_D
+ 
+ 
+@@ -229,6 +237,24 @@
+     v.Op_cb = (1.0 + v.rdep_D) * v.Z_cb
+ 
+ 
++def _float_shift(v, cal):
++    # EXPERIMENT: DEFAULT RISK FALLS WITH THE PRIVATE FLOAT (COSTAIN-NUNO-THOMAS); phi = 0 NESTS.
++    phi = cal.get("phi_float", 0.0)
++    if phi == 0.0:
++        return 0.0
++    share = _smax(1.0 - v.M_cb_new / max(v.Bp_D, 1e-6), 0.05, 1e-3)
++    return phi * np.log(share)
++
++
++def _cnt_shift(pd, v, cal):
++    # EXPERIMENT: COSTAIN-NUNO-THOMAS ROLLOVER CHANNEL, LINEAR IN THE EUROSYSTEM'S SHARE; theta = 0 NESTS.
++    th = cal.get("theta_cnt", 0.0)
++    if th == 0.0 or pd == 0.0:
++        return pd
++    # the default probability falls by theta per unit of the debt share the Eurosystem holds
++    return float(_smax(pd - th * v.M_cb_new / max(v.Bp_D, 1e-6), 1e-5, 1e-6))
++
++
+ def _next_states(v, sproc, eps):
+     # THE NEXT-PERIOD STATE AT EACH s' QUADRATURE NODE.
+     Z_next = (1.0 - sproc["rho_z"]) * sproc["z_star"] + sproc["rho_z"] * v.Z_D
+@@ -265,7 +291,8 @@
+ def _continuation(v, cont, cal, sproc, n_gh, no_default):
+     # QUADRATURE WEIGHTS AND THE CONTINUATION IN EACH REGIME.
+     eps, wq = gh_nodes(n_gh)
+-    pd = 0.0 if no_default else float(default_prob(v.s))
++    pd = 0.0 if no_default else float(default_prob(v.s + _float_shift(v, cal)))
++    pd = _cnt_shift(pd, v, cal)
+     Sn, Z_next = _next_states(v, sproc, eps)
+     v.wgt = _regime_weights(wq, pd, v.reg)
+     v.R, v.RKD, v.RKF = [], [], []
+@@ -308,7 +335,7 @@
+     # divertable assets; the TPI claim counts at the bond's lambda, so a swap leaves them unchanged
+     lev_D = max(lKD * v.Q_D * v.Kp_D + lbDD * v.Q_bD * v.b_D_D_new
+                 + cal["lambda_bF_D"] * v.p * v.Q_bF * v.b_F_D_new
+-                + lKD * v.L_wc_D + lbDD * v.Z_cb, 1e-6)
++                + lKD * v.L_wc_D + cal.get("lambda_Z_D", lbDD) * v.Z_cb, 1e-6)
+     lev_F = max(lKF * v.Q_F * v.Kp_F + lbFF * v.Q_bF * v.b_F_F_new
+                 + cal["lambda_bD_F"] * v.Q_bD * (v.b_D_F_new / v.sz) / v.p
+                 + lKF * v.L_wc_F, 1e-6)
+--- a/global_projection/solver_recursive/recursive_experiment.py
++++ b/global_projection/solver_recursive/recursive_experiment.py
+@@ -101,7 +101,7 @@
+     box_kw = dict(BOX_KW)
+     # national deposits run without the TPI, so its book never moves; collapsing its band keeps
+     # the solve off corners (a full book, no cross-border deposit margin) with no equilibrium
+-    if cal.get("deposit_market", "union") == "national":
++    if cal.get("deposit_market", "union") == "national" and cal.get("national_m_band", True):
+         box_kw["m_band"] = NATIONAL_M_BAND
+     if rotate:
+         rot, centre, J, evs = p_block_rotation(ss, cal, sproc, mu=mu, mu_vec=mu_vec,
+@@ -156,7 +156,8 @@
+     # SWITCH THE TPI VARIABLE BETWEEN THE FB (SOLVE) AND GZ (READ) FORMS AT THE NODES.
+     x = rules.vals["x_cb"][0]
+     if gz:
+-        gap = (rules.vals["Q_bD"][0] - _tpi_floor(rules.vals["Q_bF"][0], cal)) / ss["Q_bD_ss"]
++        gap = (rules.vals["Q_bD"][0] - _tpi_floor(rules.vals["Q_bF"][0], cal,
++                                                  rules.grid.points[:, IS])) / ss["Q_bD_ss"]
+         x = np.where(x > gap, x, -np.maximum(gap, 0.0))
+     else:
+         x = np.maximum(x, 0.0)
+@@ -263,8 +264,7 @@
+     # SOLVE EVERY REGIME BY GLOBAL COLLOCATION (BOCOLA'S LADDER).
+     nreg = 2
+     # under national deposits TPI purchases barely move the D bond price, so the cap cannot be held
+-    assert not (cal["tpi_on"] and cal.get("deposit_market", "union") == "national"), \
+-        "the TPI needs deposit_market = 'union'"
++    # EXPERIMENT (worktree only): the national-TPI assert is lifted
+     rules, box = _build_rules(cal, ss, sproc, mu, mu_vec, rotate, nreg, verbose)
+     D_REG = 1  # the regime index is the default indicator
+     tpi = bool(cal["tpi_on"])

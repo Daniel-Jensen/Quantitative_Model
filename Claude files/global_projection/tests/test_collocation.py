@@ -7,15 +7,13 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
 
 from common import get_ss                                             # noqa: E402
-from global_projection.solver_recursive.state_grid import (build_state_box, s_process_params,  # noqa: E402
-                                         IS)
+from global_projection.solver_recursive.state_grid import s_process_params, IS  # noqa: E402
 from global_projection.solver_recursive.decision_rules import RuleSet, STORE_RULES, SOLVE  # noqa: E402
 from global_projection.solver_recursive.recursive_main import (calibrate_household_anchors,  # noqa: E402
                                              ss_state, ss_x, time_iteration)
 from global_projection.solver_recursive.point_map import point_residuals                # noqa: E402
 from global_projection.solver_recursive import collocation as C                         # noqa: E402
-
-BOX = dict(k_band=0.02, p_band_D=0.04, p_band_F=0.04, b_band=0.12, w_band=0.04)
+from global_projection.solver_recursive.recursive_experiment import normal_box            # noqa: E402
 
 
 def _setup(refine=None, n_regimes=2):
@@ -23,7 +21,7 @@ def _setup(refine=None, n_regimes=2):
     cal["nw_floor_frac"] = 0.15
     sproc = s_process_params(cal)
     calibrate_household_anchors(cal, ss, sproc)
-    grid = build_state_box(ss, cal, mu=1, refine=refine, **BOX)
+    grid = normal_box(ss, cal, mu=1, refine=refine)
     rules = RuleSet.from_ss(grid, ss, cal, n_regimes=n_regimes)
     rules.n_gh = 5
     return cal, ss, sproc, rules
@@ -37,12 +35,25 @@ def test_pack_roundtrip():
     regimes = tuple(range(rules.n_regimes))
     theta = C.pack(rules, regimes)
     assert theta.size == len(STORE_RULES) * len(regimes) * rules.grid.n
-    back = C.unpack(theta, rules, regimes)
+    back = C.unpack(theta, rules, regimes)[0]
     for k in STORE_RULES:
         for d in regimes:
             assert np.allclose(back[k][d], rules.vals[k][d], rtol=0, atol=1e-12), k
     print("  pack/unpack round-trip exact over "
           f"{theta.size} unknowns: PASSED")
+
+
+def test_lm_fallback_rescues_a_failed_line_search():
+    # WITH EVERY NEWTON LINE SEARCH FORCED TO FAIL, THE LEVENBERG-MARQUARDT FALLBACK MUST STILL CONVERGE.
+    F = lambda x: np.array([x[0] ** 2 + x[1] - 3.0, x[0] - x[1] ** 3 + 1.0])
+    real = C._line_search
+    C._line_search = lambda F_, x, dx, gap, cc, bt: (x, F_(x), gap, 0.0)
+    try:
+        x, ok, its, worst = C.parsolve(F, np.array([0.5, 0.5]), tol=1e-26, maxcount=80, verbose=False)
+    finally:
+        C._line_search = real
+    assert ok and worst < 1e-12, (ok, worst)
+    print(f"  LM fallback alone converges a 2x2 system in {its} steps (max|F| {worst:.1e}): PASSED")
 
 
 def test_identity_residuals_are_the_readoffs():
@@ -104,6 +115,7 @@ def test_refined_grid_is_square_and_exact():
 
 
 if __name__ == "__main__":
+    test_lm_fallback_rescues_a_failed_line_search()
     test_pack_roundtrip()
     test_identity_residuals_are_the_readoffs()
     test_refined_grid_is_square_and_exact()

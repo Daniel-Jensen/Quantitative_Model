@@ -2469,6 +2469,48 @@ the committed calibration with a Prony / companion-eigenvalue extractor
 
 # Part II — Global-projection pipeline (`global_projection/`)
 
+> **2026-10-26, branch `calibration`: APPENDIX B PORTED; THE COARSE SOLVE DOES NOT CONVERGE AT IT.** Full write-up:
+> `Claude files/reports/appendix_B_validation_2026-10-26.md`; drivers and logs in
+> `Claude files/diagnostics/tex_calibration/`.
+> - **Calibration now (appendix B):** σ 1.35, Frisch 0.5, ε 11, κ 11.3, ϖ_D 0.68, η 1.5, β_int = 1/(1+r),
+>   foreign share of D debt 0.127, wedge 5 bp (rest-point target and starting instrument), ρ_s 0.9 (now a
+>   calibration key), σ_s 0.41, p^d at rest 0.10%, G 0.204/0.191, δ_b^F 0.039, Bohn 4γ_τ = 0.04 (`bohn_annual`,
+>   the primitive; `debt_root` removed), and genuine conditions: `mu_eps`, `book_eps` and the new `floor_eps` are
+>   all 0, solved through working smoothings (`recursive_experiment.HARD_WORK`) and then a hard polish.
+>   S_COVER_SD 3.65.
+> - **Values replaced** (as of 2026-10-25): σ 1.0, Frisch 2.0, ε 6, size_F 8, ϖ_D 0.85, η 0.5,
+>   β_int 0.997, foreign_share_D 0.20, srp_spread and credit_spread_target 0.0025 (100 bp), ρ_s 0.95
+>   (hard-coded in `s_process_params`), σ_s 0.4455, pd_rest 0.0002, G 0, δ_b^F 0.056, debt_root 0.93,
+>   mu_eps 1e-2, book_eps 1e-4, floor smoothing 1e-3 (hard-coded), S_COVER_SD 2.75.
+> - **Bug fixed (E1):** F taxes are now G_F + δ_F·B̄_F·(1 − q_F,t) (minus the remittance, plus the top-up). The
+>   constant Tax_F_ss leaked δ_F·B̄_F·(q_F − q̄_F) into the F goods market: −1.2e-5 at rest and −3.7e-5 at the 2%
+>   shock on the 2026-10-24 run, against the 2e-6 threshold. This was the "fixed-F-treasury" term below; N4 no
+>   longer subtracts it.
+> - **The SS solves** and reproduces the appendix's closed forms (λ 0.12658, ω 0.00954, μ̄ 0.0010, φ̄ 1.0126,
+>   q̄ 0.9471, duration 4.24 y, debt root 0.99257).
+> - **The coarse d0 stage (π = 0) does not cold-start** at this calibration with any ladder setting tried: warm
+>   sweeps diverge (μ > f at the box edges makes the α recursion expansive); without them LM stalls at ~5e-3.
+>   One at a time from the old calibration, G, Bohn, ϖ_D and η each break the cold start alone.
+>   A continuation path with SS-relative seeding (`diag_path.py`) reaches the household, markup, size+η and
+>   foreign-share values exactly, home bias at a 6.0e-8 floor, and then breaks at 0.19 of the δ_b^F move (no rung below 1e-7); G, Bohn, banker β and the wedge are never reached. At that floor the
+>   central-difference Jacobian has cond 1.5e10 and Newton gives no descent: a near-fold of the coarse system,
+>   not an FD artifact. Halving the bank-stock bands makes it worse (8.4e-5).
+> - **Tests at the ported calibration:** ss_identities, fast_kernels, state_grid, no_unbound_names,
+>   calibrate_stochastic, cross_border, post_default and nesting N1/N3/N4/N5 pass. test_collocation's real
+>   solve (2.75e-6) and N2 (4.1e-5) fail; both failed before as well (7.7e-4, 6.7e-6).
+> - **`python3 run.py global` will not converge at this calibration.** For the old economy, restore the replaced
+>   values above.
+> - **2026-10-27/28, Tier 2 (your decision):** `run.NW_FLOOR` 0.15 → 0.5 (funded recapitalisation floor in default;
+>   the standalone mains of recursive_experiment/decomposition_experiment now read run.NW_FLOOR) and `bohn_annual`
+>   0.04 → 0.06 (root 0.987).
+>   - **d0:** a cold start still fails. A reordered continuation reaches the full appendix at ≤ 2e-6 (flagged).
+>   - **Risk solve:** the coarse risk solve converges through the haircut ladder. The joint stalls at ~1e-5, with
+>     box-dependent rest points (k_band 0.03 slack; 0.04 binding: μ_D 0.013, loan spread 72 bp, leverage 7.55,
+>     sovereign spread 59 bp).
+>   - **Signs:** at the 0.04 box the 2% shock gives Q_bD −10%, n_D −16%, Y_D −0.13%, lending spread +175 bp
+>     (correct signs; C_D +0.28% exact). α′ in default is ~1.57 (vs ~7 at 15%).
+>   - See the report's follow-up section.
+
 > **2026-10-01, branch `OMT-fix`: the LTRO backstop is DELETED; a TPI replaces it.** The
 > regime table is back to the default indicator d' in {0, 1}; `phi_ltro`, `ltro_D/F`,
 > `ltro_experiment.py` and the facility terms in the incentive constraint are gone. Verified

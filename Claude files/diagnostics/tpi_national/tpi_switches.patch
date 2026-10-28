@@ -1,0 +1,61 @@
+diff --git a/global_projection/solver_recursive/point_map.py b/global_projection/solver_recursive/point_map.py
+index a3dcf2a..e4d0ad0 100644
+--- a/global_projection/solver_recursive/point_map.py
++++ b/global_projection/solver_recursive/point_map.py
+@@ -229,6 +229,15 @@ def _balance_sheets(v, cont, cal):
+     v.Op_cb = (1.0 + v.rdep_D) * v.Z_cb
+ 
+ 
++def _float_shift(v, cal):
++    # EXPERIMENT: DEFAULT RISK FALLS WITH THE PRIVATE FLOAT (COSTAIN-NUNO-THOMAS); phi = 0 NESTS.
++    phi = cal.get("phi_float", 0.0)
++    if phi == 0.0:
++        return 0.0
++    share = _smax(1.0 - v.M_cb_new / max(v.Bp_D, 1e-6), 0.05, 1e-3)
++    return phi * np.log(share)
++
++
+ def _next_states(v, sproc, eps):
+     # THE NEXT-PERIOD STATE AT EACH s' QUADRATURE NODE.
+     Z_next = (1.0 - sproc["rho_z"]) * sproc["z_star"] + sproc["rho_z"] * v.Z_D
+@@ -265,7 +274,7 @@ def _regime_continuation(v, j, Sn, Z_next, cont, cal):
+ def _continuation(v, cont, cal, sproc, n_gh, no_default):
+     # QUADRATURE WEIGHTS AND THE CONTINUATION IN EACH REGIME.
+     eps, wq = gh_nodes(n_gh)
+-    pd = 0.0 if no_default else float(default_prob(v.s))
++    pd = 0.0 if no_default else float(default_prob(v.s + _float_shift(v, cal)))
+     Sn, Z_next = _next_states(v, sproc, eps)
+     v.wgt = _regime_weights(wq, pd, v.reg)
+     v.R, v.RKD, v.RKF = [], [], []
+@@ -308,7 +317,7 @@ def _incentive_constraint(v, cal):
+     # divertable assets; the TPI claim counts at the bond's lambda, so a swap leaves them unchanged
+     lev_D = max(lKD * v.Q_D * v.Kp_D + lbDD * v.Q_bD * v.b_D_D_new
+                 + cal["lambda_bF_D"] * v.p * v.Q_bF * v.b_F_D_new
+-                + lKD * v.L_wc_D + lbDD * v.Z_cb, 1e-6)
++                + lKD * v.L_wc_D + cal.get("lambda_Z_D", lbDD) * v.Z_cb, 1e-6)
+     lev_F = max(lKF * v.Q_F * v.Kp_F + lbFF * v.Q_bF * v.b_F_F_new
+                 + cal["lambda_bD_F"] * v.Q_bD * (v.b_D_F_new / v.sz) / v.p
+                 + lKF * v.L_wc_F, 1e-6)
+diff --git a/global_projection/solver_recursive/recursive_experiment.py b/global_projection/solver_recursive/recursive_experiment.py
+index 049deec..67c8902 100644
+--- a/global_projection/solver_recursive/recursive_experiment.py
++++ b/global_projection/solver_recursive/recursive_experiment.py
+@@ -101,7 +101,7 @@ def _build_rules(cal, ss, sproc, mu, mu_vec, rotate, nreg, verbose):
+     box_kw = dict(BOX_KW)
+     # national deposits run without the TPI, so its book never moves; collapsing its band keeps
+     # the solve off corners (a full book, no cross-border deposit margin) with no equilibrium
+-    if cal.get("deposit_market", "union") == "national":
++    if cal.get("deposit_market", "union") == "national" and cal.get("national_m_band", True):
+         box_kw["m_band"] = NATIONAL_M_BAND
+     if rotate:
+         rot, centre, J, evs = p_block_rotation(ss, cal, sproc, mu=mu, mu_vec=mu_vec,
+@@ -263,8 +263,7 @@ def solve_recursive(cal, ss, sproc, mu=1, verbose=True, mu_vec=None, rotate=Fals
+     # SOLVE EVERY REGIME BY GLOBAL COLLOCATION (BOCOLA'S LADDER).
+     nreg = 2
+     # under national deposits TPI purchases barely move the D bond price, so the cap cannot be held
+-    assert not (cal["tpi_on"] and cal.get("deposit_market", "union") == "national"), \
+-        "the TPI needs deposit_market = 'union'"
++    # EXPERIMENT (worktree only): the national-TPI assert is lifted
+     rules, box = _build_rules(cal, ss, sproc, mu, mu_vec, rotate, nreg, verbose)
+     D_REG = 1  # the regime index is the default indicator
+     tpi = bool(cal["tpi_on"])

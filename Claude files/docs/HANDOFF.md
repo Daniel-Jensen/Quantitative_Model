@@ -1,5 +1,14 @@
 # Handoff Notes
 
+## Where things are now — 2026-10-26 (branch `calibration`)
+
+**The global calibration is appendix B (`B-calibration.tex`) since 2026-10-26, and the coarse global solve does
+NOT converge at it** (d0 near-fold; see STATE.md Part II, 2026-10-26, and
+`Claude files/reports/appendix_B_validation_2026-10-26.md`). `python3 run.py global` will stall at the first rung.
+Tier 2 is in (2026-10-27/28: 50% floor, Bohn 0.06). It fixes the risk-channel sign, but the coarse joint solve still stalls (~1e-5) with box-dependent rest points. The open decision is the method-level Tier 1 (analytic Jacobian, K_F handling, two-box design).
+The continuation drivers are in `Claude files/diagnostics/tex_calibration/`
+(`diag_path.py` resumes from its checkpoints in `runs/`).
+
 ## Where things are now — 2026-10-01
 
 **2026-10-06, `hh-budget-fix`:** households now receive the working-capital flow instead of the
@@ -792,3 +801,30 @@ points on γ ∈ [0.51, 30.00], above 1 throughout). **Live Claim 1 survives**
 
 Base env has a broken `liblapack` symlink. Each Jacobian solve at current
 calibration (T=500) takes ~3 min.
+
+Moved from CLAUDE.md on 2026-10-22 (text unchanged):
+
+## Branch convention
+
+- `bocola-rewrite` — the global-projection working branch (Bocola-faithful trim,
+  2026-07-16); merged with `main` so both solvers coexist.
+- `add-nkpc` — the sequence-space working branch. Sticky prices + nominal deposit
+  contracts (Tasks 1–16, 2026-08-05/06).
+- `main` — merge target. Contains the six structural fixes (W-1, W-2, W-3, T-2, A-2,
+  TPI-1, PR #27), the modular-file reorganisation (PR #28), and the sticky-price /
+  nominal-deposit merge.
+- `global` — pre-rewrite snapshot (CK zones, always-binding IC).
+- `audit` / `AB-audit` — historical audit branches. `AB-audit` was merged into `main`
+  (PR #27); `audit` (PR #26) was closed as superseded. Do not reuse.
+- `bank-cal` — old calibration branch predating structural fixes. **Do not merge.**
+  Port calibration values only (see `Claude files/docs/bank_cal_review.md`).
+
+## History
+
+The `global_projection/` model was built in July 2026 as a standalone Bocola-faithful
+replacement for the sequence-space code. **It did not replace it.** Both are live:
+the sequence-space pipeline carries the sticky-price / nominal-deposit model, the
+`experiments/` results set (E1–E4) and the paper's current figures; the global
+pipeline carries the nonlinear occasionally-binding solution. The SSJ-era audit
+trail (six structural fixes W-1…TPI-1, Walras forensics) lives in `Claude files/docs/audit.md`,
+`Claude files/docs/walras_forensics.md` and `Claude files/docs/verification_report.md`.

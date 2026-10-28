@@ -235,7 +235,7 @@ def sovereign_spread_legs(o, cal):
     # removed, y(q/leg) - y(q). Legs are NOT additive in yield (y is convex in q), so
     # they are reported as removals rather than as a partition.
     # EACH BOND IS DISCOUNTED AT ITS OWN DEPOSIT RATE. rdep_D and rdep_F coincide at the
-    # symmetric steady state but diverge under the shock through deposit-UIP, and using
+    # steady state but diverge under the shock through deposit-UIP, and using
     # the D rate for the F bond puts that divergence into the F liquidity leg.
     RD, RF = 1.0 + o["rdep_D"], 1.0 + o["rdep_F"]
     D = {"continuation": o["E_payD_nodef"] / RD,

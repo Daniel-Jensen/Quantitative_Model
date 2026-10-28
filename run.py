@@ -40,15 +40,15 @@ QUICK = False  # True: the coarse grid only, a quick preview (not converged); --
 SSJ_PYTHON = os.environ.get("SSJ_PYTHON", "/opt/anaconda3/envs/ssj/bin/python")
 
 # global model settings; its parameters live in calibration/global_projection.py
-NW_FLOOR = 0.15  # Bocola's net-worth floor, as a share of n_ss
+NW_FLOOR = 0.5  # the funded recapitalisation floor in default, a share of n_ss (Bocola's 0.15 until 2026-10-26)
 MU = 1  # Smolyak level of the TFP grid
 RISK_MU_VEC = None  # per-state Smolyak levels for the risk grid; None = mu 1
-S_REFINE = 5  # dense nodes in s: 5 = 115 points (converged), 9 = Bocola's, 0 = coarse only
+S_REFINE = 9  # nodes in s: 9 = Bocola's (75 points with recursive_experiment.S_REFINE_MODE "cross"), 5, 0 = coarse only
 ROTATE_P = False  # eigenbasis box for P: off, it measures worse
 ACCURACY_T = 1200  # simulated periods for the Euler-error report
 DECOMP_T = 25  # quarters in the decompositions
 TFP_SHOCK = 0.01  # one-off TFP shock to Z_D, decaying at rho_z = 0.9
-RISK_SHOCK_PD = 0.02  # one-off risk shock: p^d jumps from 0.10% to this per quarter, then decays
+RISK_SHOCK_PD = 0.02  # one-off risk shock: p^d jumps from its rest value (cal["pd_rest"]) to this per quarter, then decays
 RUN_TPI = True  # solve the TPI and compare it with no TPI
 TPI_CAP = 200.0  # TPI spread cap, bp/yr; "rest" = defend the no-TPI rest-point spread (~56 bp)
 
@@ -68,9 +68,12 @@ def compute_global(quick=False):
         simulate, s_decay_path, decompose_output, active_channels, decompose_bond_price,
         BOND_CHANNELS)
     from global_projection.solver_recursive.accuracy import accuracy_report
+    from global_projection.solver_recursive.calibrate_stochastic import (
+        rest_point_read, rest_point_moments, calibration_values)
     from global_projection.reporting.prints import (banner, print_ss_table,
                                                     print_output_decomposition,
-                                                    print_bond_decomposition)
+                                                    print_bond_decomposition,
+                                                    print_calibration_table)
     from global_projection.reporting.export import export_irfs
     from global_projection.solver_recursive import tpi_experiment
     from global_projection.reporting.prints import print_tpi_report
@@ -108,6 +111,13 @@ def compute_global(quick=False):
         persistence = persistence_irf(rules, cal, ss, sproc, pd_shock=RISK_SHOCK_PD)
         risk = dynamic_irf(rules, cal, ss, sproc, pd_shock=RISK_SHOCK_PD, T=25)
 
+        # 3b. the calibration table: every target and validation moment at the rest point
+        banner("Calibration table — data against the stochastic rest point")
+        _, o_rest = rest_point_read(rules, cal, ss, sproc)
+        srp_moments = rest_point_moments(o_rest)
+        calib = calibration_values(o_rest, cal, sproc, risk)
+        print_calibration_table(calib, srp_moments, cal)
+
         # 4. decompositions of the same shock
         banner("Decompositions — which channels produce the response")
         s_path = s_decay_path(sproc, s_from_pd(RISK_SHOCK_PD), DECOMP_T)
@@ -134,6 +144,7 @@ def compute_global(quick=False):
         save(data / "rest_point", dict(zip(STATE_NAMES, S_rest)))
         save(data / "persistence_irf", persistence)
         save(data / "risk_irf", risk)
+        save(data / "calibration_table", dict(values=calib, moments=srp_moments))
         save(data / "output_decomposition", output_dec)
         save(data / "bond_decomposition", bond_dec)
         save(data / "accuracy", accuracy)
@@ -163,6 +174,7 @@ def compute_global(quick=False):
 def plot_global():
     """Every GLOBAL figure, drawn from results/GLOBAL/data into results/GLOBAL/figures."""
     from global_projection.reporting import plots
+    from global_projection.reporting.export import export_calibration_tex
     from global_projection.reporting.prints import banner
     from global_projection.solver_recursive.output_decomposition import (active_channels,
                                                                          BOND_CHANNELS)
@@ -191,6 +203,9 @@ def plot_global():
             tpi = load(data / "tpi")
             paths += [plots.plot_tpi_irf(tpi, note=shock),
                       plots.plot_tpi_mechanism(tpi, list(BOND_CHANNELS))]
+        # the paper's calibration table, filled from the saved rest-point moments
+        paths.append(export_calibration_tex(load(data / "calibration_table")["values"],
+                                            str(figures / "calibration_table.tex")))
         for p in paths:
             print(f"  figure -> {p}")
 

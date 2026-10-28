@@ -14,6 +14,38 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-10-27/28: Tier 2, 50% recapitalisation floor and Bohn 0.06 (`calibration`)
+
+- **Code:**
+  - `run.NW_FLOOR` 0.5;
+  - `calibration.bohn_annual` 0.06;
+  - the standalone mains of recursive_experiment and decomposition_experiment read `run.NW_FLOOR` instead of a copied 0.15.
+- **Result:** the risk channel's sign is right at the binding rest point (lending spread +175 bp, Y_D −0.13% at
+  p^d 2%). But the coarse joint system stalls at ~1e-5 with box-dependent rest points: indicative, not accepted.
+  Details: `Claude files/reports/appendix_B_validation_2026-10-26.md`, follow-up section.
+
+## 2026-10-26: Appendix B ported to the global model; F-tax leak fixed; genuine KKT conditions (`calibration`)
+
+- **Validation** of `B-calibration.tex` against the global solver: ~15 parameters differed (wedge 100 vs 5 bp,
+  ρ_s 0.95 vs 0.9, η 0.5 vs 1.5, κ 8 vs 11.3, G 0 vs 0.2, Bohn root 0.93 vs 4γ = 0.04, …). Every equation
+  matches the model text except: E1 (F taxes; fixed), the smoothed KKT switch (now hard), the union vs
+  national deposit market, the RA dynamic household, the unlisted 15% floor. Report:
+  `Claude files/reports/appendix_B_validation_2026-10-26.md`.
+- **Code:**
+  - `point_map._government`: F taxes close F's budget at today's price (the constant leaked into goods_F, the F goods-market residual);
+  - `point_map._funded_floor` reads `floor_eps`;
+  - `state_grid.s_process_params` reads `rho_s`; S_COVER_SD 3.65;
+  - `government.govt_steady_state` takes the Bohn coefficient as the primitive (`bohn_annual`);
+  - `recursive_experiment`: `HARD_WORK`, `_soften`, `_hard_polish` (genuine IC max, book pairs and floor, after
+    every stage ran at working smoothings), called from `solve_recursive` and `solve_no_default`;
+  - `calibrate_stochastic.PAIRS` spread bounds from 1 bp;
+  - the calibration ported (old values in STATE.md Part II, 2026-10-26).
+- **Tests:** state_grid/ss_identities tied to the calibration; N4 drops the fixed-F-treasury term. Fast tests and
+  N1/N3/N4/N5 pass; test_collocation's real solve and N2 still fail (they failed before too).
+- **Solvability:** the SS solves (closed forms exact); the coarse d0 stage does not cold-start at appendix B.
+  A continuation path breaks at 0.19 of the δ_b^F move (floor > 1e-7, near-fold, cond 1.5e10). Details in
+  STATE.md and the report.
+
 ## 2026-10-06: Household budget, the working-capital flow replaces the constant anchor (`hh-budget-fix`)
 
 - **The flaw** (found 2026-10-02 by the F goods-market check): the household's claim on its

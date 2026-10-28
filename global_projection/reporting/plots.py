@@ -291,11 +291,29 @@ def _paper_axes(ax, title, ylabel, zero=True):
         ax.axhline(0.0, color="#B0B0B0", lw=0.7, zorder=1)
 
 
+WALL_SHADE = "#DCDCDC"
+
+
+def _first_wall(*paths):
+    # THE FIRST QUARTER ANY PATH READ ITS STATE AT THE BOX EDGE (dynamic_irf's at_wall), OR NONE.
+    hits = [int(np.flatnonzero(np.asarray(p["at_wall"], dtype=float) > 0)[0]) for p in paths
+            if "at_wall" in p and np.any(np.asarray(p["at_wall"], dtype=float) > 0)]
+    return min(hits) if hits else None
+
+
+def _shade_wall(ax, wall, q_end, label):
+    # GREY FROM THE FIRST BOX-EDGE QUARTER ON: BEYOND IT THE PATH IS THE BOX'S, NOT THE MODEL'S.
+    if wall is not None:
+        ax.axvspan(wall - 0.5, q_end, color=WALL_SHADE, lw=0, zorder=0,
+                   label="state at the box edge" if label else None)
+
+
 def _paper_irf(path, filename):
     # THE FIVE-PANEL COUNTRY-PAIR IRF FIGURE, shared by the risk and TFP experiments.
     # Both experiments record the same five series per country, so one panel spec draws
     # both figures and the two are read against each other panel by panel.
     q = np.arange(len(path["Y"]))
+    wall = _first_wall(path)
     with plt.rc_context(PAPER_RC):
         fig, axes = plt.subplots(2, 3, figsize=(13.2, 7.0), layout="constrained")
         flat = axes.ravel()
@@ -307,6 +325,7 @@ def _paper_irf(path, filename):
                     continue
                 ax.plot(q, scale * np.asarray(path[key], dtype=float), color=colour,
                         ls=ls, lw=1.5, label=lab, zorder=3)
+            _shade_wall(ax, wall, q[-1], i == 0)
             _paper_axes(ax, f"({chr(97 + i)}) {title}", ylab,
                         zero="deviation" in ylab)
             ax.set_xlim(q[0], q[-1])
@@ -352,6 +371,7 @@ def plot_tpi_irf(res, filename="tpi_irf.png", note=""):
     # scheme: the caption carries it).
     cap = float(res["cap_bp"])
     q = np.arange(len(res["irf_on"]["Y"]))
+    wall = _first_wall(*(res[run] for run, *_ in TPI_RUNS))
     with plt.rc_context(PAPER_RC):
         fig, axes = plt.subplots(3, 3, figsize=(13.2, 10.2), layout="constrained")
         flat = axes.ravel()
@@ -360,6 +380,7 @@ def plot_tpi_irf(res, filename="tpi_irf.png", note=""):
             for run, colour, ls, lab in TPI_RUNS:
                 ax.plot(q, np.asarray(res[run][key], dtype=float), color=colour, ls=ls,
                         lw=1.8, label=lab, zorder=3)
+            _shade_wall(ax, wall, q[-1], i == 0)
             if key == "sov_bp":
                 ax.axhline(cap, color=INK_MUTED, lw=0.9, ls=":", zorder=2)
                 ax.annotate(f"cap {cap:.0f} bp", (q[-1], cap), xytext=(0, 4),

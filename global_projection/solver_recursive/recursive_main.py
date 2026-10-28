@@ -25,8 +25,9 @@ def ss_state(ss, cal, sproc):
     # two banks' carried holdings of the D sovereign and b_FD is the D bank's carried
     # holding of the F sovereign (both splits endogenous); V_dep is the carried
     # cross-border deposit position W_D - P_D, the margin national clearing suppressed.
-    # It is ZERO at the symmetric SS, where each household's claim equals its own bank's
-    # obligation. The TPI book M_cb/O_cb is empty at the SS, whether or not the TPI is on.
+    # It is ZERO at the SS (deposit-UIP's premium admits no other rest point), where each
+    # household's claim equals its own bank's obligation. The TPI book M_cb/O_cb is empty
+    # at the SS, whether or not the TPI is on.
     b_DF = cal["b_D_F_ss"]
     return np.array([ss["Kap_D_ss"], ss["Kap_F_ss"],
                      ss["ss_bank_D"]["P_state_ss"], ss["ss_bank_F"]["P_state_ss"],

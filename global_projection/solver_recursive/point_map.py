@@ -159,10 +159,53 @@ def _government(v, cal, ss):
     v.Xi_D = v.surv * (db_D + (1.0 - db_D) * v.Q_bD)
     v.Pi_cb = v.Xi_D * v.M_lag - v.O_lag
     kD = cal["tpi_key_D"]
-    v.Tax_F = ss["gs_F"]["Tax_ss"] - (1.0 - kD) * v.Pi_cb / (v.sz * v.p)
+    # F's stock is fixed, so its taxes close its budget at today's price: a constant Tax_F_ss leaked
+    # delta_b_F*B_F*(Q_bF - Q_bF_ss) into the F goods market (2026-10-26)
+    v.Tax_F = (cal["G_F"] + cal["delta_b_F"] * cal["B_gov_F_ss"] * (1.0 - v.Q_bF)
+               - (1.0 - kD) * v.Pi_cb / (v.sz * v.p))
     v.coupon_D = cal["delta_b_D"] * v.B_D * v.surv
     v.new_D = (cal["G_D"] + v.coupon_D - v.Tax_D - kD * v.Pi_cb) / v.Q_bD
     v.Bp_D = (1.0 - cal["delta_b_D"]) * v.B_D * v.surv + v.new_D
+
+
+def _d_book(v, cal):
+    # THE D BANK'S SOVEREIGN BOOK, END-OF-PERIOD ASSETS AND NET WORTH FROM THE D DEBT STOCK Bp_D.
+    b_DD = v.Bp_D - v.b_D_F_new - v.M_cb_new
+    # with the TPI on, clearing is exact: b_DD = 0 is a genuine corner
+    v.b_D_D_new = b_DD if v.tpi else _smax(b_DD, 1e-4, 1e-5)
+    v.assets_D = (v.Q_D * v.Kp_D + v.Q_bD * v.b_D_D_new + v.p * v.Q_bF * v.b_F_D_new
+                  + v.L_wc_D + v.Z_cb)
+    v.n_D = (1.0 - cal["f_D"]) * v.ng_D + cal["omega_ent_D"] * v.assets_D
+
+
+# fixed passes of the floor's issuance loop: a contraction at omega_ent ~ 0.007, so 8 passes
+# leave ~1e-17 and, unlike a tolerance exit, keep the map smooth for the FD Jacobian
+_FLOOR_PASSES = 8
+
+
+def _funded_floor(v, cal):
+    # BOCOLA'S NET-WORTH FLOOR, FUNDED (2026-10-20): THE TOP-UP IS PAID FOR, NOT CREATED.
+    # D: the government issues R/Q_bD of new bonds to fund the top-up R; the banks absorb them,
+    # so the D book (and omega_ent*assets) grow with R, solved by the fixed passes below.
+    # F: its debt stock is fixed by design, so the top-up is an F lump-sum tax.
+    v.recap_D = v.recap_F = 0.0
+    nwf = cal.get("nw_floor_frac", 0.0)
+    if nwf <= 0.0:
+        return
+    floor_D, floor_F = nwf * v.bkD["n_ss"], nwf * v.bkF["n_ss"]
+    # the floor's smooth max; 0 is the hard max (the final polish, 2026-10-26)
+    feps = float(cal.get("floor_eps", 1e-3))
+    Bp0 = v.Bp_D
+    for _ in range(_FLOOR_PASSES):
+        v.recap_D = _smax(v.n_D, floor_D, feps) - v.n_D
+        v.Bp_D = Bp0 + v.recap_D / v.Q_bD
+        _d_book(v, cal)
+    v.recap_D = _smax(v.n_D, floor_D, feps) - v.n_D
+    v.new_D += (v.Bp_D - Bp0)
+    v.n_D += v.recap_D
+    v.recap_F = _smax(v.n_F, floor_F, feps) - v.n_F
+    v.n_F += v.recap_F
+    v.Tax_F += v.recap_F
 
 
 def _balance_sheets(v, cont, cal):
@@ -188,28 +231,19 @@ def _balance_sheets(v, cont, cal):
     X_F = ((v.mpk_F + (1.0 - cal["delta_F"]) * v.Q_F) * v.K_F
            + payF_now * v.b_F_F_lag + payD_now * (v.b_D_F_lag / v.sz) / v.p)
     v.ng_D, v.ng_F = X_D - v.P_D, X_F - v.P_F
-    # the floors stop a transient iterate giving a bank a negative book
-    v.b_D_F_new = _smax(v.b_DF_new, 1e-4, 1e-5)
+    # the cross-border books are exact: no short sales is a KT pair on each (_residual_vector)
+    v.b_D_F_new = v.b_DF_new
     # the TPI book, held to maturity, and the safe claim that paid for it
     v.M_cb_new = (1.0 - db_D) * v.surv * v.M_lag + v.m_cb
     v.Z_cb = v.Q_bD * v.M_cb_new
-    b_DD = v.Bp_D - v.b_D_F_new - v.M_cb_new
-    # with the TPI on, clearing is exact: b_DD = 0 is a genuine corner
-    v.b_D_D_new = b_DD if v.tpi else _smax(b_DD, 1e-4, 1e-5)
-    v.b_F_D_new = _smax(v.b_FD_new, 1e-4, 1e-5)
+    v.b_F_D_new = v.b_FD_new
     v.b_F_F_new = _smax(cal["B_gov_F_ss"] - v.b_F_D_new / v.sz, 1e-4, 1e-5)
     # end-of-period assets at current prices
-    v.assets_D = (v.Q_D * v.Kp_D + v.Q_bD * v.b_D_D_new + v.p * v.Q_bF * v.b_F_D_new
-                  + v.L_wc_D + v.Z_cb)
     v.assets_F = (v.Q_F * v.Kp_F + v.Q_bF * v.b_F_F_new
                   + v.Q_bD * (v.b_D_F_new / v.sz) / v.p + v.L_wc_F)
-    v.n_D = (1.0 - cal["f_D"]) * v.ng_D + cal["omega_ent_D"] * v.assets_D
     v.n_F = (1.0 - cal["f_F"]) * v.ng_F + cal["omega_ent_F"] * v.assets_F
-    # Bocola's net-worth floor, for the deep default corners only
-    nwf = cal.get("nw_floor_frac", 0.0)
-    if nwf > 0.0:
-        v.n_D = _smax(v.n_D, nwf * v.bkD["n_ss"])
-        v.n_F = _smax(v.n_F, nwf * v.bkF["n_ss"])
+    _d_book(v, cal)
+    _funded_floor(v, cal)
     v.dep_D, v.dep_F = v.assets_D - v.n_D, v.assets_F - v.n_F
     # next period's deposit bill, net of the loan repaid at the lending rate (Bocola)
     v.Pp_D = (1.0 + v.rdep_D) * v.dep_D - (1.0 + v.r_wc_D_cur) * v.L_wc_D
@@ -245,7 +279,7 @@ def _next_states(v, sproc, eps):
 
 def _regime_continuation(v, j, Sn, Z_next, cont, cal):
     # CONTINUATION RULES AND NEXT-PERIOD CAPITAL RETURNS IN REGIME j.
-    r = cont.eval_all(j, cont.grid.clip(Sn))
+    r = cont.eval_cont(j, Sn)
     # keep continuation values positive before powers and roots
     for k in ("N_D", "N_F"):
         r[k] = np.maximum(r[k], 0.05)
@@ -283,10 +317,10 @@ def _discount_kernels(v, cont, cal):
     x_cur_D = _ghh(float(cont.eval("C_D", v.d, v.Sm)[0]), v.N_D, cal["chi_D"], frD,
                    v.X_FLOOR_D, v.X_EPS)
     x_cur_F = _ghh(float(cont.eval("C_F", v.d, v.Sm)[0]), v.N_F, cal["chi_F"], frF,
-                   v.X_FLOOR_D, v.X_EPS)
+                   v.X_FLOOR_F, v.X_EPS)
     v.XN_D = [_ghh(v.R[j]["C_D"], v.R[j]["N_D"], cal["chi_D"], frD, v.X_FLOOR_D, v.X_EPS)
               for j in range(nreg)]
-    XN_F = [_ghh(v.R[j]["C_F"], v.R[j]["N_F"], cal["chi_F"], frF, v.X_FLOOR_D, v.X_EPS)
+    XN_F = [_ghh(v.R[j]["C_F"], v.R[j]["N_F"], cal["chi_F"], frF, v.X_FLOOR_F, v.X_EPS)
             for j in range(nreg)]
     Lam_D = [cal["beta_inter_D"] * (x_cur_D / v.XN_D[j]) ** sgD for j in range(nreg)]
     Lam_F = [cal["beta_inter_F"] * (x_cur_F / XN_F[j]) ** sgF for j in range(nreg)]
@@ -310,10 +344,13 @@ def _incentive_constraint(v, cal):
                 + cal["lambda_bD_F"] * v.Q_bD * (v.b_D_F_new / v.sz) / v.p
                 + lKF * v.L_wc_F, 1e-6)
     v.lev_D, v.lev_F = lev_D, lev_F
-    # mu = max(., 0) is the KKT switch; the cap is only a guard
-    v.mu_D = float(_smin(max(1.0 - v.E_Om_D * (1.0 + v.rdep_D) * v.n_D / v.lev_D, 0.0),
+    # mu = max(., 0) is the KKT switch; the cap is only a guard. cal["mu_eps"] smooths the
+    # switch (calibration/global_projection.py); 0 is the hard max
+    mu_eps = float(cal.get("mu_eps", 0.0))
+    kink = (lambda z: _smax(z, 0.0, mu_eps)) if mu_eps > 0.0 else (lambda z: max(z, 0.0))
+    v.mu_D = float(_smin(kink(1.0 - v.E_Om_D * (1.0 + v.rdep_D) * v.n_D / v.lev_D),
                          _MU_CAP, _GUARD_EPS))
-    v.mu_F = float(_smin(max(1.0 - v.E_Om_F * (1.0 + v.rdep_F) * v.n_F / v.lev_F, 0.0),
+    v.mu_F = float(_smin(kink(1.0 - v.E_Om_F * (1.0 + v.rdep_F) * v.n_F / v.lev_F),
                          _MU_CAP, _GUARD_EPS))
     # the capital Euler, in return units
     E_Om_rk_D = _expect(v.wgt, [v.Om_D[j] * (v.RKD[j] - v.rdep_D) for j in range(v.nreg)])
@@ -344,17 +381,22 @@ def _bond_demands(v, cal):
                                    for j in range(nreg)])
     v.E_payF = _expect(wgt, payF)
     v.E_Om_payF = _expect(wgt, [v.Om_F[j] * payF[j] for j in range(nreg)])
+    # a cross-border bond pays in its issuer's good, so the holder values it at p'/p; fx_val < 1
+    # only inside the solve ladder (FX_LADDER), which walks the valuation in from p'/p = 1
+    fxw = float(cal.get("fx_val", 1.0))
+    pn = [(R[j]["p"] / v.p) ** fxw for j in range(nreg)]
     # the D bank's F-bond FOC, with its cross-border adjustment cost
-    v.E_Om_payF_D = _expect(wgt, [v.Om_D[j] * payF[j] for j in range(nreg)])
+    v.E_Om_payF_D = _expect(wgt, [v.Om_D[j] * payF[j] * pn[j] for j in range(nreg)])
     v.dmd_F_home = v.E_Om_F * (1.0 + v.rdep_F) + cal["lambda_bF_F"] * v.mu_F
     v.dmd_F_for = v.E_Om_D * (1.0 + v.rdep_D) + cal["lambda_bF_D"] * v.mu_D
-    v.adj_D = 1.0 + cal["psi_bF_D"] * (v.b_F_D_new - cal["b_F_D_ss"]) / cal["B_gov_F_ss"]
+    # the friction's reference point makes the calibrated SS book optimal (steady_state.py)
+    v.adj_D = 1.0 + cal["psi_bF_D"] * (v.b_F_D_new - cal["b_F_D_ref"]) / cal["B_gov_F_ss"]
     # the D bank's D-bond demand price
     v.dmd_D = v.E_Om_D * (1.0 + v.rdep_D) + cal["lambda_bD_D"] * v.mu_D
     # the F bank's D-bond FOC, with its cross-border adjustment cost
-    v.E_Om_payD_F = _expect(wgt, [v.Om_F[j] * payD[j] for j in range(nreg)])
+    v.E_Om_payD_F = _expect(wgt, [v.Om_F[j] * payD[j] / pn[j] for j in range(nreg)])
     v.dmd_F = v.E_Om_F * (1.0 + v.rdep_F) + cal["lambda_bD_F"] * v.mu_F
-    v.adj_F = 1.0 + cal["psi_bD_F"] * (v.b_D_F_new - cal["b_D_F_ss"]) / cal["B_gov_D_ss"]
+    v.adj_F = 1.0 + cal["psi_bD_F"] * (v.b_D_F_new - cal["b_D_F_ref"]) / cal["B_gov_D_ss"]
 
 
 def _tpi_rule(v, cal, ss):
@@ -450,6 +492,13 @@ def _residual_vector(v, cal, ss):
     else:
         uip = ((1.0 + v.rdep_D) - (1.0 + v.rdep_F) * v.Ep_next / v.p
                + cal.get("kappa_nfa", 0.0) * v.nfa_dep_D / ss["ss_firm_D"]["Y_ss"])
+    # the two cross-border FOCs; no short sales: each book >= 0 against a FOC <= 0 (0dd0732's
+    # pairs, with their own fixed smoothing book_eps); at the 0.5% F book the D bank's binds in
+    # distressed default states, and as an equality that FOC had no solution there
+    v.foc_DF_gap = (v.E_Om_payD_F - v.dmd_F * v.Q_bD * v.adj_F) / v.E_Om_F
+    v.foc_FD_gap = (v.E_Om_payF_D - v.dmd_F_for * v.Q_bF * v.adj_D) / v.E_Om_D
+    foc_DF = _fb(-v.foc_DF_gap, v.b_D_F_new / cal["B_gov_D_ss"], cal["book_eps"])
+    foc_FD = _fb(-v.foc_FD_gap, v.b_F_D_new / cal["B_gov_F_ss"], cal["book_eps"])
     return np.array([
         v.cap_eul_D,  # 1 cap Euler D -> Kp_D
         v.cap_eul_F,  # 2 cap Euler F -> Kp_F
@@ -462,11 +511,11 @@ def _residual_vector(v, cal, ss):
         (v.Y_D - v.P_CES_D * v.C_D - v.I_D - v.NX_D - cal["G_D"])  # 7 goods_D -> p
         / ss["ss_firm_D"]["Y_ss"],
         v.res_bondD,  # 8 D-bank D-bond -> Q_bD
-        (v.E_Om_payD_F - v.dmd_F * v.Q_bD * v.adj_F) / v.E_Om_F,  # 9 F-bank D-bond -> b_DF
+        foc_DF,  # 9 F-bank D-bond -> b_DF
         v.euler_F,  # 10 F deposit Euler
         (v.save_union - v.dep_union) / ((1.0 + v.sz) * v.bkD["Dep_supply_ss"]),  # 11 union clearing
         (v.E_Om_payF - v.dmd_F_home * v.Q_bF) / v.E_Om_F,  # 12 F-bank F-bond -> Q_bF
-        (v.E_Om_payF_D - v.dmd_F_for * v.Q_bF * v.adj_D) / v.E_Om_D,  # 13 D-bank F-bond -> b_FD
+        foc_FD,  # 13 D-bank F-bond -> b_FD
         v.res_tpi,  # 14 TPI rule -> m
     ])
 
@@ -492,6 +541,10 @@ def _outputs(v, cal):
                 # the TPI book and its flows
                 m_cb=v.m_cb, x_cb=v.x_cb, M_cb_new=v.M_cb_new, Z_cb=v.Z_cb, Op_cb=v.Op_cb, Pi_cb=v.Pi_cb,
                 Tax_F=v.Tax_F, goods_F=v.goods_F, Q_floor=v.Q_floor, foc_D=v.foc_D,
+                # the net-worth floor's funded top-ups (D: new debt, F: a lump-sum tax)
+                recap_D=v.recap_D, recap_F=v.recap_F,
+                # the cross-border FOC gaps before their no-short-sale pairs
+                foc_DF_gap=v.foc_DF_gap, foc_FD_gap=v.foc_FD_gap,
                 # accounting legs for the output decomposition
                 N_D=v.N_D, Kap_prod_D=v.K_D, Z_D=v.Z_D, Kp_D=v.Kp_D, P_CES_D=v.P_CES_D,
                 E_Om_D=v.E_Om_D, r_wc_D=v.r_wc_D, wedge_sp_D=lKD * v.mu_D / v.E_Om_D,

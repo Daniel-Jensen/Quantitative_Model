@@ -39,26 +39,52 @@ def _alpha_ss_fixed_point(beta_inter, f, lambda_K, rk_ss, rdep_ss):
     return alpha_ss, mu_ss, Omega_ss
 
 
-def calibrate_bank_targets(beta_inter, f, rdep, theta_target, spread_target):
+def ic_slack_factor(mu, mu_eps):
+    # THE SLACK THE SMOOTHED KKT SWITCH LEAVES IN A BINDING IC: alpha*n = lambda*assets*(1 + delta).
+    # mu = (z + sqrt(z^2 + eps^2))/2 (point_map) inverts to z = mu - eps^2/(4 mu), so the SS that
+    # solves the smoothed model has delta = eps^2/(4 mu (1 - mu)); 0 for the hard max
+    if mu_eps <= 0.0:
+        return 0.0
+    return mu_eps * mu_eps / (4.0 * mu * (1.0 - mu))
+
+
+def _ic_multiplier(m0, mu_eps):
+    # THE MULTIPLIER THE SMOOTHED SWITCH RETURNS WHEN THE HARD-MAX ONE IS m0 (= s*Omega*theta/alpha).
+    # mu = m0*(1 + delta(mu)), solved by iteration
+    mu = m0
+    for _ in range(60):  # a contraction: |d/dmu| = m0*eps^2/(4 mu^2) << 1 at the SS
+        mu = m0 * (1.0 + ic_slack_factor(mu, mu_eps))
+    return mu
+
+
+def calibrate_bank_targets(beta_inter, f, rdep, theta_target, spread_target,
+                           spread_for=None, share_for=0.0, mu_eps=0.0):
     # SOLVE THE SINGLE lambda AND ENTRANT TRANSFER omega_ent FROM LEVERAGE + SPREAD TARGETS.
+    # spread_for/share_for: the foreign bond earns its ISSUER's spread, a share_for slice of
+    # assets; omega_ent absorbs the gap so leverage and the spread still hold exactly.
+    # mu_eps: the smoothing of the KKT switch, so the SS is a rest point of the smoothed model
     s = spread_target
+    s_for = s if spread_for is None else spread_for
 
     def resid(a):
-        # BELLMAN GAP AT A CANDIDATE FRANCHISE VALUE a, WITH lambda = alpha/theta
+        # BELLMAN GAP AT A CANDIDATE FRANCHISE VALUE a, WITH lambda = alpha/(theta*(1+delta))
         # FOLDED IN SO alpha = Omega(1+rdep)/(1-mu) STAYS A SCALAR FIXED POINT.
         Omega = beta_inter * (f + (1 - f) * a)
-        mu    = Omega * s * theta_target / a
+        m0    = Omega * s * theta_target / a
+        if m0 >= 1.0:
+            return np.inf
+        mu    = _ic_multiplier(m0, mu_eps)
         if mu >= 1.0:
             return np.inf
         return Omega * (1 + rdep) / (1 - mu) - a
 
     alpha = _least_root(resid, f"theta={theta_target}, spread={s}")
     Omega = beta_inter * (f + (1 - f) * alpha)
-    mu    = Omega * s * theta_target / alpha
-    lambda_single = alpha / theta_target
+    mu    = _ic_multiplier(Omega * s * theta_target / alpha, mu_eps)
+    lambda_single = alpha / (theta_target * (1.0 + ic_slack_factor(mu, mu_eps)))
 
     D_val     = 1.0 - (1 - f) * (1 + rdep)   # net-worth accumulation discount
-    omega_ent = D_val / theta_target - (1 - f) * s
+    omega_ent = D_val / theta_target - (1 - f) * (s + (s_for - s) * share_for)
     if omega_ent <= 0.0:
         raise RuntimeError(
             f"Infeasible targets: omega_ent={omega_ent:.4e} <= 0 "
@@ -67,9 +93,11 @@ def calibrate_bank_targets(beta_inter, f, rdep, theta_target, spread_target):
     return lambda_single, omega_ent, alpha, mu, Omega
 
 
-def steady_state_bank(cal, rk_ss, Kap_ss, Q_bD_ss, Q_bF_ss,
-                      b_dom_ss, b_for_ss, p_ss, country="D", L_wc_ss=0.0):
+def steady_state_bank(cal, rk_ss, Kap_ss, b_dom_ss, b_for_ss, p_ss, country="D",
+                      L_wc_ss=0.0, spread_for=None):
     # STEADY-STATE BANK BLOCK: PRICES, MULTIPLIERS, NET WORTH, LEVERAGE, DEPOSITS.
+    # spread_for is the foreign bond's MARKET excess return, set by its issuer's bank; the
+    # holder buys at that price and earns that return (None: the bank's own spread)
     # L_wc_ss is the WORKING-CAPITAL LOAN (Bocola 2016 SV.C): "firms need to borrow a
     # fraction phi of the wage bill before production takes place. These loans are
     # obtained from the bankers ... and they pay the gross return R_W = R* + lambda*
@@ -92,7 +120,9 @@ def steady_state_bank(cal, rk_ss, Kap_ss, Q_bD_ss, Q_bF_ss,
         cal[f"beta_inter_{country}"], f, lambda_K, rk_ss, rdep_ss
     )
     px = _ss_bond_prices(cal, country, rdep_ss, mu_ss, Omega_ss,
-                         lambda_K, lambda_bD, lambda_bF)
+                         lambda_K, lambda_bD, lambda_bF, spread_for)
+    # the smoothed KKT switch leaves the binding IC slack by this factor
+    px["ic_slack"] = ic_slack_factor(mu_ss, float(cal.get("mu_eps", 0.0)))
     D_val = 1.0 - (1 - f) * (1 + rdep_ss)
     if D_val <= 0:
         raise ValueError(f"[{country}] D={D_val} <= 0: no stationary net-worth rest point.")
@@ -124,10 +154,12 @@ def steady_state_bank(cal, rk_ss, Kap_ss, Q_bD_ss, Q_bF_ss,
     )
 
 
-def _ss_bond_prices(cal, country, rdep_ss, mu_ss, Omega_ss, lambda_K, lambda_bD, lambda_bF):
+def _ss_bond_prices(cal, country, rdep_ss, mu_ss, Omega_ss, lambda_K, lambda_bD, lambda_bF,
+                    spread_for=None):
     # IC-REQUIRED EXCESS RETURNS lambda*mu/Omega AND THE HM PERPETUITY PRICES THEY IMPLY.
     IC_spread_dom = lambda_bD * mu_ss / Omega_ss
-    IC_spread_for = lambda_bF * mu_ss / Omega_ss
+    # the foreign bond trades at its issuer's price, so it earns the issuer's spread
+    IC_spread_for = lambda_bF * mu_ss / Omega_ss if spread_for is None else spread_for
     IC_spread_wc  = lambda_K * mu_ss / Omega_ss      # r_wc - rdep, Bocola's R_W - R*
     # "dom"/"for" are relative to the country: D's home bond is the D-bond
     delta_b_D, delta_b_F = cal["delta_b_D"], cal["delta_b_F"]
@@ -155,7 +187,7 @@ def _ss_net_worth(country, f, rk_ss, rdep_ss, omega_ent, lambda_K, lambda_bD, la
         n_ss_IC = (lambda_K * Kap_ss
                    + lambda_bD * Q_bdom_ss * b_dom_ss
                    + lambda_bF * p_ss * Q_bfor_ss * b_for_ss
-                   + lambda_K * L_wc_ss) / alpha_ss
+                   + lambda_K * L_wc_ss) * (1.0 + px["ic_slack"]) / alpha_ss
         total_assets = Kap_ss + bdom_val + p_ss * Q_bfor_ss * b_for_ss + L_wc_ss
         n_ss_ACCUM = (
             ((1 - f) * (rk_ss - rdep_ss) + omega_ent) * Kap_ss
@@ -168,7 +200,7 @@ def _ss_net_worth(country, f, rk_ss, rdep_ss, omega_ent, lambda_K, lambda_bD, la
         n_ss_IC = (lambda_K * Kap_ss
                    + lambda_bD * Q_bdom_ss * b_dom_ss
                    + lambda_bF * Q_bfor_ss * b_for_ss / p_ss
-                   + lambda_K * L_wc_ss) / alpha_ss
+                   + lambda_K * L_wc_ss) * (1.0 + px["ic_slack"]) / alpha_ss
         total_assets = Kap_ss + bdom_val + bfor_val + L_wc_ss
         n_ss_ACCUM = (
             ((1 - f) * (rk_ss - rdep_ss) + omega_ent) * Kap_ss

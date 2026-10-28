@@ -1,0 +1,172 @@
+working smoothings: mu_eps 0.01  book_eps 0.0001  floor_eps 0.001
+/Users/Huawei/Desktop/Quantitative_Model/global_projection/blocks/firms.py:34: RuntimeWarning: invalid value encountered in power
+  Y   = Z_path * Kap_prod_path ** alpha * N_path ** (1 - alpha)
+/Users/Huawei/Desktop/Quantitative_Model/global_projection/blocks/trade.py:21: RuntimeWarning: invalid value encountered in power
+  inside = omega + (1.0 - omega) * p ** exp
+/Users/Huawei/Desktop/Quantitative_Model/global_projection/blocks/trade.py:23: RuntimeWarning: invalid value encountered in power
+  inside = omega + (1.0 - omega) * (1.0 / p) ** exp   # F imports D-goods at 1/p
+  collocation solve d0 wc=0.0 fx=0.0: 500 unknowns (20 rules x 1 regime(s) x 25 points), backend = parsolve
+    [parsolve d0 wc=0.0 fx=0.0  1] sum|F|^2 = 2.456e+02   max|F| = 1.081e+01   LM lambda = 1e-02 s0^2
+    -> STOPPED in 1 iterations, max|F| = 1.08e+01  (worst equation: euler_F 1.1e+01)
+  collocation solve d0 wc=0.0 fx=0.5: 500 unknowns (20 rules x 1 regime(s) x 25 points), backend = parsolve
+    [parsolve d0 wc=0.0 fx=0.5  1] sum|F|^2 = 2.425e+02   max|F| = 1.049e+01   step = 0.0312
+    -> STOPPED in 1 iterations, max|F| = 1.05e+01  (worst equation: euler_F 1.0e+01)
+  collocation solve d0 wc=0.0 fx=1.0: 500 unknowns (20 rules x 1 regime(s) x 25 points), backend = parsolve
+    [parsolve d0 wc=0.0 fx=1.0  1] sum|F|^2 = 2.294e+02   max|F| = 9.959e+00   step = 0.00781
+    -> STOPPED in 1 iterations, max|F| = 9.96e+00  (worst equation: euler_F 1.0e+01)
+  collocation solve d0 wc=0.2: 500 unknowns (20 rules x 1 regime(s) x 25 points), backend = parsolve
+    [parsolve d0 wc=0.2  1] sum|F|^2 = 3.431e+02   max|F| = 1.329e+01   step = 0.0156
+    -> STOPPED in 1 iterations, max|F| = 1.33e+01  (worst equation: euler_D 1.3e+01)
+  collocation solve d0 wc=0.5: 500 unknowns (20 rules x 1 regime(s) x 25 points), backend = parsolve
+    [parsolve d0 wc=0.5  1] sum|F|^2 = 3.916e+02   max|F| = 1.308e+01   step = 0.0156
+    -> STOPPED in 1 iterations, max|F| = 1.31e+01  (worst equation: euler_D 1.3e+01)
+  collocation solve d0 wc=1.0: 500 unknowns (20 rules x 1 regime(s) x 25 points), backend = parsolve
+    [parsolve d0 wc=1.0  1] sum|F|^2 = 3.670e+02   max|F| = 1.258e+01   step = 0.0312
+    -> STOPPED in 1 iterations, max|F| = 1.26e+01  (worst equation: euler_D 1.3e+01)
+
+_stage_wc at mu_eps 1e-2: ok False  its 1  max|F| 1.26e+01
+[eps 1e-2] max|F| 1.26e+01; worst (node, equation):
+   node 18 P_F+               euler_D      +1.26e+01
+   node  3 M_cb-              id_alpha_F   +7.85e+00
+   node 17 P_F-               euler_F      +6.24e+00
+   node 22 K_F+               euler_F      +4.60e+00
+   node  5 Z_D-               id_alpha_F   -4.46e+00
+   node  3 M_cb-              id_alpha_D   +4.34e+00
+   node 15 b_DD-              id_alpha_F   +3.39e+00
+   node  5 Z_D-               id_alpha_D   -2.20e+00
+
+[eps 1e-2] IC distance z at the 25 nodes (z > 0 binds; mu = max(z, 0) when hard)
+   node  1 O_cb-              z_D +0.01315  mu_D 0.01483  z_F +0.08941  mu_F 0.08969
+   node  0 centre             z_D +0.01373  mu_D 0.01536  z_F +0.12220  mu_F 0.12240
+   node 12 b_FD+              z_D -0.03719  mu_D 0.00066  z_F -0.27549  mu_F 0.00009
+   node  9 V_dep-             z_D +0.09589  mu_D 0.09615  z_F +0.18254  mu_F 0.18268
+   node 22 K_F+               z_D +0.10997  mu_D 0.11020  z_F -2.34308  mu_F 0.00001
+   node 11 b_FD-              z_D +0.13195  mu_D 0.13214  z_F +0.14802  mu_F 0.14819
+   node 14 b_DF+              z_D +0.13207  mu_D 0.13226  z_F -0.07633  mu_F 0.00033
+   node 10 V_dep+             z_D +0.16963  mu_D 0.16977  z_F -0.05803  mu_F 0.00043
+   z_D range [-15442.3623, +0.6909];  nodes slack (z_D<0): 14; within 1e-3 of the kink: 0
+  collocation solve d0 eps=7e-03: 500 unknowns (20 rules x 1 regime(s) x 25 points), backend = parsolve
+    [parsolve d0 eps=7e-03  1] sum|F|^2 = 3.622e+02   max|F| = 1.251e+01   step = 0.00781
+    -> STOPPED in 1 iterations, max|F| = 1.25e+01  (worst equation: euler_D 1.3e+01)
+
+== straight from 1e-2 to mu_eps 7e-03: ok False  its 1  max|F| 1.25e+01
+[eps 7e-03] max|F| 1.25e+01; worst (node, equation):
+   node 18 P_F+               euler_D      +1.25e+01
+   node  3 M_cb-              id_alpha_F   +7.78e+00
+   node 17 P_F-               euler_F      +6.23e+00
+   node  5 Z_D-               id_alpha_F   -5.23e+00
+   node  3 M_cb-              id_alpha_D   +4.31e+00
+   node 22 K_F+               euler_F      +4.25e+00
+   node 15 b_DD-              id_alpha_F   +3.37e+00
+   node  5 Z_D-               id_alpha_D   -2.46e+00
+
+[eps 7e-03] IC distance z at the 25 nodes (z > 0 binds; mu = max(z, 0) when hard)
+   node  0 centre             z_D +0.01263  mu_D 0.01353  z_F +0.12074  mu_F 0.12084
+   node 12 b_FD+              z_D -0.01651  mu_D 0.00071  z_F -0.29605  mu_F 0.00004
+   node 22 K_F+               z_D +0.06981  mu_D 0.06998  z_F -2.14871  mu_F 0.00001
+   node  9 V_dep-             z_D +0.11194  mu_D 0.11205  z_F +0.19817  mu_F 0.19823
+   node 14 b_DF+              z_D +0.13702  mu_D 0.13711  z_F -0.09147  mu_F 0.00013
+   node 11 b_FD-              z_D +0.13934  mu_D 0.13942  z_F +0.15409  mu_F 0.15417
+   node 10 V_dep+             z_D +0.16638  mu_D 0.16645  z_F +0.05957  mu_F 0.05978
+   node  1 O_cb-              z_D +0.26532  mu_D 0.26537  z_F +0.26875  mu_F 0.26879
+   z_D range [-10214.3425, +0.7788];  nodes slack (z_D<0): 13; within 1e-3 of the kink: 0
+  collocation solve d0 eps=3e-03: 500 unknowns (20 rules x 1 regime(s) x 25 points), backend = parsolve
+    [parsolve d0 eps=3e-03  1] sum|F|^2 = 3.647e+02   max|F| = 1.252e+01   step = 0.00781
+    -> STOPPED in 1 iterations, max|F| = 1.25e+01  (worst equation: euler_D 1.3e+01)
+
+== straight from 1e-2 to mu_eps 3e-03: ok False  its 1  max|F| 1.25e+01
+[eps 3e-03] max|F| 1.25e+01; worst (node, equation):
+   node 18 P_F+               euler_D      +1.25e+01
+   node  3 M_cb-              id_alpha_F   +7.78e+00
+   node 17 P_F-               euler_F      +6.23e+00
+   node  5 Z_D-               id_alpha_F   -4.48e+00
+   node  3 M_cb-              id_alpha_D   +4.31e+00
+   node 22 K_F+               euler_F      +4.22e+00
+   node 15 b_DD-              id_alpha_F   +3.37e+00
+   node  5 Z_D-               id_alpha_D   -3.12e+00
+
+[eps 3e-03] IC distance z at the 25 nodes (z > 0 binds; mu = max(z, 0) when hard)
+   node 12 b_FD+              z_D +0.00415  mu_D 0.00463  z_F -0.28980  mu_F 0.00001
+   node  0 centre             z_D +0.01894  mu_D 0.01906  z_F +0.12305  mu_F 0.12307
+   node 22 K_F+               z_D +0.04830  mu_D 0.04835  z_F -2.79721  mu_F 0.00000
+   node  9 V_dep-             z_D +0.12617  mu_D 0.12619  z_F +0.20533  mu_F 0.20534
+   node 11 b_FD-              z_D +0.13932  mu_D 0.13934  z_F +0.15509  mu_F 0.15510
+   node 14 b_DF+              z_D +0.14748  mu_D 0.14750  z_F -0.08777  mu_F 0.00003
+   node 10 V_dep+             z_D +0.16034  mu_D 0.16036  z_F +0.06602  mu_F 0.06605
+   node 13 b_DF-              z_D +0.29237  mu_D 0.29238  z_F -1.23662  mu_F 0.00000
+   z_D range [-10992.3922, +0.8569];  nodes slack (z_D<0): 12; within 1e-3 of the kink: 0
+  collocation solve d0 eps=1e-03: 500 unknowns (20 rules x 1 regime(s) x 25 points), backend = parsolve
+    [parsolve d0 eps=1e-03  1] sum|F|^2 = 3.634e+02   max|F| = 1.255e+01   step = 0.00391
+    -> STOPPED in 1 iterations, max|F| = 1.25e+01  (worst equation: euler_D 1.3e+01)
+
+== straight from 1e-2 to mu_eps 1e-03: ok False  its 1  max|F| 1.25e+01
+[eps 1e-03] max|F| 1.25e+01; worst (node, equation):
+   node 18 P_F+               euler_D      +1.25e+01
+   node  3 M_cb-              id_alpha_F   +7.82e+00
+   node 17 P_F-               euler_F      +6.23e+00
+   node 22 K_F+               euler_F      +4.48e+00
+   node  5 Z_D-               id_alpha_F   -4.47e+00
+   node  3 M_cb-              id_alpha_D   +4.32e+00
+   node 15 b_DD-              id_alpha_F   +3.38e+00
+   node  5 Z_D-               id_alpha_D   -2.21e+00
+
+[eps 1e-03] IC distance z at the 25 nodes (z > 0 binds; mu = max(z, 0) when hard)
+   node 12 b_FD+              z_D -0.01025  mu_D 0.00002  z_F -0.27915  mu_F 0.00000
+   node  0 centre             z_D +0.01678  mu_D 0.01680  z_F +0.12325  mu_F 0.12325
+   node 22 K_F+               z_D +0.09199  mu_D 0.09199  z_F -2.59776  mu_F 0.00000
+   node  9 V_dep-             z_D +0.10066  mu_D 0.10067  z_F +0.19871  mu_F 0.19872
+   node 11 b_FD-              z_D +0.13543  mu_D 0.13544  z_F +0.15192  mu_F 0.15192
+   node 14 b_DF+              z_D +0.14035  mu_D 0.14035  z_F -0.08182  mu_F 0.00000
+   node 10 V_dep+             z_D +0.16553  mu_D 0.16553  z_F +0.01245  mu_F 0.01247
+   node 13 b_DF-              z_D +0.30303  mu_D 0.30303  z_F -0.93643  mu_F 0.00000
+   z_D range [-8250.9498, +0.6795];  nodes slack (z_D<0): 14; within 1e-3 of the kink: 0
+  collocation solve d0 eps=3e-04: 500 unknowns (20 rules x 1 regime(s) x 25 points), backend = parsolve
+    [parsolve d0 eps=3e-04  1] sum|F|^2 = 3.634e+02   max|F| = 1.255e+01   step = 0.00391
+    -> STOPPED in 1 iterations, max|F| = 1.25e+01  (worst equation: euler_D 1.3e+01)
+
+== straight from 1e-2 to mu_eps 3e-04: ok False  its 1  max|F| 1.25e+01
+[eps 3e-04] max|F| 1.25e+01; worst (node, equation):
+   node 18 P_F+               euler_D      +1.25e+01
+   node  3 M_cb-              id_alpha_F   +7.82e+00
+   node 17 P_F-               euler_F      +6.23e+00
+   node 22 K_F+               euler_F      +4.48e+00
+   node  5 Z_D-               id_alpha_F   -4.47e+00
+   node  3 M_cb-              id_alpha_D   +4.32e+00
+   node 15 b_DD-              id_alpha_F   +3.38e+00
+   node  5 Z_D-               id_alpha_D   -2.21e+00
+
+[eps 3e-04] IC distance z at the 25 nodes (z > 0 binds; mu = max(z, 0) when hard)
+   node 12 b_FD+              z_D -0.00941  mu_D 0.00000  z_F -0.27883  mu_F 0.00000
+   node  0 centre             z_D +0.01698  mu_D 0.01698  z_F +0.12333  mu_F 0.12333
+   node 22 K_F+               z_D +0.09142  mu_D 0.09142  z_F -2.62162  mu_F 0.00000
+   node  9 V_dep-             z_D +0.10107  mu_D 0.10107  z_F +0.19915  mu_F 0.19915
+   node 11 b_FD-              z_D +0.13544  mu_D 0.13544  z_F +0.15198  mu_F 0.15198
+   node 14 b_DF+              z_D +0.14071  mu_D 0.14071  z_F -0.08170  mu_F 0.00000
+   node 10 V_dep+             z_D +0.16536  mu_D 0.16536  z_F +0.01286  mu_F 0.01286
+   node 13 b_DF-              z_D +0.30317  mu_D 0.30317  z_F -0.94177  mu_F 0.00000
+   z_D range [-8291.2587, +0.6797];  nodes slack (z_D<0): 14; within 1e-3 of the kink: 0
+  collocation solve d0 eps=0e+00: 500 unknowns (20 rules x 1 regime(s) x 25 points), backend = parsolve
+    [parsolve d0 eps=0e+00  1] sum|F|^2 = 3.634e+02   max|F| = 1.255e+01   step = 0.00391
+    -> STOPPED in 1 iterations, max|F| = 1.25e+01  (worst equation: euler_D 1.3e+01)
+
+== straight from 1e-2 to mu_eps 0e+00: ok False  its 1  max|F| 1.25e+01
+[eps 0e+00] max|F| 1.25e+01; worst (node, equation):
+   node 18 P_F+               euler_D      +1.25e+01
+   node  3 M_cb-              id_alpha_F   +7.82e+00
+   node 17 P_F-               euler_F      +6.23e+00
+   node 22 K_F+               euler_F      +4.48e+00
+   node  5 Z_D-               id_alpha_F   -4.47e+00
+   node  3 M_cb-              id_alpha_D   +4.32e+00
+   node 15 b_DD-              id_alpha_F   +3.38e+00
+   node  5 Z_D-               id_alpha_D   -2.21e+00
+
+[eps 0e+00] IC distance z at the 25 nodes (z > 0 binds; mu = max(z, 0) when hard)
+   node 12 b_FD+              z_D -0.00933  mu_D -0.00000  z_F -0.27880  mu_F -0.00000
+   node  0 centre             z_D +0.01700  mu_D 0.01700  z_F +0.12333  mu_F 0.12333
+   node 22 K_F+               z_D +0.09136  mu_D 0.09136  z_F -2.62408  mu_F -0.00000
+   node  9 V_dep-             z_D +0.10112  mu_D 0.10112  z_F +0.19920  mu_F 0.19920
+   node 11 b_FD-              z_D +0.13544  mu_D 0.13544  z_F +0.15198  mu_F 0.15198
+   node 14 b_DF+              z_D +0.14075  mu_D 0.14075  z_F -0.08169  mu_F -0.00000
+   node 10 V_dep+             z_D +0.16534  mu_D 0.16534  z_F +0.01290  mu_F 0.01290
+   node 13 b_DF-              z_D +0.30318  mu_D 0.30318  z_F -0.94232  mu_F -0.00000
+   z_D range [-8295.3887, +0.6797];  nodes slack (z_D<0): 14; within 1e-3 of the kink: 0

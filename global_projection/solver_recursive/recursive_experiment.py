@@ -1,14 +1,20 @@
 # THE SOVEREIGN-RISK EXPERIMENT: THE SOLVE LADDER, THE READS AND THE IMPULSE RESPONSES.
+import json
+from pathlib import Path
+
 import numpy as np
 from scipy.optimize import root
 
 from calibration.global_projection import get_calibration
 from global_projection.steady_state import solve_steady_state
-from global_projection.solver_recursive.state_grid import build_state_box, s_process_params, default_prob
+from global_projection.solver_recursive.state_grid import (build_state_box, build_aligned_box,
+                                                           align_weights, _box_centre, ALIGN_BLOCK, BOX_STOCKS,
+                                                           _STOCK_INDEX,
+                                                           s_process_params, default_prob)
 from global_projection.solver_recursive.state_grid import (IK_D, IK_F, IP_D, IP_F, IBDD,
                                           IBDF, IBFD, IV, IS, IZ, IM, IO, STATE_NAMES)
 from global_projection.solver_recursive.decision_rules import RuleSet, SOLVE7, STORE_RULES
-from global_projection.solver_recursive.collocation import solve_collocation
+from global_projection.solver_recursive.collocation import solve_collocation, SETS
 from global_projection.solver_recursive.recursive_main import (time_iteration, calibrate_household_anchors,
                             ss_state, p_block_rotation)
 from global_projection.reporting.prints import (bp_ann, ann_pct, ann_prob,
@@ -20,19 +26,75 @@ from global_projection.solver_recursive.point_map import point_residuals, _tpi_f
 # state names for the box-escape report
 _SNAMES = STATE_NAMES
 
-# the collocation box, shared by every experiment
-BOX_KW = dict(k_band=0.02, p_band_D=0.04, p_band_F=0.04, b_band=0.12, w_band=0.04)
+# the collocation box, shared by every experiment. Its bands are in balance-sheet units, so at
+# leverage 8 (2026-10-20) the leverage-5 widths made the edge nodes swing net worth 2-3x more and
+# the solve failed there; three bands are cut to their net-worth-equivalent widths: deposit
+# obligations 4% -> 2.26%, the cross-border deposit position 4% -> 2%, the TPI book 100% -> 32% of
+# the D bank's book (the book then fits ~26% of the D stock; check the TPI's footprint against it)
+BOX_KW = dict(k_band=0.02, p_band_D=0.0226, p_band_F=0.0226, b_band=0.12, w_band=0.02,
+              m_band=0.32)
+
+# the two-box design (2026-10-21): a normal box aligned with the states the economy visits and a
+# coarse post-default box with its own rules, blended into one continuation (box_specs.json, from
+# Claude files/diagnostics/state_box/measure_box.py). SWITCHED OFF: on the coarse grid its
+# post-default stage plateaued at 8e-3 and drove the normal default-regime rules off (STATE.md),
+# so the model solves on the V5 box above, reading post-default states at its edge
+TWO_BOXES = False
+BOX_SPECS = json.loads(Path(__file__).with_name("box_specs.json").read_text())
+
+
+def normal_box(ss, cal, mu=1, mu_vec=None, refine=None, at=None):
+    # THE NORMAL-TIMES BOX: THE V5 BOX, OR THE MEASURED ALIGNED ONE WITH TWO_BOXES.
+    if not TWO_BOXES:
+        return build_state_box(ss, cal, mu=mu, mu_vec=mu_vec, refine=refine, at=at, **BOX_KW)
+    assert at is None, "an instrument walk runs on the V5 box (TWO_BOXES off)"
+    return build_aligned_box(ss, cal, BOX_SPECS["normal"], mu=mu, mu_vec=mu_vec, refine=refine)
+
+
+def post_box(ss, cal):
+    # THE POST-DEFAULT BOX, COARSE: ITS RULES REACH NORMAL TIMES ONLY THROUGH THE DEFAULT BRANCH.
+    return build_aligned_box(ss, cal, BOX_SPECS["post"], mu=1)
+
+
+def make_blend(ss, cal):
+    # THE BLEND BETWEEN THE TWO RULE SETS AT THIS STEADY STATE (RuleSet.blend_weight).
+    c, b = _box_centre(ss, cal), BOX_SPECS["blend"]
+    return dict(block=list(ALIGN_BLOCK), centre=np.array([c["K_D"], c["P_D"], c["b_DD"], 0.0]),
+                weights=align_weights(ss, cal), direction=np.asarray(b["direction"], dtype=float),
+                post_until=float(b["post_until"]), normal_from=float(b["normal_from"]))
+
+
+def _attach_post(rules, ss, cal):
+    # THE POST-DEFAULT RULE SET, SEEDED WITH THE NORMAL RULES READ THROUGH THEIR BOX EDGE (WHAT THE
+    # CONTINUATION USED BEFORE IT EXISTED), ATTACHED WITH ITS BLEND.
+    post = RuleSet(post_box(ss, cal), rules.n_regimes)
+    post.n_gh = rules.n_gh
+    for d in range(rules.n_regimes):
+        seed = rules.eval_cont(d, post.grid.points)
+        for k in STORE_RULES:
+            post.set_values(k, d, seed[k])
+    rules.attach_post(post, make_blend(ss, cal))
+
 
 # quadrature order; every reader reuses rules.n_gh
 N_GH = 5
 
-# dense Chebyshev nodes in s: 5 is converged for every reported object, 9 is Bocola's
+# dense Chebyshev nodes in s: 5 is the production setting (converged for every reported object on
+# the 2026-08 tensor grid), 9 is Bocola's
 S_REFINE = 5
+# how the s nodes are added: "axis" (on the s axis alone, 27 points at 5 nodes), "tensor" (times
+# the whole sparse grid, 115 points) or "cross" (2026-10-23): the axis grid on a box whose bank stocks
+# are re-centred on the rest point (_recentre_box), then the s x state cross terms (75 points at 9
+# nodes). At leverage 8 the tensor grid's s x bank-state nodes have no collocation solution near the
+# coarse one (2026-10-21); at p^d 0.02% the axis grid on the SS box mispriced the D bond by 0.036 at
+# rest, the re-centred one by 0.011 and the cross grid by 0.0009 (Claude files/docs/STATE.md)
+S_REFINE_MODE = "cross"
+# Newton steps per refined stage in the cross mode: the first axis pass on the SS box stops at ~2e-5
+# and is only used to locate the rest point
+CROSS_MAXIT = 60
 
 # time-iteration sweeps that put each Newton inside its basin
 WARM_SWEEPS = 12
-# the refined grid needs a longer warm start
-REFINE_WARM_SWEEPS = 20
 
 # the TPI cap is walked down from 700 bp in 50 bp rungs, halving a rung that fails
 TPI_CAP_START = 700.0
@@ -53,14 +115,14 @@ def _seed_from(rules_fine, rules_coarse):
 
 
 def _stage(rules, cal, ss, sproc, regimes, no_default, label, verbose,
-           backend="auto", warm=WARM_SWEEPS, maxit=40):
-    # ONE SOLVE STAGE: A SHORT WARM START, THEN THE GLOBAL NEWTON.
+           backend="auto", warm=WARM_SWEEPS, maxit=40, sets=SETS):
+    # ONE SOLVE STAGE: A SHORT WARM START, THEN THE GLOBAL NEWTON (sets: WHICH RULE SETS SOLVE).
     if warm:
         time_iteration(rules, cal, ss, sproc, regimes=regimes, no_default=no_default,
                        damp=0.5, tol=1e-4, max_it=warm, n_gh=N_GH, verbose=False)
     return solve_collocation(rules, cal, ss, sproc, regimes=regimes,
                              no_default=no_default, n_gh=N_GH, backend=backend,
-                             maxit=maxit, verbose=verbose, label=f" {label}")
+                             maxit=maxit, verbose=verbose, label=f" {label}", sets=sets)
 
 
 def liquidity_ceiling_report(rules, cal, ss, sproc, target=None, regime=0,
@@ -93,7 +155,7 @@ def liquidity_ceiling_report(rules, cal, ss, sproc, target=None, regime=0,
     return rows
 
 
-def _build_rules(cal, ss, sproc, mu, mu_vec, rotate, nreg, verbose):
+def _build_rules(cal, ss, sproc, mu, mu_vec, rotate, nreg, verbose, at=None):
     # THE COARSE GRID (OPTIONALLY P-ROTATED) AND A STEADY-STATE COLD START.
     rot, centre = (None, None)
     box_kw = dict(BOX_KW)
@@ -103,58 +165,255 @@ def _build_rules(cal, ss, sproc, mu, mu_vec, rotate, nreg, verbose):
         if verbose:
             print(f"  P-block rotation: |lambda| = {evs[0]:.3f}, {evs[1]:.3f}"
                   f"   rho(|J|) = {np.max(np.abs(np.linalg.eigvals(np.abs(J)))):.3f}")
-    grid = build_state_box(ss, cal, mu=mu, mu_vec=mu_vec, rot=rot, centre=centre,
-                           **box_kw)
+    grid = (build_state_box(ss, cal, mu=mu, mu_vec=mu_vec, rot=rot, centre=centre, at=at, **box_kw)
+            if rotate else normal_box(ss, cal, mu=mu, mu_vec=mu_vec, at=at))
     rules = RuleSet.from_ss(grid, ss, cal, n_regimes=nreg)
     rules.n_gh = N_GH
     if verbose:
         print(f"  coarse grid: mu={mu}, {grid.n} points x {nreg} regimes, n_gh={N_GH}")
-    return rules, dict(mu=mu, mu_vec=mu_vec, rot=rot, centre=centre, box_kw=box_kw)
+    # the box spec travels with the rules, for the refinement and for a reused baseline (an
+    # instrument walk holds its first economy's bank-stock centre, at)
+    rules.box = dict(mu=mu, mu_vec=mu_vec, rot=rot, centre=centre, box_kw=box_kw,
+                     aligned=not rotate, at=at)
+    return rules, rules.box
 
 
 WC_LADDER = (0.0, 0.2, 0.5, 1.0)
+# the default regime's recovery, walked down from a mild haircut to the target in 5 pp rungs: at
+# leverage 8 the D bank turns insolvent in default past ~0.6 and the funded floor binds at most
+# nodes, and from 15 pp rungs the Newton started outside its basin (2026-10-20)
+HAIRCUT_LADDER = (0.85, 0.80, 0.75, 0.70, 0.65, 0.60, 0.55, 0.50)
+# the cross-border p'/p valuation, walked in on the first rung: from the cold start the Newton
+# stalls on the valued economy (max|F| ~4e-3) but finds the unvalued one, and from that it
+# takes ~3 steps per rung (measured on the old calibration, 2026-10-19)
+FX_LADDER = (0.0, 0.5, 1.0)
+# the KKT smoothing ladder (2026-10-20): every solve starts at MU_EPS_START and walks
+# cal["mu_eps"] down to its calibrated value. At leverage 8 no cold start converges at the
+# calibrated smoothing (the joint stage lands on a near-fold, not a root); the walk follows
+# the regular branch. The log-step starts at MU_EPS_STEP, grows x1.5 on success, halves on a
+# failure, and the walk stops below MU_EPS_MIN_STEP
+MU_EPS_START = 1e-2
+MU_EPS_STEP = 1.4
+MU_EPS_MIN_STEP = 1.02
+# the instrument walk (2026-10-22): the SS cold start solves near these instruments (the targets'
+# own values), not at the rest-point calibration's: above a D SS-spread instrument of ~125 bp its
+# d = 0 rungs stall (at 200 bp the joint stage stops at max|F| 1.6e-4), and every 10 bp moves the
+# SS ~0.8% in capital. solve_recursive solves this economy cold, then walks the instruments to the
+# requested ones on its box, one joint solve per rung (_walk_instruments)
+WALK_FROM = dict(leverage_target_D=8.0, leverage_target_F=8.0,
+                 credit_spread_target_D=0.0025, credit_spread_target_F=0.0025,
+                 sov_exposure_D=0.144, sov_exposure_F=0.065)
+# the largest move per rung (10 bp/yr of spread converges in 8-23 Newton steps)
+WALK_STEP = dict(leverage_target_D=0.1, leverage_target_F=0.1,
+                 credit_spread_target_D=10 / 4e4, credit_spread_target_F=10 / 4e4,
+                 sov_exposure_D=0.005, sov_exposure_F=0.005)
+
+
+def _restore(rules, good):
+    # PUT A SAVED RULE SET'S VALUES BACK INTO rules (BOTH BOXES' SETS).
+    for rs, gs in ((rules, good), (rules.post, good.post)):
+        if rs is None:
+            continue
+        for k in STORE_RULES:
+            for d in range(rs.n_regimes):
+                rs.set_values(k, d, gs.vals[k][d])
+
+
+def _walk_mu_eps(rules, cal, ss, sproc, regimes, no_default, target, label, verbose,
+                 backend="auto"):
+    # WALK THE KKT SMOOTHING DOWN TO target, THEN RE-ANCHOR THE HOUSEHOLDS AND POLISH THERE.
+    assert target > 0.0, "the smoothing walk needs cal['mu_eps'] > 0 (a log walk never reaches 0)"
+    eps, lstep = cal["mu_eps"], np.log(MU_EPS_STEP)
+    while eps > target * (1.0 + 1e-12):
+        nxt, good = max(target, eps / np.exp(lstep)), rules.copy()
+        cal["mu_eps"] = nxt
+        ok, _, _ = _stage(rules, cal, ss, sproc, regimes, no_default,
+                          f"{label} mu_eps={nxt:.2e}", verbose, backend=backend, warm=0, maxit=20)
+        if ok:
+            eps, lstep = nxt, min(1.5 * lstep, np.log(3.0))
+            continue
+        _restore(rules, good)
+        cal["mu_eps"], lstep = eps, 0.5 * lstep
+        if lstep < np.log(MU_EPS_MIN_STEP):
+            break
+    # the anchors absorb the SS household budget, which moves with the smoothing (via r_wc)
+    calibrate_household_anchors(cal, ss, sproc)
+    ok, _, w = _stage(rules, cal, ss, sproc, regimes, no_default, f"{label} mu_eps={eps:.2e}",
+                      verbose, backend=backend, warm=0, maxit=20)
+    return bool(ok and eps <= target * (1.0 + 1e-12)), w
+
+
+# the working smoothings a genuine (zero) target is solved at, before the final hard polish
+# (2026-10-26: the IC is a genuine max, the book pairs and the funded floor are hard too)
+HARD_WORK = dict(mu_eps=1e-4, book_eps=1e-4, floor_eps=1e-3)
+
+
+def _soften(cal):
+    # SET EVERY ZERO (GENUINE) SMOOTHING TARGET TO ITS WORKING VALUE; RETURNS THE TARGETS.
+    targets = {k: float(cal.setdefault(k, v)) for k, v in HARD_WORK.items()}
+    for k, v in HARD_WORK.items():
+        if targets[k] <= 0.0:
+            cal[k] = v
+    return targets
+
+
+def _hard_polish(rules, cal, ss, sproc, targets, regimes, no_default, label, verbose,
+                 backend="auto"):
+    # THE FINAL POLISH AT THE GENUINE CONDITIONS: ALL AT ONCE, ELSE HARDENED ONE BY ONE IN
+    # targets' ORDER; RETURNS (ok, max|F|) AND LEAVES cal AT WHAT THE RULES SOLVE.
+    todo = [k for k, v in targets.items() if cal[k] != v]
+    if not todo:
+        return True, np.nan
+    good, work = rules.copy(), {k: cal[k] for k in todo}
+    for k in todo:
+        cal[k] = targets[k]
+    calibrate_household_anchors(cal, ss, sproc)
+    ok, _, w = _stage(rules, cal, ss, sproc, regimes, no_default, f"{label} hard polish",
+                      verbose, backend=backend, warm=0, maxit=20)
+    if ok:
+        return True, w
+    # one at a time from the smoothed solution: the first that fails stays at its working value
+    _restore(rules, good)
+    cal.update(work)
+    for k in todo:
+        good = rules.copy()
+        cal[k] = targets[k]
+        calibrate_household_anchors(cal, ss, sproc)
+        ok, _, w = _stage(rules, cal, ss, sproc, regimes, no_default, f"{label} hard {k}",
+                          verbose, backend=backend, warm=0, maxit=20)
+        if not ok:
+            print(f"    NOTE: the hard polish stalls on {k} (max|F| {w:.1e}); "
+                  f"the rules solve {k} = {work[k]:.1e}")
+            _restore(rules, good)
+            cal[k] = work[k]
+            calibrate_household_anchors(cal, ss, sproc)
+            return False, w
+    return True, w
+
+
+def _economy(cal, over):
+    # cal WITH THE INSTRUMENTS IN over, ITS SS, ITS s/Z PROCESS (z_star IS THE SS's Z) AND ANCHORS.
+    cal_k = dict(cal, **over)
+    ss_k = solve_steady_state(cal_k, verbose=False)
+    sp_k = s_process_params(cal_k)
+    calibrate_household_anchors(cal_k, ss_k, sp_k)
+    return cal_k, ss_k, sp_k
+
+
+def _walk_start(cal):
+    # THE ECONOMY THE COLD START SOLVES FOR cal (cal AT THE WALK_FROM INSTRUMENTS); NONE WHEN cal
+    # IS ALREADY THERE.
+    if all(abs(cal[k] - v) <= 1e-12 for k, v in WALK_FROM.items()):
+        return None
+    return _economy(cal, WALK_FROM)
+
+
+def _walk_instruments(rules, cal0, cal, ss, sproc, verbose, backend="auto"):
+    # WALK THE INSTRUMENTS FROM cal0'S TO cal'S, ONE JOINT SOLVE PER RUNG, HALVING A RUNG THAT
+    # FAILS; THE LAST RUNG IS (cal, ss, sproc) ITSELF. RETURNS (rules, ok, max|F|).
+    # each rung's box holds the bank stocks where rules.box["at"] puts them and centres s and Z_D
+    # on the rung's own economy (its SS moves Z_D), so the rules are re-seeded on its nodes
+    box = rules.box
+    gap = {k: cal[k] - cal0[k] for k in WALK_FROM}
+    n = max(1, int(np.ceil(max(abs(g) / WALK_STEP[k] for k, g in gap.items()) - 1e-9)))
+    t, h, ok, w = 0.0, 1.0 / n, False, np.nan
+    while t < 1.0 - 1e-12:
+        nxt = min(1.0, t + h)
+        if nxt >= 1.0 - 1e-12:
+            cal_k, ss_k, sp_k = cal, ss, sproc
+        else:
+            cal_k, ss_k, sp_k = _economy(cal, {k: cal0[k] + nxt * g for k, g in gap.items()})
+        grid = normal_box(ss_k, cal_k, mu=box["mu"], mu_vec=box["mu_vec"], at=box["at"])
+        trial = _seed_from(RuleSet(grid, rules.n_regimes), rules)
+        trial.box = box
+        ok, _, w = _stage(trial, cal_k, ss_k, sp_k, (0, 1), False, f"walk {nxt:.3f}", verbose,
+                          backend=backend, warm=0)
+        if ok:
+            rules, t, h = trial, nxt, min(1.0 / n, 2.0 * h)
+            continue
+        h *= 0.5
+        if h < 1.0 / (16 * n):
+            break
+    return rules, bool(ok and t >= 1.0 - 1e-12), w
 
 
 def _stage_wc(rules, cal, ss, sproc, regimes, no_default, label, verbose):
-    # THE FIRST d = 0 SOLVE, WALKING THE WORKING-CAPITAL FLOW INTO THE HOUSEHOLD BUDGET.
+    # THE FIRST d = 0 SOLVE, WALKING THE FX VALUATION, THEN THE WORKING-CAPITAL FLOW, INTO PLACE.
     # From the steady-state seed the Newton cannot find the corrected economy directly; from
     # the solution with the flow held at its SS value it takes 3-5 steps per rung.
+    first = True
     for k, w in enumerate(WC_LADDER):
         cal["wc_flow_D"] = cal["wc_flow_F"] = w
         calibrate_household_anchors(cal, ss, sproc)  # the anchor absorbs the SS flow at w < 1
-        ok, it, wst = _stage(rules, cal, ss, sproc, regimes, no_default, f"{label} wc={w:.1f}",
-                             verbose, **({} if k == 0 else {"warm": 0}))
-    cal.pop("wc_flow_D", None); cal.pop("wc_flow_F", None)
+        for fx in (FX_LADDER if k == 0 else (1.0,)):
+            cal["fx_val"] = fx
+            tag = f"{label} wc={w:.1f}" + (f" fx={fx:.1f}" if k == 0 else "")
+            ok, it, wst = _stage(rules, cal, ss, sproc, regimes, no_default, tag, verbose,
+                                 **({} if first else {"warm": 0}))
+            first = False
+    for key in ("fx_val", "wc_flow_D", "wc_flow_F"):
+        cal.pop(key, None)
     calibrate_household_anchors(cal, ss, sproc)
     return ok, it, wst
 
 
+def solve_no_default(rules, cal, ss, sproc, label, verbose):
+    # THE NO-DEFAULT BLOCK AT pi = 0 (THE TFP RULES, NESTING GATE N2): THE FIRST STAGE AT
+    # MU_EPS_START, THEN THE SMOOTHING WALKED DOWN; RETURNS (ok, max|F|).
+    hard = _soften(cal)
+    target = cal["mu_eps"]
+    cal["mu_eps"] = max(target, MU_EPS_START)
+    _stage_wc(rules, cal, ss, sproc, (0,), True, label, verbose)
+    ok, w = _walk_mu_eps(rules, cal, ss, sproc, (0,), True, target, label, verbose)
+    okh, wh = _hard_polish(rules, cal, ss, sproc, hard, (0,), True, label, verbose)
+    return ok and okh, (w if np.isnan(wh) else wh)
+
+
 def _solve_baseline(rules, cal, ss, sproc, D_REG, backend, verbose):
-    # THE NO-TPI BASELINE: d = 0, THEN THE HAIRCUT HOMOTOPY, THEN THE JOINT SOLVE.
+    # THE NO-TPI BASELINE: d = 0, THEN THE HAIRCUT HOMOTOPY, THEN THE JOINT SOLVE, ALL AT
+    # MU_EPS_START, THEN THE SMOOTHING WALKED DOWN TO ITS CALIBRATED VALUE.
+    target = cal["mu_eps"]
+    cal["mu_eps"] = max(target, MU_EPS_START)
     ok0, it0, w0 = _stage_wc(rules, cal, ss, sproc, (0,), True, "d0", verbose)
     for k in STORE_RULES:  # start the default regime from d = 0
         rules.set_values(k, D_REG, rules.vals[k][0].copy())
     rec_target = cal["recovery_rate_D"]
     ok1, w1 = False, np.nan
-    for rec in (0.85, 0.70, 0.55, rec_target):
+    for rec in HAIRCUT_LADDER + (rec_target,):
         cal["recovery_rate_D"] = rec
         ok1, it1, w1 = _stage(rules, cal, ss, sproc, (D_REG,), False,
                               f"d1 rec={rec:.2f}", verbose)
     cal["recovery_rate_D"] = rec_target
-    okb, itb, wb = _stage(rules, cal, ss, sproc, (0, D_REG), False,
-                          "joint (no TPI)", verbose, backend=backend)
-    return (ok0, ok1, okb), (w0, w1, wb)
+    # straight from the default-regime solve, no time-iteration sweeps: at leverage 8 they can
+    # carry the start onto a second configuration at the capital edges, one that folds before
+    # the calibrated smoothing (2026-10-20)
+    okj, itj, wj = _stage(rules, cal, ss, sproc, (0, D_REG), False,
+                          "joint (no TPI)", verbose, backend=backend, warm=0)
+    if TWO_BOXES:
+        # the post-default rules: seeded from the edge reads the joint stage just used, solved
+        # with the normal rules held, then both boxes together
+        _attach_post(rules, ss, cal)
+        _stage(rules, cal, ss, sproc, (0, D_REG), False, "post-default box", verbose,
+               backend=backend, warm=0, sets=("post",))
+        okj, _, wj = _stage(rules, cal, ss, sproc, (0, D_REG), False, "joint (both boxes)",
+                            verbose, backend=backend, warm=0)
+    okw, ww = _walk_mu_eps(rules, cal, ss, sproc, (0, D_REG), False, target,
+                           "joint (no TPI)", verbose, backend=backend)
+    return (ok0, ok1, okj and okw), (w0, w1, ww)
 
 
 def _tpi_form(rules, cal, ss, gz):
-    # SWITCH THE TPI VARIABLE BETWEEN THE FB (SOLVE) AND GZ (READ) FORMS AT THE NODES.
-    x = rules.vals["x_cb"][0]
-    if gz:
-        gap = (rules.vals["Q_bD"][0] - _tpi_floor(rules.vals["Q_bF"][0], cal)) / ss["Q_bD_ss"]
-        x = np.where(x > gap, x, -np.maximum(gap, 0.0))
-    else:
-        x = np.maximum(x, 0.0)
-    rules.set_values("x_cb", 0, x)
+    # SWITCH THE TPI VARIABLE BETWEEN THE FB (SOLVE) AND GZ (READ) FORMS AT THE NODES (BOTH SETS).
+    for rs in (rules, rules.post):
+        if rs is None:
+            continue
+        x = rs.vals["x_cb"][0]
+        if gz:
+            gap = (rs.vals["Q_bD"][0] - _tpi_floor(rs.vals["Q_bF"][0], cal)) / ss["Q_bD_ss"]
+            x = np.where(x > gap, x, -np.maximum(gap, 0.0))
+        else:
+            x = np.maximum(x, 0.0)
+        rs.set_values("x_cb", 0, x)
     cal["tpi_gz"] = bool(gz)
 
 
@@ -201,35 +460,53 @@ def _solve_tpi(rules, cal, ss, sproc, backend, verbose):
     return rules, bool(ok and last is not None and last <= target), w
 
 
-def _refine_s(rules, cal, ss, sproc, box, s_refine, backend, verbose):
+def _refine_ladder(s_refine, tpi, cross=True):
+    # THE (NODES IN s, GRID MODE) RUNGS UP TO s_refine; cross=False STOPS THE CROSS MODE AT ITS AXIS RUNGS.
+    ms = [m for m in (5, 9, 17) if 1 < m < s_refine] + [s_refine]
+    if S_REFINE_MODE == "cross":
+        return [(m, "axis") for m in ms] + ([(s_refine, "cross")] if cross else [])
+    # with the TPI on, start from 3 nodes in s, which seeds the 5-node solve well (on the axis grid
+    # 3 nodes is the coarse grid itself)
+    if tpi and s_refine > 3 and S_REFINE_MODE == "tensor":
+        ms = [3] + ms
+    return [(m, S_REFINE_MODE) for m in ms]
+
+
+def _refine_s(rules, cal, ss, sproc, box, s_refine, backend, verbose, ladder=None):
     # REFINE THE s DIMENSION STEP BY STEP, EACH STEP SEEDED FROM THE LAST.
     nreg = rules.n_regimes
     okj = wj = None
     tpi = bool(cal["tpi_on"])
-    ladder = [m for m in (5, 9, 17) if 1 < m < s_refine] + [s_refine]
-    # with the TPI on, start from 3 nodes in s, which seeds the 5-node solve well
-    if tpi and s_refine > 3:
-        ladder = [3] + ladder
-    for m_s in ladder:
-        gfine = build_state_box(ss, cal, mu=box["mu"], mu_vec=box["mu_vec"],
-                                rot=box["rot"], centre=box["centre"], refine=(IS, m_s),
-                                **box["box_kw"])
+    maxit = CROSS_MAXIT if S_REFINE_MODE == "cross" else 20
+    for m_s, mode in (_refine_ladder(s_refine, tpi) if ladder is None else ladder):
+        ref = (IS, m_s, mode)
+        gfine = (normal_box(ss, cal, mu=box["mu"], mu_vec=box["mu_vec"], refine=ref,
+                            at=box.get("at"))
+                 if box.get("aligned") else
+                 build_state_box(ss, cal, mu=box["mu"], mu_vec=box["mu_vec"], rot=box["rot"],
+                                 centre=box["centre"], refine=ref, at=box.get("at"),
+                                 **box["box_kw"]))
         if verbose:
             print(f"  s-refined grid: {gfine.n} points x {nreg} regimes "
-                  f"({m_s} nodes, degree {m_s - 1} in s)")
+                  f"({m_s} nodes {dict(axis='on the s axis', cross='in s, with s x state terms').get(mode, 'in s')}, "
+                  f"degree {m_s - 1} in s)")
         fine = _seed_from(RuleSet(gfine, nreg), rules)
+        fine.box = rules.box
+        if rules.post is not None:  # the post-default set stays coarse (2026-10-21)
+            fine.attach_post(rules.post.copy(), rules.blend)
+        # straight from the seed: time-iteration sweeps damaged it at leverage 8 (2026-10-20)
         if not tpi:
             okj, itj, wj = _stage(fine, cal, ss, sproc, tuple(range(nreg)), False,
-                                  f"joint (s={m_s})", verbose, backend=backend,
-                                  warm=REFINE_WARM_SWEEPS, maxit=12)
+                                  f"joint (s={m_s} {mode})", verbose, backend=backend,
+                                  warm=0, maxit=maxit)
         else:  # root in the FB form, easing the smoothing in, then hand back in GZ
             _tpi_form(fine, cal, ss, gz=False)
-            eps, warm = cal["tpi_eps"], REFINE_WARM_SWEEPS
+            eps, warm = cal["tpi_eps"], 0
             for e in [e for e in TPI_EPS_LADDER if e > eps] + [eps]:
                 cal["tpi_eps"] = e
                 okj, itj, wj = _stage(fine, cal, ss, sproc, tuple(range(nreg)), False,
-                                      f"joint (s={m_s}, eps={e:.0e})", verbose,
-                                      backend=backend, warm=warm, maxit=20)
+                                      f"joint (s={m_s} {mode}, eps={e:.0e})", verbose,
+                                      backend=backend, warm=warm, maxit=maxit)
                 warm = 0
             cal["tpi_eps"] = eps
             ok_gz, _, wj = _tpi_polish(fine, cal, ss, sproc, f"joint (s={m_s})", verbose,
@@ -237,6 +514,27 @@ def _refine_s(rules, cal, ss, sproc, box, s_refine, backend, verbose):
             okj = okj and ok_gz
         rules = fine
     return rules, okj, wj
+
+
+def _recentre_box(rules, cal, ss, sproc, s_refine, backend, verbose):
+    # THE CROSS MODE'S FIRST PASS: THE AXIS REFINEMENT ON THE SS BOX, ITS REST POINT, AND THE COARSE GRID
+    # SOLVED ON A BOX WHOSE BANK STOCKS ARE CENTRED THERE. RETURNS (coarse rules, ok, max|F|).
+    # the mu = 1 rules are additive, accurate only on the axes through the box centre, and the long bond
+    # sums their error over its duration; the first pass need not converge, it only locates the rest point
+    first, _, w1 = _refine_s(rules, cal, ss, sproc, rules.box, s_refine, backend, verbose,
+                             ladder=_refine_ladder(s_refine, False, cross=False))
+    S0 = stochastic_rest_point(first, cal, ss, sproc, verbose=verbose)
+    at = {k: float(S0[_STOCK_INDEX[k]]) for k in BOX_STOCKS}
+    box = dict(rules.box, at=at)
+    coarse = _seed_from(RuleSet(normal_box(ss, cal, mu=box["mu"], mu_vec=box["mu_vec"], at=at),
+                                rules.n_regimes), first)
+    coarse.box = box
+    if verbose:
+        print(f"  box re-centred on that rest point (first pass max|F| {w1:.1e}): " +
+              ", ".join(f"{k} {100 * (v / _box_centre(ss, cal)[k] - 1):+.2f}%" for k, v in at.items()))
+    ok, _, w = _stage(coarse, cal, ss, sproc, tuple(range(rules.n_regimes)), False,
+                      "joint (re-centred box)", verbose, backend=backend, warm=0, maxit=40)
+    return coarse, ok, w
 
 
 def _stamp_verdict(rules, oks, worsts):
@@ -256,21 +554,36 @@ def solve_recursive(cal, ss, sproc, mu=1, verbose=True, mu_vec=None, rotate=Fals
                     s_refine=S_REFINE, backend="auto", base=None, base_out=None):
     # SOLVE EVERY REGIME BY GLOBAL COLLOCATION (BOCOLA'S LADDER).
     nreg = 2
-    rules, box = _build_rules(cal, ss, sproc, mu, mu_vec, rotate, nreg, verbose)
     D_REG = 1  # the regime index is the default indicator
     tpi = bool(cal["tpi_on"])
+    # every stage runs at the working smoothings; the genuine conditions are polished in at the end
+    hard = _soften(cal)
 
     if base is None:
-        cal["tpi_on"] = False  # the baseline is always the no-TPI economy
-        (ok0, ok1, okb), (w0, w1, wb) = _solve_baseline(rules, cal, ss, sproc, D_REG,
+        # the cold start solves the WALK_FROM economy on its own box; the walk then brings the
+        # instruments to cal's on that box
+        start = _walk_start(cal)
+        cal0, ss0, sp0 = (cal, ss, sproc) if start is None else start
+        rules, box = _build_rules(cal0, ss0, sp0, mu, mu_vec, rotate, nreg, verbose)
+        cal["tpi_on"] = cal0["tpi_on"] = False  # the baseline is always the no-TPI economy
+        (ok0, ok1, okb), (w0, w1, wb) = _solve_baseline(rules, cal0, ss0, sp0, D_REG,
                                                         backend, verbose)
+        if start is not None:
+            # the walk holds the base economy's bank-stock centre; s and Z_D follow each rung
+            c0 = _box_centre(ss0, cal0)
+            rules.box = box = dict(box, at={k: c0[k] for k in BOX_STOCKS})
+            rules, okw, ww = _walk_instruments(rules, cal0, cal, ss, sproc, verbose, backend)
+            okb, wb = okb and okw, float(np.nanmax([wb, ww]))
         cal["tpi_on"] = tpi
         if base_out is not None:  # a reusable snapshot for the caller
             base_out.append(rules.copy())
     else:
-        assert base.n_regimes == nreg and base.grid.n == rules.grid.n, \
-            "reused baseline must carry the same grid and regime count"
         rules = base.copy()
+        box = rules.box
+        if box is None:  # a baseline pickled before the box travelled with the rules
+            box = _build_rules(cal, ss, sproc, mu, mu_vec, rotate, nreg, False)[1]
+            rules.box = box
+        assert rules.n_regimes == nreg, "reused baseline must carry the same regime count"
         ok0 = ok1 = okb = True
         w0 = w1 = wb = np.nan
         if verbose:
@@ -281,8 +594,18 @@ def solve_recursive(cal, ss, sproc, mu=1, verbose=True, mu_vec=None, rotate=Fals
         rules, okj, wj = _solve_tpi(rules, cal, ss, sproc, backend, verbose)
         cap_solved = rules.tpi_cap_solved
     else:
+        # a polish of the walked-down baseline: no time-iteration sweeps, which can leave the
+        # regular branch the smoothing walk followed
         okj, itj, wj = _stage(rules, cal, ss, sproc, tuple(range(nreg)), False, "joint",
-                              verbose, backend=backend)
+                              verbose, backend=backend, warm=0)
+
+    if s_refine and s_refine > 1 and S_REFINE_MODE == "cross" and base is None and not tpi:
+        # the cross mode re-centres the box first; the TPI reuses the re-centred coarse baseline
+        rules, ok_rc, w_rc = _recentre_box(rules, cal, ss, sproc, s_refine, backend, verbose)
+        box = rules.box
+        okb, wb = okb and ok_rc, float(np.nanmax([wb, w_rc]))
+        if base_out is not None:
+            base_out[:] = [rules.copy()]
 
     if s_refine and s_refine > 1:
         # a cap walk that stopped short refines at the cap it reached
@@ -292,6 +615,11 @@ def solve_recursive(cal, ss, sproc, mu=1, verbose=True, mu_vec=None, rotate=Fals
         okj = okj2 and (okj or not tpi)  # a cap walk short of its target counts as a failure
         cal["tpi_cap_bp"] = target
     rules.tpi_cap_solved = cap_solved
+    okh, wh = _hard_polish(rules, cal, ss, sproc, hard, tuple(range(nreg)), False, "joint",
+                           verbose, backend=backend)
+    okj, wj = okj and okh, (wj if np.isnan(wh) else wh)
+    # the smoothings the returned rules solve (all zero when the hard polish converged)
+    rules.smoothing = {k: cal[k] for k in hard}
 
     _stamp_verdict(rules, (ok0, ok1, okb, okj), (w0, w1, wb, wj))
     return rules
@@ -300,7 +628,7 @@ def solve_recursive(cal, ss, sproc, mu=1, verbose=True, mu_vec=None, rotate=Fals
 def read_at(rules, cal, ss, sproc, S):
     # READ THE FITTED RULES AT STATE S.
     Sm = np.atleast_2d(S)
-    x = np.array([float(rules.eval(k, 0, Sm)[0]) for k in SOLVE7])
+    x = np.array([float(rules.eval_read(k, 0, Sm)[0]) for k in SOLVE7])
     res, o = point_residuals(S, 0, x, rules, cal, ss, sproc,
                              n_gh=rules.n_gh or N_GH, no_default=False)
     o["_x"] = x
@@ -312,7 +640,7 @@ def read_exact(rules, cal, ss, sproc, S, x0=None):
     # CLEAR THE PERIOD MAP EXACTLY AT S; NEAR THE mu KINK THIS DIFFERS FROM THE FITTED READ.
     ngh = rules.n_gh or N_GH
     if x0 is None:
-        x0 = np.array([float(rules.eval(k, 0, np.atleast_2d(S))[0]) for k in SOLVE7])
+        x0 = np.array([float(rules.eval_read(k, 0, np.atleast_2d(S))[0]) for k in SOLVE7])
 
     def f(x):
         try:
@@ -513,6 +841,11 @@ def _dynamic_row(o, r, S, K_ref_t, cal, ss):
             "d_rdep": bp_ann(o["rdep_D"] - r["rdep_D"]),
             "d_spread": _spread_bp(o, cal) - _spread_bp(r, cal),
             "d_r_wc": bp_ann(o["r_wc_D"] - r["r_wc_D"]),
+            # the loan spread r_wc - rdep = lambda*mu/E[Omega], the calibration table's lending spread
+            "loan_D": bp_ann(o["r_wc_D"] - o["rdep_D"]),
+            "loan_F": bp_ann(o["r_wc_F"] - o["rdep_F"]),
+            "d_loan_D": bp_ann((o["r_wc_D"] - o["rdep_D"]) - (r["r_wc_D"] - r["rdep_D"])),
+            "d_loan_F": bp_ann((o["r_wc_F"] - o["rdep_F"]) - (r["r_wc_F"] - r["rdep_F"])),
             "K": 100 * (S[IK_D] / K_ref_t - 1),
             "n": 100 * (o["n_D"] / r["n_D"] - 1),
             "Q_bD": o["Q_bD"], "Q_bF": o["Q_bF"],
@@ -589,10 +922,14 @@ def dynamic_irf(rules, cal, ss, sproc, pd_shock=0.0198, T=25, rest_verbose=True,
                             "rdep", "r_wc", "K", "n", "Q_bD", "Q_bF", "sov_bp",
                             "d_rdep", "d_spread", "d_r_wc", "dQ_bD",
                             "mu", "E_Om", "Y_F", "C_F", "n_F", "spread_F", "I_F",
-                            "m_cb", "M_cb", "Pi_cb")}
+                            "m_cb", "M_cb", "Pi_cb", "loan_D", "loan_F", "d_loan_D", "d_loan_F",
+                            "at_wall")}
+    walled = False
     for t in range(T):
         o = read(rules, cal, ss, sproc, S)
         _append(path, _dynamic_row(o, ref[t], S, K_ref[t], cal, ss))
+        # 1 when this quarter's state was put back on the box edge, not reached by the law of motion
+        path["at_wall"].append(float(walled))
         if t in (0, 1, 2, 4, 6, 8, 12, 16, 20, 24):
             print(f"   {t:3d} {path['pd'][-1]:6.2f} {path['pd_ann'][-1]:6.2f} "
                   f"{path['Y'][-1]:+8.4f} {path['Y_ann'][-1]:+9.4f} "
@@ -603,6 +940,7 @@ def dynamic_irf(rules, cal, ss, sproc, pd_shock=0.0198, T=25, rest_verbose=True,
         Sn = advance(o, S, sproc)
         S = rules.grid.clip(Sn)[0]
         esc = np.abs(Sn - S) > 1e-12
+        walled = bool(esc.any())
         if esc.any():
             # the TPI book is zero at rest, so its escapes are reported in levels
             escapes.append((t, [(_SNAMES[i], *((100 * (Sn[i] / S0[i] - 1),
@@ -625,10 +963,10 @@ def _tfp_read(rules, cal, ss, sproc, S):
 
 def solve_tfp(cal, ss, sproc, mu=1):
     # SOLVE THE NO-DEFAULT RULES FOR THE TFP EXPERIMENT.
-    grid = build_state_box(ss, cal, mu=mu, **BOX_KW)
+    grid = normal_box(ss, cal, mu=mu)
     rules = RuleSet.from_ss(grid, ss, cal)
     rules.n_gh = N_GH
-    _stage_wc(rules, cal, ss, sproc, (0,), True, "TFP d0", True)
+    solve_no_default(rules, cal, ss, sproc, "TFP d0", True)
     return rules
 
 
@@ -671,7 +1009,8 @@ def tfp_irf(rules, cal, ss, sproc, dz=0.01, T=21):
 
 def main():
     cal = get_calibration()
-    cal["nw_floor_frac"] = 0.15  # as in run.py
+    import run
+    cal["nw_floor_frac"] = run.NW_FLOOR  # the pipeline's floor
     ss = solve_steady_state(cal, verbose=False)
     sproc = s_process_params(cal)
     calibrate_household_anchors(cal, ss, sproc)

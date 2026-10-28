@@ -1,0 +1,14 @@
+box: {'k_band': 0.04, 'p_band_D': 0.0226, 'p_band_F': 0.0226, 'b_band': 0.18, 'w_band': 0.02, 'm_band': 0.32}
+[joint k_band 0.04 b_band 0.18] ok False  its 60  max|F| 4.64e-05
+
+[joint k_band 0.04 b_band 0.18 (unconverged)] rest point box position u: K_D -1.05, K_F -1.03, P_D -1.05, P_F -1.05, b_DD +1.05, b_DF -0.06, b_FD +0.12, V_dep -1.05
+[joint k_band 0.04 b_band 0.18 (unconverged)] fitted rest: mu_D 0.00000  loan spread 0.0bp  leverage 13.930  sov spread 609.2bp  E[Om] 20.8190  goods_F +2.5e-03
+   p^d 0.25%: dQ_bD -2.42%  dn_D -0.00%  dn_F -0.50%  dY_D -0.0202%  dC_D -0.0849%  dspread -0.0bp  mu_D 0.00000  E[Om] 21.4636 = nd 21.4882/d 11.670 (alpha' nd 23.368, d 11.400)
+   p^d 0.50%: dQ_bD -4.64%  dn_D -0.00%  dn_F -1.00%  dY_D -0.0394%  dC_D -0.1562%  dspread -0.0bp  mu_D 0.00000  E[Om] 22.0788 = nd 22.1310/d 11.678 (alpha' nd 24.097, d 11.422)
+   p^d 1.00%: dQ_bD -7.17%  dn_D -0.00%  dn_F -1.62%  dY_D -0.0622%  dC_D -0.2298%  dspread -0.0bp  mu_D 0.00000  E[Om] 22.8002 = nd 22.9124/d 11.687 (alpha' nd 24.986, d 11.449)
+   p^d 2.00%: dQ_bD -10.00%  dn_D -0.00%  dn_F -2.36%  dY_D -0.0885%  dC_D -0.3021%  dspread -0.0bp  mu_D 0.00000  E[Om] 23.6036 = nd 23.8466/d 11.699 (alpha' nd 26.050, d 11.480)
+[joint k_band 0.04 b_band 0.18 (unconverged)] exact rest: mu_D 0.00000  loan spread 0.0bp  leverage 14.136  sov spread 1008.5bp  E[Om] 30.9159  goods_F -3.6e-07
+   p^d 0.25%: dQ_bD -2.06%  dn_D -0.00%  dn_F -0.37%  dY_D -0.0169%  dC_D -0.0310%  dspread -0.0bp  mu_D 0.00000  E[Om] 31.7549 = nd 31.8027/d 12.658 (alpha' nd 32.834, d 11.763)
+   p^d 0.50%: dQ_bD -3.93%  dn_D -0.00%  dn_F -0.72%  dY_D -0.0292%  dC_D -0.0624%  dspread -0.0bp  mu_D 0.00000  E[Om] 32.5200 = nd 32.6198/d 12.667 (alpha' nd 33.684, d 11.782)
+   p^d 1.00%: dQ_bD -6.06%  dn_D -0.00%  dn_F -1.15%  dY_D -0.0380%  dC_D -0.1083%  dspread -0.0bp  mu_D 0.00000  E[Om] 33.3626 = nd 33.5715/d 12.678 (alpha' nd 34.670, d 11.805)
+   p^d 2.00%: dQ_bD -8.43%  dn_D -0.00%  dn_F -1.69%  dY_D -0.0372%  dC_D -0.1826%  dspread -0.0bp  mu_D 0.00000  E[Om] 34.1981 = nd 34.6370/d 12.692 (alpha' nd 35.763, d 11.832)
