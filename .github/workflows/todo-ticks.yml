@@ -1,0 +1,77 @@
+# NOTIFY THE CO-AUTHORS WHEN A TODO.md ITEM IS TICKED
+# On every push to main that touches TODO.md, each commit in the push is compared with its parent.
+# An item that is ticked (- [x]) in the commit but was not ticked before gets a commit comment
+# that @-mentions the other author ([Adam] -> Daniel, [Daniel] -> Adam) or both ([joint] or no
+# tag). GitHub never notifies people of their own mentions, so mentioning both is harmless.
+
+name: TODO ticks
+
+on:
+  push:
+    branches: [main]
+    paths: [TODO.md]
+
+permissions:
+  contents: write
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Comment on commits that tick TODO items
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+          REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'EOF'
+          import os, re, subprocess
+
+          HANDLES = {"Adam": "adambutlin", "Daniel": "Daniel-Jensen"}
+          ITEM = re.compile(r"^- \[([ xX])\] (?:\[(\w+)\] )?(.*)$")
+
+          def git(*args):
+              return subprocess.run(["git", *args], capture_output=True, text=True).stdout
+
+          def items(sha):
+              # ticked items of TODO.md at sha, as {text: (owner, section)}
+              found, cur, section = [], None, ""
+              for line in git("show", f"{sha}:TODO.md").splitlines():
+                  m = ITEM.match(line)
+                  if line.startswith("## "):
+                      section, cur = line[3:].strip(), None
+                  elif m:
+                      cur = [m.group(1) != " ", m.group(2) or "joint", m.group(3).strip(), section]
+                      found.append(cur)
+                  elif cur and line.startswith("  ") and line.strip():
+                      # wrapped continuation line of the current item
+                      cur[2] += " " + line.strip()
+                  else:
+                      cur = None
+              return {t: (o, s) for done, o, t, s in found if done}
+
+          before, after = os.environ["BEFORE"], os.environ["AFTER"]
+          span = after if set(before) == {"0"} else f"{before}..{after}"
+          for sha in git("rev-list", "--reverse", span, "--", "TODO.md").split():
+              parent = git("rev-parse", "--verify", "-q", f"{sha}^").strip()
+              old = items(parent) if parent else {}
+              new = {t: v for t, v in items(sha).items() if t not in old}
+              if not new:
+                  continue
+              who = git("log", "-1", "--format=%an", sha).strip()
+              lines, mentions = [], set()
+              for text, (owner, section) in new.items():
+                  others = [h for n, h in HANDLES.items() if n != owner] if owner in HANDLES else list(HANDLES.values())
+                  mentions.update(others)
+                  lines.append(f"- [{owner}] ({section}) {text}")
+              body = (" ".join(f"@{h}" for h in sorted(mentions))
+                      + f": {who} ticked {len(new)} TODO item(s) as done.\n\n" + "\n".join(lines))
+              print(body)
+              subprocess.run(["gh", "api", f"repos/{os.environ['REPO']}/commits/{sha}/comments",
+                              "-f", f"body={body}"], check=True)
+          EOF

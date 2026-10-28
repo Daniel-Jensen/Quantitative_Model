@@ -10,7 +10,9 @@ task, not who did earlier work.
 
 Completed work never stays here. Ticking a box (`- [x]`) marks an item done but changes
 nothing else; at the start of each session Claude deletes ticked items and records each in
-`Claude files/docs/PROGRESS.md` with the date and the PR or commit. Last revised 2026-10-27.
+`Claude files/docs/PROGRESS.md` with the date and the PR or commit. Pushing a tick to `main`
+notifies the co-author on GitHub (both authors for a [joint] item), so tick and push before the
+item is deleted. Last revised 2026-10-28.
 
 ## Code
 

@@ -16,6 +16,13 @@ retired session-handoff file; its content is in git history.
 
 ---
 
+## 2026-10-28: GitHub notification when a TODO item is ticked (tooling)
+
+- A GitHub Action on pushes to `main` finds TODO items newly ticked in each pushed commit and
+  comments on that commit, mentioning the other author for an [Adam] or [Daniel] item and both
+  for a [joint] one. An item ticked and deleted in the same commit triggers nothing.
+- The audit and referee documents retired on 2026-10-14 are deleted in git as well.
+
 ## 2026-10-27: three equilibrium conditions aligned with the paper; data reconciled and scripted (model, data)
 
 - **Model (not yet solved).** Banks now price the foreign sovereign at its return in home goods,
