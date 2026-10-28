@@ -16,31 +16,29 @@ item is deleted. Last revised 2026-10-28.
 
 ## Code
 
-- [ ] [joint] **Decide whether reserves are divertible.** If divertible, Proposition 1 fails
-  (mu = mu_hat / (1 - s_R)) and a purchase tightens the constraint; recommended: non-divertible.
-- [ ] [Daniel] **Fix the working-capital wedge** to zeta (r_wc - r)/(1 + r), with dividends
-  carrying producers' surplus (impact output roughly 2.5x larger; backstop impact sign flips).
-- [ ] [Daniel] **Implement national deposit clearing**, including the steady-state external
-  balance (p_bar ≠ 1) and D banks' holdings of F bonds (the paper is silent; the six Greek EBA
-  banks held Bunds worth 0.11% of their assets). Precondition for the paper calibration: the
-  steady state imposes one union deposit market, which clears only a symmetric economy.
-- [ ] [Adam] **Put the paper's calibration into the code** (`calibration/global_projection.py`;
+- [ ] [Daniel] **Put the paper's calibration into the code** (`calibration/global_projection.py`;
   rho_s is hard-coded 0.95 in the grid builder). Values: STATE section 1. Propose the changes
   for approval first (a first attempt, 7c683bb, was reverted). Size the sovereign stocks to the
   own-sovereign shares (in closed form at p = 1, D debt is 52.6% of annual GDP against the 40%
   EBA banks held) and state the tax rule by its Bohn coefficient (gamma_tau = 0.01).
+- [ ] [Daniel] **Fix the working-capital wedge** to zeta (r_wc - r)/(1 + r), with dividends
+  carrying producers' surplus (impact output roughly 2.5x larger; backstop impact sign flips).
+- [ ] [joint] **Decide whether reserves are divertible.** If divertible, Proposition 1 fails
+  (mu = mu_hat / (1 - s_R)) and a purchase tightens the constraint; recommended: non-divertible.
+- [ ] [joint] **Decide the reserve remuneration rate** (national deposit rate vs a union rate).
+- [ ] [Daniel] **Implement national deposit clearing**, including the steady-state external
+  balance (p_bar ≠ 1) and D banks' holdings of F bonds (the paper is silent; the six Greek EBA
+  banks held Bunds worth 0.11% of their assets). Precondition for the paper calibration: the
+  steady state imposes one union deposit market, which clears only a symmetric economy.
 - [ ] [joint] **Bring the default branch onto its solved domain** (D-bank holdings 0.238 against
   a floor of 0.690): stock-and-share state space, then choose the post-default fiscal rule.
 - [ ] [joint] **Decide the remittance rule and capital-account closure**: mark-to-market vs
   realised income, the 2012 SMP-income return to Greece, the untargeted psi.
-- [ ] [joint] **Decide the reserve remuneration rate** (national deposit rate vs a union rate).
 - [ ] [joint] **Decide HA vs RA framing**: bring the household distribution into equilibrium or
   call the model representative-agent with an overlay; fix the overlay's r_wc B_L income bias.
 - [ ] [Daniel] **Solve the paper calibration** once the items above are in; report fitted and
   exactly cleared output side by side (kink risk, STATE section 2).
-- [ ] [joint] Run `TPI_CAP = "rest"` (defend the no-backstop rest-point spread, about 56 bp).
-- [ ] [Adam] Update the constants of `bohn.py` and `risk_process.py` to the paper (committed with
-  the old calibration's; at the paper's they reproduce appendix B's table and roots).
+- [ ] [Adam] Update the constants of `bohn.py` and `risk_process.py` to the paper (committed with the old calibration's; at the paper's they reproduce appendix B's table and roots).
 - [ ] [joint] Re-solve the reference (Bocola) calibration to measure the three
   equilibrium-condition fixes of 2026-10-27 (terms of trade in the cross-border bond
   conditions, F budget balance, gamma_tau at the traded price; STATE section 4).
@@ -58,16 +56,16 @@ item is deleted. Last revised 2026-10-28.
   kappa (code 0.071; size share 0.081).
 - [ ] [joint] **Section 3's 2×2 matrix has no solved counterpart**: implement the warranted
   floor and uncertain execution, or cut to the credible cap.
-- [ ] [joint] **Reverse the funding-risk sentence**: sovereign risk relaxes the constraint via
+- [x] [Adam] **Reverse the funding-risk sentence**: sovereign risk relaxes the constraint via
   franchise value; show the three margins.
 - [ ] [joint] **Rewrite the premium proposition**: its proof is incomplete and its premise fails
   (Omega(1)/Omega(0) = 1.29 from franchise value alone); call it a leverage-risk premium.
-- [ ] [joint] **Say the backstop insures banks against default** (pari passu haircuts), and
+- [ ] [Adam] **Say the backstop insures banks against default** (pari passu haircuts), and
   report outcomes including default.
-- [ ] [joint] Cut the flight-to-safety claim; note the total-spread cap responds to r_D - r_F.
-- [ ] [joint] State that the banker's discount factor omits the ratio of consumer price indices
+- [ ] [Adam] Cut the flight-to-safety claim; note the total-spread cap responds to r_D - r_F.
+- [x] [Adam] State that the banker's discount factor omits the ratio of consumer price indices
   (a choice; of order the import share times the terms-of-trade movement).
-- [ ] [joint] Fill every [TBC] once Code is done.
+- [ ] [Adam] Fill every [TBC] once Code is done.
 - [ ] [joint] Fill the \placeholder items (income process source, HFCS moments, zeta
   sensitivity, payout share f; the 11.3 size ratio is German over Greek GDP in 2006).
 
