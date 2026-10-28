@@ -2539,6 +2539,13 @@ the committed calibration with a Prony / companion-eigenvalue extractor
 >       μ_D 0: the IC is 12% slack (E[Ω]R·n/assets 1.123). Leverage 7.80, sovereign spread 73 bp.
 >     - **At p^d 2% (fitted / exact):** Q_bD −9.7/−9.3%, n_D −12.6/−11.3%, n_F −0.11/−0.14%, Y_D −0.072/−0.011%,
 >       C_D −0.26/+0.08%. The lending spread is 0: still slack, though the slack ratio falls to 1.112.
+>   - **M2 (rest-point calibration), 2026-10-28:** the D bank cannot be made to bind at rest. Raising the SS spread
+>     instrument 5 → 160 bp raises the rest slack 1.123 → 1.234 (rest E[Ω] 1.10 → 1.95); at 320 bp the SS is
+>     infeasible. f_D 0.08 → 0.24 lowers it to 1.054; binding needs f ≈ 0.35–0.4. Bocola's spread E[r^k] − r rises
+>     0.4 → 3.7 bp at p^d 2%. Author decision pending:
+>     `Claude files/reports/appendix_B_validation_2026-10-28_m2.md`.
+>   - **Solver:** the calm selection is ported into `recursive_experiment` (`_crisis_nodes`, `_calm_branch`, called
+>     after the d0 and joint stages). It reproduces the driver (d0 2.45e-12). N5 now tests a default-only floor.
 
 > **2026-10-01, branch `OMT-fix`: the LTRO backstop is DELETED; a TPI replaces it.** The
 > regime table is back to the default indicator d' in {0, 1}; `phi_ltro`, `ltro_D/F`,

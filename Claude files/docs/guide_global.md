@@ -72,6 +72,16 @@ re-import the model at every solve: **do not edit model code while a run is in p
 step Im F(θ + ih e_i)/h, h = 1e-20: exact to round-off, same pool, ~1.25× the FD time. The residual path must
 stay complex-safe: no `float()` on a traced value, no float-typed arrays for traced values
 (`tests/test_complex_jacobian.py` turns ComplexWarning into an error).
+**Calm-branch selection (2026-10-28).** A normal-times node can sit on a self-fulfilling crisis branch. Its
+continuation reads itself when a slow state such as K_F sits at the box edge (weight 0.97 at K_F+). At appendix B this
+stalled every stage: n_D at 11% of n_ss, alpha_D 8, a near-singular Jacobian. `recursive_experiment._calm_branch`,
+called after the d0 and joint stages, works as follows:
+- it flags nodes with n_D < 0.5 n_ss or alpha_D > 3 in normal times;
+- it solves each flagged node alone from the centre node's values, which gives the calm root;
+- it polishes all nodes in four Gauss-Seidel sweeps;
+- it re-solves the stage.
+
+The selection is the calm root everywhere (author decision, 2026-10-28).
 Solve ladder, also his: coarse μ=1 grid → d=0 at π=0 → d=1 by haircut homotopy
 (0.85/0.70/0.55/0.45) → joint → SEED the s-refined grid and re-solve there.
 Time iteration (`recursive_main.time_iteration`) survives ONLY as the warm start that

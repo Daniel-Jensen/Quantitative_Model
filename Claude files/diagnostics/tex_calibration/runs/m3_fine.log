@@ -1,0 +1,18 @@
+  reusing the solved baseline
+  collocation solve joint: 1000 unknowns (20 rules x 2 regime(s) x 25 points), backend = parsolve
+    [parsolve joint  1] sum|F|^2 = 1.508e-19   max|F| = 1.917e-10   step = 1
+    -> converged in 2 iterations, max|F| = 1.92e-10  (worst equation: id_alpha_F 1.9e-10)
+  s-refined grid: 27 points x 2 regimes (5 nodes on the s axis, degree 4 in s)
+  collocation solve joint (s=5 axis): 1080 unknowns (20 rules x 2 regime(s) x 27 points), backend = parsolve
+    [parsolve joint (s=5 axis)  1] sum|F|^2 = 5.735e-07   max|F| = 3.258e-04   step = 1
+    [parsolve joint (s=5 axis)  2] sum|F|^2 = 2.887e-12   max|F| = 4.542e-07   step = 1
+    [parsolve joint (s=5 axis)  3] sum|F|^2 = 8.651e-21   max|F| = 3.489e-11   step = 1
+    -> converged in 4 iterations, max|F| = 3.49e-11  (worst equation: id_alpha_D 3.5e-11)
+  s-refined grid: 31 points x 2 regimes (9 nodes on the s axis, degree 8 in s)
+  collocation solve joint (s=9 axis): 1240 unknowns (20 rules x 2 regime(s) x 31 points), backend = parsolve
+    [parsolve joint (s=9 axis)  1] sum|F|^2 = 7.462e-12   max|F| = 7.698e-07   step = 1
+    [parsolve joint (s=9 axis)  2] sum|F|^2 = 7.417e-22   max|F| = 7.267e-12   step = 1
+    -> converged in 3 iterations, max|F| = 7.27e-12  (worst equation: bondD_F 7.3e-12)
+  s-refined grid: 75 points x 2 regimes (9 nodes in s, with s x state terms, degree 8 in s)
+  collocation solve joint (s=9 cross): 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve joint (s=9 cross)  1] sum|F|^2 = 3.136e-03   max|F| = 5.200e-02   step = 1

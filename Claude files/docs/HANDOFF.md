@@ -12,8 +12,9 @@ Tier 2 is in (2026-10-27/28: 50% floor, Bohn 0.06). It fixes the risk-channel si
   `branch_select.py` and `m1_coarse.calm_guard` select the calm root, and the coarse appendix-B solve now converges
   through the hard polish (2.5e-10; `runs/m1_calm_hard_mu_eps_book_eps_floor_eps.pkl`).
 - At the clean solve the IC is 12% slack at rest, so the spread does not move (0 bp). Q_bD, n_D, n_F and Y_D fall at p^d 2%.
-- Next: an M2 warm-start driver (`calibrate_srp.py` cold-starts each evaluation, which fails at appendix B, and still
-  says floor 0.15); port the calm selection into `recursive_experiment`; the M3 fine check.
+- Done (evening): M2 warm driver (`m2_warm.py`) and the calm selection in the solver.
+- M2 shows that no SS spread instrument binds the D bank at rest; f_D would need ≈ 0.35–0.4. Author decision
+  pending (report `appendix_B_validation_2026-10-28_m2.md`). The M3 fine check is running (`m3_fine.py`).
 The continuation drivers are in `Claude files/diagnostics/tex_calibration/`
 (`diag_path.py` resumes from its checkpoints in `runs/`).
 

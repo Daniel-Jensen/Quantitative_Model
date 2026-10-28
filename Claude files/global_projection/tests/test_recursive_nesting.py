@@ -159,11 +159,12 @@ def test_n5_funded_floor_closes_the_budget():
     # D's top-up is new D debt the banks absorb and F's an F lump-sum tax, so the identity N4
     # checks must hold at points where the floor binds; a floor share of 0.9 makes it bind at
     # most of them, and the top-up must be real there (an unfunded floor leaks by exactly it).
+    # Since 2026-10-28 the floor is a recapitalisation in default only: no top-up in normal times.
     cal, ss, sp, grid, rules = _tpi_setup()
     rng = np.random.default_rng(1)
     for nwf in (0.15, 0.9):
         c = dict(cal, tpi_on=False, nw_floor_frac=nwf)
-        worst, n_bind, top = 0.0, 0, 0.0
+        worst, n_bind, top, top_d0 = 0.0, 0, 0.0, 0.0
         for _ in range(20):
             S = grid.lo + (grid.hi - grid.lo) * rng.random(grid.d)
             x = ss_x(ss, c) * (1.0 + 0.01 * rng.standard_normal(len(ss_x(ss, c))))
@@ -171,13 +172,17 @@ def test_n5_funded_floor_closes_the_budget():
             for d in (0, 1):
                 _, o = point_residuals(S, d, x, rules, c, ss, sp, n_gh=5)
                 worst = max(worst, abs(_union_identity(o, x, c, ss)))
+                if d == 0:
+                    top_d0 = max(top_d0, abs(o["recap_D"]), abs(o["recap_F"]))
+                    continue
                 n_bind += int(o["recap_D"] > 1e-6)
                 top = max(top, o["recap_D"])
         assert worst < 1e-8, f"union budget leaks with the floor at {nwf}: {worst:.3e}"
+        assert top_d0 == 0.0, f"a normal-times top-up of {top_d0:.3e} (the floor acts in default only)"
         if nwf > 0.5:
-            assert n_bind > 10, f"the floor bound at only {n_bind}/40 points"
+            assert n_bind > 5, f"the floor bound at only {n_bind}/20 default-regime points"
         print(f"    N5 floor {nwf:.2f}: union identity holds to {worst:.1e}; top-up binding at "
-              f"{n_bind}/40 points, largest {top:.3f} (an unfunded floor would leak by it)")
+              f"{n_bind}/20 default-regime points, largest {top:.3f}, none in normal times")
 
 
 def test_n2_no_default_grid_solve():

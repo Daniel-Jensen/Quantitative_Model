@@ -13,8 +13,8 @@ from global_projection.solver_recursive.state_grid import (build_state_box, buil
                                                            s_process_params, default_prob)
 from global_projection.solver_recursive.state_grid import (IK_D, IK_F, IP_D, IP_F, IBDD,
                                           IBDF, IBFD, IV, IS, IZ, IM, IO, STATE_NAMES)
-from global_projection.solver_recursive.decision_rules import RuleSet, SOLVE7, STORE_RULES
-from global_projection.solver_recursive.collocation import solve_collocation, SETS
+from global_projection.solver_recursive.decision_rules import RuleSet, SOLVE7, STORE_RULES, to_fit, from_fit
+from global_projection.solver_recursive.collocation import solve_collocation, SETS, _point_block
 from global_projection.solver_recursive.recursive_main import (time_iteration, calibrate_household_anchors,
                             ss_state, p_block_rotation)
 from global_projection.reporting.prints import (bp_ann, ann_pct, ann_prob,
@@ -369,12 +369,94 @@ def solve_no_default(rules, cal, ss, sproc, label, verbose):
     return ok and okh, (w if np.isnan(wh) else wh)
 
 
+# a normal-times node on the self-fulfilling crisis branch (2026-10-28, appendix B: the K_F+ node at n_D 11% of
+# n_ss and alpha_D 8, reading its own continuation with weight 0.97; it stalled every stage): the signature is D
+# equity below CRISIS_N of its SS level or alpha_D above CRISIS_ALPHA
+CRISIS_N, CRISIS_ALPHA = 0.5, 3.0
+# node-by-node polish sweeps after a switch, so the nodes agree before the global Newton
+CALM_SWEEPS = 4
+
+
+def _node_values(rules, i, regimes):
+    # NODE i's VALUES OF EVERY RULE IN FIT SPACE, RULE BY RULE THEN REGIME.
+    return np.array([to_fit(k, rules.vals[k][d][i]) for k in STORE_RULES for d in regimes], dtype=float)
+
+
+def _node_residual(rules, cal, ss, sproc, i, regimes, no_default, z):
+    # NODE i's RESIDUALS WITH ITS VALUES SET TO z AND REFITTED, THE OTHER NODES HELD.
+    j = 0
+    for k in STORE_RULES:
+        for d in regimes:
+            v = rules.vals[k][d].copy()
+            v[i] = from_fit(k, z[j])
+            rules.set_values(k, d, v)
+            j += 1
+    vals = {k: {d: rules.vals[k][d] for d in regimes} for k in STORE_RULES}
+    return np.concatenate([_point_block(i, d, vals, rules, cal, ss, sproc, N_GH, no_default) for d in regimes])
+
+
+def _node_solve(rules, cal, ss, sproc, i, regimes, no_default, z0):
+    # NODE i SOLVED ALONE FROM z0; THE RULES KEEP THE ROOT. RETURNS ITS max|residual|.
+    f = lambda z: _node_residual(rules, cal, ss, sproc, i, regimes, no_default, z)
+    sol = root(f, z0, method="hybr", tol=1e-13)
+    return float(np.max(np.abs(f(sol.x))))
+
+
+def _crisis_nodes(rules, cal, ss, sproc, no_default):
+    # THE NODES WHOSE NORMAL-TIMES SOLUTION CARRIES THE CRISIS SIGNATURE.
+    nss, out = ss["ss_bank_D"]["n_ss"], []
+    for i in range(rules.grid.n):
+        x = np.array([rules.vals[k][0][i] for k in SOLVE7])
+        o = point_residuals(rules.grid.points[i], 0, x, rules, cal, ss, sproc, n_gh=N_GH,
+                            no_default=no_default)[1]
+        if o["n_D"] < CRISIS_N * nss or o["alpha_D"] > CRISIS_ALPHA:
+            out.append(i)
+    return out
+
+
+def _calm_branch(rules, cal, ss, sproc, regimes, no_default, label, verbose, backend="auto"):
+    # EVERY CRISIS NODE SWITCHED TO ITS CALM ROOT (SOLVED ALONE FROM THE CENTRE NODE'S VALUES, CAPITAL SCALED TO
+    # ITS OWN STATE), THE NODES POLISHED IN SWEEPS, THE STAGE RE-SOLVED. RETURNS (ok, max|F|), OR None IF NONE.
+    bad = _crisis_nodes(rules, cal, ss, sproc, no_default)
+    if not bad:
+        return None
+    g = rules.grid
+    c = int(np.argmin(np.abs(g.to_unit(g.points)).sum(axis=1)))
+    kp = {"Kp_D": IK_D, "Kp_F": IK_F}
+    for i in bad:
+        z_now = _node_values(rules, i, regimes)
+        z0 = _node_values(rules, c, regimes)
+        j = 0
+        for k in STORE_RULES:
+            for _ in regimes:
+                if k in kp:
+                    z0[j] += np.log(g.points[i, kp[k]] / g.points[c, kp[k]])
+                j += 1
+        if _node_solve(rules, cal, ss, sproc, i, regimes, no_default, z0) > 1e-10:
+            _node_residual(rules, cal, ss, sproc, i, regimes, no_default, z_now)
+    for _ in range(CALM_SWEEPS):
+        for i in range(g.n):
+            z_now = _node_values(rules, i, regimes)
+            f_now = float(np.max(np.abs(_node_residual(rules, cal, ss, sproc, i, regimes, no_default, z_now))))
+            if _node_solve(rules, cal, ss, sproc, i, regimes, no_default, z_now) >= f_now:
+                _node_residual(rules, cal, ss, sproc, i, regimes, no_default, z_now)
+    if verbose:
+        print(f"    {label}: crisis branch at nodes {bad}; calm roots selected "
+              f"(left: {_crisis_nodes(rules, cal, ss, sproc, no_default) or 'none'})")
+    ok, _, w = _stage(rules, cal, ss, sproc, regimes, no_default, f"{label} (calm)", verbose,
+                      backend=backend, warm=0)
+    return ok, w
+
+
 def _solve_baseline(rules, cal, ss, sproc, D_REG, backend, verbose):
     # THE NO-TPI BASELINE: d = 0, THEN THE HAIRCUT HOMOTOPY, THEN THE JOINT SOLVE, ALL AT
     # MU_EPS_START, THEN THE SMOOTHING WALKED DOWN TO ITS CALIBRATED VALUE.
     target = cal["mu_eps"]
     cal["mu_eps"] = max(target, MU_EPS_START)
     ok0, it0, w0 = _stage_wc(rules, cal, ss, sproc, (0,), True, "d0", verbose)
+    calm = _calm_branch(rules, cal, ss, sproc, (0,), True, "d0", verbose, backend)
+    if calm is not None:
+        ok0, w0 = calm
     for k in STORE_RULES:  # start the default regime from d = 0
         rules.set_values(k, D_REG, rules.vals[k][0].copy())
     rec_target = cal["recovery_rate_D"]
@@ -389,6 +471,9 @@ def _solve_baseline(rules, cal, ss, sproc, D_REG, backend, verbose):
     # the calibrated smoothing (2026-10-20)
     okj, itj, wj = _stage(rules, cal, ss, sproc, (0, D_REG), False,
                           "joint (no TPI)", verbose, backend=backend, warm=0)
+    calm = _calm_branch(rules, cal, ss, sproc, (0, D_REG), False, "joint (no TPI)", verbose, backend)
+    if calm is not None:
+        okj, wj = calm
     if TWO_BOXES:
         # the post-default rules: seeded from the edge reads the joint stage just used, solved
         # with the normal rules held, then both boxes together
@@ -598,6 +683,9 @@ def solve_recursive(cal, ss, sproc, mu=1, verbose=True, mu_vec=None, rotate=Fals
         # regular branch the smoothing walk followed
         okj, itj, wj = _stage(rules, cal, ss, sproc, tuple(range(nreg)), False, "joint",
                               verbose, backend=backend, warm=0)
+        calm = _calm_branch(rules, cal, ss, sproc, tuple(range(nreg)), False, "joint", verbose, backend)
+        if calm is not None:
+            okj, wj = calm
 
     if s_refine and s_refine > 1 and S_REFINE_MODE == "cross" and base is None and not tpi:
         # the cross mode re-centres the box first; the TPI reuses the re-centred coarse baseline

@@ -14,6 +14,18 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-10-28 (evening): calm selection in the solver; M2 finds no binding rest point (`calibration`)
+
+- **Code:**
+  - `recursive_experiment`: `_crisis_nodes`, `_node_residual`, `_node_solve` and `_calm_branch`, called after
+    the d0 and joint stages of `_solve_baseline` and after the joint polish of `solve_recursive`;
+  - `test_recursive_nesting` N5: the floor binds in default, with no normal-times top-up.
+- **Checks:** `check_calm_port.py` reproduces branch_select (d0 2.45e-12). The fast tests pass;
+  test_collocation's real solve still fails (a known failure).
+- **M2:** `m2_warm.py`, `probe_f.py`. The D bank's rest slack rises with the SS spread instrument (1.123 → 1.234 for
+  5 → 160 bp; 320 bp is SS-infeasible) and falls with f_D (1.054 at 0.24). No target-consistent binding rest point
+  exists at appendix B. Report: `Claude files/reports/appendix_B_validation_2026-10-28_m2.md`.
+
 ## 2026-10-28 (later): calm-branch selection; first converged coarse appendix-B solve (`calibration`)
 
 - **Cause of the stall:** normal-times nodes, chiefly K_F+, sat on a self-fulfilling crisis branch. The node reads
