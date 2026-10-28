@@ -68,6 +68,10 @@ coefficient vector goes to one damped Newton with a finite-difference Jacobian
 The FD Jacobian's columns run on every core (`cal["n_jobs"]`: 0 = all, 1 = serial;
 `collocation._PoolJacobian`, spawned workers, bit-identical to the serial one). The workers
 re-import the model at every solve: **do not edit model code while a run is in progress.**
+`cal["jacobian"] = "complex"` (`run.JACOBIAN`, 2026-10-28) replaces the forward differences with the complex
+step Im F(θ + ih e_i)/h, h = 1e-20: exact to round-off, same pool, ~1.25× the FD time. The residual path must
+stay complex-safe: no `float()` on a traced value, no float-typed arrays for traced values
+(`tests/test_complex_jacobian.py` turns ComplexWarning into an error).
 Solve ladder, also his: coarse μ=1 grid → d=0 at π=0 → d=1 by haircut homotopy
 (0.85/0.70/0.55/0.45) → joint → SEED the s-refined grid and re-solve there.
 Time iteration (`recursive_main.time_iteration`) survives ONLY as the warm start that

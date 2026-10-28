@@ -56,8 +56,10 @@ def _multi_indices(d, mu, mu_vec):
 
 def chebyshev_basis_1d(x, max_deg):
     # CHEBYSHEV POLYNOMIALS T_0..T_max_deg AT x.
-    x = np.asarray(x, dtype=float)
-    T = np.empty((x.size, max_deg + 1))
+    # complex x passes through for the complex-step Jacobian
+    x = np.asarray(x)
+    x = x.astype(np.result_type(x.dtype, float), copy=False)
+    T = np.empty((x.size, max_deg + 1), dtype=x.dtype)
     T[:, 0] = 1.0
     if max_deg >= 1:
         T[:, 1] = x
@@ -188,7 +190,7 @@ class SmolyakGrid:
     def _basis_unit(self, u):
         # THE BASIS MATRIX AT UNIT-BOX POINTS.
         u = np.atleast_2d(u)
-        B = np.ones((u.shape[0], self.n))
+        B = np.ones((u.shape[0], self.n), dtype=np.result_type(u, float))
         for j in range(self.d):
             Tj = chebyshev_basis_1d(u[:, j], self.max_deg)
             B *= Tj[:, self.degrees[:, j]]
@@ -200,6 +202,10 @@ class SmolyakGrid:
 
     def fit(self, values):
         # COLLOCATION COEFFICIENTS FROM VALUES AT THE NODES.
+        values = np.asarray(values)
+        # linear, so a complex-step perturbation is fitted as its own real system
+        if np.iscomplexobj(values):
+            return self.fit(values.real) + 1j * self.fit(values.imag)
         return lu_solve(self._lu, np.asarray(values, dtype=float))
 
     def fit_weighted(self, values, w=None, ridge=0.0):
@@ -230,9 +236,11 @@ class SmolyakGrid:
         # state on the edge (K' = K at the capital edges) meets no corner
         c, h = 0.5 * (self.hi + self.lo), 0.5 * (self.hi - self.lo)
         u = (z - c) / h
-        a = np.abs(u)
-        sat = np.sign(u) * (1.0 + w * (1.0 - np.exp(-np.maximum(a - 1.0, 0.0) / w)))
-        return self._bwd(np.where(a > 1.0, c + h * sat, z))
+        # |u| and its sign from the real part, so a complex-step perturbation keeps its derivative
+        sg = np.sign(np.real(u))
+        a = sg * u
+        sat = sg * (1.0 + w * (1.0 - np.exp(-np.maximum(a - 1.0, 0.0) / w)))
+        return self._bwd(np.where(np.real(a) > 1.0, c + h * sat, z))
 
     def outside(self, x):
         # HOW FAR EACH POINT LIES OUTSIDE THE BOX, AS A SHARE OF ITS WIDTH.

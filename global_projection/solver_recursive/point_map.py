@@ -52,7 +52,8 @@ def _regime_weights(wq, pd, reg):
 
 def _expect(wgt, vals):
     # EXPECTATION OVER THE (s' NODE, REGIME) CELLS.
-    return float(sum(np.dot(wgt[j], vals[j]) for j in range(len(wgt))))
+    # no float(): it would drop a complex-step perturbation (collocation.jacobian "complex")
+    return sum(np.dot(wgt[j], vals[j]) for j in range(len(wgt)))
 
 
 def _ghh(C, N, chi, fr, floor, eps):
@@ -190,7 +191,9 @@ def _funded_floor(v, cal):
     # F: its debt stock is fixed by design, so the top-up is an F lump-sum tax.
     v.recap_D = v.recap_F = 0.0
     nwf = cal.get("nw_floor_frac", 0.0)
-    if nwf <= 0.0:
+    # the floor is a recapitalisation IN DEFAULT (2026-10-28): at 50% it also bound in normal times at
+    # the box edges, where the debt-funded top-up fed a doom loop (Q_bD 0.75, D debt x3) as a second branch
+    if nwf <= 0.0 or not v.d_reg:
         return
     floor_D, floor_F = nwf * v.bkD["n_ss"], nwf * v.bkF["n_ss"]
     # the floor's smooth max; 0 is the hard max (the final polish, 2026-10-26)
@@ -214,10 +217,10 @@ def _balance_sheets(v, cont, cal):
     # the F bank holds the rest of the fixed F stock
     v.b_F_F_lag = cal["B_gov_F_ss"] - v.b_F_D_lag / v.sz
     # today's alpha and r_wc come from the frozen rules (exact at the nodes)
-    v.alpha_D_cur = float(cont.eval("alpha_D", v.d, v.Sm)[0])
-    v.alpha_F_cur = float(cont.eval("alpha_F", v.d, v.Sm)[0])
-    v.r_wc_D_cur = float(cont.eval("r_wc_D", v.d, v.Sm)[0])
-    v.r_wc_F_cur = float(cont.eval("r_wc_F", v.d, v.Sm)[0])
+    v.alpha_D_cur = cont.eval("alpha_D", v.d, v.Sm)[0]
+    v.alpha_F_cur = cont.eval("alpha_F", v.d, v.Sm)[0]
+    v.r_wc_D_cur = cont.eval("r_wc_D", v.d, v.Sm)[0]
+    v.r_wc_F_cur = cont.eval("r_wc_F", v.d, v.Sm)[0]
     # working-capital loans, a bank asset
     zD_, zF_ = cal["zeta_wc_D"], cal["zeta_wc_F"]
     v.L_wc_D = zD_ * (v.w_D0 / (1.0 + zD_ * v.r_wc_D_cur)) * v.N_D
@@ -265,7 +268,7 @@ def _next_states(v, sproc, eps):
     Z_next = (1.0 - sproc["rho_z"]) * sproc["z_star"] + sproc["rho_z"] * v.Z_D
     s_next = ((1.0 - sproc["rho_s"]) * sproc["s_star"] + sproc["rho_s"] * v.s
               + sproc["sigma_s"] * eps)
-    Sn = np.empty((eps.size, NSTATE))
+    Sn = np.empty((eps.size, NSTATE), dtype=np.result_type(v.Kp_D, float))
     Sn[:, IK_D] = v.Kp_D; Sn[:, IK_F] = v.Kp_F
     Sn[:, IP_D] = v.Pp_D; Sn[:, IP_F] = v.Pp_F
     Sn[:, IBDD] = v.b_D_D_new; Sn[:, IBDF] = v.b_D_F_new
@@ -314,9 +317,9 @@ def _discount_kernels(v, cont, cal):
     nreg = v.nreg
     frD, frF = cal["frisch_D"], cal["frisch_F"]
     sgD, sgF = cal["sigma_D"], cal["sigma_F"]
-    x_cur_D = _ghh(float(cont.eval("C_D", v.d, v.Sm)[0]), v.N_D, cal["chi_D"], frD,
+    x_cur_D = _ghh(cont.eval("C_D", v.d, v.Sm)[0], v.N_D, cal["chi_D"], frD,
                    v.X_FLOOR_D, v.X_EPS)
-    x_cur_F = _ghh(float(cont.eval("C_F", v.d, v.Sm)[0]), v.N_F, cal["chi_F"], frF,
+    x_cur_F = _ghh(cont.eval("C_F", v.d, v.Sm)[0], v.N_F, cal["chi_F"], frF,
                    v.X_FLOOR_F, v.X_EPS)
     v.XN_D = [_ghh(v.R[j]["C_D"], v.R[j]["N_D"], cal["chi_D"], frD, v.X_FLOOR_D, v.X_EPS)
               for j in range(nreg)]
@@ -348,10 +351,8 @@ def _incentive_constraint(v, cal):
     # switch (calibration/global_projection.py); 0 is the hard max
     mu_eps = float(cal.get("mu_eps", 0.0))
     kink = (lambda z: _smax(z, 0.0, mu_eps)) if mu_eps > 0.0 else (lambda z: max(z, 0.0))
-    v.mu_D = float(_smin(kink(1.0 - v.E_Om_D * (1.0 + v.rdep_D) * v.n_D / v.lev_D),
-                         _MU_CAP, _GUARD_EPS))
-    v.mu_F = float(_smin(kink(1.0 - v.E_Om_F * (1.0 + v.rdep_F) * v.n_F / v.lev_F),
-                         _MU_CAP, _GUARD_EPS))
+    v.mu_D = _smin(kink(1.0 - v.E_Om_D * (1.0 + v.rdep_D) * v.n_D / v.lev_D), _MU_CAP, _GUARD_EPS)
+    v.mu_F = _smin(kink(1.0 - v.E_Om_F * (1.0 + v.rdep_F) * v.n_F / v.lev_F), _MU_CAP, _GUARD_EPS)
     # the capital Euler, in return units
     E_Om_rk_D = _expect(v.wgt, [v.Om_D[j] * (v.RKD[j] - v.rdep_D) for j in range(v.nreg)])
     E_Om_rk_F = _expect(v.wgt, [v.Om_F[j] * (v.RKF[j] - v.rdep_F) for j in range(v.nreg)])
@@ -359,8 +360,8 @@ def _incentive_constraint(v, cal):
     v.cap_eul_F = (E_Om_rk_F - lKF * v.mu_F) / v.E_Om_F
     # alpha = E[Om]R/(1-mu), capped so a divergent iterate stays finite
     alpha_cap = float(cal.get("alpha_cap", 40.0))
-    v.alpha_D_new = float(_sclip(v.E_Om_D * (1.0 + v.rdep_D) / (1.0 - v.mu_D), 0.05, alpha_cap))
-    v.alpha_F_new = float(_sclip(v.E_Om_F * (1.0 + v.rdep_F) / (1.0 - v.mu_F), 0.05, alpha_cap))
+    v.alpha_D_new = _sclip(v.E_Om_D * (1.0 + v.rdep_D) / (1.0 - v.mu_D), 0.05, alpha_cap)
+    v.alpha_F_new = _sclip(v.E_Om_F * (1.0 + v.rdep_F) / (1.0 - v.mu_F), 0.05, alpha_cap)
     # slack of the same constraint, so mu*slack = 0
     v.slack_D = v.alpha_D_cur * v.n_D - v.lev_D
     v.slack_F = v.alpha_F_cur * v.n_F - v.lev_F
@@ -453,10 +454,10 @@ def _households(v, cal, ss):
     # F's claim: its bank's obligation less the cross-border position
     v.W_F = v.P_F - v.V_dep / (v.sz * v.p)
     # consumption, smoothly bounded
-    v.C_D = float(_sclip(v.W_D / v.P_CES_D + v.inc_D - v.A_D,
-                         0.15 * ss["C_D_ss"], 3.0 * ss["C_D_ss"], v.X_EPS))
-    v.C_F = float(_sclip(v.W_F / v.P_CES_F + v.inc_F - v.A_F,
-                         0.15 * ss["C_F_ss"], 3.0 * ss["C_F_ss"], v.X_EPS))
+    v.C_D = _sclip(v.W_D / v.P_CES_D + v.inc_D - v.A_D,
+                   0.15 * ss["C_D_ss"], 3.0 * ss["C_D_ss"], v.X_EPS)
+    v.C_F = _sclip(v.W_F / v.P_CES_F + v.inc_F - v.A_F,
+                   0.15 * ss["C_F_ss"], 3.0 * ss["C_F_ss"], v.X_EPS)
     # the deposit Eulers on the GHH composite
     xp_F = [_ghh(R[j]["C_F"], R[j]["N_F"], cal["chi_F"], frisch_F, v.X_FLOOR_F, v.X_EPS)
             for j in range(nreg)]
@@ -468,8 +469,8 @@ def _households(v, cal, ss):
     beff_F = 1.0 / (1.0 + cal["r_dep_F_target"])
     E_mu_D = _expect(v.wgt, [(1.0 + rp_D[j]) * v.XN_D[j] ** (-sigD) for j in range(nreg)])
     E_mu_F = _expect(v.wgt, [(1.0 + rp_F[j]) * xp_F[j] ** (-sigF) for j in range(nreg)])
-    xC_D = float(_ghh(v.C_D, v.N_D, cal["chi_D"], frisch_D, v.X_FLOOR_D, v.X_EPS))
-    xC_F = float(_ghh(v.C_F, v.N_F, cal["chi_F"], frisch_F, v.X_FLOOR_F, v.X_EPS))
+    xC_D = _ghh(v.C_D, v.N_D, cal["chi_D"], frisch_D, v.X_FLOOR_D, v.X_EPS)
+    xC_F = _ghh(v.C_F, v.N_F, cal["chi_F"], frisch_F, v.X_FLOOR_F, v.X_EPS)
     v.euler_D = xC_D ** (-sigD) / (beff_D * E_mu_D) - 1.0
     v.euler_F = xC_F ** (-sigF) / (beff_F * E_mu_F) - 1.0
     IM_D = import_demand(np.array([v.p]), np.array([v.C_D]), np.array([v.P_CES_D]), cal, "D")[0]

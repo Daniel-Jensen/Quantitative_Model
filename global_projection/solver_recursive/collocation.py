@@ -68,8 +68,8 @@ def _install_guess(rules, vals, regimes):
 
 def _point_block(i, d, vals, rules, cal, ss, sproc, n_gh, no_default):
     # THE RESIDUALS AT ONE GRID POINT OF ONE RULE SET IN ONE REGIME.
-    out_row = np.empty(N_RES)
     x = np.array([vals[k][d][i] for k in SOLVE])
+    out_row = np.empty(N_RES, dtype=np.result_type(x.dtype, float))
     try:
         r, out = point_residuals(rules.grid.points[i], d, x, rules, cal, ss, sproc,
                                  n_gh=n_gh, no_default=no_default)
@@ -97,7 +97,7 @@ def make_residual(rules, cal, ss, sproc, regimes=(0, 1), no_default=False, n_gh=
             _install_guess(rs, vals, regimes)
         blocks = []
         for rs, vals in zip(sets_, allvals):
-            res = np.empty((len(regimes), rs.grid.n, N_RES))
+            res = np.empty((len(regimes), rs.grid.n, N_RES), dtype=np.result_type(theta, float))
             for jd, d in enumerate(regimes):
                 for i in range(rs.grid.n):
                     res[jd, i, :] = _point_block(i, d, vals, rs, cal, ss, sproc,
@@ -117,13 +117,27 @@ def residual_table(theta, F):
     return dict(zip(RES_NAMES, r.max(axis=0)))
 
 
-def _fd_jacobian(F, x, f, eps):
-    # FORWARD-DIFFERENCE JACOBIAN, COLUMN BY COLUMN.
+# the complex step: Im F(x + ih e_i)/h is the exact derivative to round-off, with no step-size
+# trade-off, so a column is not smeared across the map's narrow kinks as a forward difference is
+CS_STEP = 1e-20
+
+
+def _column(F, x, f, eps, i, mode):
+    # ONE JACOBIAN COLUMN: A FORWARD DIFFERENCE, OR THE COMPLEX STEP.
+    if mode == "complex":
+        xc = x.astype(complex)
+        xc[i] += 1j * CS_STEP
+        return F(xc).imag / CS_STEP
+    xp = x.copy()
+    xp[i] += eps
+    return (F(xp) - f) / eps
+
+
+def _fd_jacobian(F, x, f, eps, mode="fd"):
+    # THE JACOBIAN, COLUMN BY COLUMN.
     J = np.empty((f.size, x.size))
     for i in range(x.size):
-        xp = x.copy()
-        xp[i] += eps
-        J[:, i] = (F(xp) - f) / eps
+        J[:, i] = _column(F, x, f, eps, i, mode)
     return J
 
 
@@ -136,23 +150,21 @@ def _worker_init(args):
     _WORKER["F"] = make_residual(*args)
 
 
-def _worker_columns(x, f, eps, cols):
+def _worker_columns(x, f, eps, cols, mode):
     # A BLOCK OF JACOBIAN COLUMNS, COMPUTED AS _fd_jacobian DOES.
     F = _WORKER["F"]
     block = np.empty((f.size, len(cols)))
     for j, i in enumerate(cols):
-        xp = x.copy()
-        xp[i] += eps
-        block[:, j] = (F(xp) - f) / eps
+        block[:, j] = _column(F, x, f, eps, i, mode)
     return cols, block
 
 
 class _PoolJacobian:
     # THE FD JACOBIAN ON A POOL OF SPAWNED PROCESSES.
 
-    def __init__(self, args, n):
+    def __init__(self, args, n, mode="fd"):
         # START n WORKERS.
-        self.n = n
+        self.n, self.mode = n, mode
         self.pool = ProcessPoolExecutor(max_workers=n, mp_context=mp.get_context("spawn"),
                                         initializer=_worker_init, initargs=(args,))
 
@@ -160,7 +172,7 @@ class _PoolJacobian:
         # COLUMNS IN 4n CHUNKS, ASSEMBLED IN SERIAL ORDER.
         chunks = np.array_split(np.arange(x.size), 4 * self.n)
         J = np.empty((f.size, x.size))
-        jobs = [self.pool.submit(_worker_columns, x, f, eps, c) for c in chunks if c.size]
+        jobs = [self.pool.submit(_worker_columns, x, f, eps, c, self.mode) for c in chunks if c.size]
         for job in jobs:
             cols, block = job.result()
             J[:, cols] = block
@@ -230,8 +242,8 @@ def _lm_step(F, x, f, gap, J):
 def parsolve(F, x0, cc=1.0, tol=1e-20, maxcount=60, eps=1e-6, verbose=True,
              blowup=100.0, backtrack=True, label="", stall_step=1e-3, jac_every=1,
              floor_tol=1e-8, jacobian=None):
-    # DAMPED NEWTON WITH A FINITE-DIFFERENCE JACOBIAN (A PORT OF BOCOLA'S parsolve.m) AND A
-    # LEVENBERG-MARQUARDT FALLBACK.
+    # DAMPED NEWTON WITH A FINITE-DIFFERENCE OR COMPLEX-STEP JACOBIAN (A PORT OF BOCOLA'S parsolve.m)
+    # AND A LEVENBERG-MARQUARDT FALLBACK.
     x = np.asarray(x0, dtype=float).copy()
     f = F(x)
     gap = float(f @ f)
@@ -310,14 +322,16 @@ def solve_collocation(rules, cal, ss, sproc, regimes=(0, 1), no_default=False,
     if backend == "parsolve":
         # parsolve stops on the sum of squares: m*tol^2 matches max|F| = tol
         nj = _n_workers(cal)
-        jac = (_PoolJacobian((rules, cal, ss, sproc, regimes, no_default, n_gh, None, sets), nj)
-               if nj > 1 else None)
+        # cal["jacobian"]: "fd" (forward differences) or "complex" (the complex step, exact)
+        mode = cal.get("jacobian", "fd")
+        jac = (_PoolJacobian((rules, cal, ss, sproc, regimes, no_default, n_gh, None, sets), nj, mode)
+               if nj > 1 else lambda F_, x_, f_, e_: _fd_jacobian(F_, x_, f_, e_, mode))
         try:
             x, ok, its, worst = parsolve(F, x0, cc=cc, tol=m * tol ** 2, maxcount=maxit,
                                          verbose=verbose, label=label, jac_every=jac_every,
                                          floor_tol=10.0 * tol, jacobian=jac)
         finally:
-            if jac is not None:
+            if isinstance(jac, _PoolJacobian):
                 jac.close()
     else:
         x, ok, its, worst = krylov_solve(F, x0, f_tol=tol, maxiter=maxit,

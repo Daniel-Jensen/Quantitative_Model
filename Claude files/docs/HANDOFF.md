@@ -6,6 +6,14 @@
 NOT converge at it** (d0 near-fold; see STATE.md Part II, 2026-10-26, and
 `Claude files/reports/appendix_B_validation_2026-10-26.md`). `python3 run.py global` will stall at the first rung.
 Tier 2 is in (2026-10-27/28: 50% floor, Bohn 0.06). It fixes the risk-channel sign, but the coarse joint solve still stalls (~1e-5) with box-dependent rest points. The open decision is the method-level Tier 1 (analytic Jacobian, K_F handling, two-box design).
+**2026-10-28:**
+- The exact (complex-step) Jacobian is in (`run.JACOBIAN = "complex"`), and the recapitalisation floor now acts only in default.
+- The stall's cause: normal-times nodes on a self-fulfilling crisis branch, chiefly K_F+ (n_D 11% of n_ss).
+  `branch_select.py` and `m1_coarse.calm_guard` select the calm root, and the coarse appendix-B solve now converges
+  through the hard polish (2.5e-10; `runs/m1_calm_hard_mu_eps_book_eps_floor_eps.pkl`).
+- At the clean solve the IC is 12% slack at rest, so the spread does not move (0 bp). Q_bD, n_D, n_F and Y_D fall at p^d 2%.
+- Next: an M2 warm-start driver (`calibrate_srp.py` cold-starts each evaluation, which fails at appendix B, and still
+  says floor 0.15); port the calm selection into `recursive_experiment`; the M3 fine check.
 The continuation drivers are in `Claude files/diagnostics/tex_calibration/`
 (`diag_path.py` resumes from its checkpoints in `runs/`).
 

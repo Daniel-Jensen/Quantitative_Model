@@ -25,11 +25,14 @@ _FIT_FLOOR = 1e-12
 
 def to_fit(name, v):
     # LEVELS -> THE QUANTITY THE CHEBYSHEV FIT USES.
+    # complex v passes through for the complex-step Jacobian
+    v = np.asarray(v)
+    v = v.astype(np.result_type(v.dtype, float), copy=False)
     if name in GROSS_RULES:
-        return np.log(np.maximum(1.0 + np.asarray(v, dtype=float), _FIT_FLOOR))
+        return np.log(np.maximum(1.0 + v, _FIT_FLOOR))
     if name in LOG_RULES:
-        return np.log(np.maximum(np.asarray(v, dtype=float), _FIT_FLOOR))
-    return np.asarray(v, dtype=float)
+        return np.log(np.maximum(v, _FIT_FLOOR))
+    return v
 
 
 # the regime index is the default indicator: 0 = no default, 1 = default
@@ -72,7 +75,8 @@ class RuleSet:
 
     def set_values(self, name, d, values, weights=None, ridge=0.0):
         # SET ONE RULE'S VALUES IN ONE REGIME AND REFIT IT.
-        self.vals[name][d] = np.asarray(values, dtype=float).copy()
+        values = np.asarray(values)
+        self.vals[name][d] = values.astype(np.result_type(values.dtype, float))
         y = to_fit(name, self.vals[name][d])
         if weights is None and ridge == 0.0:
             self.coef[name][d] = self.grid.fit(y)

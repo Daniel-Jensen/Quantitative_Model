@@ -50,6 +50,7 @@ DECOMP_T = 25  # quarters in the decompositions
 TFP_SHOCK = 0.01  # one-off TFP shock to Z_D, decaying at rho_z = 0.9
 RISK_SHOCK_PD = 0.02  # one-off risk shock: p^d jumps from its rest value (cal["pd_rest"]) to this per quarter, then decays
 RUN_TPI = True  # solve the TPI and compare it with no TPI
+JACOBIAN = "fd"  # the collocation Jacobian: "fd" (forward differences) or "complex" (the complex step, exact)
 TPI_CAP = 200.0  # TPI spread cap, bp/yr; "rest" = defend the no-TPI rest-point spread (~56 bp)
 
 
@@ -83,13 +84,14 @@ def compute_global(quick=False):
                     NW_FLOOR=NW_FLOOR, MU=MU,
                     RISK_MU_VEC=RISK_MU_VEC, ROTATE_P=ROTATE_P, ACCURACY_T=ACCURACY_T,
                     DECOMP_T=DECOMP_T, TFP_SHOCK=TFP_SHOCK, RISK_SHOCK_PD=RISK_SHOCK_PD,
-                    RUN_TPI=RUN_TPI, TPI_CAP=TPI_CAP)
+                    RUN_TPI=RUN_TPI, TPI_CAP=TPI_CAP, JACOBIAN=JACOBIAN)
     t0 = time.perf_counter()
     with _logged(log, "w"):
         # 1. calibration and the deterministic steady state
         banner("Two-country HANK-GK monetary union: steady state")
         cal = get_calibration()
         cal["nw_floor_frac"] = NW_FLOOR
+        cal["jacobian"] = JACOBIAN
         ss = solve_steady_state(cal)
         sproc = s_process_params(cal)
         calibrate_household_anchors(cal, ss, sproc)

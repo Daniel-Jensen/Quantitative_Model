@@ -23,9 +23,22 @@ def save(tag, **kw):
 
 def stage(RE, rules, cal, ss, sp, label, regimes=(0, 1), maxit=30):
     # ONE JOINT NEWTON STAGE, REPORTED.
-    ok, it, w = RE._stage(rules, cal, ss, sp, regimes, False, label, False, warm=0, maxit=maxit)
+    ok, it, w = RE._stage(rules, cal, ss, sp, regimes, False, label, True, warm=0, maxit=maxit)
     print(f"[{label}] ok {ok}  its {it}  max|F| {w:.2e}", flush=True)
     return ok, w
+
+
+def calm_guard(RE, rules, cal, ss, sp, label, maxit=60):
+    # AFTER A JOINT STAGE: ANY NORMAL-TIMES NODE ON THE CRISIS BRANCH IS RE-SELECTED, POLISHED AND RE-SOLVED ONCE
+    # (2026-10-28 PLAN, STEP 2); RETURNS (ok, max|F|) OF THE RE-SOLVE, OR None WHEN NO NODE WAS ON IT.
+    import branch_select as B
+    bad = B.crisis_nodes(rules, cal, ss, sp, False)
+    print(f"[{label}] crisis nodes {bad}", flush=True)
+    if not bad:
+        return None
+    B.calm_scan(rules, cal, ss, sp, (0, 1), False, only=[b[0] for b in bad])
+    B.polish_sweeps(rules, cal, ss, sp, (0, 1), False)
+    return stage(RE, rules, cal, ss, sp, f"{label} calm re-solve", maxit=maxit)
 
 
 def reads(RE, rules, cal, ss, sp, tag):
@@ -59,13 +72,19 @@ def main():
     from global_projection.solver_recursive import recursive_experiment as RE
     sv = pickle.load(open(HERE / "runs" / sys.argv[1], "rb"))
     rules, cal, ss, vals = sv["rules"], sv["cal"], sv["ss"], dict(sv["vals"])
-    cal["nw_floor_frac"] = FLOOR
+    # the collocation Jacobian (M1_JAC: fd or complex, 2026-10-28)
+    jac = os.environ.get("M1_JAC", "fd")
+    cal.update(nw_floor_frac=FLOOR, jacobian=jac)
     sp = s_process_params(cal)
     base = get_calibration()
-    base.update(nw_floor_frac=FLOOR, mu_eps=1e-2, book_eps=1e-4, floor_eps=1e-3)
+    base.update(nw_floor_frac=FLOOR, mu_eps=1e-2, book_eps=1e-4, floor_eps=1e-3, jacobian=jac)
     print(f"[load] {sys.argv[1]}: lambda {cal['lambda_K_D']:.5f}  mu_ss {ss['ss_bank_D']['mu_ss']:.5f}  "
           f"spread instrument {4e4 * cal['credit_spread_target_D']:.1f}bp", flush=True)
 
+    # d = 0 re-solved first (the floor became default-only on 2026-10-28; M1_D0=0 skips it)
+    if os.environ.get("M1_D0", "1") == "1":
+        ok, it, w = RE._stage(rules, cal, ss, sp, (0,), True, "d0", False, warm=0, maxit=40)
+        print(f"[d0] ok {ok}  its {it}  max|F| {w:.2e}", flush=True)
     # the default regime from d = 0, then the haircut walked to the calibrated recovery
     for k in rules.vals:
         rules.set_values(k, 1, rules.vals[k][0].copy())
@@ -75,8 +94,12 @@ def main():
         ok, w = stage(RE, rules, cal, ss, sp, f"d1 rec={r:.2f}", regimes=(1,))
     cal["recovery_rate_D"] = rec
     ok, w = stage(RE, rules, cal, ss, sp, "joint eps 1e-2", maxit=60)
+    g = calm_guard(RE, rules, cal, ss, sp, "joint eps 1e-2")
+    if g is not None:
+        ok, w = g
     save("joint_eps1e-2", rules=rules, cal=cal, ss=ss, vals=vals)
-    rules, ok = recentre_until(RE, rules, cal, ss, sp, vals, ok)
+    if os.environ.get("M1_RECENTRE", "0") == "1":
+        rules, ok = recentre_until(RE, rules, cal, ss, sp, vals, ok)
     if not ok:
         reads(RE, rules, cal, ss, sp, "joint eps 1e-2 (unconverged)")
         return
@@ -113,6 +136,9 @@ def finish(RE, base, rules, cal, ss, sp, vals):
         cal_k, ss_k, sp_k = economy(base, v)
         trial = relative_seed(rules, cal, ss, cal_k, ss_k)
         ok, w = stage(RE, trial, cal_k, ss_k, sp_k, f"joint eps {e:.1e}")
+        g = calm_guard(RE, trial, cal_k, ss_k, sp_k, f"joint eps {e:.1e}", maxit=30)
+        if g is not None:
+            ok, w = g
         if not ok:
             break
         rules, cal, ss, sp, vals = trial, cal_k, ss_k, sp_k, v
@@ -127,6 +153,9 @@ def finish(RE, base, rules, cal, ss, sp, vals):
             cal_k, ss_k, sp_k = economy(base, v)
             trial = relative_seed(rules, cal, ss, cal_k, ss_k)
             ok, w = stage(RE, trial, cal_k, ss_k, sp_k, f"hard {'+'.join(keys)}")
+            g = calm_guard(RE, trial, cal_k, ss_k, sp_k, f"hard {'+'.join(keys)}", maxit=30)
+            if g is not None:
+                ok, w = g
             if ok:
                 rules, cal, ss, sp, vals = trial, cal_k, ss_k, sp_k, v
                 best = (f"hard {'+'.join(keys)}", rules, cal, ss, sp)

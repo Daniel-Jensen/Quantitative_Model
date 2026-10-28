@@ -380,3 +380,127 @@ numbers come from an unconverged joint solve (1.7e-5), before the genuine-max po
    - an analytic or automatic-differentiation Jacobian (FD at cond 1e10 cannot root it);
    - a grid that resolves the K_F dimension's effect on D (or drops K_F's quadratic term, since F is 11.3 × D);
    - the aligned two-box design, built on 2026-10-21 and switched off.
+
+## Follow-up (2026-10-28) — the exact Jacobian, and what it showed
+
+### What was built
+
+- **Complex-step Jacobian:** `collocation._column` computes J[:, i] = Im F(θ + i·1e-20·e_i)/1e-20. This is the analytic
+  Jacobian to round-off, without hand derivation or an AD library.
+  - The switch is `cal["jacobian"]` (`run.JACOBIAN`): `"fd"` (default) or `"complex"`.
+  - It runs on the same process pool, and one coarse joint Jacobian costs 26 s, against 21 s for FD.
+- **Complex-safe residual path:**
+  - the imaginary-dropping `float()` casts in `point_map` were removed;
+  - complex dtypes are carried through `chebyshev_basis_1d`, `_basis_unit`, `fit`, `to_fit`, `set_values`, `_next_states` and the residual arrays;
+  - `grid.clip`'s saturation now branches on real parts.
+- **Checks:**
+  - the real path is bitwise identical on 34 recorded cases (`diagnostics/tex_calibration/csj_bitwise.py`), and a planted 1-ulp change is caught;
+  - `tests/test_complex_jacobian.py`: complex step vs central differences, worst relative gap 6.9e-8, run with ComplexWarning as an error.
+
+### The gate: the Jacobian was not the bottleneck
+
+At the stalled k_band-4% joint checkpoint (`probe_csj.py`, `probe_kink.py`):
+- **Accuracy:** the FD Jacobian was accurate (median column error 8e-6). One column was off by 59%: `Kp_F` (F banks' next-period capital) at the K_F+ edge node.
+- **Conditioning:** cond 1.3e8 for both Jacobians.
+- **Newton:** the exact Newton step does not descend at any length down to 1/64, and LM crawls (5.795e-10 → 5.784e-10 per iteration).
+- **Weak direction:** `alpha_D` (D-bank franchise value) at the two K_F edge nodes (σ_min 3e-6). The Newton step changes it by e^2.
+
+### The cause at that checkpoint: a doom-loop branch from the floor in normal times
+
+`point_map._funded_floor` applied the floor in every regime. At 15% that never bound in normal times; at 50% it did.
+
+At the K_F edge nodes of the no-default regime, the solve sat on a second branch:
+
+| | centre node | K_F −4% | K_F +4% |
+|---|---|---|---|
+| `Q_bD` (D bond price) | 0.922 | 0.788 | 0.752 |
+| `recap_D` (funded top-up of D-bank net worth) | 0 | 2.23 | 3.06 |
+| `Bp_D` (next-period D debt) | 2.11 | 4.96 | 6.20 |
+| `alpha_D` | 1.02 | 4.06 | 39.998 (guard cap 40) |
+
+The loop works as follows: the top-up is funded with new D bonds, the D banks must absorb them, the bond price falls, and the top-up grows.
+- The d0 continuation endpoint already had normal-time top-ups at two nodes.
+- The cap on `alpha_D` was the kink 3e-5 along the Newton step.
+
+**Fix (model code):** the floor applies only in the default regime (`if nwf <= 0.0 or not v.d_reg: return`), as the
+2026-10-27 decision states ("a 50% recapitalisation floor in default").
+
+### M1 rerun (floor in default only, exact Jacobian; `runs/m1_dfloor.log`)
+
+- **d0:** re-solved from the appendix endpoint, stops at 2.4e-6 (40 its).
+- **Default regime:** the haircut ladder 0.85 → 0.45 converges in 4–8 iterations per rung (≤ 7e-9). This is the exact Jacobian's quadratic convergence.
+- **Joint (60 its):** stalls at 3.3e-5. The no-default regime has no top-up anywhere (`Q_bD` 0.91–0.93, `alpha_D` ≈ 1). The default regime is at ≤ 5e-7.
+  - The worst cells are `id_C_F` (F-consumption identity residual) at the centre and the P_D−1 node.
+  - **The weak direction is again `alpha_D` at the K_F+ edge**, d0 against d1, with σ_min 4.4e-8 (cond 2.4e10).
+  - The map is smooth along it (linearisation error O(t)), so this is a near-singularity, not a kink.
+  - In the default regime that node sits on the floor (`n_D` = 0.5 n_ss, `alpha_D` 6.4, `mu_D` 0).
+  - There the franchise-value recursion evaluates its own continuation at the saturated box edge with slope ≈ 1.
+
+### Where this leaves the global model (2026-10-28, revised)
+
+1. The exact Jacobian is correct and costs about the same as FD, but it does not unstall the joint stage. Derivative error was
+   not the bottleneck. It does converge the default regime quadratically.
+2. Restricting the floor to default removes a spurious normal-times doom-loop branch. The no-default regime is now clean.
+3. The remaining stall is a near-unit root of the `alpha_D` recursion at the K_F box edge, coupled across regimes. This
+   points to the K_F dimension of the grid (option 2):
+   - drop K_F's quadratic term for the D-bank rules, or
+   - give K_F a band and saturation such that next states from the edge do not feed back onto the edge node with slope ≈ 1.
+4. **The economics changes with the floor fix, so the 2026-10-27/28 sign result is withdrawn.** Reads at the stalled joint
+   checkpoint (floor in default only, 3.3e-5, unconverged; `runs/m1_dfloor_reads.log`), exact read:
+   - **Rest point:** `mu_D` (D-bank constraint multiplier) 0.0005, loan spread 3.0 bp, leverage 6.82, sovereign spread 1.1 bp.
+     The constraint is all but slack, and leverage is short of the target of 8; the rest-point loop (M2) has not run.
+   - **At p^d 2%:**
+     - Q_bD −9.8%, n_D −13.1%, n_F −0.28% and Y_D −0.11% have the right signs;
+     - the lending spread moves **−1.3 bp** (wrong sign; it was +175 bp on the doom-loop box) and C_D **+0.66%** (wrong sign);
+     - `mu_D` stays ≈ 0.
+   - **Mechanism:** E[Ω] rises 15% (0.886 → 1.019). The no-default leg rises (α′ 0.91 → 1.02) and so does the default
+     leg (Ω_d ≈ 1.41, α′_d ≈ 1.63). Together they beat the 13% net-worth loss, so risk keeps the IC slack.
+   - The +175 bp at the k_band-4% box came from a solution partly on the normal-times floor branch; it is superseded.
+   - The 50% floor still cuts the default-leg α′ (≈ 1.6 against ≈ 7 at 15%). But at a slack rest point that is not
+     enough: the channel needs the IC to bind at rest (the M2 targets: leverage 8, spread 5 bp) and E[Ω] not to rise faster than n_D falls.
+
+## Follow-up (2026-10-28, later) — the real cause: a crisis branch; first converged solve
+
+**Correction:** the near-unit root of the `alpha_D` recursion stated above is wrong. A direct check of the local
+feedback at node 22 shows the α recursion well conditioned (σ_min(I − A) = 0.63). The cause is a branch:
+
+| node 22 (K_F +2%), normal times | crisis branch (stalled solve) | calm root (node solved alone) |
+|---|---|---|
+| n_D / n_ss | 0.107 | 0.952 |
+| alpha_D | 8.07 | 1.03 |
+| mu_D | 0.081 | 0.014 |
+| Q_bD | 0.873 | 0.921 |
+| node residual | 2.4e-6 (does not converge) | 2.4e-14 |
+
+- **Why it was self-fulfilling:** the node's continuation reads its own values with weight 0.97, because K_F barely moves.
+- **Why it was near-singular:** at leverage ~75 the D bank's equity is a tiny difference of large numbers.
+- **Other symptoms with the same cause:** the d0 "near-fold" of 2026-10-26, last round's doom loop and the
+  box-dependent rest points.
+
+**Fix (diagnostic drivers, no model code):**
+- `branch_select.py` switches the flagged nodes (9 and 22 at d0) to their calm roots, then runs four Gauss-Seidel sweeps.
+- `m1_coarse.calm_guard` re-checks after every joint stage.
+
+**Result (`runs/m1_calm.log`; all with the exact Jacobian):**
+- **d0:** 2.5e-12 in 4 iterations.
+- **Haircut ladder:** every rung ≤ 1.2e-8.
+- **Joint:** 5.6e-11 in 7.
+- **Smoothing walk:** 1e-2 → 1e-4, every rung.
+- **Hard polish** (genuine IC max, hard books, hard floor): **2.5e-10**.
+- No crisis node at any stage.
+
+**Reads (deterministic-SS instruments, before the rest-point loop):**
+- **Rest point:** inside the box except b_DD (u +1.02). Fitted and exact agree (E[Ω] 1.1050 vs 1.1044; leverage 7.81 vs
+  7.80; sovereign spread 74.7 vs 73.3 bp). **μ_D = 0:** the IC is 12% slack (E[Ω]R·n/assets = 1.123).
+- **At p^d 2%, fitted / exact:**
+  - Q_bD −9.73/−9.28%, n_D −12.6/−11.3%, n_F −0.11/−0.14% and Y_D −0.072/−0.011% (right signs);
+  - C_D −0.26/+0.08% (the reads disagree off the rest point: the s dimension's 3 nodes);
+  - lending spread 0/0 bp.
+- **Constraint:** the slack ratio falls 1.123 → 1.112 (n_D −11.3%, assets −1.6%, E[Ω] +9.8%).
+  - E[Ω]: about 70% is a higher future franchise value in normal states, 30% more weight on default states (Ω_d 1.73).
+  - So risk moves the IC toward binding, but from 12% slack it never gets there.
+- **D consumption (exact):** dividends −0.014; deposits drawn down by 0.021.
+
+**Next:** the rest-point calibration (M2: leverage 8 and the 5 bp spread need the IC binding at rest) and the fine s check
+(M3). `calibrate_srp.py` cold-starts each evaluation, which fails at appendix B, and still sets the floor at 0.15, so it
+needs a warm-start driver that uses the calm selection.

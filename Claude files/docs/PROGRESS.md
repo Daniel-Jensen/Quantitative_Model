@@ -14,6 +14,33 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-10-28 (later): calm-branch selection; first converged coarse appendix-B solve (`calibration`)
+
+- **Cause of the stall:** normal-times nodes, chiefly K_F+, sat on a self-fulfilling crisis branch. The node reads
+  its own continuation with weight 0.97; there n_D was 11% of n_ss and alpha_D 8.
+- **Calm roots:** solved alone from the centre's values, the node has a calm root (2e-14).
+- **Drivers:** `Claude files/diagnostics/tex_calibration/branch_select.py` (crisis scan, calm switch, Gauss-Seidel
+  polish) and `m1_coarse.calm_guard`. No model code changed.
+- **Result:**
+  - d0 2.5e-12, joint 5.6e-11, smoothing walk to 1e-4, hard polish 2.5e-10, no crisis node.
+  - Q_bD, n_D, n_F and Y_D fall at p^d 2%. The IC is 12% slack at rest, so the spread is flat; M2 is not run yet.
+
+## 2026-10-28: exact (complex-step) collocation Jacobian; recapitalisation floor in default only (`calibration`)
+
+- **Code:**
+  - `collocation`: `_column` and the `cal["jacobian"]` switch, `"fd"` or `"complex"` (`run.JACOBIAN`, default "fd");
+  - complex-safe residual path in `point_map` (no `float()` on traced values), `state_grid` (basis, fit, clip) and
+    `decision_rules` (to_fit, set_values). The real path is bitwise unchanged (34 recorded cases).
+- **Model:** `point_map._funded_floor` acts only in the default regime. At 50% in every regime it bound at the
+  normal-times K_F box edges and fed a debt-funded doom-loop branch (Q_bD 0.75, D debt ×3, alpha_D at its cap).
+- **Test:** `Claude files/global_projection/tests/test_complex_jacobian.py`.
+- **Result:**
+  - the FD Jacobian was not the bottleneck: equal conditioning; the exact Newton step does not descend either;
+  - the joint stage still stalled (3.3e-5). The first diagnosis (an alpha_D near-unit root) was wrong; the
+    cause is a crisis branch at normal-times nodes, entry below;
+  - the default regime converges quadratically.
+  - Details: `Claude files/reports/appendix_B_validation_2026-10-26.md`, follow-up 2026-10-28.
+
 ## 2026-10-27/28: Tier 2, 50% recapitalisation floor and Bohn 0.06 (`calibration`)
 
 - **Code:**

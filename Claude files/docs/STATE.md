@@ -2510,6 +2510,35 @@ the committed calibration with a Prony / companion-eigenvalue extractor
 >   - **Signs:** at the 0.04 box the 2% shock gives Q_bD −10%, n_D −16%, Y_D −0.13%, lending spread +175 bp
 >     (correct signs; C_D +0.28% exact). α′ in default is ~1.57 (vs ~7 at 15%).
 >   - See the report's follow-up section.
+>   - **Caveat (2026-10-28):** those 0.04-box reads came from a solve sitting on the normal-times floor branch
+>     described below; they are superseded.
+> - **2026-10-28:**
+>   - **Floor:** the funded floor acts only in the default regime (`point_map._funded_floor`). In every regime at
+>     50%, it fed a normal-times doom-loop branch at the K_F box edges (Q_bD 0.75, recap_D 3.1, D debt ×3, α_D at
+>     the 40 cap).
+>   - **Jacobian:** `run.JACOBIAN` ("fd" default, "complex" = the exact complex step).
+>   - **Rerun (floor in default, exact Jacobian):** d0 2.4e-6; the default haircut ladder converges at every rung
+>     (≤ 7e-9). The joint stage stalled at 3.3e-5. (The cause first given, a near-unit root of the α_D recursion,
+>     was wrong; see the next bullet.)
+>   - **Reads at that stalled joint (exact):** the rest point is nearly slack (μ_D 0.0005, loan spread 3 bp,
+>     leverage 6.8). At p^d 2%: Q_bD −9.8%, n_D −13%, Y_D −0.11%, but the lending spread moves −1.3 bp and
+>     C_D +0.66%, because E[Ω] rises 15%. The +175 bp of the 0.04 box is withdrawn (doom-loop contamination).
+> - **2026-10-28 (later): the cause, and the first converged appendix-B solve.**
+>   - **Cause:** normal-times grid nodes sat on a second, self-fulfilling **crisis branch**. At K_F+2% (node 22),
+>     n_D was 11% of n_ss, α_D 8 and Q_bD 0.873. The node's continuation reads itself with weight 0.97 (K_F barely
+>     moves), so a crisis tomorrow justified one today. D equity there was a tiny difference of large numbers,
+>     hence the near-singular direction.
+>   - **Test:** solved alone from the centre's values, the node has a calm root at 2e-14 (n_D 0.95 n_ss, α_D 1.03).
+>     The α recursion itself is well conditioned (σ_min(I − A) 0.63).
+>   - **Fix:** `diagnostics/tex_calibration/branch_select.py` switches flagged nodes to the calm root, then
+>     polishes the nodes by Gauss-Seidel sweeps; `m1_coarse.calm_guard` re-checks after every joint stage.
+>   - **Result (`runs/m1_calm.log`):** d0 2.5e-12; the haircut ladder ≤ 1e-8; joint 5.6e-11; the smoothing walk
+>     1e-2 → 1e-4 at every rung; **the hard polish (genuine IC max, hard books, hard floor) 2.5e-10**; no crisis node.
+>     The reads below come from the converged solve at the deterministic-SS instruments, before the M2 loop:
+>     - **Rest point:** inside the box except b_DD (u +1.02). Fitted and exact agree (E[Ω] 1.1050 vs 1.1044).
+>       μ_D 0: the IC is 12% slack (E[Ω]R·n/assets 1.123). Leverage 7.80, sovereign spread 73 bp.
+>     - **At p^d 2% (fitted / exact):** Q_bD −9.7/−9.3%, n_D −12.6/−11.3%, n_F −0.11/−0.14%, Y_D −0.072/−0.011%,
+>       C_D −0.26/+0.08%. The lending spread is 0: still slack, though the slack ratio falls to 1.112.
 
 > **2026-10-01, branch `OMT-fix`: the LTRO backstop is DELETED; a TPI replaces it.** The
 > regime table is back to the default indicator d' in {0, 1}; `phi_ltro`, `ltro_D/F`,
