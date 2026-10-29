@@ -135,3 +135,21 @@ Both rungs converged (2.3e-12; 1.6e-9) through the hard conditions. Runs: `runs/
   - matching ≤ 108 bp at 2% needs a threshold just under 2%.
   - The threshold rises as f_D falls (toward Bocola's 0.035), since a smaller f makes the franchise value more forward-looking.
 - **Author decision pending:** which crisis-state target pins f_D.
+
+## f_D against the 108 bp transmission row (2026-10-29 decision), fine grid, 12% box top
+
+`m2_ob.py --target spread2 --search`. The moment is the lending-spread rise r_wc − r at p^d 2% from the rest point (exact
+reads). Each f step is a warm fine solve, capped at 0.02 per step: one jump of 0.09 (0.06 → 0.152) stalled.
+
+| f_D | 0.06 | 0.08 (appendix) | 0.10 | 0.12 |
+|---|---|---|---|---|
+| IC binds from p^d | 1.27% | 1.30% | 1.36% | — |
+| spread rise at p^d 2% | 547 bp | 452 bp | 380 bp | hard solve stalls at 9.5e-5 (line search shrinking) |
+
+- **Direction:** on this grid a higher f lowers the response (the coarse probe suggested the opposite); a lower f, toward
+  Bocola's 0.035, raises it.
+- **Size:** each +0.02 removes less (−95, then −71 bp). Extrapolated, f_D alone bottoms out near 150–200 bp, above the 108 bp
+  bound. The threshold barely moves (1.27–1.36%), so the 2% shock always lands well inside the binding region.
+- **Why the response is large:** the D bank loses ~21% of its equity at 2% (bond price −10.7% on a 15.5% book at leverage
+  ~8). That is data-driven (exposure 14.4%, duration 4.4 years), and it pushes μ to ~0.1, so λ_K·μ/E[Ω] ≈ 450 bp/yr.
+- **Status:** stopped after f_D 0.12 stalled. The f 0.10 solution is saved (`runs/m2_ob_fine_f.pkl`). Author decision pending.

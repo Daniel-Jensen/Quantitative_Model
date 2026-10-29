@@ -14,6 +14,12 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-10-29 (later): f_D cannot reach the 108 bp transmission bound (`calibration`)
+
+- **Measured:** the f_D search on the fine 12%-top grid gives a 2% spread rise of 547/452/380 bp at f_D 0.06/0.08/0.10;
+  at 0.12 the hard solve stalls.
+- **Driver:** `m2_ob.py` gains a trust region on f (0.02 per warm fine solve) and the `spread2` target.
+
 ## 2026-10-29: fine grid, s box to 12% p^d: the D IC binds from 1.3% and Bocola's mechanism appears (`calibration`)
 
 - **Fine grid (M3):** converged; it overturned the coarse M2 conclusion (the coarse 3-node s axis misled).

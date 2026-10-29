@@ -11,6 +11,11 @@ import numpy as np
 
 OB_PD = 0.04
 OB_TOL = 0.002
+# the alternative f_D target (2026-10-29 decision): the lending-spread rise at p^d 2% from the rest point, appendix B's
+# GR-DE overdraft-spread row (108 bp, an upper bound), exact reads
+SPREAD_PD, SPREAD_BP, SPREAD_TOL = 0.02, 108.0, 10.0
+# the largest move in f_D per warm fine solve
+F_STEP = 0.02
 # the extended box's top, p^d per quarter, walked in rungs (the 2010-11 average is 9.1%)
 TOP_RUNGS = (0.06, 0.12)
 LOGIT = lambda p: float(np.log(p / (1.0 - p)))
@@ -54,6 +59,16 @@ def threshold(RE, M):
     return np.sqrt(lo * hi), "inside the box"
 
 
+def spread_rise(RE, M, pd=SPREAD_PD):
+    # THE LENDING-SPREAD RISE r_wc - r_dep (bp/yr) AT p^d = pd FROM THE REST POINT, THE OTHER STATES THERE (EXACT).
+    from global_projection.solver_recursive.state_grid import IS
+    r, cal, ss, sp = M.CUR["rules"], M.CUR["cal"], M.CUR["ss"], M.CUR["sp"]
+    S0 = RE.stochastic_rest_point(r, cal, ss, sp, verbose=False)
+    S = S0.copy(); S[IS] = LOGIT(pd)
+    o0, o1 = RE.read_exact(r, cal, ss, sp, S0), RE.read_exact(r, cal, ss, sp, S)
+    return 4e4 * ((o1["r_wc_D"] - o1["rdep_D"]) - (o0["r_wc_D"] - o0["rdep_D"]))
+
+
 def extend_box(RE, M, top):
     # THE s BOX's TOP RAISED TO p^d = top: A NEW GRID SEEDED BY EVALUATING THE CURRENT RULES THERE, SOLVED HARD.
     from global_projection.solver_recursive.decision_rules import RuleSet
@@ -81,6 +96,7 @@ def main():
     import m1_coarse
     args = sys.argv[2:]
     fine = "--fine" in args
+    by_spread = "--target" in args and args[args.index("--target") + 1] == "spread2"
     if fine:
         M.REFINE = (IS, 9, "cross")
     sv = pickle.load(open(HERE / "runs" / sys.argv[1], "rb"))
@@ -130,20 +146,28 @@ def main():
             f = 0.5 * (f + pts[-1][0])
             continue
         p, where = threshold(RE, M)
-        pts.append((f, p))
-        hist.append(dict(stage="f", f_D=f, threshold=p, where=where, solve=w))
-        print(f"[f] f_D {f:.4f}: IC binds from p^d {100 * p:.2f}% ({where}); target {100 * OB_PD:.1f}%", flush=True)
+        sp2 = spread_rise(RE, M)
+        # the moment the secant matches: the 2% spread rise (--target spread2) or the binding threshold
+        mom, tgt, tol = (sp2, SPREAD_BP, SPREAD_TOL) if by_spread else (p, OB_PD, OB_TOL)
+        pts.append((f, mom))
+        hist.append(dict(stage="f", f_D=f, threshold=p, where=where, spread_rise_2pct=sp2, solve=w))
+        print(f"[f] f_D {f:.4f}: IC binds from p^d {100 * p:.2f}% ({where}); spread rise at p^d 2% {sp2:.1f} bp "
+              f"(target {'%.0f bp' % SPREAD_BP if by_spread else '%.1f%% threshold' % (100 * OB_PD)})", flush=True)
         save("f")
-        if abs(p - OB_PD) <= OB_TOL:
+        if abs(mom - tgt) <= tol:
             break
         if "--search" not in args:
             break
         if len(pts) == 1:
-            f = f + (0.04 if p > OB_PD else -0.04)
+            # measured on the fine 12%-top box (2026-10-29): a higher f lowers the 2% spread rise (f 0.06: 547 bp,
+            # 0.08: 452 bp) and moves the threshold up
+            f = f + F_STEP if mom > tgt else f - F_STEP
         else:
             (f1, p1), (f2, p2) = pts[-2], pts[-1]
-            f = f2 + (OB_PD - p2) * (f2 - f1) / (p2 - p1) if np.isfinite(p1 + p2) and p2 != p1 else f2 + 0.04
-            f = float(np.clip(f, 0.04, 0.5))
+            f_new = f2 + (tgt - p2) * (f2 - f1) / (p2 - p1) if np.isfinite(p1 + p2) and p2 != p1 else f2 + F_STEP
+            # a trust region: one warm fine solve does not survive a larger move in f (0.06 -> 0.152 stalled)
+            f = f2 + float(np.clip(f_new - f2, -F_STEP, F_STEP))
+        f = float(np.clip(f, 0.02, 0.5))
     # the impact rows at crisis-level shocks, fitted and exact
     m1_coarse.PDS = (0.02, 0.04, 0.06, 0.091)
     m1_coarse.reads(RE, M.CUR["rules"], M.CUR["cal"], M.CUR["ss"], M.CUR["sp"], f"OB {tag0}, f_D {M.CUR['vals']['f_D']:.3f}")

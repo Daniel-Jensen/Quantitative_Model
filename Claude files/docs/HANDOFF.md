@@ -19,7 +19,8 @@ Tier 2 is in (2026-10-27/28: 50% floor, Bohn 0.06). It fixes the risk-channel si
   occasionally binding).
 - **2026-10-29:** on the fine grid with the s box to 12% (`runs/m2_ob_fine_f.pkl`), the IC binds from p^d 1.3%. At 2%
   the spread is +452 bp, n_D −21% and Y_D −0.30%; all signs are right but n_F.
-- **Pending (author):** which crisis target pins f_D (binding at 4%, or the 108 bp transmission row).
+- **Author's choice:** the 108 bp transmission row at p^d 2%. But f_D only moves the response 547 → 380 bp over
+  0.06 → 0.10 (the solve stalls at 0.12), so f_D alone cannot reach 108 bp. Next instrument: an author decision.
 The continuation drivers are in `Claude files/diagnostics/tex_calibration/`
 (`diag_path.py` resumes from its checkpoints in `runs/`).
 

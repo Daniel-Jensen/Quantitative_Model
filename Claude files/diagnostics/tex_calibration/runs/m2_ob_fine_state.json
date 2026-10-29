@@ -4,6 +4,15 @@
   "f_D": 0.08,
   "threshold": 0.01301476011270311,
   "where": "inside the box",
+  "spread_rise_2pct": 451.6891444957576,
   "solve": 1.553467197870854e-09
+ },
+ {
+  "stage": "f",
+  "f_D": 0.1,
+  "threshold": 0.013555877526074511,
+  "where": "inside the box",
+  "spread_rise_2pct": 380.5149190950688,
+  "solve": 1.4665768599542162e-12
  }
 ]

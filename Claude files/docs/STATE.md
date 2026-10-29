@@ -2559,6 +2559,9 @@ the committed calibration with a Prony / companion-eigenvalue extractor
 >       - **Signs:** all right except n_F (+0.3%). The spread is 4× appendix B's 108 bp transmission bound.
 >       - **Pending:** the author picks the crisis target that pins f_D. Guard fixed (normal-times nodes only, no polish
 >         without a switch, jump cap).
+>     - **f_D against the 108 bp row (2026-10-29):** the 2% spread rise is 547/452/380 bp at f_D 0.06/0.08/0.10, and
+>       the IC binds from 1.27–1.36%. At f_D 0.12 the hard solve stalls. f_D alone cannot reach 108 bp (extrapolated
+>       floor ~150–200 bp). Author decision pending.
 
 > **2026-10-01, branch `OMT-fix`: the LTRO backstop is DELETED; a TPI replaces it.** The
 > regime table is back to the default indicator d' in {0, 1}; `phi_ltro`, `ltro_D/F`,

@@ -2,16 +2,28 @@
     -> converged in 1 iterations, max|F| = 1.55e-09  (worst equation: bondD_D 1.6e-09)
 [m2 hard] ok True  its 1  max|F| 1.55e-09
 [m2 hard] crisis nodes []
-[f] f_D 0.0800: IC binds from p^d 1.30% (inside the box); target 4.0%
-
-[OB fine, f_D 0.080] rest point box position u: K_D -0.70, K_F -0.07, P_D -0.06, b_DD +0.78, s -0.18
-[OB fine, f_D 0.080] fitted rest: mu_D -0.00000  loan spread -0.0bp  leverage 7.936  sov spread 39.3bp  E[Om] 1.0981  goods_F +1.1e-05
-   p^d 2.00%: dQ_bD -11.37%  dn_D -22.89%  dn_F +0.36%  dY_D -0.4929%  dC_D -0.3538%  dspread +566.5bp  mu_D 0.12363  E[Om] 1.1050 = nd 1.0923/d 1.725 (alpha' nd 1.098, d 1.829)
-   p^d 4.00%: dQ_bD -17.42%  dn_D -32.51%  dn_F +0.36%  dY_D -0.6614%  dC_D -0.4502%  dspread +950.5bp  mu_D 0.21071  E[Om] 1.1224 = nd 1.0972/d 1.729 (alpha' nd 1.101, d 1.822)
-   p^d 6.00%: dQ_bD -22.00%  dn_D -39.05%  dn_F +0.31%  dY_D -0.7484%  dC_D -0.4725%  dspread +1155.4bp  mu_D 0.26258  E[Om] 1.1507 = nd 1.1135/d 1.733 (alpha' nd 1.117, d 1.819)
-   p^d 9.10%: dQ_bD -27.64%  dn_D -46.69%  dn_F +0.24%  dY_D -0.8326%  dC_D -0.4781%  dspread +1324.8bp  mu_D 0.31591  E[Om] 1.2073 = nd 1.1539/d 1.741 (alpha' nd 1.160, d 1.820)
-[OB fine, f_D 0.080] exact rest: mu_D -0.00000  loan spread -0.0bp  leverage 7.936  sov spread 40.5bp  E[Om] 1.0970  goods_F +1.4e-10
-   p^d 2.00%: dQ_bD -10.70%  dn_D -20.86%  dn_F +0.29%  dY_D -0.2997%  dC_D -0.0975%  dspread +451.7bp  mu_D 0.09902  E[Om] 1.1099 = nd 1.0975/d 1.717 (alpha' nd 1.112, d 1.833)
-   p^d 4.00%: dQ_bD -17.02%  dn_D -32.40%  dn_F +0.39%  dY_D -0.5826%  dC_D -0.3270%  dspread +972.4bp  mu_D 0.21457  E[Om] 1.1172 = nd 1.0920/d 1.724 (alpha' nd 1.097, d 1.820)
-   p^d 6.00%: dQ_bD -21.70%  dn_D -39.71%  dn_F +0.37%  dY_D -0.7052%  dC_D -0.3558%  dspread +1203.6bp  mu_D 0.27303  E[Om] 1.1485 = nd 1.1114/d 1.730 (alpha' nd 1.116, d 1.818)
-   p^d 9.10%: dQ_bD -27.48%  dn_D -48.22%  dn_F +0.34%  dY_D -0.8175%  dC_D -0.3676%  dspread +1409.6bp  mu_D 0.33613  E[Om] 1.2073 = nd 1.1539/d 1.741 (alpha' nd 1.160, d 1.820)
+[f] f_D 0.0800: IC binds from p^d 1.30% (inside the box); spread rise at p^d 2% 451.7 bp (target 108 bp)
+  collocation solve m2 hard: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve m2 hard  1] sum|F|^2 = 8.842e-03   max|F| = 2.840e-02   step = 1
+    [parsolve m2 hard  2] sum|F|^2 = 1.219e-03   max|F| = 2.604e-02   step = 1
+    [parsolve m2 hard  3] sum|F|^2 = 9.754e-06   max|F| = 2.554e-03   step = 1
+    [parsolve m2 hard  4] sum|F|^2 = 1.227e-08   max|F| = 5.346e-05   step = 1
+    [parsolve m2 hard  5] sum|F|^2 = 6.747e-14   max|F| = 1.740e-07   step = 1
+    [parsolve m2 hard  6] sum|F|^2 = 5.196e-24   max|F| = 1.467e-12   step = 1
+    -> converged in 7 iterations, max|F| = 1.47e-12  (worst equation: bondD_F 1.5e-12)
+[m2 hard] ok True  its 7  max|F| 1.47e-12
+[m2 hard] crisis nodes []
+[f] f_D 0.1000: IC binds from p^d 1.36% (inside the box); spread rise at p^d 2% 380.5 bp (target 108 bp)
+  collocation solve m2 hard: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve m2 hard  1] sum|F|^2 = 5.970e-03   max|F| = 2.474e-02   step = 1
+    [parsolve m2 hard  2] sum|F|^2 = 1.494e-03   max|F| = 3.260e-02   step = 1
+    [parsolve m2 hard  3] sum|F|^2 = 4.157e-07   max|F| = 4.756e-04   step = 1
+    [parsolve m2 hard  4] sum|F|^2 = 2.780e-07   max|F| = 3.430e-04   step = 0.5
+    [parsolve m2 hard  5] sum|F|^2 = 6.568e-08   max|F| = 2.299e-04   step = 1
+    [parsolve m2 hard  6] sum|F|^2 = 6.194e-08   max|F| = 1.726e-04   step = 0.25
+    [parsolve m2 hard  7] sum|F|^2 = 1.302e-08   max|F| = 1.101e-04   step = 1
+    [parsolve m2 hard  8] sum|F|^2 = 9.979e-09   max|F| = 9.636e-05   step = 0.125
+    [parsolve m2 hard  9] sum|F|^2 = 9.670e-09   max|F| = 9.486e-05   step = 0.0156
+    [parsolve m2 hard 10] sum|F|^2 = 9.662e-09   max|F| = 9.482e-05   step = 0.00195
+/opt/anaconda3/lib/python3.13/multiprocessing/resource_tracker.py:301: UserWarning: resource_tracker: There appear to be 5 leaked semaphore objects to clean up at shutdown: {'/mp-_d7ex6ac', '/mp-3mensydj', '/mp-v670jv_h', '/mp-cy810pdk', '/mp-ijhe4kw9'}
+  warnings.warn(
