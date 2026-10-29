@@ -36,7 +36,9 @@ def calm_guard(RE, rules, cal, ss, sp, label, maxit=60):
     print(f"[{label}] crisis nodes {bad}", flush=True)
     if not bad:
         return None
-    B.calm_scan(rules, cal, ss, sp, (0, 1), False, only=[b[0] for b in bad])
+    # a flagged node without a calmer converged root is a genuine distressed state (high p^d at the box top): nothing to do
+    if not B.calm_scan(rules, cal, ss, sp, (0, 1), False, only=[b[0] for b in bad]):
+        return None
     B.polish_sweeps(rules, cal, ss, sp, (0, 1), False)
     return stage(RE, rules, cal, ss, sp, f"{label} calm re-solve", maxit=maxit)
 

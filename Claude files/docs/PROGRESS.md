@@ -14,6 +14,21 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-10-29: fine grid, s box to 12% p^d: the D IC binds from 1.3% and Bocola's mechanism appears (`calibration`)
+
+- **Fine grid (M3):** converged; it overturned the coarse M2 conclusion (the coarse 3-node s axis misled).
+- **Extended box:** with the s box top at 12% p^d on the fine grid, at f_D 0.08:
+  - the D IC binds from p^d 1.3%;
+  - at p^d 2%: n_D −21%, lending spread +452 bp, Y_D −0.30%, C_D −0.10%;
+  - all acceptance signs right except n_F (+0.3%).
+- **Code (`recursive_experiment._calm_branch` and the diagnostic copy):**
+  - the guard flags only nodes with p^d ≤ 1%;
+  - it polishes only after a real switch;
+  - sweep moves are capped at 0.05;
+  - non-finite node residuals count as a failed solve.
+  - Before these fixes the guard crashed a converged 12% solve and cascaded a spurious root.
+- **Drivers:** `m2_ob.py` (`--fine`, `--rungs`) and `m2_warm.seed_rel` (fine-grid seeding).
+
 ## 2026-10-28 (evening): calm selection in the solver; M2 finds no binding rest point (`calibration`)
 
 - **Code:**

@@ -59,3 +59,79 @@ The sign is right; the size is a few bp at the 2% shock.
 The calibration loop cannot reach its six targets at appendix B: no instrument value makes the D bank bind at rest.
 This is the plan's Gate 5, and the choice is the author's. The fine check (M3) runs meanwhile, on the uncalibrated clean
 solution.
+
+## The fine grid (M3) overturns the coarse conclusion
+
+`m3_fine.py` re-solved the clean coarse solution on Bocola's fine grid (9 nodes in s, cross terms, 75 points, 3000
+unknowns), through `solve_recursive(base=...)` with the calm guard. It converged at every rung, including the hard polish
+(2.9e-10). Fitted and exact reads now agree.
+
+| exact read, p^d 2% | coarse (3 s nodes) | fine (9 s nodes) |
+|---|---|---|
+| Q_bD | −9.28% | −6.78% |
+| n_D | −11.3% | −5.40% |
+| n_F | −0.14% | −0.25% |
+| Y_D | −0.011% | +0.031% |
+| C_D | +0.082% | −0.005% |
+| E[Ω] | +9.8% | −2.9% |
+| lending spread r_wc − r | 0 | 0 |
+
+**The D constraint on the fine grid, at the appendix's f_D = 0.08 (exact reads):**
+
+| p^d | rest (0.1%) | 0.5% | 1% | 2% | 3% |
+|---|---|---|---|---|---|
+| slack ratio | 1.116 | 1.080 | 1.059 | 1.033 | 1.015 |
+| Bocola's spread E[r^k] − r (bp/yr) | 0.4 | 2.0 | 4.1 | 8.3 | 12.6 |
+| rdep_D (bp/yr) | 120.0 | 120.7 | 119.6 | 116.4 | 112.8 |
+
+- The coarse grid's rise of E[Ω] with risk, and with it the "f_D ≈ 0.35 needed" conclusion, were artefacts of the
+  3-node s axis.
+- On the fine grid the D bank moves toward binding as risk rises, and by extrapolation binds at about **p^d 4%**: the
+  occasionally-binding design (decided 2026-10-28) is met at the appendix's own f_D = 0.08.
+- The coarse M2 table above (spread instrument and f_D) should be re-read on the fine grid before any use.
+- **Y_D rises slightly** at p^d ≤ 3% while the IC is slack. With μ = 0 the working-capital rate equals the deposit rate,
+  which falls with risk (rdep_D 120 → 113 bp at 3%), so labour demand rises. The output channel needs the IC to bind.
+
+**Running:** `m2_ob.py --fine` extends the s box to a 12% p^d top, locates the threshold, and reads impact rows at
+p^d 2/4/6/9.1%.
+
+## The extended fine box: the D constraint binds from p^d 1.3% (2026-10-29)
+
+`m2_ob.py --fine` raised the s box's top on the fine grid from 3% to 6%, then to 12% p^d (the 2010–11 average is 9.1%).
+Both rungs converged (2.3e-12; 1.6e-9) through the hard conditions. Runs: `runs/m2_ob_fine_box6.pkl`, `m2_ob_fine_box12.pkl`, `m2_ob_fine_f.pkl`.
+
+- **Guard bug (fixed):** the crisis guard first broke this. At high p^d, low D equity is the genuine solution. The old
+  guard polished anyway, sent converged nodes to another root (alpha_D 40) and crashed on NaNs. A first fix still
+  switched a p^d-12% node to a centre-seeded root at 138% of n_ss, which cascaded.
+- **The guard now:**
+  - flags only normal-times nodes, p^d ≤ 1% (`CRISIS_PD_MAX`);
+  - polishes only after a real switch;
+  - refuses polish moves larger than 0.05 in fit space;
+  - turns non-finite node residuals into a failed solve.
+- It is in both `recursive_experiment` and `branch_select.py`; `check_calm_port.py` and the fast tests pass.
+
+**Rest point (f_D 0.08, deterministic-SS instruments).** Leverage D/F 7.94/8.03, F spread 12.5 bp, exposures D/F
+15.5%/6.50%, sovereign spread 39 bp; IC slack (μ_D 0). Inside the box (b_DD at u +0.78).
+
+**The D IC binds from p^d = 1.3%** (other states at the rest point). Impact rows, exact reads (fitted within ~0.2 pp):
+
+| p^d | 2% | 4% | 6% | 9.1% |
+|---|---|---|---|---|
+| Q_bD | −10.7% | −17.0% | −21.7% | −27.5% |
+| n_D | −20.9% | −32.4% | −39.7% | −48.2% |
+| n_F | +0.29% | +0.39% | +0.37% | +0.34% |
+| Y_D | −0.30% | −0.58% | −0.71% | −0.82% |
+| C_D | −0.10% | −0.33% | −0.36% | −0.37% |
+| lending spread r_wc − r | +452 bp | +972 bp | +1204 bp | +1410 bp |
+| μ_D | 0.099 | 0.215 | 0.273 | 0.336 |
+
+- Bocola's mechanism, end to end: bond prices fall, D bank equity falls, the IC binds, the lending spread rises, and
+  output and consumption fall.
+- Every acceptance sign is right **except n_F**, which rises 0.3–0.4%.
+- **Magnitudes are large.** Appendix B's transmission row puts the GR-DE overdraft-spread rise at 108 bp at p^d 2% (an
+  upper bound); the model gives 452 bp.
+- **Two crisis targets conflict:**
+  - "binding from p^d ≈ 4%" (the 2026-10-28 choice) means slack at 2%, so 0 bp there;
+  - matching ≤ 108 bp at 2% needs a threshold just under 2%.
+  - The threshold rises as f_D falls (toward Bocola's 0.035), since a smaller f makes the franchise value more forward-looking.
+- **Author decision pending:** which crisis-state target pins f_D.

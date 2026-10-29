@@ -371,10 +371,14 @@ def solve_no_default(rules, cal, ss, sproc, label, verbose):
 
 # a normal-times node on the self-fulfilling crisis branch (2026-10-28, appendix B: the K_F+ node at n_D 11% of
 # n_ss and alpha_D 8, reading its own continuation with weight 0.97; it stalled every stage): the signature is D
-# equity below CRISIS_N of its SS level or alpha_D above CRISIS_ALPHA
-CRISIS_N, CRISIS_ALPHA = 0.5, 3.0
-# node-by-node polish sweeps after a switch, so the nodes agree before the global Newton
+# equity below CRISIS_N of its SS level or alpha_D above CRISIS_ALPHA, at a node whose priced default probability is at
+# most CRISIS_PD_MAX: above it low equity is the genuine distressed solution, and the centre-seeded root there is the
+# spurious one (2026-10-29: at p^d 12% it gave n_D 138% of n_ss and cascaded through the s x state terms)
+CRISIS_N, CRISIS_ALPHA, CRISIS_PD_MAX = 0.5, 3.0, 0.01
+# node-by-node polish sweeps after a switch, so the nodes agree before the global Newton, each node's move
+# capped at CALM_JUMP in fit space (2026-10-29: uncapped sweeps sent converged high-risk nodes to another root)
 CALM_SWEEPS = 4
+CALM_JUMP = 0.05
 
 
 def _node_values(rules, i, regimes):
@@ -397,15 +401,29 @@ def _node_residual(rules, cal, ss, sproc, i, regimes, no_default, z):
 
 def _node_solve(rules, cal, ss, sproc, i, regimes, no_default, z0):
     # NODE i SOLVED ALONE FROM z0; THE RULES KEEP THE ROOT. RETURNS ITS max|residual|.
-    f = lambda z: _node_residual(rules, cal, ss, sproc, i, regimes, no_default, z)
-    sol = root(f, z0, method="hybr", tol=1e-13)
+    # a non-finite residual counts as far from a root, so the caller keeps the node's values
+    f = lambda z: np.nan_to_num(_node_residual(rules, cal, ss, sproc, i, regimes, no_default, z),
+                                nan=1e3, posinf=1e3, neginf=-1e3)
+    try:
+        sol = root(f, z0, method="hybr", tol=1e-13)
+    except (ValueError, ArithmeticError, np.linalg.LinAlgError):
+        return np.inf
     return float(np.max(np.abs(f(sol.x))))
+
+
+def _node_nD(rules, cal, ss, sproc, i, no_default):
+    # THE D BANK'S NET WORTH AT NODE i IN NORMAL TIMES, AT THE RULES' CURRENT VALUES.
+    x = np.array([rules.vals[k][0][i] for k in SOLVE7])
+    return point_residuals(rules.grid.points[i], 0, x, rules, cal, ss, sproc, n_gh=N_GH,
+                           no_default=no_default)[1]["n_D"]
 
 
 def _crisis_nodes(rules, cal, ss, sproc, no_default):
     # THE NODES WHOSE NORMAL-TIMES SOLUTION CARRIES THE CRISIS SIGNATURE.
     nss, out = ss["ss_bank_D"]["n_ss"], []
     for i in range(rules.grid.n):
+        if default_prob(rules.grid.points[i, IS]) > CRISIS_PD_MAX:
+            continue
         x = np.array([rules.vals[k][0][i] for k in SOLVE7])
         o = point_residuals(rules.grid.points[i], 0, x, rules, cal, ss, sproc, n_gh=N_GH,
                             no_default=no_default)[1]
@@ -423,6 +441,7 @@ def _calm_branch(rules, cal, ss, sproc, regimes, no_default, label, verbose, bac
     g = rules.grid
     c = int(np.argmin(np.abs(g.to_unit(g.points)).sum(axis=1)))
     kp = {"Kp_D": IK_D, "Kp_F": IK_F}
+    switched = []
     for i in bad:
         z_now = _node_values(rules, i, regimes)
         z0 = _node_values(rules, c, regimes)
@@ -432,16 +451,26 @@ def _calm_branch(rules, cal, ss, sproc, regimes, no_default, label, verbose, bac
                 if k in kp:
                     z0[j] += np.log(g.points[i, kp[k]] / g.points[c, kp[k]])
                 j += 1
-        if _node_solve(rules, cal, ss, sproc, i, regimes, no_default, z0) > 1e-10:
+        n_now = _node_nD(rules, cal, ss, sproc, i, no_default)
+        ok = _node_solve(rules, cal, ss, sproc, i, regimes, no_default, z0) <= 1e-10
+        n_new = _node_nD(rules, cal, ss, sproc, i, no_default)
+        # a flagged node without a calmer converged root is a genuine distressed state (high p^d)
+        if ok and n_new > n_now * (1.0 + 1e-3):
+            switched.append(i)
+        else:
             _node_residual(rules, cal, ss, sproc, i, regimes, no_default, z_now)
+    if not switched:
+        return None
     for _ in range(CALM_SWEEPS):
         for i in range(g.n):
             z_now = _node_values(rules, i, regimes)
             f_now = float(np.max(np.abs(_node_residual(rules, cal, ss, sproc, i, regimes, no_default, z_now))))
-            if _node_solve(rules, cal, ss, sproc, i, regimes, no_default, z_now) >= f_now:
+            f_new = _node_solve(rules, cal, ss, sproc, i, regimes, no_default, z_now)
+            if (not np.isfinite(f_new) or f_new >= f_now
+                    or np.max(np.abs(_node_values(rules, i, regimes) - z_now)) > CALM_JUMP):
                 _node_residual(rules, cal, ss, sproc, i, regimes, no_default, z_now)
     if verbose:
-        print(f"    {label}: crisis branch at nodes {bad}; calm roots selected "
+        print(f"    {label}: crisis branch at nodes {switched} (flagged {bad}); calm roots selected "
               f"(left: {_crisis_nodes(rules, cal, ss, sproc, no_default) or 'none'})")
     ok, _, w = _stage(rules, cal, ss, sproc, regimes, no_default, f"{label} (calm)", verbose,
                       backend=backend, warm=0)

@@ -12,14 +12,30 @@ import numpy as np
 
 HARD = dict(mu_eps=0.0, book_eps=0.0, floor_eps=0.0)
 CUR = {}
+# the grid refinement the evaluations solve on (None: the coarse grid; (IS, 9, "cross"): Bocola's fine grid)
+REFINE = None
+
+
+def seed_rel(prev, cal_p, ss_p, cal_k, ss_k):
+    # THE NEW ECONOMY'S RULES ON THE SAME GRID DESIGN: ITS SS PLUS THE LAST SOLUTION'S DEVIATION, NODE BY NODE.
+    from global_projection.solver_recursive.decision_rules import RuleSet, STORE_RULES, to_fit, from_fit
+    from global_projection.solver_recursive import recursive_experiment as RE
+    ss_old = RuleSet.from_ss(prev.grid, ss_p, cal_p, n_regimes=2)
+    new = RuleSet.from_ss(RE.normal_box(ss_k, cal_k, mu=1, refine=REFINE), ss_k, cal_k, n_regimes=2)
+    for k in STORE_RULES:
+        for d in range(new.n_regimes):
+            dev = to_fit(k, prev.vals[k][d]) - to_fit(k, ss_old.vals[k][d])
+            new.set_values(k, d, from_fit(k, to_fit(k, new.vals[k][d]) + dev))
+    new.n_gh = prev.n_gh
+    return new
 
 
 def solve_at(RE, x, verbose=False):
     # THE HARD SYSTEM AT INSTRUMENTS x, SEEDED FROM CUR; CUR MOVES ONLY ON SUCCESS. RETURNS (ok, max|F|).
     import global_projection.solver_recursive.calibrate_stochastic as CS
     from diag_homotopy import economy
-    from diag_path import relative_seed
     from m1_coarse import stage, calm_guard
+    relative_seed = seed_rel
     v = dict(CUR["vals"], **HARD, **{p[0]: float(xi) for p, xi in zip(CS.PAIRS, x)})
     routes = (("hard", v), ("working", dict(v, **RE.HARD_WORK)))
     rules, cal, ss = CUR["rules"], CUR["cal"], CUR["ss"]

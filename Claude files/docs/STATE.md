@@ -2546,6 +2546,19 @@ the committed calibration with a Prony / companion-eigenvalue extractor
 >     `Claude files/reports/appendix_B_validation_2026-10-28_m2.md`.
 >   - **Solver:** the calm selection is ported into `recursive_experiment` (`_crisis_nodes`, `_calm_branch`, called
 >     after the d0 and joint stages). It reproduces the driver (d0 2.45e-12). N5 now tests a default-only floor.
+>   - **M3, fine grid (9 s nodes, 75 points), 2026-10-28:** converged through the hard polish (2.9e-10).
+>     - **At p^d 2% (exact):** Q_bD −6.8%, n_D −5.4%, n_F −0.25%, C_D −0.005%, Y_D +0.03%; spread 0.
+>     - **D slack ratio:** 1.116 at rest, falling to 1.015 at p^d 3%. The IC binds at about 4% at f_D 0.08, so the
+>       occasionally-binding design needs no f change.
+>     - **Grid artefacts:** the coarse grid's E[Ω] rise and its f_D result were artefacts of the 3-node s axis.
+>     - **Output:** Y_D rises while slack because r_wc = rdep falls with risk.
+>     - **2026-10-29, fine grid with the box top at 12% p^d** (converged; f_D 0.08; rest point inside the box):
+>       - **Threshold:** the D IC binds from p^d 1.3%.
+>       - **At 2% (exact):** Q_bD −10.7%, n_D −20.9%, Y_D −0.30%, C_D −0.10%, spread +452 bp (μ_D 0.099).
+>       - **At 9.1%:** Q_bD −27.5%, n_D −48%, Y_D −0.82%, spread +1410 bp.
+>       - **Signs:** all right except n_F (+0.3%). The spread is 4× appendix B's 108 bp transmission bound.
+>       - **Pending:** the author picks the crisis target that pins f_D. Guard fixed (normal-times nodes only, no polish
+>         without a switch, jump cap).
 
 > **2026-10-01, branch `OMT-fix`: the LTRO backstop is DELETED; a TPI replaces it.** The
 > regime table is back to the default indicator d' in {0, 1}; `phi_ltro`, `ltro_D/F`,

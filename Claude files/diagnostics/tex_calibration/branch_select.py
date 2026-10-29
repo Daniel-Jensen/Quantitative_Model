@@ -11,8 +11,12 @@ import numpy as np
 from scipy.optimize import root
 
 NODE_TOL = 1e-10
+# the largest move of a node's values (fit space) a polish sweep may make
+JUMP = 0.05
 # the crisis signature in normal times on the coarse box: D equity below half its SS level, or alpha_D above 3
 CRISIS_N, CRISIS_ALPHA = 0.5, 3.0
+# only normal-times nodes: above this p^d low equity is the genuine distressed solution (2026-10-29)
+CRISIS_PD_MAX = 0.01
 
 
 def _write(rules, i, regs, z):
@@ -39,7 +43,8 @@ def node_residual(rules, i, regs, z, cal, ss, sp, nd):
     from global_projection.solver_recursive.recursive_experiment import N_GH
     _write(rules, i, regs, z)
     vals = {k: {d: rules.vals[k][d] for d in regs} for k in C.STORE_RULES}
-    return np.concatenate([C._point_block(i, d, vals, rules, cal, ss, sp, N_GH, nd) for d in regs])
+    r = np.concatenate([C._point_block(i, d, vals, rules, cal, ss, sp, N_GH, nd) for d in regs])
+    return np.nan_to_num(r, nan=1e3, posinf=1e3, neginf=-1e3)
 
 
 def node_read(rules, i, d, cal, ss, sp, nd):
@@ -53,9 +58,12 @@ def node_read(rules, i, d, cal, ss, sp, nd):
 
 def crisis_nodes(rules, cal, ss, sp, nd):
     # THE NODES WHOSE NORMAL-TIMES SOLUTION SHOWS THE CRISIS SIGNATURE.
+    from global_projection.solver_recursive.state_grid import IS, default_prob
     nss = ss["ss_bank_D"]["n_ss"]
     out = []
     for i in range(rules.grid.n):
+        if default_prob(rules.grid.points[i, IS]) > CRISIS_PD_MAX:
+            continue
         o = node_read(rules, i, 0, cal, ss, sp, nd)
         if o["n_D"] < CRISIS_N * nss or o["alpha_D"] > CRISIS_ALPHA:
             out.append((i, round(float(o["n_D"] / nss), 3), round(float(o["alpha_D"]), 2)))
@@ -113,7 +121,10 @@ def polish_sweeps(rules, cal, ss, sp, regs, nd, sweeps=4):
             z_now = _read(rules, i, regs)
             f_now = np.max(np.abs(node_residual(rules, i, regs, z_now, cal, ss, sp, nd)))
             sol = root(lambda z: node_residual(rules, i, regs, z, cal, ss, sp, nd), z_now, method="hybr", tol=1e-13)
-            if np.max(np.abs(node_residual(rules, i, regs, sol.x, cal, ss, sp, nd))) >= f_now:
+            f_new = np.max(np.abs(node_residual(rules, i, regs, sol.x, cal, ss, sp, nd)))
+            # a polish that jumps to another root is refused (2026-10-29: at p^d 12% the sweeps sent converged
+            # high-risk nodes to alpha_D = 40 and the solve to NaN)
+            if not np.isfinite(f_new) or f_new >= f_now or np.max(np.abs(sol.x - z_now)) > JUMP:
                 _write(rules, i, regs, z_now)
         w = global_max(rules, cal, ss, sp, regs, nd)
         print(f"  [sweep {s + 1}] global max|F| {w:.2e}; crisis nodes {crisis_nodes(rules, cal, ss, sp, nd)}", flush=True)

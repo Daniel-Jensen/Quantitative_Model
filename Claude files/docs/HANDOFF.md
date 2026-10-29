@@ -14,7 +14,12 @@ Tier 2 is in (2026-10-27/28: 50% floor, Bohn 0.06). It fixes the risk-channel si
 - At the clean solve the IC is 12% slack at rest, so the spread does not move (0 bp). Q_bD, n_D, n_F and Y_D fall at p^d 2%.
 - Done (evening): M2 warm driver (`m2_warm.py`) and the calm selection in the solver.
 - M2 shows that no SS spread instrument binds the D bank at rest; f_D would need ≈ 0.35–0.4. Author decision
-  pending (report `appendix_B_validation_2026-10-28_m2.md`). The M3 fine check is running (`m3_fine.py`).
+  pending (report `appendix_B_validation_2026-10-28_m2.md`).
+- The M3 fine check overturned that: on the fine grid the D IC binds at about p^d 4% at f_D 0.08 (author decision:
+  occasionally binding).
+- **2026-10-29:** on the fine grid with the s box to 12% (`runs/m2_ob_fine_f.pkl`), the IC binds from p^d 1.3%. At 2%
+  the spread is +452 bp, n_D −21% and Y_D −0.30%; all signs are right but n_F.
+- **Pending (author):** which crisis target pins f_D (binding at 4%, or the 108 bp transmission row).
 The continuation drivers are in `Claude files/diagnostics/tex_calibration/`
 (`diag_path.py` resumes from its checkpoints in `runs/`).
 
