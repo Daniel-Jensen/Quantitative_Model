@@ -30,8 +30,11 @@ _SNAMES = STATE_NAMES
 # leverage 8 (2026-10-20) the leverage-5 widths made the edge nodes swing net worth 2-3x more and
 # the solve failed there; three bands are cut to their net-worth-equivalent widths: deposit
 # obligations 4% -> 2.26%, the cross-border deposit position 4% -> 2%, the TPI book 100% -> 32% of
-# the D bank's book (the book then fits ~26% of the D stock; check the TPI's footprint against it)
-BOX_KW = dict(k_band=0.02, p_band_D=0.0226, p_band_F=0.0226, b_band=0.12, w_band=0.02,
+# the D bank's book (the book then fits ~26% of the D stock; check the TPI's footprint against it).
+# Appendix B (2026-10-30): capital 2% -> 4% (the rest point sat at K_D -2.0%, at the wall) and the
+# bond books 12% -> 25% (the rest point's b_DD sat at the 12% edge, which biased the crisis
+# threshold, and the risk IRF's book crossed it from quarter 6)
+BOX_KW = dict(k_band=0.04, p_band_D=0.0226, p_band_F=0.0226, b_band=0.25, w_band=0.02,
               m_band=0.32)
 
 # the two-box design (2026-10-21): a normal box aligned with the states the economy visits and a
@@ -1078,12 +1081,27 @@ def _tfp_read(rules, cal, ss, sproc, S):
     return o
 
 
-def solve_tfp(cal, ss, sproc, mu=1):
-    # SOLVE THE NO-DEFAULT RULES FOR THE TFP EXPERIMENT.
+def solve_tfp(cal, ss, sproc, mu=1, seed=None):
+    # SOLVE THE NO-DEFAULT RULES FOR THE TFP EXPERIMENT; seed: SOLVED RISK RULES TO START FROM.
     grid = normal_box(ss, cal, mu=mu)
     rules = RuleSet.from_ss(grid, ss, cal)
     rules.n_gh = N_GH
-    solve_no_default(rules, cal, ss, sproc, "TFP d0", True)
+    if seed is None:
+        ok, w = solve_no_default(rules, cal, ss, sproc, "TFP d0", True)
+    else:
+        # the risk rules read at their lowest default risk, where pi = 0 is closest; the SS ladder is skipped,
+        # since its first rungs (the working-capital flow at 0) would walk the seed away from this economy
+        # (2026-10-30: from the SS the appendix-B TFP solve stops at max|F| 1.6)
+        pts = grid.points.copy()
+        pts[:, IS] = seed.grid.lo[IS]
+        for k in STORE_RULES:
+            for d in range(rules.n_regimes):
+                rules.set_values(k, d, seed.eval(k, 0, pts))
+        hard = _soften(cal)
+        ok, _, w = _stage(rules, cal, ss, sproc, (0,), True, "TFP d0 (warm)", True, warm=0)
+        okh, wh = _hard_polish(rules, cal, ss, sproc, hard, (0,), True, "TFP d0 (warm)", True)
+        ok, w = ok and okh, (w if np.isnan(wh) else wh)
+    rules.solve_ok, rules.solve_worst = bool(ok), float(w)
     return rules
 
 

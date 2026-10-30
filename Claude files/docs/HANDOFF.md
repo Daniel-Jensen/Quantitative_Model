@@ -25,7 +25,12 @@ Tier 2 is in (2026-10-27/28: 50% floor, Bohn 0.06). It fixes the risk-channel si
   and the 2% spread rise is 205 bp. The F rest spread (12.3 bp) cannot reach 5 bp. Then `widen_b.py` and `final_outputs.py`.
 - **2026-10-30, final:** box with s top 12%, b_band 0.25, k_band 0.04, re-calibrated (instruments in STATE.md); the D IC
   binds from p^d 3.93%. The threshold is box-dependent (1.3–3.9%); a convergence check needs more nodes in the bank
-  stocks. The calibrated values are not yet in calibration/global_projection.py (the pipeline's box differs).
+  stocks.
+- **The pipeline reproduces it:** `python3 run.py global` warm-starts from `data/global_warm_start.pkl` (set
+  `run.WARM_START = None` for the cold-start ladder, which does not reach appendix B). The bond decomposition is now
+  Bocola's premia split.
+- **The TPI is not operational at appendix B:** the coarse cap walk stalls below 1100 bp, and on the fine grid it barely
+  moves. `RUN_TPI = False` until that wall is diagnosed (STATE.md).
 The continuation drivers are in `Claude files/diagnostics/tex_calibration/`
 (`diag_path.py` resumes from its checkpoints in `runs/`).
 

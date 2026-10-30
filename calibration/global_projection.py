@@ -39,11 +39,14 @@ def get_calibration():
         srp_leverage_D=8.0,     srp_leverage_F=8.0,
         srp_spread_D=0.000125,  srp_spread_F=0.000125,
         srp_exposure_D=0.144,   srp_exposure_F=0.065,
-        # the deterministic-SS instruments that deliver them (the appendix's closed forms until the
-        # rest-point loop has run)
-        leverage_target_D=8.0,            leverage_target_F=8.0,
-        credit_spread_target_D=0.000125,  credit_spread_target_F=0.000125,
-        sov_exposure_D=0.144,             sov_exposure_F=0.065,
+        # the deterministic-SS instruments that deliver them, from the rest-point loop on the fine grid
+        # (2026-10-30, Claude files/diagnostics/tex_calibration/m2_ob.py: leverage 8.00/8.00 and exposure
+        # 14.40%/6.50% at the rest point). The D bank is slack at rest by design (occasionally binding,
+        # from p^d 3.9%), so the D spread instrument stays at its appendix value; the F rest spread does
+        # not respond to its instrument (12 bp at the 1 bp bound) and the target is not met
+        leverage_target_D=8.108745648164863,   leverage_target_F=7.968926569751571,
+        credit_spread_target_D=0.000125,       credit_spread_target_F=2.5e-05,
+        sov_exposure_D=0.1289508412398137,     sov_exposure_F=0.06496448122294675,
         # warm starts, overwritten by calibrate_bank_targets
         lambda_K_D=0.22,        lambda_K_F=0.22,
         lambda_bD_D=0.22,       lambda_bD_F=0.22,
@@ -87,6 +90,10 @@ def get_calibration():
         # the priced default probability at rest, per quarter (the AR(1) mean of s): 0.10%
         # (appendix B; GR 1y CDS 2008Q3: 0.092%)
         pd_rest=0.001,
+        # the top of the solution's s box, p^d per quarter: past the 2010-11 average (9.1%), so the crisis
+        # region where the D bank binds (from p^d 3.9%) is inside the grid (2026-10-30; the symmetric 3.65-sd
+        # box stopped at 3%)
+        pd_box_top=0.12,
 
         # TPI: the D share of the Eurosystem P&L (capital key, as in calibration/ssj.py)
         tpi_key_D=0.071,

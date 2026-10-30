@@ -173,7 +173,8 @@ def calibration_values(o, cal, sproc, irf):
         pd_rest=100.0 / (1.0 + np.exp(-sproc["s_star"])),
         # the AR(1) for s is Gaussian, so its ergodic share above a threshold is exact
         crisis_share=100 * norm.sf(z), crisis_z=float(z),
-        pd_box_top=100.0 / (1.0 + np.exp(-(sproc["s_star"] + S_COVER_SD * sd_s))),
+        pd_box_top=max(100.0 / (1.0 + np.exp(-(sproc["s_star"] + S_COVER_SD * sd_s))),
+                       100.0 * cal.get("pd_box_top", 0.0)),
         sov_spread=4e4 * (yD - yF), y_D=4e4 * yD, y_F=4e4 * yF,
         recovery=100 * cal["recovery_rate_D"],
         exp_D=100 * m["exp_D"], exp_F=100 * m["exp_F"],

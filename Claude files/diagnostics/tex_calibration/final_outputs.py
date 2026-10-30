@@ -17,7 +17,7 @@ def main():
                                                                          persistence_irf, dynamic_irf, s_from_pd)
     from global_projection.solver_recursive.output_decomposition import (simulate, s_decay_path, decompose_output,
                                                                          active_channels, decompose_bond_price,
-                                                                         BOND_CHANNELS)
+                                                                         exact_bond_reads, BOND_CHANNELS)
     from global_projection.solver_recursive.accuracy import accuracy_report
     from global_projection.solver_recursive.calibrate_stochastic import (rest_point_read, rest_point_moments,
                                                                          calibration_values)
@@ -46,7 +46,8 @@ def main():
     ref = simulate(rules, cal, ss, sproc, [sproc["s_star"]] * T, S_init=S_rest)
     output_dec = decompose_output(sim, ref, cal)
     print_output_decomposition(output_dec, active_channels(output_dec))
-    bond_dec = decompose_bond_price(sim, ref, cal)
+    bond_dec = decompose_bond_price(exact_bond_reads(rules, cal, ss, sproc, sim),
+                                    exact_bond_reads(rules, cal, ss, sproc, ref), cal)
     print_bond_decomposition(bond_dec, BOND_CHANNELS)
     banner("Accuracy")
     accuracy = accuracy_report(rules, cal, ss, sproc, S_rest, T=run.ACCURACY_T, label="appendix-B risk rules")

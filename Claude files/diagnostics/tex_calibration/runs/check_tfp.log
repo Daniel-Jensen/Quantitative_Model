@@ -1,0 +1,143 @@
+/Users/Huawei/Desktop/Quantitative_Model/global_projection/blocks/firms.py:34: RuntimeWarning: invalid value encountered in power
+  Y   = Z_path * Kap_prod_path ** alpha * N_path ** (1 - alpha)
+/Users/Huawei/Desktop/Quantitative_Model/global_projection/blocks/trade.py:21: RuntimeWarning: invalid value encountered in power
+  inside = omega + (1.0 - omega) * p ** exp
+/Users/Huawei/Desktop/Quantitative_Model/global_projection/blocks/trade.py:23: RuntimeWarning: invalid value encountered in power
+  inside = omega + (1.0 - omega) * (1.0 / p) ** exp   # F imports D-goods at 1/p
+  collocation solve TFP d0 wc=0.0 fx=0.0: 500 unknowns (20 rules x 1 regime(s) x 25 points), backend = parsolve
+/Users/Huawei/Desktop/Quantitative_Model/global_projection/solver_recursive/point_map.py:427: RuntimeWarning: divide by zero encountered in scalar divide
+  v.w_F = v.w_F0 / (1.0 + zF * v.r_wc_F)
+/Users/Huawei/Desktop/Quantitative_Model/global_projection/solver_recursive/point_map.py:436: RuntimeWarning: invalid value encountered in scalar multiply
+  v.Div_F = (1 - mcF) * v.Y_F + v.capprof_F + div_bank_F + reb * wc_inc_F
+/Users/Huawei/Desktop/Quantitative_Model/global_projection/solver_recursive/point_map.py:449: RuntimeWarning: invalid value encountered in scalar multiply
+  wcf_F = cal.get("wc_flow_F", 1.0) * (cal["zeta_wc_F"] * v.r_wc_F * v.w_F * v.N_F + v.L_wc_F)
+/Users/Huawei/Desktop/Quantitative_Model/global_projection/solver_recursive/point_map.py:474: RuntimeWarning: divide by zero encountered in scalar divide
+  v.euler_D = xC_D ** (-sigD) / (beff_D * E_mu_D) - 1.0
+/Users/Huawei/Desktop/Quantitative_Model/global_projection/solver_recursive/point_map.py:508: RuntimeWarning: invalid value encountered in scalar divide
+  (cal["chi_F"] * v.N_F ** (1 / frisch_F) - v.w_F / v.P_CES_F)  # 4 lab_F -> N_F
+    [parsolve TFP d0 wc=0.0 fx=0.0  1] sum|F|^2 = 6.174e+03   max|F| = 5.666e+01   step = 0.0312
+    -> STOPPED in 1 iterations, max|F| = 5.67e+01  (worst equation: euler_D 5.7e+01)
+  collocation solve TFP d0 wc=0.0 fx=0.5: 500 unknowns (20 rules x 1 regime(s) x 25 points), backend = parsolve
+    [parsolve TFP d0 wc=0.0 fx=0.5  1] sum|F|^2 = 5.708e+03   max|F| = 5.569e+01   step = 0.0156
+    -> STOPPED in 1 iterations, max|F| = 5.57e+01  (worst equation: euler_D 5.6e+01)
+  collocation solve TFP d0 wc=0.0 fx=1.0: 500 unknowns (20 rules x 1 regime(s) x 25 points), backend = parsolve
+    [parsolve TFP d0 wc=0.0 fx=1.0  1] sum|F|^2 = 1.256e+03   max|F| = 2.913e+01   LM lambda = 1e-02 s0^2
+    -> STOPPED in 1 iterations, max|F| = 2.91e+01  (worst equation: euler_F 2.9e+01)
+  collocation solve TFP d0 wc=0.2: 500 unknowns (20 rules x 1 regime(s) x 25 points), backend = parsolve
+/Users/Huawei/Desktop/Quantitative_Model/global_projection/solver_recursive/point_map.py:475: RuntimeWarning: divide by zero encountered in scalar divide
+  v.euler_F = xC_F ** (-sigF) / (beff_F * E_mu_F) - 1.0
+    [parsolve TFP d0 wc=0.2  1] sum|F|^2 = 6.846e+01   max|F| = 4.643e+00   LM lambda = 1e-02 s0^2
+/Users/Huawei/Desktop/Quantitative_Model/global_projection/solver_recursive/collocation.py:195: LinAlgWarning: Diagonal number 306 is exactly zero. Singular matrix.
+  return lu_factor(J)
+    [parsolve TFP d0 wc=0.2  2] sum|F|^2 = 6.335e+01   max|F| = 4.160e+00   step = 0.00781
+    [parsolve TFP d0 wc=0.2  3] sum|F|^2 = 6.127e+01   max|F| = 3.943e+00   step = 0.0156
+    [parsolve TFP d0 wc=0.2  4] sum|F|^2 = 6.125e+01   max|F| = 3.938e+00   step = 0.00195
+    [parsolve TFP d0 wc=0.2  5] sum|F|^2 = 6.108e+01   max|F| = 3.925e+00   step = 0.00195
+    [parsolve TFP d0 wc=0.2  6] sum|F|^2 = 6.103e+01   max|F| = 3.914e+00   step = 0.00391
+    [parsolve TFP d0 wc=0.2  7] sum|F|^2 = 6.096e+01   max|F| = 3.904e+00   step = 0.00195
+    [parsolve TFP d0 wc=0.2  8] sum|F|^2 = 6.087e+01   max|F| = 3.888e+00   step = 0.00391
+    [parsolve TFP d0 wc=0.2  9] sum|F|^2 = 5.946e+01   max|F| = 3.742e+00   step = 0.0156
+    [parsolve TFP d0 wc=0.2 10] sum|F|^2 = 5.647e+01   max|F| = 3.637e+00   step = 0.0312
+    [parsolve TFP d0 wc=0.2 11] sum|F|^2 = 5.381e+01   max|F| = 3.449e+00   step = 0.0312
+    [parsolve TFP d0 wc=0.2 12] sum|F|^2 = 5.350e+01   max|F| = 3.298e+00   step = 0.0312
+    [parsolve TFP d0 wc=0.2 13] sum|F|^2 = 5.222e+01   max|F| = 3.028e+00   step = 0.0312
+    [parsolve TFP d0 wc=0.2 14] sum|F|^2 = 5.009e+01   max|F| = 3.037e+00   step = 0.00781
+    [parsolve TFP d0 wc=0.2 15] sum|F|^2 = 4.443e+01   max|F| = 3.066e+00   step = 0.00781
+    [parsolve TFP d0 wc=0.2 16] sum|F|^2 = 4.442e+01   max|F| = 3.068e+00   step = 0.000244
+    -> STOPPED in 16 iterations, max|F| = 3.07e+00  (worst equation: euler_F 3.1e+00)
+  collocation solve TFP d0 wc=0.5: 500 unknowns (20 rules x 1 regime(s) x 25 points), backend = parsolve
+    [parsolve TFP d0 wc=0.5  1] sum|F|^2 = 1.484e+01   max|F| = 1.399e+00   LM lambda = 1e-01 s0^2
+/Users/Huawei/Desktop/Quantitative_Model/global_projection/solver_recursive/collocation.py:195: LinAlgWarning: Diagonal number 298 is exactly zero. Singular matrix.
+  return lu_factor(J)
+    [parsolve TFP d0 wc=0.5  2] sum|F|^2 = 1.370e+01   max|F| = 1.272e+00   step = 0.125
+    [parsolve TFP d0 wc=0.5  3] sum|F|^2 = 1.366e+01   max|F| = 1.270e+00   step = 0.00195
+    [parsolve TFP d0 wc=0.5  4] sum|F|^2 = 1.363e+01   max|F| = 1.260e+00   step = 0.00781
+    [parsolve TFP d0 wc=0.5  5] sum|F|^2 = 1.339e+01   max|F| = 1.233e+00   step = 0.0156
+    [parsolve TFP d0 wc=0.5  6] sum|F|^2 = 1.338e+01   max|F| = 1.230e+00   step = 0.00195
+    [parsolve TFP d0 wc=0.5  7] sum|F|^2 = 1.329e+01   max|F| = 1.217e+00   step = 0.00781
+    [parsolve TFP d0 wc=0.5  8] sum|F|^2 = 1.279e+01   max|F| = 1.185e+00   step = 0.0312
+    [parsolve TFP d0 wc=0.5  9] sum|F|^2 = 1.269e+01   max|F| = 1.187e+00   step = 0.00781
+    [parsolve TFP d0 wc=0.5 10] sum|F|^2 = 1.262e+01   max|F| = 1.194e+00   step = 0.00781
+    [parsolve TFP d0 wc=0.5 11] sum|F|^2 = 1.258e+01   max|F| = 1.198e+00   step = 0.00781
+    [parsolve TFP d0 wc=0.5 12] sum|F|^2 = 1.245e+01   max|F| = 1.214e+00   step = 0.0156
+    [parsolve TFP d0 wc=0.5 13] sum|F|^2 = 1.186e+01   max|F| = 1.275e+00   step = 0.0312
+    [parsolve TFP d0 wc=0.5 14] sum|F|^2 = 1.185e+01   max|F| = 1.275e+00   step = 0.000488
+    -> STOPPED in 14 iterations, max|F| = 1.27e+00  (worst equation: id_alpha_F 1.3e+00)
+  collocation solve TFP d0 wc=1.0: 500 unknowns (20 rules x 1 regime(s) x 25 points), backend = parsolve
+    [parsolve TFP d0 wc=1.0  1] sum|F|^2 = 1.368e+01   max|F| = 1.642e+00   LM lambda = 1e+11 s0^2
+    [parsolve TFP d0 wc=1.0  2] sum|F|^2 = 1.365e+01   max|F| = 1.638e+00   step = 0.00195
+    [parsolve TFP d0 wc=1.0  3] sum|F|^2 = 1.364e+01   max|F| = 1.636e+00   step = 0.000977
+    -> STOPPED in 3 iterations, max|F| = 1.64e+00  (worst equation: euler_F 1.6e+00)
+  collocation solve TFP d0 mu_eps=7.14e-03: 500 unknowns (20 rules x 1 regime(s) x 25 points), backend = parsolve
+    [parsolve TFP d0 mu_eps=7.14e-03  1] sum|F|^2 = 1.363e+01   max|F| = 1.636e+00   LM lambda = 1e+09 s0^2
+    [parsolve TFP d0 mu_eps=7.14e-03  2] sum|F|^2 = 1.362e+01   max|F| = 1.635e+00   LM lambda = 1e+03 s0^2
+    [parsolve TFP d0 mu_eps=7.14e-03  3] sum|F|^2 = 1.360e+01   max|F| = 1.610e+00   step = 0.0156
+    [parsolve TFP d0 mu_eps=7.14e-03  4] sum|F|^2 = 1.336e+01   max|F| = 1.585e+00   step = 0.0156
+    [parsolve TFP d0 mu_eps=7.14e-03  5] sum|F|^2 = 1.328e+01   max|F| = 1.572e+00   step = 0.00781
+    [parsolve TFP d0 mu_eps=7.14e-03  6] sum|F|^2 = 1.327e+01   max|F| = 1.571e+00   LM lambda = 1e+03 s0^2
+    [parsolve TFP d0 mu_eps=7.14e-03  7] sum|F|^2 = 1.327e+01   max|F| = 1.570e+00   step = 0.000244
+    -> STOPPED in 7 iterations, max|F| = 1.57e+00  (worst equation: euler_F 1.6e+00)
+  collocation solve TFP d0 mu_eps=8.45e-03: 500 unknowns (20 rules x 1 regime(s) x 25 points), backend = parsolve
+    [parsolve TFP d0 mu_eps=8.45e-03  1] sum|F|^2 = 1.363e+01   max|F| = 1.636e+00   LM lambda = 1e+09 s0^2
+    [parsolve TFP d0 mu_eps=8.45e-03  2] sum|F|^2 = 1.363e+01   max|F| = 1.636e+00   step = 1.53e-05
+    -> STOPPED in 2 iterations, max|F| = 1.64e+00  (worst equation: euler_F 1.6e+00)
+  collocation solve TFP d0 mu_eps=9.19e-03: 500 unknowns (20 rules x 1 regime(s) x 25 points), backend = parsolve
+    [parsolve TFP d0 mu_eps=9.19e-03  1] sum|F|^2 = 1.363e+01   max|F| = 1.636e+00   LM lambda = 1e+09 s0^2
+    [parsolve TFP d0 mu_eps=9.19e-03  2] sum|F|^2 = 1.363e+01   max|F| = 1.636e+00   step = 1.53e-05
+    -> STOPPED in 2 iterations, max|F| = 1.64e+00  (worst equation: euler_F 1.6e+00)
+  collocation solve TFP d0 mu_eps=9.59e-03: 500 unknowns (20 rules x 1 regime(s) x 25 points), backend = parsolve
+    [parsolve TFP d0 mu_eps=9.59e-03  1] sum|F|^2 = 1.363e+01   max|F| = 1.636e+00   LM lambda = 1e+09 s0^2
+    [parsolve TFP d0 mu_eps=9.59e-03  2] sum|F|^2 = 1.362e+01   max|F| = 1.635e+00   LM lambda = 1e+03 s0^2
+    [parsolve TFP d0 mu_eps=9.59e-03  3] sum|F|^2 = 1.354e+01   max|F| = 1.623e+00   step = 0.00781
+    [parsolve TFP d0 mu_eps=9.59e-03  4] sum|F|^2 = 1.337e+01   max|F| = 1.594e+00   step = 0.0156
+    [parsolve TFP d0 mu_eps=9.59e-03  5] sum|F|^2 = 1.336e+01   max|F| = 1.594e+00   step = 0.000488
+    -> STOPPED in 5 iterations, max|F| = 1.59e+00  (worst equation: euler_F 1.6e+00)
+  collocation solve TFP d0 mu_eps=9.79e-03: 500 unknowns (20 rules x 1 regime(s) x 25 points), backend = parsolve
+    [parsolve TFP d0 mu_eps=9.79e-03  1] sum|F|^2 = 1.364e+01   max|F| = 1.636e+00   LM lambda = 1e+09 s0^2
+    [parsolve TFP d0 mu_eps=9.79e-03  2] sum|F|^2 = 1.363e+01   max|F| = 1.636e+00   step = 1.53e-05
+    -> STOPPED in 2 iterations, max|F| = 1.64e+00  (worst equation: euler_F 1.6e+00)
+  collocation solve TFP d0 mu_eps=1.00e-02: 500 unknowns (20 rules x 1 regime(s) x 25 points), backend = parsolve
+    [parsolve TFP d0 mu_eps=1.00e-02  1] sum|F|^2 = 1.364e+01   max|F| = 1.636e+00   LM lambda = 1e+09 s0^2
+    [parsolve TFP d0 mu_eps=1.00e-02  2] sum|F|^2 = 1.363e+01   max|F| = 1.636e+00   step = 1.53e-05
+    -> STOPPED in 2 iterations, max|F| = 1.64e+00  (worst equation: euler_F 1.6e+00)
+  collocation solve TFP d0 hard polish: 500 unknowns (20 rules x 1 regime(s) x 25 points), backend = parsolve
+    [parsolve TFP d0 hard polish  1] sum|F|^2 = 1.346e+01   max|F| = 1.608e+00   step = 0.0156
+    [parsolve TFP d0 hard polish  2] sum|F|^2 = 8.673e+00   max|F| = 9.704e-01   LM lambda = 1e+00 s0^2
+    [parsolve TFP d0 hard polish  3] sum|F|^2 = 8.636e+00   max|F| = 9.687e-01   step = 0.00195
+    [parsolve TFP d0 hard polish  4] sum|F|^2 = 4.345e+00   max|F| = 7.517e-01   LM lambda = 1e-01 s0^2
+    [parsolve TFP d0 hard polish  5] sum|F|^2 = 2.868e+00   max|F| = 4.480e-01   LM lambda = 1e-01 s0^2
+    [parsolve TFP d0 hard polish  6] sum|F|^2 = 2.369e+00   max|F| = 4.315e-01   LM lambda = 1e-01 s0^2
+    [parsolve TFP d0 hard polish  7] sum|F|^2 = 2.285e+00   max|F| = 4.295e-01   LM lambda = 1e+00 s0^2
+    [parsolve TFP d0 hard polish  8] sum|F|^2 = 2.235e+00   max|F| = 4.276e-01   LM lambda = 1e+00 s0^2
+    [parsolve TFP d0 hard polish  9] sum|F|^2 = 2.227e+00   max|F| = 4.267e-01   step = 0.00195
+    [parsolve TFP d0 hard polish 10] sum|F|^2 = 2.227e+00   max|F| = 4.259e-01   step = 0.00195
+    [parsolve TFP d0 hard polish 11] sum|F|^2 = 2.220e+00   max|F| = 4.257e-01   LM lambda = 1e+01 s0^2
+    [parsolve TFP d0 hard polish 12] sum|F|^2 = 2.214e+00   max|F| = 4.255e-01   LM lambda = 1e+01 s0^2
+    [parsolve TFP d0 hard polish 13] sum|F|^2 = 2.208e+00   max|F| = 4.253e-01   LM lambda = 1e+01 s0^2
+    [parsolve TFP d0 hard polish 14] sum|F|^2 = 2.189e+00   max|F| = 4.233e-01   LM lambda = 1e+00 s0^2
+    [parsolve TFP d0 hard polish 15] sum|F|^2 = 2.002e+00   max|F| = 4.055e-01   LM lambda = 1e-01 s0^2
+    [parsolve TFP d0 hard polish 16] sum|F|^2 = 1.994e+00   max|F| = 4.053e-01   LM lambda = 1e+01 s0^2
+    [parsolve TFP d0 hard polish 17] sum|F|^2 = 1.987e+00   max|F| = 4.052e-01   LM lambda = 1e+01 s0^2
+    [parsolve TFP d0 hard polish 18] sum|F|^2 = 1.983e+00   max|F| = 4.338e-01   LM lambda = 1e-02 s0^2
+    [parsolve TFP d0 hard polish 19] sum|F|^2 = 1.010e+00   max|F| = 3.149e-01   LM lambda = 1e-02 s0^2
+    [parsolve TFP d0 hard polish 20] sum|F|^2 = 1.006e+00   max|F| = 3.146e-01   LM lambda = 1e+01 s0^2
+    -> STOPPED in 20 iterations, max|F| = 3.15e-01  (worst equation: uip 3.1e-01)
+  collocation solve TFP d0 hard mu_eps: 500 unknowns (20 rules x 1 regime(s) x 25 points), backend = parsolve
+    [parsolve TFP d0 hard mu_eps  1] sum|F|^2 = 1.346e+01   max|F| = 1.608e+00   step = 0.0156
+    [parsolve TFP d0 hard mu_eps  2] sum|F|^2 = 1.343e+01   max|F| = 1.606e+00   step = 0.000977
+    -> STOPPED in 2 iterations, max|F| = 1.61e+00  (worst equation: euler_F 1.6e+00)
+    NOTE: the hard polish stalls on mu_eps (max|F| 1.6e+00); the rules solve mu_eps = 1.0e-02
+[tfp] solve_ok ?  (501s)
+
+  TFP IRF (one-off 1% shock, rho_z=0.9 decay)
+   qtr    Z%     Y_D%     C_D%     I_D%    hours%
+     0   1.00  -10.014  +240.264   -52.84  -15.21
+     1   0.90   -9.490  +240.264   -49.94  -14.38
+     2   0.81   -8.932  +240.264   -46.97  -13.52
+     4   0.66   -7.788  +240.264   -41.02  -11.77
+     6   0.53   -6.681  +240.264   -35.31  -10.09
+     8   0.43   -5.661  +236.516   -30.05   -8.55
+    12   0.28   -3.960  +171.597   -21.20   -5.99
+    16   0.19   -2.707  +120.441   -14.59   -4.10
+    20   0.12   -1.824  +82.655    -9.87   -2.76
+[tfp] impact Y -10.014%  C +240.264%  I -52.838%

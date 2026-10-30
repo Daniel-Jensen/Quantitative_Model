@@ -258,11 +258,11 @@ def print_output_decomposition(dec, channels):
 
 
 def print_bond_decomposition(bdec, channels):
-    # IMPACT OF EACH LEG OF THE D-BOND PRICE AND THE TOTAL, % FROM THE NO-SHOCK PATH.
-    print("\n  Q_bD decomposition (%, deviation from the no-shock path)")
+    # BOCOLA'S SPLIT OF THE D BOND'S EXPECTED EXCESS RETURN ON IMPACT, bp/yr FROM THE NO-SHOCK PATH.
+    print("\n  D-bond expected excess return E[R_b] - R (Bocola 2016 split; bp/yr, deviation from the no-shock path)")
     for k, lab in channels:
-        print(f"    {lab:<36s} impact {bdec[k][0]:+8.4f}%")
-    print(f"    {'TOTAL':<36s} impact {bdec['total'][0]:+8.4f}%")
+        print(f"    {lab:<40s} impact {bdec[k][0]:+9.2f} bp")
+    print(f"    {'TOTAL':<40s} impact {bdec['total'][0]:+9.2f} bp")
 
 
 def print_tpi_report(res, bond_channels):
@@ -293,10 +293,10 @@ def print_tpi_report(res, bond_channels):
     print(f"   footprint: peak purchases {np.max(im['m_cb']):.2f}% of B in one quarter, "
           f"peak book {np.max(im['M_cb']):.2f}% of B, "
           f"worst P&L {np.min(im['Pi_cb']):+.4f}% of quarterly GDP")
-    print("\n  BOND-PRICE LEGS OF THE TPI's EFFECT (% of Q_bD, TPI minus no TPI)")
+    print("\n  THE TPI's EFFECT ON THE D-BOND EXCESS RETURN, BOCOLA SPLIT (bp/yr, TPI minus no TPI)")
     for k, lab in bond_channels:
-        print(f"    {lab:<36s} q0 {res['bond_legs'][k][0]:+8.4f}%")
-    print(f"    {'TOTAL':<36s} q0 {res['bond_legs']['total'][0]:+8.4f}%")
+        print(f"    {lab:<40s} q0 {res['bond_legs'][k][0]:+9.2f} bp")
+    print(f"    {'TOTAL':<40s} q0 {res['bond_legs']['total'][0]:+9.2f} bp")
     for tag, rows in (("at the rest point", res["impact_rest"]),
                       ("at the headline shock", res["impact_shock"])):
         q0 = rows[0]["Q_bD"]

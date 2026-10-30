@@ -2578,6 +2578,27 @@ the committed calibration with a Prony / companion-eigenvalue extractor
 >       - **Targets:** leverage and exposures met; F spread not (unreachable).
 >       - **Threshold:** the D IC binds from p^d 3.93%.
 >       - **Files:** `runs/appendixB_final.pkl`; outputs in `results_appendixB_final/`.
+> - **2026-10-30, pipeline:** `python3 run.py global` reproduces the appendix-B solution.
+>   - **Calibration** (`calibration/global_projection.py`): the M2 instruments and `pd_box_top` 0.12.
+>   - **Box:** `BOX_KW` k_band 0.04, b_band 0.25; `state_grid._s_bounds` reads `pd_box_top`.
+>   - **run.py:** JACOBIAN "complex"; `WARM_START = data/global_warm_start.pkl` (the solved fine rules, which solve
+>     run.py's economy to 4e-12). The risk solve and the TPI start from it on its own grid, with no s refinement.
+>   - **Bond decomposition:** Bocola's (2016) split of the D bond's expected excess return, E[R_b] − R =
+>     λμ/E[Ω] (liquidity premium) − Cov(Ω, R_b)/E[Ω] (risk premium), in bp/yr. It replaces the five-leg price split.
+>     The legs are read on period maps cleared exactly at each simulated state (`exact_bond_reads`): at the fitted
+>     rules the FOC residual was +318 bp against premia of +23/+244 bp. Exact, at p^d 2%: the risk premium is +235 bp
+>     on impact (+183, +139 next) and the liquidity premium 0 (the IC is slack at 2%). At rest the excess return is
+>     12.6 bp, all risk premium.
+>   - **TFP:** the solve from the SS fails at appendix B (max|F| 1.6; its IRF was garbage).
+>     `solve_tfp(seed=warm)` starts from the risk rules read at the lowest s and converges in 41 s (3e-11). A 1% TFP
+>     shock gives Y +1.29%, C +0.89%, I +2.47%.
+>   - **TPI: not operational at appendix B** (`run.RUN_TPI` set to False, 2026-10-30).
+>     - On the fine warm grid the cap walk's first rung (700 bp) creeps (~10 min per iteration, eighth-steps). In the
+>       12%-top box the cap binds at the box-top nodes even at 700 bp (Q_bD 0.64 against a floor of 0.73).
+>     - On a coarse baseline seeded from the fine rules (`tpi_check.py`, cap start 1500 bp, step 100), the walk solves
+>       1500 → 1150 bp in 2–6 iterations per rung. It stalls at 1100–1125 bp (max|F| ~1.5e-5, id_C_D) against the
+>       200 bp target. Starting directly at 1150 bp does not converge.
+>     - Making it work needs a diagnosis of that wall (the TPI book's box, m_band 0.32, is a first suspect).
 
 > **2026-10-01, branch `OMT-fix`: the LTRO backstop is DELETED; a TPI replaces it.** The
 > regime table is back to the default indicator d' in {0, 1}; `phi_ltro`, `ltro_D/F`,

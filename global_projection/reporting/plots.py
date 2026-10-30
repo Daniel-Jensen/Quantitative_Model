@@ -194,14 +194,11 @@ def plot_welfare_quintiles(labels, cost, gain, cons, quintile_income, note="",
 # decomposition uses so the figures read as one system: the shock and the price it
 # moves are neutral ink, the credit spread keeps its channel hue, and the real
 # quantities keep theirs. Never introduce a hue that is not already in the palette.
-# BOND-PRICE LEGS. Two of them are the SAME OBJECT as a leg of the output
-# decomposition and keep its hue: the deposit rate (#0072B2) and the bank constraint,
-# which is lambda*mu on both figures and so takes credit_spread's vermilion. The other
-# three get hues unused elsewhere here, all CVD-safe, and the residual stays the
-# documented neutral grey -- it is an accuracy diagnostic, not a channel.
+# BOCOLA'S BOND LEGS. The liquidity premium is the SAME OBJECT as the credit-spread leg of the
+# output decomposition (lambda*mu) and keeps its vermilion; the risk premium takes a hue unused
+# elsewhere here (CVD-safe), and the residual stays the documented neutral grey -- it is an
+# accuracy diagnostic, not a channel.
 CHANNEL_COLORS["liquidity_premium"] = CHANNEL_COLORS["credit_spread"]   # lambda*mu
-CHANNEL_COLORS["continuation"] = "#E69F00"      # amber -- the dominant leg
-CHANNEL_COLORS["expected_loss"] = "#882255"     # dark magenta
 CHANNEL_COLORS["risk_premium"] = "#44AA99"      # teal
 
 # ANNUALISATION FACTOR FOR A QUARTERLY-FLOW LEVEL GAP. This is Bocola's Table 5 unit:
@@ -226,21 +223,18 @@ def _annual_axis(ax, label="ann. %"):
 
 def plot_bond_decomposition(dec, chans, note="",
                             filename="bond_decomposition.png"):
-    # WHY THE D SOVEREIGN REPRICES: the bank's own FOC, split leg by leg.
+    # BOCOLA'S (2016) SPLIT OF THE D SOVEREIGN'S EXPECTED EXCESS RETURN: LIQUIDITY AND RISK PREMIA.
     # Same stacked-signed-bar treatment as the output decomposition, because it is the
-    # same kind of object -- an identity, not an attribution. Bocola's Table 4 splits
-    # the EXCESS RETURN into a risk premium and a liquidity premium; this splits the
-    # PRICE, and adds the two legs his table takes as given (the discount rate and the
-    # continuation price), so the bars sum to the observed repricing.
+    # same kind of object -- an identity from the bank's FOC, not an attribution.
     # ONE title only. The suptitle-plus-note-plus-panel-title stack the output
     # decomposition uses needs three panels' worth of width; on a single panel the
     # three lines land on top of each other.
     fig, ax = plt.subplots(1, 1, figsize=(8.2, 5.1), layout="constrained")
-    fig.suptitle("What reprices the D sovereign  $Q_{b,D}$"
+    fig.suptitle("Expected excess return on the D sovereign, $E[R_b]-R$"
                  + (f"\n{note}" if note else ""), fontsize=12, color=INK)
     _stacked_channels(ax, dec, chans, "", ann=False,
-                      ylab="% deviation from the no-shock path",
-                      total_label="Total bond-price response")
+                      ylab="bp per year, deviation from the no-shock path",
+                      total_label="Total excess-return response")
     ax.legend(fontsize=7.5, frameon=False, loc="best")
     _save(fig, filename)
     return os.path.join(OUTDIR, filename)
@@ -438,7 +432,7 @@ def plot_tpi_mechanism(res, bond_channels, filename="tpi_mechanism.png"):
                     zero=False)
         ax.set_xlabel("")
         ax.legend(fontsize=9, frameon=False, loc="upper right")
-        # (b) the bond-price legs of the TPI's effect at the shock (they sum to the total)
+        # (b) Bocola's split of the TPI's effect on the bond's excess return at the shock (sums to the total)
         ax = axes[1]
         legs = [(lab, float(np.asarray(res["bond_legs"][k])[0])) for k, lab in bond_channels]
         total = float(np.asarray(res["bond_legs"]["total"])[0])
@@ -448,16 +442,16 @@ def plot_tpi_mechanism(res, bond_channels, filename="tpi_mechanism.png"):
                 height=0.62, zorder=3)
         for y, (_, v) in zip(ys, legs):
             # every label to the RIGHT of zero, clear of the category names
-            ax.annotate(f"{v:+.2f}", (max(v, 0.0), y), xytext=(4, 0),
+            ax.annotate(f"{v:+.1f}", (max(v, 0.0), y), xytext=(4, 0),
                         textcoords="offset points", ha="left", va="center",
                         fontsize=8.5, color=INK)
         ax.margins(x=0.12)
         ax.set_yticks(ys, [lab for lab, _ in legs])
         ax.axvline(0.0, color="#B0B0B0", lw=0.7, zorder=1)
-        _paper_axes(ax, f"(b) Why the bond is worth more at the shock\n"
-                        f"(TPI minus no TPI: {total:+.2f}% of $Q_{{b,D}}$)",
+        _paper_axes(ax, f"(b) The bond's excess return at the shock\n"
+                        f"(TPI minus no TPI: {total:+.1f} bp per year)",
                     "", zero=False)
-        ax.set_xlabel("% of the bond price", fontsize=9, color=INK)
+        ax.set_xlabel("bp per year", fontsize=9, color=INK)
         # (c) the price impact of a one-off purchase at fixed rules, rest vs shock
         ax = axes[2]
         for key, colour, marker, lab in (("impact_rest", ACTIVATION_RAMP[1], "o", "at rest"),

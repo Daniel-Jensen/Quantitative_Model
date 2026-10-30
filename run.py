@@ -49,8 +49,14 @@ ACCURACY_T = 1200  # simulated periods for the Euler-error report
 DECOMP_T = 25  # quarters in the decompositions
 TFP_SHOCK = 0.01  # one-off TFP shock to Z_D, decaying at rho_z = 0.9
 RISK_SHOCK_PD = 0.02  # one-off risk shock: p^d jumps from its rest value (cal["pd_rest"]) to this per quarter, then decays
-RUN_TPI = True  # solve the TPI and compare it with no TPI
-JACOBIAN = "fd"  # the collocation Jacobian: "fd" (forward differences) or "complex" (the complex step, exact)
+# solve the TPI and compare it with no TPI. Off since 2026-10-30: at appendix B the cap walk stalls (fine grid: barely
+# moves at 700 bp; coarse grid: solves 1500 -> 1150 bp, stalls below 1100 bp against the 200 bp target)
+RUN_TPI = False
+JACOBIAN = "complex"  # the collocation Jacobian: "complex" (the complex step, exact) or "fd" (forward differences)
+# the solved appendix-B rules (fine grid, 75 points; 2026-10-30) the risk solve starts from; None = the cold-start
+# ladder, which does not reach appendix B from the SS. A warm solve re-solves these rules at the current calibration
+# on their own grid, so S_REFINE is not used, and the TPI is solved on the same grid
+WARM_START = ROOT / "data" / "global_warm_start.pkl"
 TPI_CAP = 200.0  # TPI spread cap, bp/yr; "rest" = defend the no-TPI rest-point spread (~56 bp)
 
 
@@ -67,7 +73,7 @@ def compute_global(quick=False):
         persistence_irf, dynamic_irf, s_from_pd)
     from global_projection.solver_recursive.output_decomposition import (
         simulate, s_decay_path, decompose_output, active_channels, decompose_bond_price,
-        BOND_CHANNELS)
+        exact_bond_reads, BOND_CHANNELS)
     from global_projection.solver_recursive.accuracy import accuracy_report
     from global_projection.solver_recursive.calibrate_stochastic import (
         rest_point_read, rest_point_moments, calibration_values)
@@ -84,7 +90,8 @@ def compute_global(quick=False):
                     NW_FLOOR=NW_FLOOR, MU=MU,
                     RISK_MU_VEC=RISK_MU_VEC, ROTATE_P=ROTATE_P, ACCURACY_T=ACCURACY_T,
                     DECOMP_T=DECOMP_T, TFP_SHOCK=TFP_SHOCK, RISK_SHOCK_PD=RISK_SHOCK_PD,
-                    RUN_TPI=RUN_TPI, TPI_CAP=TPI_CAP, JACOBIAN=JACOBIAN)
+                    RUN_TPI=RUN_TPI, TPI_CAP=TPI_CAP, JACOBIAN=JACOBIAN,
+                    WARM_START=str(WARM_START) if WARM_START and WARM_START.exists() else None)
     t0 = time.perf_counter()
     with _logged(log, "w"):
         # 1. calibration and the deterministic steady state
@@ -98,16 +105,28 @@ def compute_global(quick=False):
         print(f"  solved in {time.perf_counter() - t0:.0f}s")
         print_ss_table(ss, cal)
 
+        # the solved rules both global solves start from (WARM_START), if any
+        warm = None
+        if settings["WARM_START"]:
+            with open(settings["WARM_START"], "rb") as fh:
+                warm = pickle.load(fh)
+            print(f"  warm start: {settings['WARM_START']} ({warm.grid.n} points)")
+
         # 2. TFP shock
         banner("TFP shock — global collocation (Z_D as the TFP state)")
-        rules_tfp = solve_tfp(cal, ss, sproc, mu=MU)
+        rules_tfp = solve_tfp(cal, ss, sproc, mu=MU, seed=warm)
+        if not rules_tfp.solve_ok:
+            print(f"  NOTE: the TFP solve did not converge (max|F| {rules_tfp.solve_worst:.1e}); its IRF is not usable")
         tfp = tfp_irf(rules_tfp, cal, ss, sproc, dz=TFP_SHOCK)
 
         # 3. sovereign-risk pass-through: solve, find the rest point, read the IRFs
         banner("Sovereign-risk pass-through — global collocation (12-state, Newton)")
         base = []  # the coarse no-TPI baseline, reused by the TPI
         rules = solve_recursive(cal, ss, sproc, mu_vec=RISK_MU_VEC, rotate=ROTATE_P,
-                                s_refine=settings["S_REFINE"], base_out=base)
+                                s_refine=0 if warm else settings["S_REFINE"], base=warm,
+                                base_out=base)
+        # the TPI starts from the coarse baseline, or, warm, from the solved rules on their own grid
+        tpi_base, tpi_refine = (rules, 0) if warm else (base[0], settings["S_REFINE"])
         S_rest = report_rest_point(rules, cal, ss, sproc)  # every IRF starts here
         impact_table(rules, cal, ss, sproc)
         persistence = persistence_irf(rules, cal, ss, sproc, pd_shock=RISK_SHOCK_PD)
@@ -127,7 +146,9 @@ def compute_global(quick=False):
         ref = simulate(rules, cal, ss, sproc, [sproc["s_star"]] * DECOMP_T, S_init=S_rest)
         output_dec = decompose_output(sim, ref, cal)
         print_output_decomposition(output_dec, active_channels(output_dec))
-        bond_dec = decompose_bond_price(sim, ref, cal)
+        # Bocola's split of the bond's excess return, on period maps cleared exactly along both paths
+        bond_dec = decompose_bond_price(exact_bond_reads(rules, cal, ss, sproc, sim),
+                                        exact_bond_reads(rules, cal, ss, sproc, ref), cal)
         print_bond_decomposition(bond_dec, BOND_CHANNELS)
 
         # 5. solution accuracy on the ergodic set
@@ -152,7 +173,7 @@ def compute_global(quick=False):
         save(data / "accuracy", accuracy)
         # the solved rules, and the coarse baseline the TPI starts from
         for name, r in (("rules_tfp", rules_tfp), ("rules_risk", rules),
-                        ("rules_base_coarse", base[0])):
+                        ("rules_base_coarse", tpi_base)):
             with open(data / f"{name}.pkl", "wb") as fh:
                 pickle.dump(r, fh)
         export_irfs(risk, tfp, sproc, RISK_SHOCK_PD, TFP_SHOCK, data / "comparison_irfs.json",
@@ -162,8 +183,8 @@ def compute_global(quick=False):
         if RUN_TPI:
             banner(f"TPI backstop — spread cap {cal['tpi_cap_bp']:.1f} bp/yr over the F bond"
                    + (" (the no-TPI rest-point spread)" if TPI_CAP == "rest" else ""))
-            tpi, rules_tpi = tpi_experiment.run(cal, ss, sproc, rules, base[0],
-                                                s_refine=settings["S_REFINE"],
+            tpi, rules_tpi = tpi_experiment.run(cal, ss, sproc, rules, tpi_base,
+                                                s_refine=tpi_refine,
                                                 mu_vec=RISK_MU_VEC, pd_shock=RISK_SHOCK_PD)
             print_tpi_report(tpi, BOND_CHANNELS)
             save(data / "tpi", tpi)
@@ -199,7 +220,8 @@ def plot_global():
                      "sum to the total identically"),
             plots.plot_bond_decomposition(load(data / "bond_decomposition"),
                                           list(BOND_CHANNELS),
-                                          note="the D bank first-order condition, split leg by leg"),
+                                          note="Bocola (2016): liquidity premium $\\lambda\\mu/E[\\Omega]$ "
+                                               "and risk premium $-Cov(\\Omega, R_b)/E[\\Omega]$"),
         ]
         if s.get("RUN_TPI"):
             tpi = load(data / "tpi")

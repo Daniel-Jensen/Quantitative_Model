@@ -388,7 +388,10 @@ def _s_bounds(cal, s_lo, s_hi, s_halfwidth):
     if s_halfwidth is None:
         s_halfwidth = S_COVER_SD * _sp["sigma_s"] / np.sqrt(1.0 - _sp["rho_s"] ** 2)
     s_lo = s_star - s_halfwidth if s_lo is None else s_lo
-    s_hi = s_star + s_halfwidth if s_hi is None else s_hi
+    # the box reaches at least cal["pd_box_top"] (the crisis region where the D bank binds)
+    top = cal.get("pd_box_top")
+    s_up = s_star + s_halfwidth if top is None else max(s_star + s_halfwidth, np.log(top / (1.0 - top)))
+    s_hi = s_up if s_hi is None else s_hi
     return s_lo, s_hi
 
 

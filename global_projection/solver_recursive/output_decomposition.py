@@ -97,12 +97,15 @@ def simulate(rules, cal, ss, sproc, s_path, endogenous_states=True, refine=False
     # equation the decomposition leans on, so its own accuracy is reported
     rec["resid"] = np.empty(T)
     rec["resid_lab"] = np.empty(T)
+    # the visited states, for reads that clear the period map exactly there (exact_bond_reads)
+    states = []
     off_box = 0.0
     counts = {"slack": 0, "fail": 0}
     for t in range(T):
         S[IS] = s_path[t]
         off_box = max(off_box, float(np.max(rules.grid.outside(S))))
         S = rules.grid.clip(S)[0]
+        states.append(S.copy())
         o = _read(rules, cal, ss, sproc, S)
         if refine and o["_resid"] > 1e-11:
             o = _refined_read(rules, cal, ss, sproc, S, o, counts)
@@ -115,6 +118,7 @@ def simulate(rules, cal, ss, sproc, s_path, endogenous_states=True, refine=False
     rec["n_slack"] = counts["slack"]
     rec["n_fail"] = counts["fail"]
     rec["s"] = np.asarray(s_path, dtype=float)
+    rec["S"] = np.array(states)
     return rec
 
 
@@ -158,57 +162,58 @@ def _wedge_shapley(rd, sp, rd_r, sp_r, zeta):
     return d_rd, d_sp
 
 
-# display order and labels of the output-decomposition channels
-# THE BOND-PRICE LEGS, in the order they compose. Colours are reused from the output
-# decomposition where the object is the same (the deposit rate and the constraint), so
-# the same channel is the same hue on both figures.
-BOND_CHANNELS = (("deposit_rate", "Deposit rate (discounting)"),
-                 ("continuation", "Continuation price (duration)"),
-                 ("expected_loss", "Expected default loss"),
-                 ("risk_premium", "Risk premium"),
-                 ("liquidity_premium", "Liquidity premium (bank constraint)"),
+# THE D SOVEREIGN'S EXPECTED EXCESS RETURN, SPLIT AS BOCOLA (2016) SPLITS IT (his Figure 6 and Table 4, there for
+# capital): a liquidity premium, the constraint's shadow price, and a risk premium, the covariance of the banker's
+# kernel with the return (2026-10-30: replaces the five-leg split of the price, which added a discount-rate and a
+# duration leg Bocola does not have). The residual is an accuracy diagnostic, not a channel.
+BOND_CHANNELS = (("liquidity_premium", "Liquidity premium (bank constraint)"),
+                 ("risk_premium", "Risk premium (kernel-return covariance)"),
                  ("residual", "FOC residual"))
 
 
-def decompose_bond_price(sim, ref, cal):
-    # EXACT DECOMPOSITION OF THE D-SOVEREIGN BOND-PRICE RESPONSE.
-    # The D bank's first-order condition is
-    #     E[Om*pay] = Q_bD * (E[Om]*R + lambda_bD*mu),      R = 1 + rdep,
-    # which factors, with no approximation, into
-    #     log Q = -log R                                    the risk-free discount
-    #             + log E[pay | no default]                 the continuation price
-    #             + log( E[pay] / E[pay | no default] )      the expected default loss
-    #             + log( E[Om*pay] / (E[Om]*E[pay]) )        the RISK premium: Om is
-    #                                                        high exactly where the D
-    #                                                        bond pays little, and that
-    #                                                        covariance is a price
-    #             + log( E[Om]R / (E[Om]R + lambda*mu) )     the LIQUIDITY premium, the
-    #                                                        constraint's own wedge.
-    # Every leg is a log difference against the SAME quarter of the no-shock path, so
-    # the projection's own approximation drift cancels and the legs sum to the total
-    # identically. The vocabulary is Bocola's Table 4 (risk premium vs the multiplier's
-    # liquidity component); `residual` carries whatever the FOC misses at the read
-    # rather than smuggling it into a leg.
-    dl = lambda a, b: np.log(np.asarray(a) / np.asarray(b))
-    R_s, R_r = 1.0 + sim["rdep_D"], 1.0 + ref["rdep_D"]
-    EOR_s = sim["E_Om_D"] * R_s
-    EOR_r = ref["E_Om_D"] * R_r
-    out = {
-        "deposit_rate": -100.0 * dl(R_s, R_r),
-        "continuation": 100.0 * dl(sim["E_payD_nodef"], ref["E_payD_nodef"]),
-        "expected_loss": 100.0 * (dl(sim["E_payD"], sim["E_payD_nodef"])
-                                  - dl(ref["E_payD"], ref["E_payD_nodef"])),
-        "risk_premium": 100.0 * (dl(sim["E_Om_payD"], sim["E_Om_D"] * sim["E_payD"])
-                                 - dl(ref["E_Om_payD"], ref["E_Om_D"] * ref["E_payD"])),
-        "liquidity_premium": 100.0 * (dl(EOR_s, EOR_s + sim["lam_bD_mu_D"])
-                                      - dl(EOR_r, EOR_r + ref["lam_bD_mu_D"])),
-    }
-    out["total"] = 100.0 * dl(sim["Q_bD"], ref["Q_bD"])
-    out["residual"] = out["total"] - sum(out[k] for k, _ in BOND_CHANNELS
-                                         if k != "residual")
+def bond_premia(o):
+    # THE D BOND'S EXPECTED EXCESS RETURN E[R_b] - R = lambda*mu/E[Om] - Cov(Om, R_b)/E[Om], ANNUALISED bp.
+    q, eom = np.asarray(o["Q_bD"]), np.asarray(o["E_Om_D"])
+    # R_b = pay/Q counts the haircut: the actuarial default loss is in the return, in neither premium
+    excess = np.asarray(o["E_payD"]) / q - (1.0 + np.asarray(o["rdep_D"]))
+    liquidity = np.asarray(o["lam_bD_mu_D"]) / eom
+    # E[R_b] - E[Om*R_b]/E[Om], the covariance leg
+    risk = (np.asarray(o["E_payD"]) - np.asarray(o["E_Om_payD"]) / eom) / q
+    return 4e4 * excess, 4e4 * liquidity, 4e4 * risk
+
+
+def exact_bond_reads(rules, cal, ss, sproc, sim):
+    # THE BOND-FOC LEGS WITH THE PERIOD MAP CLEARED EXACTLY AT EVERY STATE THE SIMULATION VISITED.
+    keys = ("rdep_D", "E_Om_D", "E_payD", "E_Om_payD", "lam_bD_mu_D", "Q_bD")
+    out = {k: np.empty(len(sim["S"])) for k in keys}
+    out["n_fail"] = 0
+    for t, S in enumerate(sim["S"]):
+        o = _read(rules, cal, ss, sproc, S)
+        # Bocola's identity holds only where the FOC does: at the fitted rules it misses by their
+        # approximation error, which the x4e4 of an annualised return turns into hundreds of bp
+        # (2026-10-30: residual +318 bp against premia of +23 and +244 bp at p^d 2%)
+        x1, fn = _refine(rules, cal, ss, sproc, S, o["_x"])
+        if fn <= 1e-9:
+            o = point_residuals(S, 0, x1, rules, cal, ss, sproc, n_gh=rules.n_gh or 5,
+                                no_default=False)[1]
+        else:
+            out["n_fail"] += 1  # the fitted read stands
+        for k in keys:
+            out[k][t] = o[k]
     return out
 
 
+def decompose_bond_price(sim, ref, cal):
+    # BOCOLA'S SPLIT OF THE D SOVEREIGN'S EXCESS-RETURN RESPONSE (bp/yr, AGAINST THE SAME NO-SHOCK QUARTER).
+    ex_s, lp_s, rp_s = bond_premia(sim)
+    ex_r, lp_r, rp_r = bond_premia(ref)
+    out = {"liquidity_premium": lp_s - lp_r, "risk_premium": rp_s - rp_r, "total": ex_s - ex_r}
+    # what the FOC misses at the read
+    out["residual"] = out["total"] - out["liquidity_premium"] - out["risk_premium"]
+    return out
+
+
+# display order and labels of the output-decomposition channels
 CHANNELS = (("credit_spread", "Credit spread (bank leverage)"),
             ("deposit_rate", "Deposit rate"),
             ("capital", "Capital stock"),

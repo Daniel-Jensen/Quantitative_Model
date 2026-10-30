@@ -14,6 +14,23 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-10-30 (later): run.py reproduces the appendix-B solution; Bocola's bond decomposition (`calibration`)
+
+- **Calibration:** the M2 instruments and `pd_box_top` 0.12 in `calibration/global_projection.py`.
+- **Box:** `BOX_KW` k_band 0.04, b_band 0.25; `_s_bounds` takes the box top from the calibration.
+- **run.py:**
+  - `JACOBIAN = "complex"`;
+  - `WARM_START` (`data/global_warm_start.pkl`): the solved fine rules. The risk solve uses `solve_recursive(base=...)`
+    with no refinement, and the TPI starts from the same rules.
+- **Decomposition:** `output_decomposition.decompose_bond_price` / `bond_premia` now give Bocola's (2016) split of the D
+  bond's expected excess return into a liquidity and a risk premium (bp/yr). The price legs (discount rate, duration,
+  default loss) are gone; prints and plots are updated. The legs use exact period-map reads at the simulated states
+  (`exact_bond_reads`; `simulate` now records the states), since at the fitted rules the FOC residual dominated.
+- **TFP:** `solve_tfp(seed=...)` seeds the no-default rules from the warm risk rules at the lowest s and skips the SS
+  ladder. The cold TFP solve fails at appendix B.
+- **TPI:** `run.RUN_TPI = False`. At appendix B the cap walk stalls (coarse: 1500 → 1150 bp, then no further; fine:
+  barely moves at 700 bp). Diagnostics: `tpi_check.py`, `tpi_wall.py`.
+
 ## 2026-10-30: M2 calibrated on the final fine box; D IC binds from p^d 3.93% (`calibration`)
 
 - **Box widening:** `widen_b.py` widened the bond band (0.12 → 0.25), whose narrow version pinned the rest point at its edge,
