@@ -14,6 +14,23 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-10-30 (evening): why the TPI cannot hold its cap; purchase tests; cross-border theory vs data (`calibration`)
+
+No model code changed. These are read-only diagnostics on the solved appendix-B rules, with exact reads and the rules
+held fixed. Report: `Claude files/reports/tpi_mechanism_and_cross_border_2026-10-30.md`.
+- **`tpi_mechanism_check.py`:**
+  - the IC is slack below p^d 3.93% (the 5 bp target plus a rest E[Ω] of 1.117);
+  - the D yield premium splits into expected default loss, a risk premium and a liquidity premium (0–15% of the total);
+  - a 5% purchase moves the price 0.07–1.32%;
+  - the 200 bp cap needs Q_bD 0.875 against 0.670 at 12%.
+- **`tpi_purchase_tests.py`:**
+  - 5% / 15% purchases, current design against GK non-divertable reserves (diagnostic patch);
+  - Bocola's capital premia (risk 0.1–2.6 bp; the crisis lending spread is all liquidity premium);
+  - D output by risk level;
+  - real effects only where μ_D > 0: at 12%, a 15% purchase wins back 0.32 of the 0.41% output loss.
+- **`cross_border_test/`** (`model_side.py`, `compare.py`, `raw/` BIS CBS / ECB BSI / FRED, `README.md`): the model has
+  F banks buying D bonds in a D crisis, while the 2010 data show them selling; psi cannot flip the sign.
+
 ## 2026-10-30 (later): run.py reproduces the appendix-B solution; Bocola's bond decomposition (`calibration`)
 
 - **Calibration:** the M2 instruments and `pd_box_top` 0.12 in `calibration/global_projection.py`.

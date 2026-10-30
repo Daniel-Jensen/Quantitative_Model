@@ -31,6 +31,16 @@ Tier 2 is in (2026-10-27/28: 50% floor, Bohn 0.06). It fixes the risk-channel si
   Bocola's premia split.
 - **The TPI is not operational at appendix B:** the coarse cap walk stalls below 1100 bp, and on the fine grid it barely
   moves. `RUN_TPI = False` until that wall is diagnosed (STATE.md).
+- **Why, economically** (`Claude files/reports/tpi_mechanism_and_cross_border_2026-10-30.md`): purchases can remove
+  only the liquidity premium. That is 0% of the D yield premium below p^d 4% and 15% at 12%; expected default loss and
+  the risk premium are fixed by the exogenous p^d, so a 200 bp cap is infeasible in deep crisis. Real effects exist
+  only where the IC binds (from 3.93%), not at the 2% headline shock.
+  - **Pending, author decisions:**
+    - the TPI redefinition (cap the liquidity premium, a p^d eligibility limit, or a higher cap);
+    - which purchase options to implement (crisis-sized shocks + GK non-divertable reserves recommended; panic default
+      risk is the largest lever).
+- **Cross-border test:** the model's F banks buy D bonds in a D crisis; BIS/ECB data for 2010 show them selling and
+  Greek banks absorbing. `psi_bD_F` cannot flip the sign (`Claude files/diagnostics/cross_border_test/README.md`).
 The continuation drivers are in `Claude files/diagnostics/tex_calibration/`
 (`diag_path.py` resumes from its checkpoints in `runs/`).
 

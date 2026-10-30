@@ -2599,6 +2599,33 @@ the committed calibration with a Prony / companion-eigenvalue extractor
 >       1500 → 1150 bp in 2–6 iterations per rung. It stalls at 1100–1125 bp (max|F| ~1.5e-5, id_C_D) against the
 >       200 bp target. Starting directly at 1150 bp does not converge.
 >     - Making it work needs a diagnosis of that wall (the TPI book's box, m_band 0.32, is a first suspect).
+> - **2026-10-30, why the TPI fails, and the cross-border test** (read-only, exact reads, rules held fixed; full write-up
+>   in `Claude files/reports/tpi_mechanism_and_cross_border_2026-10-30.md`):
+>   - **Slack at rest:** the 5 bp target puts μ̄ at 0.001. Anticipation then lifts the rest E[Ω] to 1.117, which leaves
+>     the IC about 10% slack. It binds from p^d 3.93%, once equity is 16% below SS (μ_D 0.041 at 5%, 0.173 at 12%).
+>   - **Yield premium (bp/yr):**
+>     - at p^d 2%: 687 = expected default loss 439 + risk premium 248 + liquidity premium 0;
+>     - at 12%: 4663 = 2787 + 1183 + 693.
+>     - Purchases can remove only the liquidity premium (0% of the premium below 4%, 15% at 12%).
+>   - **The cap is infeasible in deep crisis:** the 200 bp cap needs Q_bD 0.875; at 12% the price is 0.670. Removing μ
+>     entirely raises it at most about 1.7%.
+>     - A 5% purchase raises the price 0.41% (2%) / 1.32% (12%), about 3× more when the IC binds.
+>     - The wall at 1100 bp is still undiagnosed: `tpi_wall.py` puts the worst residuals (euler_D, 0.12) at nodes where
+>       nothing is bought, so the book-box suspect is unconfirmed.
+>   - **Lending premium:** Bocola's capital risk premium is 0.1–2.6 bp. The crisis lending spread is all liquidity
+>     premium (173 bp at 5%, 693 at 12%).
+>   - **Real effects** come only through μ_D: none at 2% (output −0.03%, not constraint-driven). At 12% the risk costs
+>     0.41% of D output, and a 15% purchase (μ → 0) wins back 0.32%.
+>   - **GK variant** (reserves not divertable, diagnostic patch): about 6× the output effect per euro at 5% (+0.085% vs
+>     +0.014%), +0.1–0.2 pp on the price, the same ceiling.
+>   - **Cross-border (`psi_bD_F` 2), against BIS/ECB data:**
+>     - The model has F banks buying D bonds in a D crisis (+13.5% over 2010's 314 → 910 bp). The data show German
+>       banks selling (about −21% in quantity, −36% in value) and Greek banks absorbing (home bias up).
+>     - psi only scales the wrong-signed flow.
+>   - **Author decisions pending:**
+>     - the TPI redesign (cap the liquidity premium, a p^d eligibility limit, or a higher cap);
+>     - the purchase options (crisis-sized shocks + GK reserves recommended; panic default risk the largest lever);
+>     - the cross-border sign (gambling, suasion, collateral value, or a risk-dependent psi).
 
 > **2026-10-01, branch `OMT-fix`: the LTRO backstop is DELETED; a TPI replaces it.** The
 > regime table is back to the default indicator d' in {0, 1}; `phi_ltro`, `ltro_D/F`,
