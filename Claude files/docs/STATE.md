@@ -2561,7 +2561,23 @@ the committed calibration with a Prony / companion-eigenvalue extractor
 >         without a switch, jump cap).
 >     - **f_D against the 108 bp row (2026-10-29):** the 2% spread rise is 547/452/380 bp at f_D 0.06/0.08/0.10, and
 >       the IC binds from 1.27–1.36%. At f_D 0.12 the hard solve stalls. f_D alone cannot reach 108 bp (extrapolated
->       floor ~150–200 bp). Author decision pending.
+>       floor ~150–200 bp). The author kept f_D 0.08.
+>     - **M2 converged on the fine grid (2026-10-29):**
+>       - **Targets met:** leverage D/F 8.000/8.000; exposure D/F 14.40%/6.50%.
+>       - **Instruments:** leverage_target_D 8.05698, leverage_target_F 7.94201, sov_exposure_D 0.133159,
+>         sov_exposure_F 0.0649688; credit_spread_target_F at its 1 bp bound.
+>       - **Not met:** the F rest spread is 12.3 bp against 5 bp (insensitive to its instrument).
+>       - **D crisis channel:** the IC binds from p^d 1.65%; the 2% spread rise is 205 bp.
+>       - **b_band widening (2026-10-29):** at 0.12 the rest b_DD sat at its box edge, biasing the crisis numbers.
+>         At b_band 0.25 (which contains the rest point and the IRF path) the IC binds from p^d 3.5%, the 2% spread rise
+>         is 0 bp, and the targets shift (lev_D 7.88, exp_D 14.79%), so M2 re-runs on the 0.25 box. The crisis threshold
+>         is not grid-converged with 3 nodes per bond dimension.
+>     - **Final (2026-10-30):** box fine grid, s top 12%, b_band 0.25, k_band 0.04; the rest point is inside it.
+>       - **M2 instruments:** leverage_target_D 8.10875, leverage_target_F 7.96893, sov_exposure_D 0.128951,
+>         sov_exposure_F 0.0649645, credit_spread_target_F 2.5e-5; f_D 0.08.
+>       - **Targets:** leverage and exposures met; F spread not (unreachable).
+>       - **Threshold:** the D IC binds from p^d 3.93%.
+>       - **Files:** `runs/appendixB_final.pkl`; outputs in `results_appendixB_final/`.
 
 > **2026-10-01, branch `OMT-fix`: the LTRO backstop is DELETED; a TPI replaces it.** The
 > regime table is back to the default indicator d' in {0, 1}; `phi_ltro`, `ltro_D/F`,

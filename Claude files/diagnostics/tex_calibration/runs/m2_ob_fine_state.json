@@ -2,17 +2,22 @@
  {
   "stage": "f",
   "f_D": 0.08,
-  "threshold": 0.01301476011270311,
+  "threshold": 0.03759867692136723,
   "where": "inside the box",
-  "spread_rise_2pct": 451.6891444957576,
-  "solve": 1.553467197870854e-09
+  "spread_rise_2pct": 2.514100039263667e-09,
+  "solve": 8.643076809811134e-10
  },
  {
-  "stage": "f",
-  "f_D": 0.1,
-  "threshold": 0.013555877526074511,
+  "stage": "broyden",
+  "converged": true,
+  "threshold": 0.03925319144910727,
   "where": "inside the box",
-  "spread_rise_2pct": 380.5149190950688,
-  "solve": 1.4665768599542162e-12
+  "x": {
+   "leverage_target_D": 8.108745648164863,
+   "leverage_target_F": 7.968926569751571,
+   "sov_exposure_D": 0.1289508412398137,
+   "sov_exposure_F": 0.06496448122294675
+  },
+  "f_D": 0.08
  }
 ]

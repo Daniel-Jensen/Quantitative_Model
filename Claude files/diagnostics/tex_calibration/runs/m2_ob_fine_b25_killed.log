@@ -1,0 +1,23 @@
+  collocation solve m2 hard: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    -> converged in 1 iterations, max|F| = 1.05e-10  (worst equation: bondD_F 1.1e-10)
+[m2 hard] ok True  its 1  max|F| 1.05e-10
+[m2 hard] crisis nodes []
+[f] f_D 0.0800: IC binds from p^d 3.50% (inside the box); spread rise at p^d 2% -0.0 bp (target 108 bp)
+
+[OB fine, f_D 0.080] rest point box position u: K_D -1.01, K_F -0.11, P_D -0.25, b_DD +0.54, s -0.18
+[OB fine, f_D 0.080] fitted rest: mu_D -0.00000  loan spread -0.0bp  leverage 7.879  sov spread 58.9bp  E[Om] 1.1175  goods_F +2.1e-05
+   p^d 2.00%: dQ_bD -9.43%  dn_D -12.98%  dn_F +0.05%  dY_D -0.2096%  dC_D -0.1264%  dspread +54.1bp  mu_D 0.01185  E[Om] 1.1015 = nd 1.0884/d 1.743 (alpha' nd 1.097, d 1.845)
+   p^d 4.00%: dQ_bD -15.12%  dn_D -20.28%  dn_F +0.02%  dY_D -0.3107%  dC_D -0.2386%  dspread +323.5bp  mu_D 0.07194  E[Om] 1.1180 = nd 1.0919/d 1.745 (alpha' nd 1.100, d 1.842)
+   p^d 6.00%: dQ_bD -19.59%  dn_D -25.42%  dn_F -0.03%  dY_D -0.3658%  dC_D -0.3176%  dspread +476.8bp  mu_D 0.10812  E[Om] 1.1402 = nd 1.1015/d 1.746 (alpha' nd 1.110, d 1.840)
+   p^d 9.10%: dQ_bD -25.22%  dn_D -31.45%  dn_F -0.12%  dY_D -0.4124%  dC_D -0.3973%  dspread +622.6bp  mu_D 0.14584  E[Om] 1.1778 = nd 1.1207/d 1.748 (alpha' nd 1.130, d 1.838)
+[OB fine, f_D 0.080] exact rest: mu_D -0.00000  loan spread -0.0bp  leverage 7.861  sov spread 59.4bp  E[Om] 1.1184  goods_F +8.2e-11
+   p^d 2.00%: dQ_bD -8.78%  dn_D -10.51%  dn_F -0.06%  dY_D -0.0174%  dC_D +0.0451%  dspread -0.0bp  mu_D -0.00000  E[Om] 1.1184 = nd 1.1058/d 1.735 (alpha' nd 1.125, d 1.849)
+   p^d 4.00%: dQ_bD -14.35%  dn_D -17.33%  dn_F -0.11%  dY_D -0.0773%  dC_D +0.0065%  dspread +94.5bp  mu_D 0.02138  E[Om] 1.1374 = nd 1.1125/d 1.735 (alpha' nd 1.133, d 1.847)
+   p^d 6.00%: dQ_bD -19.09%  dn_D -23.77%  dn_F -0.11%  dY_D -0.2283%  dC_D -0.1798%  dspread +360.1bp  mu_D 0.08217  E[Om] 1.1472 = nd 1.1094/d 1.741 (alpha' nd 1.124, d 1.843)
+   p^d 9.10%: dQ_bD -24.99%  dn_D -31.01%  dn_F -0.17%  dY_D -0.3609%  dC_D -0.3418%  dspread +601.1bp  mu_D 0.14056  E[Om] 1.1757 = nd 1.1186/d 1.745 (alpha' nd 1.129, d 1.838)
+
+=== calibration evaluation 0: leverage_target_D=8.0569849  leverage_target_F=7.9420131  sov_exposure_D=0.13315916  sov_exposure_F=0.064968812
+  collocation solve m2 hard: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    -> converged in 1 iterations, max|F| = 1.05e-10  (worst equation: bondD_F 1.1e-10)
+[m2 hard] ok True  its 1  max|F| 1.05e-10
+[m2 hard] crisis nodes []

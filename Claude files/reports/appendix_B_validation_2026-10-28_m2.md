@@ -153,3 +153,92 @@ reads). Each f step is a warm fine solve, capped at 0.02 per step: one jump of 0
 - **Why the response is large:** the D bank loses ~21% of its equity at 2% (bond price −10.7% on a 15.5% book at leverage
   ~8). That is data-driven (exposure 14.4%, duration 4.4 years), and it pushes μ to ~0.1, so λ_K·μ/E[Ω] ≈ 450 bp/yr.
 - **Status:** stopped after f_D 0.12 stalled. The f 0.10 solution is saved (`runs/m2_ob_fine_f.pkl`). Author decision pending.
+
+## M2 converged on the fine grid (2026-10-29)
+
+`m2_ob.py --broyden --drop credit_spread_target_F`; fine grid, s box top 12%, f_D 0.08 (author decision), hard conditions.
+
+| target (rest point) | model | data | instrument (deterministic SS) |
+|---|---|---|---|
+| leverage D | 8.0001 | 8 | leverage_target_D = 8.05698 |
+| leverage F | 8.0002 | 8 | leverage_target_F = 7.94201 |
+| own-sovereign share D | 14.400% | 14.4% | sov_exposure_D = 0.133159 |
+| own-sovereign share F | 6.500% | 6.5% | sov_exposure_F = 0.0649688 |
+| loan spread D | 0 (IC slack at rest: the occasionally-binding design) | 5 bp | credit_spread_target_D = 0.000125 (kept) |
+| loan spread F | 12.3 bp | 5 bp | credit_spread_target_F = 2.5e-5 (its lower bound) |
+
+- **F loan spread: not met, reported.** Moving its instrument 5 → 1 bp moved the rest spread only 12.5 → 12.3 bp. The F bank
+  binds at rest (μ_F 0.0024) whatever the SS instrument, so this target is unreachable with its instrument.
+- **The D crisis channel at the calibrated point:** the IC binds from p^d 1.65%, and the spread rise at p^d 2% is **205 bp**
+  (exact read). The 108 bp bound is still exceeded, but by much less than 452 bp. Matching the 14.4% exposure (it was
+  15.5% at rest) is what cut the response.
+- **Next:** widen the bond-book band (b_band 0.12 → 0.18 → 0.25, `widen_b.py`) so the crisis IRF path stays inside the
+  box (b_DD crossed the edge from quarter 6). Then the final outputs (`final_outputs.py`).
+
+## The bond-book band decides the crisis threshold (2026-10-29)
+
+`widen_b.py` widened the bond-book band on the calibrated fine solution: b_band 0.12 → 0.18 → 0.25, converged
+(3e-8, 1e-10). At the same instruments:
+
+| b_band | b_DD box | rest b_DD (u) | rest leverage D / exposure D | IC binds from | 2% spread rise |
+|---|---|---|---|---|---|
+| 0.12 | [1.480, 1.884] | 1.850 (+0.83) | 8.000 / 14.40% | p^d 1.65% | 205 bp |
+| 0.18 | — | (+0.63) | 7.986 / 14.57% | — | — |
+| 0.25 | [1.262, 2.103] | 1.909 (+0.54) | 7.879 / 14.79% | p^d 3.5% | 0 bp |
+
+- **Off-node accuracy is similar:** along the crisis direction (p^d 1–5%, other states at rest), the residuals at the fitted
+  rules are 3e-3 to 7e-3 in both boxes.
+- **The narrow box held its rest point at its edge.** The wide box's rest b_DD (1.909) lies beyond the narrow box's top (1.884).
+  The narrow box's crisis numbers are therefore biased by the edge.
+- **The wide box contains the rest point and the IRF path** (b_DD crossed the narrow box's edge from quarter 6), so the
+  calibration is redone there.
+- **What the coarse bond axes leave open:** with 3 nodes per bond dimension, the crisis threshold is not grid-converged. A
+  convergence check needs more nodes in b_DD. The grid code refines one dimension only (s), so that is a code extension.
+
+## M2 on the wide box (b_band 0.25), converged (2026-10-29)
+
+**Instruments:** leverage_target_D 8.17367, leverage_target_F 7.94613, sov_exposure_D 0.129522, sov_exposure_F 0.0649711,
+credit_spread_target_F 2.5e-5 (its bound), credit_spread_target_D 0.000125, f_D 0.08.
+
+**Rest point:**
+- leverage D/F 8.0003/8.0001 and exposure D/F 14.400%/6.500% (met); F spread 12.2 bp (unreachable, reported);
+- IC slack; **the D IC binds from p^d 3.52%**.
+
+**Outputs:** `final_outputs.py` → `results_appendixB_calibrated/`.
+- **Calibration table at rest:**
+  - sovereign spread 59 bp (data 25);
+  - duration 4.15 years (4.4);
+  - bank-held D debt 49–53% of GDP (40%);
+  - repricing loss / CT1 27% (40%);
+  - liquid deposits 262% of GDP (84%);
+  - F banks' share of the D stock 11.3% (bracket 12.7–39.6%).
+- **Dynamic IRF, p^d 2%:**
+  - Y_D −0.20% fitted, −0.02% exact (μ_D 0);
+  - GR-DE overdraft-spread rise 45.5 bp (bound 108);
+  - deposit rate −94 bp;
+  - Q_bD −9.8%: duration −7.4, default loss −1.0, risk premium −0.6, liquidity −0.1 pp.
+- **Problem:** K_D rests 2.02% below its SS against a ±2% band (u −1.01), so 94.8% of the simulated periods and every
+  IRF quarter sit at the K_D wall. `widen_b.py ... 0.04 k_band b_band=0.25` widens the capital band; these outputs are
+  provisional until then.
+
+## Final box and calibration (2026-10-30)
+
+- **The K_D wall:** `widen_b.py ... 0.04 k_band b_band=0.25` widened the capital band from 0.02 to 0.04 (converged 8.6e-10).
+  The rest point is now inside the box in every direction (u K_D −0.59, b_DD +0.55).
+- **M2 re-run on that box:** converged in one Broyden step.
+
+**The final box:** the fine grid (9 s nodes, cross terms, 75 points), s top at p^d 12%, b_band 0.25, k_band 0.04, and the
+other bands as before.
+
+**Final instruments:** leverage_target_D 8.10875, leverage_target_F 7.96893, sov_exposure_D 0.128951,
+sov_exposure_F 0.0649645, credit_spread_target_D 0.000125, credit_spread_target_F 2.5e-5 (its bound); f_D 0.08.
+
+**Rest point:**
+- leverage D/F 7.997/8.000 and exposure D/F 14.40%/6.50% (met);
+- F loan spread ~7–9 bp (5 bp target unreachable; its instrument is at its bound);
+- D IC slack.
+
+**The D IC binds from p^d 3.93%.** The crisis threshold moved with the box: 1.30% at the narrow 3%-top box, 1.65% after M2
+on b 0.12, 3.5% at b 0.25, 3.93% at b 0.25 / k 0.04. With 3 nodes per bank-stock dimension it is not grid-converged.
+
+**Final outputs:** `final_outputs.py appendixB_final.pkl results_appendixB_final`. Checkpoint: `runs/appendixB_final.pkl`.

@@ -14,6 +14,15 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-10-30: M2 calibrated on the final fine box; D IC binds from p^d 3.93% (`calibration`)
+
+- **Box widening:** `widen_b.py` widened the bond band (0.12 → 0.25), whose narrow version pinned the rest point at its edge,
+  and the capital band (0.02 → 0.04), which the rest point had crossed.
+- **Calibration:** `m2_ob.py` (`--bband`, `--kband`, `--drop`) matched leverage D/F and exposure D/F at the rest point. The
+  F spread target cannot be reached (its instrument sits at its bound).
+- **Outputs:** `final_outputs.py` writes the rest point, IRFs, decompositions, accuracy and figures to
+  `Claude files/diagnostics/tex_calibration/results_appendixB_final/`.
+
 ## 2026-10-29 (later): f_D cannot reach the 108 bp transmission bound (`calibration`)
 
 - **Measured:** the f_D search on the fine 12%-top grid gives a 2% spread rise of 547/452/380 bp at f_D 0.06/0.08/0.10;

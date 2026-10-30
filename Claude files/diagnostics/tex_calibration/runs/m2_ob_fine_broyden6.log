@@ -1,0 +1,65 @@
+  collocation solve m2 hard: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    -> converged in 1 iterations, max|F| = 1.55e-09  (worst equation: bondD_D 1.6e-09)
+[m2 hard] ok True  its 1  max|F| 1.55e-09
+[m2 hard] crisis nodes []
+[f] f_D 0.0800: IC binds from p^d 1.30% (inside the box); spread rise at p^d 2% 451.7 bp (target 108 bp)
+
+[OB fine, f_D 0.080] rest point box position u: K_D -0.70, K_F -0.07, P_D -0.06, b_DD +0.78, s -0.18
+[OB fine, f_D 0.080] fitted rest: mu_D -0.00000  loan spread -0.0bp  leverage 7.936  sov spread 39.3bp  E[Om] 1.0981  goods_F +1.1e-05
+   p^d 2.00%: dQ_bD -11.37%  dn_D -22.89%  dn_F +0.36%  dY_D -0.4929%  dC_D -0.3538%  dspread +566.5bp  mu_D 0.12363  E[Om] 1.1050 = nd 1.0923/d 1.725 (alpha' nd 1.098, d 1.829)
+   p^d 4.00%: dQ_bD -17.42%  dn_D -32.51%  dn_F +0.36%  dY_D -0.6614%  dC_D -0.4502%  dspread +950.5bp  mu_D 0.21071  E[Om] 1.1224 = nd 1.0972/d 1.729 (alpha' nd 1.101, d 1.822)
+   p^d 6.00%: dQ_bD -22.00%  dn_D -39.05%  dn_F +0.31%  dY_D -0.7484%  dC_D -0.4725%  dspread +1155.4bp  mu_D 0.26258  E[Om] 1.1507 = nd 1.1135/d 1.733 (alpha' nd 1.117, d 1.819)
+   p^d 9.10%: dQ_bD -27.64%  dn_D -46.69%  dn_F +0.24%  dY_D -0.8326%  dC_D -0.4781%  dspread +1324.8bp  mu_D 0.31591  E[Om] 1.2073 = nd 1.1539/d 1.741 (alpha' nd 1.160, d 1.820)
+[OB fine, f_D 0.080] exact rest: mu_D -0.00000  loan spread -0.0bp  leverage 7.936  sov spread 40.5bp  E[Om] 1.0970  goods_F +1.4e-10
+   p^d 2.00%: dQ_bD -10.70%  dn_D -20.86%  dn_F +0.29%  dY_D -0.2997%  dC_D -0.0975%  dspread +451.7bp  mu_D 0.09902  E[Om] 1.1099 = nd 1.0975/d 1.717 (alpha' nd 1.112, d 1.833)
+   p^d 4.00%: dQ_bD -17.02%  dn_D -32.40%  dn_F +0.39%  dY_D -0.5826%  dC_D -0.3270%  dspread +972.4bp  mu_D 0.21457  E[Om] 1.1172 = nd 1.0920/d 1.724 (alpha' nd 1.097, d 1.820)
+   p^d 6.00%: dQ_bD -21.70%  dn_D -39.71%  dn_F +0.37%  dY_D -0.7052%  dC_D -0.3558%  dspread +1203.6bp  mu_D 0.27303  E[Om] 1.1485 = nd 1.1114/d 1.730 (alpha' nd 1.116, d 1.818)
+   p^d 9.10%: dQ_bD -27.48%  dn_D -48.22%  dn_F +0.34%  dY_D -0.8175%  dC_D -0.3676%  dspread +1409.6bp  mu_D 0.33613  E[Om] 1.2073 = nd 1.1539/d 1.741 (alpha' nd 1.160, d 1.820)
+
+=== calibration evaluation 0: leverage_target_D=8  leverage_target_F=8  credit_spread_target_F=0.000125  sov_exposure_D=0.144  sov_exposure_F=0.065
+  collocation solve m2 hard: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    -> converged in 1 iterations, max|F| = 1.55e-09  (worst equation: bondD_D 1.6e-09)
+[m2 hard] ok True  its 1  max|F| 1.55e-09
+[m2 hard] crisis nodes []
+  [m2] solved 1.6e-09 in 33s; rest point mu_D -0.00000 mu_F 0.00249; outside the box: none
+  rest point: lev_D=7.9359322  lev_F=8.0339803  spread_F=0.00031153061  exp_D=0.15487086  exp_F=0.065025108
+  scaled gaps (|.| <= 1 converges): -12.81  +6.80  +74.61  +108.71  +0.25   [33s, solve ok True]
+
+=== calibration evaluation 1: leverage_target_D=8.0640678  leverage_target_F=7.9660197  credit_spread_target_F=2.5e-05  sov_exposure_D=0.13312914  sov_exposure_F=0.064974892
+  collocation solve m2 hard: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve m2 hard  1] sum|F|^2 = 2.062e-03   max|F| = 4.014e-02   step = 1
+    [parsolve m2 hard  2] sum|F|^2 = 9.888e-08   max|F| = 1.325e-04   step = 1
+    [parsolve m2 hard  3] sum|F|^2 = 2.232e-12   max|F| = 7.370e-07   step = 1
+    [parsolve m2 hard  4] sum|F|^2 = 7.671e-22   max|F| = 1.327e-11   step = 1
+    -> converged in 5 iterations, max|F| = 1.33e-11  (worst equation: euler_D 1.3e-11)
+[m2 hard] ok True  its 5  max|F| 1.33e-11
+[m2 hard] crisis nodes []
+  [m2] solved 1.3e-11 in 1422s; rest point mu_D -0.00000 mu_F 0.00246; outside the box: none
+  rest point: lev_D=8.0073898  lev_F=8.0250877  spread_F=0.00030866333  exp_D=0.14395555  exp_F=0.065006437
+  scaled gaps (|.| <= 1 converges): +1.48  +5.02  +73.47  -0.44  +0.06   [1422s, solve ok True]
+
+=== calibration evaluation 2: leverage_target_D=8.0549045  leverage_target_F=7.9349114  credit_spread_target_F=2.5e-05  sov_exposure_D=0.13318425  sov_exposure_F=0.06496691
+  collocation solve m2 hard: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve m2 hard  1] sum|F|^2 = 6.727e-12   max|F| = 1.329e-06   step = 1
+    [parsolve m2 hard  2] sum|F|^2 = 3.255e-21   max|F| = 2.465e-11   step = 1
+    -> converged in 3 iterations, max|F| = 2.47e-11  (worst equation: cap_D 2.5e-11)
+[m2 hard] ok True  its 3  max|F| 2.47e-11
+[m2 hard] crisis nodes []
+  [m2] solved 2.5e-11 in 810s; rest point mu_D -0.00000 mu_F 0.00244; outside the box: none
+  rest point: lev_D=7.9979115  lev_F=7.9928605  spread_F=0.00030659568  exp_D=0.14402563  exp_F=0.064998086
+  scaled gaps (|.| <= 1 converges): -0.42  -1.43  +72.64  +0.26  -0.02   [810s, solve ok True]
+
+=== calibration evaluation 3: leverage_target_D=8.0551948  leverage_target_F=7.9359444  credit_spread_target_F=2.5e-05  sov_exposure_D=0.13316989  sov_exposure_F=0.064967254
+  collocation solve m2 hard: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve m2 hard  1] sum|F|^2 = 3.040e-16   max|F| = 9.033e-09   step = 1
+    -> converged in 2 iterations, max|F| = 9.03e-09  (worst equation: id_alpha_D 9.0e-09)
+[m2 hard] ok True  its 2  max|F| 9.03e-09
+[m2 hard] crisis nodes []
+  [m2] solved 9.0e-09 in 431s; rest point mu_D -0.00000 mu_F 0.00244; outside the box: none
+  rest point: lev_D=7.9982099  lev_F=7.9939313  spread_F=0.00030666794  exp_D=0.14401073  exp_F=0.064998443
+  scaled gaps (|.| <= 1 converges): -0.36  -1.21  +72.67  +0.11  -0.02   [431s, solve ok True]
+
+=== calibration evaluation 4: leverage_target_D=8.0552058  leverage_target_F=7.935973  credit_spread_target_F=2.5e-05  sov_exposure_D=0.13316988  sov_exposure_F=0.064967262
+  collocation solve m2 hard: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+/opt/anaconda3/lib/python3.13/multiprocessing/resource_tracker.py:301: UserWarning: resource_tracker: There appear to be 5 leaked semaphore objects to clean up at shutdown: {'/mp-u7rrqf11', '/mp-_2qf8yvb', '/mp-vjieo7i0', '/mp-d8b1x4k4', '/mp-vka6ikxq'}
+  warnings.warn(

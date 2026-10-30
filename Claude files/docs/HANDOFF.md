@@ -20,7 +20,12 @@ Tier 2 is in (2026-10-27/28: 50% floor, Bohn 0.06). It fixes the risk-channel si
 - **2026-10-29:** on the fine grid with the s box to 12% (`runs/m2_ob_fine_f.pkl`), the IC binds from p^d 1.3%. At 2%
   the spread is +452 bp, n_D −21% and Y_D −0.30%; all signs are right but n_F.
 - **Author's choice:** the 108 bp transmission row at p^d 2%. But f_D only moves the response 547 → 380 bp over
-  0.06 → 0.10 (the solve stalls at 0.12), so f_D alone cannot reach 108 bp. Next instrument: an author decision.
+  0.06 → 0.10 (the solve stalls at 0.12), so f_D alone cannot reach 108 bp. The author kept f_D 0.08.
+- **M2 converged on the fine grid** (`runs/m2_ob_fine_final.pkl`; instruments in STATE.md): the IC binds from 1.65%
+  and the 2% spread rise is 205 bp. The F rest spread (12.3 bp) cannot reach 5 bp. Then `widen_b.py` and `final_outputs.py`.
+- **2026-10-30, final:** box with s top 12%, b_band 0.25, k_band 0.04, re-calibrated (instruments in STATE.md); the D IC
+  binds from p^d 3.93%. The threshold is box-dependent (1.3–3.9%); a convergence check needs more nodes in the bank
+  stocks. The calibrated values are not yet in calibration/global_projection.py (the pipeline's box differs).
 The continuation drivers are in `Claude files/diagnostics/tex_calibration/`
 (`diag_path.py` resumes from its checkpoints in `runs/`).
 

@@ -119,6 +119,12 @@ def main():
     # 1. the box extended upward, rung by rung, at the starting f_D
     spec = args[args.index("--rungs") + 1] if "--rungs" in args else None
     rungs = TOP_RUNGS if spec is None else (() if spec == "none" else tuple(float(v) for v in spec.split(",")))
+    if "--bband" in args:
+        # resuming on a widened bond-book band (widen_b.py): the seeds of later evaluations use it too
+        RE.BOX_KW = dict(RE.BOX_KW, b_band=float(args[args.index("--bband") + 1]))
+    if "--kband" in args:
+        # likewise a widened capital band
+        RE.BOX_KW = dict(RE.BOX_KW, k_band=float(args[args.index("--kband") + 1]))
     if spec == "none":
         # resuming on an extended box: its top, for the seeds of later evaluations
         from global_projection.solver_recursive.state_grid import IS as _IS
@@ -174,7 +180,10 @@ def main():
     if "--broyden" not in args:
         return
     # 3. the other five rest-point targets by Broyden, f_D held (the D spread pair left out)
-    CS.PAIRS = tuple(pr for pr in CS.PAIRS if pr[0] != "credit_spread_target_D")
+    # pairs left out besides the D spread (--drop a,b): a target its instrument cannot reach (2026-10-29: the F rest
+    # spread stays at 12.3 bp with its instrument at the 1 bp bound)
+    drop = {"credit_spread_target_D"} | (set(args[args.index("--drop") + 1].split(",")) if "--drop" in args else set())
+    CS.PAIRS = tuple(pr for pr in CS.PAIRS if pr[0] not in drop)
     CS.TOL = np.array([pr[3] for pr in CS.PAIRS])
     x = np.array([M.CUR["cal"][pr[0]] for pr in CS.PAIRS])
     CS.get_calibration = lambda: dict(M.CUR["cal"], **{pr[0]: float(xi) for pr, xi in zip(CS.PAIRS, x)})
