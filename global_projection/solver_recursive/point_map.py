@@ -339,10 +339,10 @@ def _incentive_constraint(v, cal):
     # BOCOLA'S CLOSED-FORM MULTIPLIER, THE CAPITAL EULER AND THE FRANCHISE VALUE.
     lKD, lKF = cal["lambda_K_D"], cal["lambda_K_F"]
     lbDD, lbFF = cal["lambda_bD_D"], cal["lambda_bF_F"]
-    # divertable assets; the TPI claim counts at the bond's lambda, so a swap leaves them unchanged
+    # divertable assets; the TPI claim counts at lambda_cb_D (0: Gertler-Karadi reserves, so a purchase frees the IC)
     lev_D = max(lKD * v.Q_D * v.Kp_D + lbDD * v.Q_bD * v.b_D_D_new
                 + cal["lambda_bF_D"] * v.p * v.Q_bF * v.b_F_D_new
-                + lKD * v.L_wc_D + lbDD * v.Z_cb, 1e-6)
+                + lKD * v.L_wc_D + cal.get("lambda_cb_D", 0.0) * v.Z_cb, 1e-6)
     lev_F = max(lKF * v.Q_F * v.Kp_F + lbFF * v.Q_bF * v.b_F_F_new
                 + cal["lambda_bD_F"] * v.Q_bD * (v.b_D_F_new / v.sz) / v.p
                 + lKF * v.L_wc_F, 1e-6)

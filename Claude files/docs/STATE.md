@@ -2622,6 +2622,18 @@ the committed calibration with a Prony / companion-eigenvalue extractor
 >     - The model has F banks buying D bonds in a D crisis (+13.5% over 2010's 314 → 910 bp). The data show German
 >       banks selling (about −21% in quantity, −36% in value) and Greek banks absorbing (home bias up).
 >     - psi only scales the wrong-signed flow.
+> - **2026-10-31, fix A and the binding-calibration search (B)** (`Claude files/reports/fixA_and_binding_calibration_2026-10-31.md`):
+>   - **Fix A (in the model):** the D banks' Eurosystem claim `Z_cb` counts in the IC at `lambda_cb_D` (new key, 0:
+>     Gertler–Karadi reserves; it was `lambda_bD_D`). With the TPI off the baseline is unchanged (rest point and 2%
+>     impact identical; the rules move only at the Eurosystem-book grid edges, re-solved in 4 steps to 2.2e-10).
+>   - **B, result:** no SS lending-spread target binds the D bank at rest. Over 5 → 60 bp (`b_spread_sweep.py`, fine
+>     grid, warm hard solves) the rest slack goes 1.125 → 1.108 (40 bp) → 1.114 and the threshold 3.93% → 3.44% →
+>     3.66%, because E[Ω] at rest rises 1.117 → 1.265: higher spreads make future crisis states more profitable, which
+>     relaxes the IC. The 80 bp rung stalled.
+>   - **Wrong signs independent of B:** at p^d 2% C_D +0.12% and n_F +0.03% at every rung. C_D falls only from about
+>     p^d 8%; n_F stays within ±0.04%. The union deposit rate falls with D risk (−13 bp at 2%, −276 bp at 12%).
+>   - **Author decision pending:** crisis-sized headline shocks, another lever for the threshold (f_D), or occasional
+>     binding as the result.
 >   - **Author decisions pending:**
 >     - the TPI redesign (cap the liquidity premium, a p^d eligibility limit, or a higher cap);
 >     - the purchase options (crisis-sized shocks + GK reserves recommended; panic default risk the largest lever);

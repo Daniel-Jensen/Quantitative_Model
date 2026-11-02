@@ -14,6 +14,17 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-10-31: fix A (Gertler–Karadi reserves); no spread target binds the D bank at rest (`calibration`)
+
+- **Model:** `calibration/global_projection.py` gains `lambda_cb_D` (divertable share of the D banks' Eurosystem
+  claim, 0). `point_map._incentive_constraint` counts `Z_cb` at it, not at `lambda_bD_D`. The baseline is unchanged
+  with the TPI off; `run.py global` re-solved it, and `data/global_warm_start.pkl` now holds the fix-A rules.
+- **Diagnostics:** `tpi_purchase_tests.py` compares the two designs through the key (no source patch); `buy()` is
+  reusable. New driver `b_spread_sweep.py` raises `credit_spread_target_D` in warm fine solves and tests binding at
+  rest, the 2% acceptance signs and the real effects of purchases.
+- **Result:** 5–60 bp, rest slack 1.125 → 1.108 → 1.114, threshold never below p^d 3.4%; the 80 bp rung stalled.
+  Report: `Claude files/reports/fixA_and_binding_calibration_2026-10-31.md`.
+
 ## 2026-10-30 (evening): why the TPI cannot hold its cap; purchase tests; cross-border theory vs data (`calibration`)
 
 No model code changed. These are read-only diagnostics on the solved appendix-B rules, with exact reads and the rules

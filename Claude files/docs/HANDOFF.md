@@ -39,6 +39,13 @@ Tier 2 is in (2026-10-27/28: 50% floor, Bohn 0.06). It fixes the risk-channel si
     - the TPI redefinition (cap the liquidity premium, a p^d eligibility limit, or a higher cap);
     - which purchase options to implement (crisis-sized shocks + GK non-divertable reserves recommended; panic default
       risk is the largest lever).
+- **2026-10-31:**
+  - **Fix A is in:** the Eurosystem claim is not divertable (`lambda_cb_D` 0); the baseline is unchanged.
+  - **B fails:** no SS lending-spread target binds the D bank at rest. Over 5–60 bp the threshold never falls below
+    p^d 3.4%, because higher spreads raise the franchise value.
+  - **Pending, author decision:** crisis-sized headline shocks, f_D as a threshold lever, or occasional binding as the
+    result (`Claude files/reports/fixA_and_binding_calibration_2026-10-31.md`).
+  - **Open, independent of B:** C_D and n_F rise at p^d 2%.
 - **Cross-border test:** the model's F banks buy D bonds in a D crisis; BIS/ECB data for 2010 show them selling and
   Greek banks absorbing. `psi_bD_F` cannot flip the sign (`Claude files/diagnostics/cross_border_test/README.md`).
 The continuation drivers are in `Claude files/diagnostics/tex_calibration/`

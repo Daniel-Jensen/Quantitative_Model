@@ -97,6 +97,9 @@ def get_calibration():
 
         # TPI: the D share of the Eurosystem P&L (capital key, as in calibration/ssj.py)
         tpi_key_D=0.071,
+        # divertable share of the D banks' claim on the Eurosystem (the reserves a purchase pays with): 0 as in
+        # Gertler-Karadi (2011), so each euro bought frees lambda_bD_D of the IC (2026-10-31; lambda_bD_D before)
+        lambda_cb_D=0.0,
         # TPI switch, spread cap (bp/yr over the F bond) and smoothing of its two kinks
         tpi_on=False,
         tpi_cap_bp=200.0,
