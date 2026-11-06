@@ -363,7 +363,8 @@ def plot_tpi_irf(res, filename="tpi_irf.png", note=""):
     # Each economy starts from its OWN rest point, so a gap at q0 that the footprint panel
     # shows was not bought is the announcement. note is accepted and not drawn (paper
     # scheme: the caption carries it).
-    cap = float(res["cap_bp"])
+    # a relief intervention (tpi_experiment.intervention) has no cap to draw
+    cap = None if res.get("cap_bp") is None else float(res["cap_bp"])
     q = np.arange(len(res["irf_on"]["Y"]))
     wall = _first_wall(*(res[run] for run, *_ in TPI_RUNS))
     with plt.rc_context(PAPER_RC):
@@ -375,7 +376,7 @@ def plot_tpi_irf(res, filename="tpi_irf.png", note=""):
                 ax.plot(q, np.asarray(res[run][key], dtype=float), color=colour, ls=ls,
                         lw=1.8, label=lab, zorder=3)
             _shade_wall(ax, wall, q[-1], i == 0)
-            if key == "sov_bp":
+            if key == "sov_bp" and cap is not None:
                 ax.axhline(cap, color=INK_MUTED, lw=0.9, ls=":", zorder=2)
                 ax.annotate(f"cap {cap:.0f} bp", (q[-1], cap), xytext=(0, 4),
                             textcoords="offset points", ha="right", va="bottom",
@@ -411,14 +412,17 @@ def plot_tpi_irf(res, filename="tpi_irf.png", note=""):
 def plot_tpi_mechanism(res, bond_channels, filename="tpi_mechanism.png"):
     # WHY THE TPI MOVES THE PRICE: the announcement at rest, the bond-price legs of its
     # effect at the shock, and what a purchase alone would do at fixed rules.
-    cap = float(res["cap_bp"])
+    # a relief intervention is unanticipated, so panel (a) shows the impact with and without the purchase instead
+    relief = res.get("mode") == "relief"
     off, on = res["rest_off"], res["rest_on"]
     with plt.rc_context(PAPER_RC):
         fig, axes = plt.subplots(1, 3, figsize=(15.0, 4.9), layout="constrained")
         # (a) the rest point: both spreads, with and without, nothing bought
         ax = axes[0]
         labels = ("Sovereign spread", "Lending spread")
-        vals = ((off["sov_bp"], on["sov_bp"]), (off["spread_bp"], on["spread_bp"]))
+        r = res.get("relief")
+        vals = (((r["sov_off"], r["sov_on"]), (r["lend_off"], r["lend_on"])) if relief else
+                ((off["sov_bp"], on["sov_bp"]), (off["spread_bp"], on["spread_bp"])))
         xs = np.arange(len(labels))
         for j, (_, colour, _, lab) in enumerate(TPI_RUNS):
             bars = ax.bar(xs + (j - 0.5) * 0.36, [v[j] for v in vals], width=0.34,
@@ -428,7 +432,8 @@ def plot_tpi_mechanism(res, bond_channels, filename="tpi_mechanism.png"):
                             b.get_height()), xytext=(0, 3), textcoords="offset points",
                             ha="center", fontsize=8.5, color=INK)
         ax.set_xticks(xs, labels)
-        _paper_axes(ax, "(a) At rest: the announcement, nothing bought", "bp per year",
+        _paper_axes(ax, "(a) On impact: with and without the purchase" if relief else
+                    "(a) At rest: the announcement, nothing bought", "bp per year",
                     zero=False)
         ax.set_xlabel("")
         ax.legend(fontsize=9, frameon=False, loc="upper right")
@@ -465,7 +470,9 @@ def plot_tpi_mechanism(res, bond_channels, filename="tpi_mechanism.png"):
                     "D bond price, % change", zero=True)
         ax.set_xlabel("purchase, % of SS D debt", fontsize=9, color=INK)
         ax.legend(fontsize=9, frameon=False, loc="upper left")
-        fig.text(0.5, -0.02, f"TPI spread cap {cap:.0f} bp per year over the F bond",
+        fig.text(0.5, -0.02, (f"TPI relief intervention: {100 * float(res['purchase']):.1f}% of the SS D debt "
+                              "bought at the shock, unanticipated, held to maturity") if relief else
+                 f"TPI spread cap {float(res['cap_bp']):.0f} bp per year over the F bond",
                  ha="center", fontsize=9, color=INK_MUTED)
         _save(fig, filename)
     return os.path.join(OUTDIR, filename)

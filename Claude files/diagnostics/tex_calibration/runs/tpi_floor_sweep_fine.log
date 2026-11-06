@@ -1,0 +1,67 @@
+  reusing the solved baseline
+  collocation solve joint: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve joint  1] sum|F|^2 = 7.249e-15   max|F| = 5.865e-08   step = 1
+    [parsolve joint  2] sum|F|^2 = 5.200e-24   max|F| = 1.666e-12   step = 1
+    -> converged in 3 iterations, max|F| = 1.67e-12  (worst equation: id_alpha_F 1.7e-12)
+  collocation solve joint hard polish: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve joint hard polish  1] sum|F|^2 = 1.036e-16   max|F| = 3.443e-09   step = 1
+    -> converged in 2 iterations, max|F| = 3.44e-09  (worst equation: id_alpha_F 3.4e-09)
+[floor 0.5] baseline 3.4e-09 (2039s); rest mu_D -0.0000 sov 62 bp E[Om] 1.117 | p^d 2%: Q_bD 0.853 (200 bp floor 0.874) sov 264 bp mu -0.000 spread +0 bp Y -0.031% C +0.120% | p^d 5%: Q_bD 0.784 (200 bp floor 0.875) sov 496 bp mu 0.041 spread +173 bp Y -0.135% C +0.087% | p^d 12%: Q_bD 0.670 (200 bp floor 0.875) sov 982 bp mu 0.173 spread +693 bp Y -0.409% C -0.170%
+  reusing the solved baseline
+  collocation solve TPI cap=1500.0bp: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve TPI cap=1500.0bp  1] sum|F|^2 = 7.262e-15   max|F| = 5.869e-08   step = 1
+    [parsolve TPI cap=1500.0bp  2] sum|F|^2 = 5.123e-24   max|F| = 1.613e-12   step = 1
+    -> converged in 3 iterations, max|F| = 1.61e-12  (worst equation: id_alpha_F 1.6e-12)
+  collocation solve TPI cap=1400.0bp: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve TPI cap=1400.0bp  1] sum|F|^2 = 3.399e-25   max|F| = 8.993e-14   step = 1
+    -> converged in 2 iterations, max|F| = 8.99e-14  (worst equation: id_alpha_D 9.0e-14)
+  collocation solve TPI cap=1300.0bp: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve TPI cap=1300.0bp  1] sum|F|^2 = 3.700e-25   max|F| = 1.816e-13   step = 1
+    -> converged in 2 iterations, max|F| = 1.82e-13  (worst equation: id_alpha_D 1.8e-13)
+  collocation solve TPI cap=1200.0bp: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve TPI cap=1200.0bp  1] sum|F|^2 = 1.774e-23   max|F| = 3.063e-12   step = 1
+    -> converged in 2 iterations, max|F| = 3.06e-12  (worst equation: tpi 3.1e-12)
+  collocation solve TPI cap=1100.0bp: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve TPI cap=1100.0bp  1] sum|F|^2 = 8.891e-05   max|F| = 6.814e-03   step = 1
+    [parsolve TPI cap=1100.0bp  2] sum|F|^2 = 8.141e-06   max|F| = 2.076e-03   step = 1
+    [parsolve TPI cap=1100.0bp  3] sum|F|^2 = 1.860e-08   max|F| = 8.430e-05   step = 1
+    [parsolve TPI cap=1100.0bp  4] sum|F|^2 = 1.686e-10   max|F| = 1.298e-05   step = 1
+    [parsolve TPI cap=1100.0bp  5] sum|F|^2 = 1.085e-12   max|F| = 1.042e-06   step = 1
+    [parsolve TPI cap=1100.0bp  6] sum|F|^2 = 6.449e-17   max|F| = 8.030e-09   step = 1
+    -> converged in 7 iterations, max|F| = 8.03e-09  (worst equation: tpi 8.0e-09)
+  collocation solve TPI cap=1000.0bp: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve TPI cap=1000.0bp  1] sum|F|^2 = 8.286e-04   max|F| = 1.878e-02   step = 1
+    [parsolve TPI cap=1000.0bp  2] sum|F|^2 = 1.015e-04   max|F| = 5.916e-03   step = 1
+    [parsolve TPI cap=1000.0bp  3] sum|F|^2 = 8.791e-05   max|F| = 6.520e-03   step = 0.5
+    [parsolve TPI cap=1000.0bp  4] sum|F|^2 = 1.640e-06   max|F| = 1.079e-03   step = 1
+    [parsolve TPI cap=1000.0bp  5] sum|F|^2 = 9.878e-09   max|F| = 7.803e-05   step = 1
+    [parsolve TPI cap=1000.0bp  6] sum|F|^2 = 4.615e-10   max|F| = 2.120e-05   step = 1
+    [parsolve TPI cap=1000.0bp  7] sum|F|^2 = 1.706e-11   max|F| = 4.130e-06   step = 1
+    [parsolve TPI cap=1000.0bp  8] sum|F|^2 = 6.602e-14   max|F| = 2.569e-07   step = 1
+    [parsolve TPI cap=1000.0bp  9] sum|F|^2 = 1.324e-18   max|F| = 1.151e-09   step = 1
+    -> converged in 10 iterations, max|F| = 1.15e-09  (worst equation: tpi 1.2e-09)
+  collocation solve TPI cap=900.0bp: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve TPI cap=900.0bp  1] sum|F|^2 = 6.027e-03   max|F| = 4.813e-02   step = 1
+    [parsolve TPI cap=900.0bp  2] sum|F|^2 = 2.323e-03   max|F| = 2.334e-02   step = 1
+    [parsolve TPI cap=900.0bp  3] sum|F|^2 = 2.215e-03   max|F| = 2.262e-02   step = 0.0312
+    [parsolve TPI cap=900.0bp  4] sum|F|^2 = 2.183e-03   max|F| = 2.244e-02   step = 0.00781
+    [parsolve TPI cap=900.0bp  5] sum|F|^2 = 2.166e-03   max|F| = 2.226e-02   step = 0.00781
+    [parsolve TPI cap=900.0bp  6] sum|F|^2 = 2.127e-03   max|F| = 2.088e-02   step = 0.0625
+    [parsolve TPI cap=900.0bp  7] sum|F|^2 = 1.924e-03   max|F| = 1.957e-02   step = 0.0625
+    [parsolve TPI cap=900.0bp  8] sum|F|^2 = 1.747e-03   max|F| = 1.835e-02   step = 0.0625
+    [parsolve TPI cap=900.0bp  9] sum|F|^2 = 1.101e-03   max|F| = 1.377e-02   step = 0.25
+    [parsolve TPI cap=900.0bp 10] sum|F|^2 = 6.784e-04   max|F| = 1.048e-02   step = 0.25
+    [parsolve TPI cap=900.0bp 11] sum|F|^2 = 5.200e-04   max|F| = 1.093e-02   step = 0.25
+    [parsolve TPI cap=900.0bp 12] sum|F|^2 = 2.645e-04   max|F| = 1.018e-02   step = 0.5
+    [parsolve TPI cap=900.0bp 13] sum|F|^2 = 9.159e-05   max|F| = 5.815e-03   step = 1
+    [parsolve TPI cap=900.0bp 14] sum|F|^2 = 1.129e-07   max|F| = 3.246e-04   step = 1
+    [parsolve TPI cap=900.0bp 15] sum|F|^2 = 1.800e-09   max|F| = 4.242e-05   step = 1
+    -> STOPPED in 15 iterations, max|F| = 4.24e-05  (worst equation: tpi 4.2e-05)
+  collocation solve TPI cap=950.0bp: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve TPI cap=950.0bp  1] sum|F|^2 = 1.244e-03   max|F| = 2.384e-02   step = 1
+    [parsolve TPI cap=950.0bp  2] sum|F|^2 = 1.102e-03   max|F| = 2.432e-02   step = 0.5
+    [parsolve TPI cap=950.0bp  3] sum|F|^2 = 9.965e-04   max|F| = 2.284e-02   step = 0.0625
+    [parsolve TPI cap=950.0bp  4] sum|F|^2 = 8.121e-04   max|F| = 2.008e-02   step = 0.125
+    [parsolve TPI cap=950.0bp  5] sum|F|^2 = 6.725e-04   max|F| = 1.760e-02   step = 0.125
+/opt/anaconda3/lib/python3.13/multiprocessing/resource_tracker.py:301: UserWarning: resource_tracker: There appear to be 5 leaked semaphore objects to clean up at shutdown: {'/mp-w9nvtwxf', '/mp-yxfg6rkt', '/mp-kd9er346', '/mp-ithce49w', '/mp-963dgh78'}
+  warnings.warn(

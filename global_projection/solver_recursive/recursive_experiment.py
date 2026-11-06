@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 
 import numpy as np
-from scipy.optimize import root
+from scipy.optimize import brentq, root
 
 from calibration.global_projection import get_calibration
 from global_projection.steady_state import solve_steady_state
@@ -99,10 +99,21 @@ CROSS_MAXIT = 60
 # time-iteration sweeps that put each Newton inside its basin
 WARM_SWEEPS = 12
 
-# the TPI cap is walked down from 700 bp in 50 bp rungs, halving a rung that fails
-TPI_CAP_START = 700.0
-TPI_CAP_STEP = 50.0
-TPI_MIN_STEP = 6.25
+# the TPI cap walk (2026-11-04). Each node switches to buying at its own cap, and a step that crosses many switches
+# at once, or lands on one (both arguments of the purchase complementarity at zero: Newton plateaus at ~1e-5), stalls.
+# The walk starts just above the highest no-TPI node spread, keeps each rung margin bp from every node's switching
+# cap, tries a Newton pass with the Jacobian refreshed every reuse iterations first (seconds per iteration, not
+# minutes), accepts a rung above the target at path_tol (it only seeds the next; the target needs the full
+# tolerance), runs the full Newton only at the target or when that pass ended within rescue * path_tol (elsewhere it
+# rarely rescues a rung and costs up to 2 h), halves the step on a failure and grows it by grow on a success. run.py
+# sets these.
+TPI_WALK = dict(step=6.0, grow=1.2, min_step=0.5, max_step=100.0, margin=3.0, path_tol=1e-4, maxit=15, reuse=3,
+                rescue=3.0, direct=False, eps_start=1e-2, ladder=(), halvings=3)
+# direct=True (2026-11-05) replaces the walk (_tpi_direct): the caps in ladder, then the target, each rung started from
+# its nodes above the cap solved alone, with the complementarities smoothed at eps_start (a failed rung is halved, at
+# most halvings times); then the smoothing is walked down to cal["tpi_eps"]
+# a folder each accepted rung is pickled to, so a stopped walk resumes from its lowest cap (None: no checkpoints)
+TPI_CHECKPOINTS = None
 # the TPI smoothing is eased in on the refined grid, ending at cal["tpi_eps"]
 TPI_EPS_LADDER = (1e-2, 1e-3)
 
@@ -530,6 +541,8 @@ def _tpi_form(rules, cal, ss, gz):
             x = np.where(x > gap, x, -np.maximum(gap, 0.0))
         else:
             x = np.maximum(x, 0.0)
+        # nodes with a negative Eurosystem book never buy (point_map._tpi_purchase_and_price)
+        x = np.where(rs.grid.points[:, IM] > -1e-10, x, 0.0)
         rs.set_values("x_cb", 0, x)
     cal["tpi_gz"] = bool(gz)
 
@@ -541,40 +554,211 @@ def _tpi_polish(rules, cal, ss, sproc, label, verbose, backend):
                   f"{label} (GZ form)", verbose, backend=backend, warm=0, maxit=6)
 
 
-def _solve_tpi(rules, cal, ss, sproc, backend, verbose):
-    # WALK THE TPI CAP DOWN TO ITS TARGET ON A SOLVED BASELINE.
-    target = cal["tpi_cap_bp"]
-    regimes = tuple(range(rules.n_regimes))
-    cap, last, step = max(TPI_CAP_START, target), None, TPI_CAP_STEP
-    _tpi_form(rules, cal, ss, gz=False)  # the walk runs in the FB form
-    good, ok, w = rules.copy(), False, np.nan
-    while True:
+def _sov_bp(o, cal):
+    # THE D-OVER-F SOVEREIGN SPREAD OF A POINT READ, bp/yr.
+    return 4e4 * (cal["delta_b_D"] * (1.0 / o["Q_bD"] - 1.0) - cal["delta_b_F"] * (1.0 / o["Q_bF"] - 1.0))
+
+
+def _switch_caps(rules, cal, ss, sproc):
+    # THE CAPS AT WHICH THE NODES NOT YET BUYING START TO BUY: THEIR SOVEREIGN SPREADS AT THE CURRENT RULES.
+    g, B, out = rules.grid, cal["B_gov_D_ss"], []
+    for i in range(g.n):
+        x = np.array([rules.vals[k][0][i] for k in SOLVE7])
+        _, o = point_residuals(g.points[i], 0, x, rules, cal, ss, sproc, n_gh=rules.n_gh or N_GH)
+        # a node at its switch buys a smoothing-sized sliver, so "not yet buying" is below 1e-4 of the stock
+        if o["m_cb"] <= 1e-4 * B:
+            out.append(_sov_bp(o, cal))
+    return np.array(out)
+
+
+def _next_cap(last, step, caps, target, margin):
+    # THE NEXT RUNG: THE CAP NEAREST last - step AT LEAST margin FROM EVERY SWITCHING CAP, SEARCHED OUTWARD IN 0.25 bp.
+    cand = max(last - step, target)
+    near = lambda x: bool(np.any(np.abs(caps - x) < margin))
+    if cand <= target or not near(cand):
+        return cand
+    for d in np.arange(0.25, 2.0 * step + 4.0 * margin, 0.25):
+        for x in (cand - d, cand + d):
+            if target <= x < last - 0.5 and not near(x):
+                return float(x)
+    return cand
+
+
+def _tpi_key(rules, cal):
+    # WHAT A CHECKPOINT MUST MATCH TO BE RESUMED: THE ECONOMY'S TPI-RELEVANT SETTINGS AND THE GRID.
+    keys = ("tpi_cap_bp", "nw_floor_frac", "recovery_rate_D", "lambda_cb_D", "credit_spread_target_D", "f_D",
+            "leverage_target_D", "sov_exposure_D", "tpi_key_D")
+    return dict({k: round(float(cal.get(k, np.nan)), 12) for k in keys}, n=rules.grid.n,
+                lo=[round(float(v), 10) for v in rules.grid.lo], hi=[round(float(v), 10) for v in rules.grid.hi])
+
+
+def _tpi_resume(rules, key):
+    # THE LOWEST-CAP CHECKPOINT OF THIS ECONOMY, AS (rules, cap, the smoothing it solves or None), OR None.
+    if TPI_CHECKPOINTS is None or not Path(TPI_CHECKPOINTS).exists():
+        return None
+    import pickle
+    best = None
+    for p in Path(TPI_CHECKPOINTS).glob("tpi_rung_*.pkl"):
+        with open(p, "rb") as fh:
+            sv = pickle.load(fh)
+        if sv.get("key") == key and (best is None or sv["cap"] < best[1]):
+            best = (sv["rules"], sv["cap"], sv.get("eps"))
+    return best
+
+
+def _tpi_checkpoint(rules, cap, key, eps=None):
+    # PICKLE AN ACCEPTED RUNG, WITH THE SMOOTHING OF THE COMPLEMENTARITIES IT SOLVES (None: cal["tpi_eps"]).
+    if TPI_CHECKPOINTS is None:
+        return
+    import pickle
+    Path(TPI_CHECKPOINTS).mkdir(parents=True, exist_ok=True)
+    with open(Path(TPI_CHECKPOINTS) / f"tpi_rung_{100 * cap:08.0f}.pkl", "wb") as fh:
+        pickle.dump(dict(rules=rules, cap=cap, key=key, eps=eps), fh)
+
+
+def _tpi_rung(rules, cal, ss, sproc, cap, target, backend, verbose):
+    # ONE RUNG OF THE CAP WALK: THE JACOBIAN-REUSE PASS, THEN THE FULL NEWTON WHERE IT STALLS; (ok, max|F|).
+    w, regimes = TPI_WALK, tuple(range(rules.n_regimes))
+    cal["tpi_cap_bp"] = cap
+    ok, wv = False, np.inf
+    if w["reuse"] > 1:
+        ok, _, wv = solve_collocation(rules, cal, ss, sproc, regimes=regimes, no_default=False, n_gh=N_GH,
+                                      backend=backend, maxit=w["maxit"], verbose=verbose,
+                                      label=f" TPI cap={cap:.1f}bp (reuse {w['reuse']})", jac_every=w["reuse"])
+    path = cap > target
+    close = np.isfinite(wv) and wv <= w["rescue"] * w["path_tol"]
+    if not (ok or (path and wv <= w["path_tol"])) and (not path or close or w["reuse"] <= 1):
+        ok, _, wv = _stage(rules, cal, ss, sproc, regimes, False, f"TPI cap={cap:.1f}bp", verbose,
+                           backend=backend, warm=0, maxit=w["maxit"])
+    if not ok and path and np.isfinite(wv) and wv <= w["path_tol"]:
+        if verbose:
+            print(f"    TPI cap={cap:.1f}bp accepted as a path rung at max|F| {wv:.1e} (path tolerance "
+                  f"{w['path_tol']:.0e})")
+        ok = True
+    return ok, wv
+
+
+def _tpi_presolve(rules, cal, ss, sproc, cap):
+    # EVERY NODE ABOVE cap SOLVED ALONE WITH THE OTHERS HELD, SO THE GLOBAL NEWTON STARTS WITH ITS PURCHASE IN PLACE;
+    # A NODE SOLVE THAT ENDS WORSE THAN IT STARTED IS UNDONE. RETURNS HOW MANY NODES WERE ABOVE.
+    regs, g = tuple(range(rules.n_regimes)), rules.grid
+    above = [i for i in range(g.n) if _sov_bp(point_residuals(
+        g.points[i], 0, np.array([rules.vals[k][0][i] for k in SOLVE7]), rules, cal, ss, sproc,
+        n_gh=rules.n_gh or N_GH)[1], cal) > cap]
+    for i in above:
+        z = _node_values(rules, i, regs)
+        f0 = float(np.max(np.abs(_node_residual(rules, cal, ss, sproc, i, regs, False, z))))
+        if not _node_solve(rules, cal, ss, sproc, i, regs, False, z) < f0:
+            _node_residual(rules, cal, ss, sproc, i, regs, False, z)
+    return len(above)
+
+
+def _tpi_direct(rules, cal, ss, sproc, target, last, eps_from, key, backend, verbose):
+    # THE CAP IN A FEW LARGE RUNGS (TPI_WALK ladder, THEN THE TARGET; A FAILED RUNG IS HALVED BACK TOWARDS THE LAST ONE
+    # SOLVED), EACH STARTED FROM ITS NODES ABOVE THE CAP SOLVED ALONE, THE COMPLEMENTARITIES SMOOTHED AT eps_start;
+    # THEN THE SMOOTHING WALKED DOWN TOWARDS cal["tpi_eps"] AT THE TARGET. RETURNS (ok, max|F|); cal["tpi_eps"] ENDS AT
+    # THE SMALLEST SMOOTHING SOLVED.
+    e_end = cal["tpi_eps"]
+    # a resumed rung carries the smoothing it was solved at
+    e = eps_from if eps_from else max(TPI_WALK["eps_start"], e_end)
+    cal["tpi_eps"] = e
+    todo = [c for c in TPI_WALK.get("ladder", ()) if target < c < last] + ([target] if last > target else [])
+    ok, wv, fails = last <= target, np.nan, 0
+    while todo:
+        cap, good = todo[0], rules.copy()
         cal["tpi_cap_bp"] = cap
-        ok, _, w = _stage(rules, cal, ss, sproc, regimes, False, f"TPI cap={cap:.1f}bp",
-                          verbose, backend=backend, warm=0)
+        n = _tpi_presolve(rules, cal, ss, sproc, cap)
+        if verbose:
+            print(f"  TPI direct: rung {cap:.1f} bp, {n} nodes above it solved alone; smoothing {e:.0e}")
+        # a rung above the target is accepted at path_tol: it only seeds the next
+        ok, wv = _tpi_rung(rules, cal, ss, sproc, cap, target, backend, verbose)
+        if ok:
+            last = todo.pop(0)
+            _tpi_checkpoint(rules, last, key, e)
+            continue
+        _restore(rules, good)
+        fails += 1
+        if fails > TPI_WALK.get("halvings", 3):
+            break
+        todo.insert(0, 0.5 * (last + cap))
+    if not (ok and last <= target):
+        cal["tpi_eps"] = e_end
+        return False, wv
+    # halving steps from a factor 2; below a factor 1.3 the walk stops and keeps the smallest smoothing solved (a stalled
+    # walk at 3.2e-3 would otherwise have thrown the solved cap away, 2026-11-05)
+    lstep = np.log(2.0)
+    while e > e_end * (1.0 + 1e-12) and lstep >= np.log(1.3):
+        nxt, good = max(e_end, e / np.exp(lstep)), rules.copy()
+        cal["tpi_eps"] = nxt
+        if verbose:
+            print(f"  TPI direct: smoothing {nxt:.1e}")
+        ok_n, wv_n = _tpi_rung(rules, cal, ss, sproc, target, target, backend, verbose)
+        if ok_n:
+            e, wv, lstep = nxt, wv_n, min(1.5 * lstep, np.log(10.0))
+            _tpi_checkpoint(rules, target, key, e)
+            continue
+        _restore(rules, good)
+        cal["tpi_eps"], lstep = e, 0.5 * lstep
+    cal["tpi_eps"] = e
+    if verbose and e > e_end * (1.0 + 1e-12):
+        print(f"    NOTE: the TPI solves with its complementarities smoothed at {e:.1e}, not {e_end:.0e}: the smoothing "
+              f"walk stalled below it")
+    return True, wv
+
+
+def _solve_tpi(rules, cal, ss, sproc, backend, verbose):
+    # WALK THE TPI CAP DOWN TO ITS TARGET ON A SOLVED BASELINE (TPI_WALK; RESUMED FROM TPI_CHECKPOINTS IF ANY MATCH).
+    target, walk = cal["tpi_cap_bp"], TPI_WALK
+    key = _tpi_key(rules, cal)
+    _tpi_form(rules, cal, ss, gz=False)  # the walk runs in the FB form
+    resumed, eps_from = _tpi_resume(rules, key), None
+    if resumed is not None:
+        rules, last, eps_from = resumed[0].copy(), float(resumed[1]), resumed[2]
+        if verbose:
+            print(f"  TPI walk resumed at {last:.1f} bp from {TPI_CHECKPOINTS}"
+                  + (f" (smoothing {eps_from:.1e})" if eps_from else ""))
+    else:
+        # the no-TPI rules solve the TPI economy at any cap above every node's spread
+        cal["tpi_cap_bp"] = 1e5
+        top = float(np.max(_switch_caps(rules, cal, ss, sproc)))
+        last = max(target, float(np.ceil((top + 10.0) / 25.0) * 25.0))
+        if verbose:
+            print(f"  TPI walk starts at {last:.0f} bp (highest node spread {top:.0f} bp)")
+    step, ok, wv = walk["step"], True, np.nan
+    good = rules.copy()
+    if walk.get("direct") and (last > target or (eps_from or 0.0) > cal["tpi_eps"] * (1.0 + 1e-12)):
+        ok, wv = _tpi_direct(rules, cal, ss, sproc, target, last, eps_from, key, backend, verbose)
+        if ok:
+            good, last = rules.copy(), target
+    elif eps_from:
+        # a final checkpoint: it solves the smoothing it was saved at
+        cal["tpi_eps"] = eps_from
+    while not walk.get("direct") and last > target and step >= walk["min_step"]:
+        cal["tpi_cap_bp"] = last
+        caps = _switch_caps(rules, cal, ss, sproc)
+        cap = _next_cap(last, step, caps, target, walk["margin"])
+        if verbose:
+            ahead = sorted(caps[caps < last], reverse=True)[:5]
+            print(f"  TPI walk: next rung {cap:.2f} bp (step {step:.2f}); switching caps ahead "
+                  f"{', '.join(f'{c:.1f}' for c in ahead) or 'none'}")
+        ok, wv = _tpi_rung(rules, cal, ss, sproc, cap, target, backend, verbose)
         if ok:
             good, last = rules.copy(), cap
-            if cap <= target:
-                break
-            cap = max(cap - step, target)
-            continue
-        step *= 0.5
-        if last is None or step < TPI_MIN_STEP:
-            break
-        rules = good.copy()
-        cap = max(last - step, target)
+            _tpi_checkpoint(rules, cap, key)
+            step = min(walk["grow"] * step, walk["max_step"])
+        else:
+            rules, step = good.copy(), 0.5 * step
+    ok = ok and last <= target
     if not ok:
         rules = good
-    if last is not None:  # hand back in the form the reads use
-        cal["tpi_cap_bp"] = last
-        ok_gz, _, w = _tpi_polish(rules, cal, ss, sproc, f"TPI cap={last:.1f}bp", verbose,
-                                  backend)
-        ok = ok and ok_gz
-    else:
-        _tpi_form(rules, cal, ss, gz=True)
+    # hand back in the form the reads use
+    cal["tpi_cap_bp"] = last
+    ok_gz, _, wv = _tpi_polish(rules, cal, ss, sproc, f"TPI cap={last:.1f}bp", verbose, backend)
     cal["tpi_cap_bp"] = target
     rules.tpi_cap_solved = last
-    return rules, bool(ok and last is not None and last <= target), w
+    # the smoothing the rules solve, for every reader of the TPI economy (tpi_experiment.compare)
+    rules.tpi_eps_solved = cal["tpi_eps"]
+    return rules, bool(ok and ok_gz), wv
 
 
 def _refine_ladder(s_refine, tpi, cross=True):
@@ -640,7 +824,7 @@ def _recentre_box(rules, cal, ss, sproc, s_refine, backend, verbose):
     # sums their error over its duration; the first pass need not converge, it only locates the rest point
     first, _, w1 = _refine_s(rules, cal, ss, sproc, rules.box, s_refine, backend, verbose,
                              ladder=_refine_ladder(s_refine, False, cross=False))
-    S0 = stochastic_rest_point(first, cal, ss, sproc, verbose=verbose)
+    S0 = stochastic_rest_point(first, cal, ss, sproc, verbose=verbose, exact=False)
     at = {k: float(S0[_STOCK_INDEX[k]]) for k in BOX_STOCKS}
     box = dict(rules.box, at=at)
     coarse = _seed_from(RuleSet(normal_box(ss, cal, mu=box["mu"], mu_vec=box["mu_vec"], at=at),
@@ -735,8 +919,13 @@ def solve_recursive(cal, ss, sproc, mu=1, verbose=True, mu_vec=None, rotate=Fals
         okj = okj2 and (okj or not tpi)  # a cap walk short of its target counts as a failure
         cal["tpi_cap_bp"] = target
     rules.tpi_cap_solved = cap_solved
+    # a cap walk short of its target is polished at the cap it reached (at the target the polish
+    # starts far from a root and fails; 2026-11-02)
+    if tpi and cap_solved is not None:
+        cal["tpi_cap_bp"] = cap_solved
     okh, wh = _hard_polish(rules, cal, ss, sproc, hard, tuple(range(nreg)), False, "joint",
                            verbose, backend=backend)
+    cal["tpi_cap_bp"] = target
     okj, wj = okj and okh, (wj if np.isnan(wh) else wh)
     # the smoothings the returned rules solve (all zero when the hard polish converged)
     rules.smoothing = {k: cal[k] for k in hard}
@@ -756,8 +945,9 @@ def read_at(rules, cal, ss, sproc, S):
     return o
 
 
-def read_exact(rules, cal, ss, sproc, S, x0=None):
+def read_exact(rules, cal, ss, sproc, S, x0=None, no_default=False):
     # CLEAR THE PERIOD MAP EXACTLY AT S; NEAR THE mu KINK THIS DIFFERS FROM THE FITTED READ.
+    # no_default: the TFP experiment's map, with default risk switched off
     ngh = rules.n_gh or N_GH
     if x0 is None:
         x0 = np.array([float(rules.eval_read(k, 0, np.atleast_2d(S))[0]) for k in SOLVE7])
@@ -765,16 +955,43 @@ def read_exact(rules, cal, ss, sproc, S, x0=None):
     def f(x):
         try:
             return point_residuals(S, 0, x, rules, cal, ss, sproc, n_gh=ngh,
-                                   no_default=False)[0]
+                                   no_default=no_default)[0]
         except (ValueError, RuntimeError, ArithmeticError):
             return np.full(len(SOLVE7), 10.0)
 
     sol = root(f, x0, method="hybr", tol=1e-13)
     _, o = point_residuals(S, 0, sol.x, rules, cal, ss, sproc, n_gh=ngh,
-                           no_default=False)
+                           no_default=no_default)
     o["_x"] = sol.x
     o["_resid"] = float(np.max(np.abs(sol.fun)))
     return o
+
+
+def read_forced(rules, cal, ss, sproc, S, share):
+    # CLEAR THE PERIOD MAP AT S WITH A ONE-OFF PURCHASE OF share OF THE SS D DEBT, RULES HELD FIXED.
+    # with the TPI off the last unknown is the purchase itself (point_map._tpi_purchase_and_price)
+    c = dict(cal, tpi_on=False)
+    ngh = rules.n_gh or N_GH
+    x0 = np.array([float(rules.eval_read(k, 0, np.atleast_2d(S))[0]) for k in SOLVE7])[:-1]
+
+    def f(z):
+        return point_residuals(S, 0, np.append(z, share), rules, c, ss, sproc, n_gh=ngh)[0][:-1]
+
+    sol = root(f, x0, method="hybr", tol=1e-13)
+    _, o = point_residuals(S, 0, np.append(sol.x, share), rules, c, ss, sproc, n_gh=ngh)
+    o["_x"] = np.append(sol.x, share)
+    o["_resid"] = float(np.max(np.abs(sol.fun)))
+    return o
+
+
+def relief_purchase(rules, cal, ss, sproc, S, top=0.6):
+    # THE ONE-OFF PURCHASE (SHARE OF THE SS D DEBT) AT WHICH THE D BANKS' CONSTRAINT STOPS BINDING AT S, RULES HELD FIXED.
+    gap = lambda m: read_forced(rules, cal, ss, sproc, S, m)["mu_D"] - 1e-6
+    if gap(0.0) <= 0.0:
+        return 0.0
+    if gap(top) > 0.0:
+        raise RuntimeError(f"no purchase up to {100 * top:.0f}% of the D debt switches the D constraint off")
+    return float(brentq(gap, 0.0, top, xtol=1e-6))
 
 
 def _spread_bp(o, cal, c="D"):
@@ -786,8 +1003,9 @@ def report_rest_point(rules, cal, ss, sproc):
     # PRINT THE REST POINT NEXT TO THE DETERMINISTIC STEADY STATE.
     S0 = ss_state(ss, cal, sproc)
     Sr = stochastic_rest_point(rules, cal, ss, sproc, verbose=False)
-    bd = read_at(rules, cal, ss, sproc, S0.copy())
-    br = read_at(rules, cal, ss, sproc, Sr.copy())
+    # cleared exactly (2026-11-06): every report reads the period map, not the fitted rules
+    bd = read_exact(rules, cal, ss, sproc, S0.copy())
+    br = read_exact(rules, cal, ss, sproc, Sr.copy())
     print("\n  DETERMINISTIC SS vs THE MODEL'S OWN REST POINT (the IRF baseline)")
     print(f"   {'object':<22s} {'at the det-SS state':>20s} {'at the rest point':>18s}"
           f" {'diff':>10s}")
@@ -813,27 +1031,28 @@ def report_rest_point(rules, cal, ss, sproc):
 def impact_table(rules, cal, ss, sproc):
     # THE IMPACT RESPONSE AS THE DEFAULT PROBABILITY RISES, FROM THE REST POINT.
     S0 = stochastic_rest_point(rules, cal, ss, sproc, verbose=False)
-    base = read_at(rules, cal, ss, sproc, S0.copy())
+    # every column clears the period map exactly (2026-11-06); Y_fit, muD_fit and resid_fit read the fitted rules, the
+    # accuracy check (at the 6% crisis shock the fitted read doubled the impact recession)
+    base = read_exact(rules, cal, ss, sproc, S0.copy())
+    base_f = read_at(rules, cal, ss, sproc, S0.copy())
     Yb, Cb, Ib, Nb = base["Y_D"], base["C_D"], base["I_D"], base["_x"][0]
     print("\n  IMPACT of priced default risk (deviation from the rest point)")
-    base_x = read_exact(rules, cal, ss, sproc, S0.copy())
-    print("   pd_q%  pd_a%     Y%    Y_ann%   Y_exact%    C%    hours%     I%    "
-          "rdep_bp  spread_bp  r_wc_bp    muD   muD_ex     Q_bD   resid")
+    print("   pd_q%  pd_a%     Y%    Y_ann%    Y_fit%    C%    hours%     I%    "
+          "rdep_bp  spread_bp  r_wc_bp    muD  muD_fit     Q_bD  resid_fit")
     s_hi = float(rules.grid.hi[IS])
-    # Y_exact and muD_ex clear the period map exactly (see read_exact)
     for s_val in (sproc["s_star"], -6.0, -5.2, -4.5, -3.9,
                   0.5 * (-3.9 + s_hi), s_hi):
         S = S0.copy(); S[IS] = s_val
-        o = read_at(rules, cal, ss, sproc, S)
-        ox = read_exact(rules, cal, ss, sproc, S, o["_x"])
+        of = read_at(rules, cal, ss, sproc, S)
+        o = read_exact(rules, cal, ss, sproc, S, of["_x"])
         pq = float(default_prob(s_val))
         dY = 100 * (o["Y_D"] / Yb - 1)
-        dYx = 100 * (ox["Y_D"] / base_x["Y_D"] - 1)
+        dYf = 100 * (of["Y_D"] / base_f["Y_D"] - 1)
         print(f"  {100*pq:6.2f} {100*ann_prob(pq):6.2f} {dY:+8.4f} {ann_pct(dY):+9.4f} "
-              f"{dYx:+9.4f} {100*(o['C_D']/Cb-1):+8.4f} {100*(o['_x'][0]/Nb-1):+8.4f} "
+              f"{dYf:+9.4f} {100*(o['C_D']/Cb-1):+8.4f} {100*(o['_x'][0]/Nb-1):+8.4f} "
               f"{100*(o['I_D']/Ib-1):+7.3f} {bp_ann(o['rdep_D']):8.1f} "
               f"{_spread_bp(o, cal):10.1f} {bp_ann(o['r_wc_D']):8.1f} "
-              f"{o['mu_D']:7.5f} {ox['mu_D']:8.5f}  {o['Q_bD']:.4f} {o['_resid']:.0e}")
+              f"{o['mu_D']:7.5f} {of['mu_D']:8.5f}  {o['Q_bD']:.4f} {of['_resid']:.0e}")
 
 
 def s_from_pd(pd):
@@ -841,12 +1060,14 @@ def s_from_pd(pd):
     return float(np.log(pd / (1.0 - pd)))
 
 
-def persistence_irf(rules, cal, ss, sproc, pd_shock=0.0198, T=21, s_shock=None):
+def persistence_irf(rules, cal, ss, sproc, pd_shock=0.0198, T=21, s_shock=None, exact=False):
     # THE IRF AS s DECAYS, OTHER STATES HELD AT THE REST POINT.
+    # exact=True clears the period map exactly each quarter, as dynamic_irf(exact=True)
+    read = read_exact if exact else read_at
     if s_shock is None:
         s_shock = s_from_pd(pd_shock)
     S0 = stochastic_rest_point(rules, cal, ss, sproc, verbose=False)
-    base = read_at(rules, cal, ss, sproc, S0.copy())
+    base = read(rules, cal, ss, sproc, S0.copy())
     print(f"\n  PERSISTENCE IRF (one-off risk shock to p^d = "
           f"{100*default_prob(s_shock):.2f}%/qtr, rho_s = {sproc['rho_s']} decay)")
     print("   qtr  pd_q%  pd_a%     Y%    Y_ann%      C%     I%   hours%  "
@@ -856,7 +1077,7 @@ def persistence_irf(rules, cal, ss, sproc, pd_shock=0.0198, T=21, s_shock=None):
     for t in range(T):
         s_t = sproc["s_star"] + sproc["rho_s"] ** t * (s_shock - sproc["s_star"])
         S = S0.copy(); S[IS] = s_t
-        o = read_at(rules, cal, ss, sproc, S)
+        o = read(rules, cal, ss, sproc, S)
         _append(path, _persistence_row(o, base, s_t, cal))
         if t in (0, 1, 2, 4, 6, 8, 12, 16, 20):
             print(f"   {t:3d} {path['pd'][-1]:6.2f} {path['pd_ann'][-1]:6.2f} "
@@ -898,9 +1119,33 @@ def advance(o, S, sproc, grid=None):
     return Sn if grid is None else grid.clip(Sn)[0]
 
 
-def stochastic_rest_point(rules, cal, ss, sproc, tol=1e-11, max_it=4000, verbose=True):
+# the endogenous states the exact rest point solves for; s and Z_D are exogenous
+_REST_FREE = (IK_D, IK_F, IP_D, IP_F, IBDD, IBDF, IBFD, IV, IM, IO)
+
+
+def _exact_rest(rules, cal, ss, sproc, S_start):
+    # THE REST POINT AS A FIXED POINT OF THE EXACT PERIOD MAP, FROM THE FITTED ITERATION'S END.
+    idx = np.array(_REST_FREE)
+    scale = np.maximum(np.abs(S_start[idx]), 1e-2)
+
+    def gap(z):
+        S = S_start.copy()
+        S[idx] = z * scale
+        return (advance(read_exact(rules, cal, ss, sproc, S), S, sproc)[idx] - S[idx]) / scale
+
+    sol = root(gap, S_start[idx] / scale, method="hybr", tol=1e-13)
+    S = S_start.copy()
+    S[idx] = sol.x * scale
+    return S, float(np.max(np.abs(sol.fun)))
+
+
+def stochastic_rest_point(rules, cal, ss, sproc, tol=1e-11, max_it=4000, verbose=True, exact=True):
     # WHERE THE SOLVED MODEL RESTS WITHOUT SHOCKS (BOCOLA'S generate_irf.m, STEP 1).
-    cached = getattr(rules, "_rest_point", None)
+    # exact (2026-11-06): the fitted iteration's end polished on the exact period map, the map every exact IRF uses. In
+    # the TPI's GZ form the fitted purchase rule sets the bond price: the fitted rest point left the debt 4.7% and D bank
+    # net worth 1.3% low. The solver's box re-centring and the calibration moments keep the fitted point (exact=False)
+    tag = "_rest_point_exact" if exact else "_rest_point"
+    cached = getattr(rules, tag, None)
     if cached is not None:
         return cached.copy()
     S = ss_state(ss, cal, sproc)
@@ -922,7 +1167,14 @@ def stochastic_rest_point(rules, cal, ss, sproc, tol=1e-11, max_it=4000, verbose
             print(f"    WARNING: the no-shock path had not settled ({d:.1e} > 1e-8). "
                   "The IRF below is still differenced, so it is valid, but the "
                   "starting point is not the model's rest point.")
-    rules._rest_point = S.copy()
+    if exact:
+        S_ex, err = _exact_rest(rules, cal, ss, sproc, S)
+        if verbose:
+            print(f"  exact rest point: |S - g(S)| = {err:.1e}"
+                  + ("" if err < 1e-9 else "; it did not solve, the fitted-read point stands"))
+        if err < 1e-9:
+            S = S_ex
+    setattr(rules, tag, S.copy())
     return S
 
 
@@ -978,7 +1230,7 @@ def _dynamic_row(o, r, S, K_ref_t, cal, ss):
             "Pi_cb": 100 * o["Pi_cb"] / ss["ss_firm_D"]["Y_ss"]}
 
 
-def _print_dynamic_summary(path, rules, cal, ss, sproc, S0, S, pd_shock, T, escapes):
+def _print_dynamic_summary(path, rules, cal, ss, sproc, S0, S, pd_shock, T, escapes, m0=None):
     # THE TROUGH, THE FITTED-vs-EXACT IMPACT, THE WEDGE AND THE BENCHMARKS.
     tr = min(path["Y"])
     print(f"   trough GDP = {tr:+.4f}% level = {ann_pct(tr):+.4f}% annualised "
@@ -988,10 +1240,16 @@ def _print_dynamic_summary(path, rules, cal, ss, sproc, S0, S, pd_shock, T, esca
     bx = read_exact(rules, cal, ss, sproc, S0.copy())
     ox = read_exact(rules, cal, ss, sproc, Sx)
     trx = 100 * (ox["Y_D"] / bx["Y_D"] - 1)
-    print(f"   impact GDP brackets [{min(path['Y'][0], trx):+.4f}%, "
-          f"{max(path['Y'][0], trx):+.4f}%]: {path['Y'][0]:+.4f}% reading the fitted "
-          f"rules, {trx:+.4f}% clearing the period map exactly at that state "
-          f"(mu {bx['mu_D']:.5f} -> {ox['mu_D']:.5f})")
+    if m0:
+        # the path's impact carries the one-off purchase; the exact read here is the same state without it
+        print(f"   impact GDP {path['Y'][0]:+.4f}% with the one-off purchase of {100 * m0:.1f}% of the debt, "
+              f"{trx:+.4f}% without it (mu {ox['mu_D']:.5f} -> {path['mu'][0]:.5f})")
+    else:
+        # both reads, named: the path itself is either, as dynamic_irf's exact flag sets
+        bf, of = read_at(rules, cal, ss, sproc, S0.copy()), read_at(rules, cal, ss, sproc, Sx.copy())
+        trf = 100 * (of["Y_D"] / bf["Y_D"] - 1)
+        print(f"   impact GDP {trx:+.4f}% clearing the period map exactly at that state, {trf:+.4f}% reading the "
+              f"fitted rules (mu {bx['mu_D']:.5f} -> {ox['mu_D']:.5f} exact, {of['mu_D']:.5f} fitted)")
     # output moves with the working-capital wedge: the credit spread net of the deposit rate
     print(f"   impact wedge: credit spread {path['d_spread'][0]:+.1f} bp/yr, "
           f"deposit rate {path['d_rdep'][0]:+.1f} bp/yr, "
@@ -1025,9 +1283,10 @@ def _print_box_escapes(escapes, S0, S, T):
 
 
 def dynamic_irf(rules, cal, ss, sproc, pd_shock=0.0198, T=25, rest_verbose=True,
-                exact=False):
+                exact=False, m0=None):
     # THE DYNAMIC IRF FROM THE REST POINT, NET OF THE UNSHOCKED PATH.
     # exact=True solves each quarter exactly: fitted reads break the TPI's corner
+    # m0: a one-off purchase at impact (share of the SS D debt, TPI off, rules held), tpi_experiment.intervention
     read = read_exact if exact else read_at
     S0 = stochastic_rest_point(rules, cal, ss, sproc, verbose=rest_verbose)
     S = S0.copy()
@@ -1046,7 +1305,7 @@ def dynamic_irf(rules, cal, ss, sproc, pd_shock=0.0198, T=25, rest_verbose=True,
                             "at_wall")}
     walled = False
     for t in range(T):
-        o = read(rules, cal, ss, sproc, S)
+        o = read_forced(rules, cal, ss, sproc, S, m0) if (t == 0 and m0) else read(rules, cal, ss, sproc, S)
         _append(path, _dynamic_row(o, ref[t], S, K_ref[t], cal, ss))
         # 1 when this quarter's state was put back on the box edge, not reached by the law of motion
         path["at_wall"].append(float(walled))
@@ -1067,7 +1326,7 @@ def dynamic_irf(rules, cal, ss, sproc, pd_shock=0.0198, T=25, rest_verbose=True,
                                                 100 * (S[i] / S0[i] - 1))
                                                if abs(S0[i]) > 1e-12 else (Sn[i], S[i])))
                                 for i in np.flatnonzero(esc)]))
-    _print_dynamic_summary(path, rules, cal, ss, sproc, S0, S, pd_shock, T, escapes)
+    _print_dynamic_summary(path, rules, cal, ss, sproc, S0, S, pd_shock, T, escapes, m0=m0)
     return {k: np.array(v) for k, v in path.items()}
 
 
@@ -1121,11 +1380,14 @@ def _tfp_row(o, base, z_t, cal):
             "Q_bD": o["Q_bD"], "Q_bF": o["Q_bF"]}
 
 
-def tfp_irf(rules, cal, ss, sproc, dz=0.01, T=21):
+def tfp_irf(rules, cal, ss, sproc, dz=0.01, T=21, exact=False):
     # THE TFP IRF ALONG THE Z_D DECAY PATH, OTHER STATES AT THE SS.
+    # exact=True clears the no-default period map exactly each quarter
+    read = ((lambda S: read_exact(rules, cal, ss, sproc, S, no_default=True)) if exact else
+            (lambda S: _tfp_read(rules, cal, ss, sproc, S)))
     S0 = ss_state(ss, cal, sproc)
     Z_ss = S0[IZ]
-    base = _tfp_read(rules, cal, ss, sproc, S0.copy())
+    base = read(S0.copy())
     print(f"\n  TFP IRF (one-off {dz:.0%} shock, rho_z={sproc['rho_z']} decay)")
     print("   qtr    Z%     Y_D%     C_D%     I_D%    hours%")
     # the same series as dynamic_irf, so both figures share one panel layout
@@ -1134,7 +1396,7 @@ def tfp_irf(rules, cal, ss, sproc, dz=0.01, T=21):
     for t in range(T):
         z_t = dz * sproc["rho_z"] ** t
         S = S0.copy(); S[IZ] = Z_ss * np.exp(z_t)
-        o = _tfp_read(rules, cal, ss, sproc, S)
+        o = read(S)
         _append(path, _tfp_row(o, base, z_t, cal))
         if t in (0, 1, 2, 4, 6, 8, 12, 16, 20):
             print(f"   {t:3d}  {path['Z'][-1]:5.2f}  {path['Y'][-1]:+7.3f}  "

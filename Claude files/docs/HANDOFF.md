@@ -1,5 +1,31 @@
 # Handoff Notes
 
+## Where things are now — 2026-11-06 (branch `calibration`): the TPI as a relief intervention at a crisis shock
+
+- **`python3 run.py`** runs the appendix-B 12% box (`PD_BOX_TOP` 0.12, warm start) with a 6%/qtr crisis shock
+  (`RISK_SHOCK_PD` 0.06).
+  - Step 6 is `TPI_MODE` "relief": at the shock, unanticipated, the Eurosystem buys just enough D bonds to switch the
+    D banks' constraint off (11.8% of the debt), holds them to maturity, and the no-TPI rules continue (no TPI solve,
+    ~10 min).
+  - These are the author's choices of 2026-11-06, as is the capital key 0.071.
+- **Why:** the 2% illustrative cap TPI had no recession to repair (D constraint slack along the whole path), and a
+  200 bp cap has no solution at crisis shocks.
+  - Diagnosis and numbers: `Claude files/reports/tpi_root_cause_2026-11-05.md` §7–9.
+- **Every readout is exact** (author's decision, 2026-11-06): the rest point is an exact fixed point
+  (`stochastic_rest_point(exact=True)`), and every IRF, table and decomposition clears the period map exactly at each
+  visited state.
+  - At the 6% shock the fitted reads had doubled the impact recession.
+  - The solver's box re-centring and the calibration routine keep fitted reads.
+- **Open (author decisions):**
+  - the capital key makes D worse than no TPI after impact (the no-default premium on crisis purchases goes 93% to F);
+    `tpi_key_D` 1 removes that but leaves purchases little bite. "Income to D, losses by key" (the 2012 Greek
+    arrangement) is untested.
+  - The 12% box is centred on the deterministic SS, not the rest point. Crisis-path bond-price errors are 0.1–0.6%; a
+    re-centred box would tighten them.
+  - D consumption rises on impact in the crisis: a representative household smooths the temporary dividend loss.
+- **Previous results:** the 2%-box cap run is kept in `results/GLOBAL_box2pct_2026-11-06`, and the 6.2% box in
+  `results/GLOBAL_box6.2pct_2026-11-04`.
+
 ## Where things are now — 2026-10-26 (branch `calibration`)
 
 **The global calibration is appendix B (`B-calibration.tex`) since 2026-10-26, and the coarse global solve does
@@ -46,6 +72,26 @@ Tier 2 is in (2026-10-27/28: 50% floor, Bohn 0.06). It fixes the risk-channel si
   - **Pending, author decision:** crisis-sized headline shocks, f_D as a threshold lever, or occasional binding as the
     result (`Claude files/reports/fixA_and_binding_calibration_2026-10-31.md`).
   - **Open, independent of B:** C_D and n_F rise at p^d 2%.
+- **2026-11-04: `python3 run.py global` runs the TPI again,** on Bocola's risk box (`PD_BOX_TOP` 0.062), with the
+  rebuilt cap walk (`recursive_experiment.TPI_WALK`).
+  - The walk is slow: each node that switches to buying costs 0.3–1.5 h on the 75-point grid.
+  - Every accepted rung is checkpointed in `results/GLOBAL_tpi_walk`, and a re-run resumes there; delete the folder to
+    restart.
+  - On the 6.2% box the D IC never binds at central states.
+  - The analysis: `Claude files/reports/tpi_bocola_scale_2026-11-03.md`.
+  - **How to run, resume, restart and read the terminal:** `Claude files/docs/RUN_GLOBAL.md`.
+- **2026-11-05: the 200 bp walk on the 6.2% box could not finish** (stopped after ~14 h at 595 bp;
+  `Claude files/reports/tpi_root_cause_2026-11-05.md`).
+  - **Why:** above p^d ≈ 3.5% the cap needs the Eurosystem to hold ~90% of the debt, beyond its box.
+  - **The user chose a smaller shock:** run.py now runs an illustrative TPI.
+    - `PD_BOX_TOP` 0.02 (the risk range cut to the 2% headline shock);
+    - `TPI_M_BAND` 1.0 (the D banks' whole book, 87.3% of the debt; no TPI where the Eurosystem's book is negative);
+    - the cap solved by a short ladder (270 → 245 → 225 → 210 → 200 bp, nodes above each cap pre-solved, smoothing
+      1e-2), then the smoothing walked to 1e-4 (`TPI_WALK` direct).
+  - **2026-11-06, solved:** at the 2% shock the cap holds 200 bp (223 without) by buying 41% of the D debt.
+    - Net worth, investment and GDP fall more than without the TPI, and spreads run higher after quarter 2.
+    - The book dimension has 3 nodes, so the post-impact dynamics are not robust yet.
+    - Bugs fixed: the household anchors (TPI off) and the rest-point read (exact). Report §6.
 - **Cross-border test:** the model's F banks buy D bonds in a D crisis; BIS/ECB data for 2010 show them selling and
   Greek banks absorbing. `psi_bD_F` cannot flip the sign (`Claude files/diagnostics/cross_border_test/README.md`).
 The continuation drivers are in `Claude files/diagnostics/tex_calibration/`

@@ -6,8 +6,8 @@ from global_projection.solver_recursive.state_grid import IS, IM
 from global_projection.solver_recursive.decision_rules import SOLVE
 from global_projection.solver_recursive.point_map import point_residuals
 from global_projection.solver_recursive.recursive_experiment import (
-    solve_recursive, dynamic_irf, stochastic_rest_point, read_at, read_exact, s_from_pd,
-    S_REFINE)
+    solve_recursive, dynamic_irf, stochastic_rest_point, read_at, read_exact, read_forced, relief_purchase,
+    s_from_pd, S_REFINE)
 from global_projection.solver_recursive.output_decomposition import decompose_bond_price
 
 PD_SHOCK, T_IRF = 0.0198, 25
@@ -27,7 +27,9 @@ def _sov_bp(o, cal):
 def rest_point_row(rules, cal, ss, sproc):
     # THE REST POINT, WHERE NOTHING IS BOUGHT.
     S = stochastic_rest_point(rules, cal, ss, sproc, verbose=False)
-    o = read_at(rules, cal, ss, sproc, S.copy())
+    # an exact read: off the nodes the fitted TPI rules blur the purchase kink (2026-11-06: the fitted read gave the
+    # 200 bp cap a 23 bp lower rest spread, the exact one 5 bp higher)
+    o = read_exact(rules, cal, ss, sproc, S.copy())
     return dict(Q_bD=o["Q_bD"], sov_bp=_sov_bp(o, cal), mu=o["mu_D"], E_Om=o["E_Om_D"],
                 alpha=o["alpha_D"], n=o["n_D"], Y=o["Y_D"], C=o["C_D"], I=o["I_D"],
                 spread_bp=4e4 * cal["lambda_K_D"] * o["mu_D"] / max(o["alpha_D"], 1e-6),
@@ -79,10 +81,49 @@ def run(cal, ss, sproc, rules_off, base, s_refine=S_REFINE, mu_vec=None,
     return compare(cal, ss, sproc, rules_on, rules_off, pd_shock), rules_on
 
 
+def _lending_bp(o):
+    # THE D LENDING SPREAD r_wc - rdep, ANNUALISED bp.
+    return 4e4 * (o["r_wc_D"] - o["rdep_D"])
+
+
+def intervention(cal, ss, sproc, rules, pd_shock=PD_SHOCK, share=None):
+    # THE TPI AS A RELIEF INTERVENTION: AT THE SHOCK, UNANTICIPATED, THE EUROSYSTEM BUYS ENOUGH D BONDS TO SWITCH THE D
+    # BANKS' CONSTRAINT OFF AND HOLDS THEM TO MATURITY; NOTHING MORE IS BOUGHT OR EXPECTED, SO THE NO-TPI RULES CONTINUE.
+    c = dict(cal, tpi_on=False)
+    S_rest = stochastic_rest_point(rules, c, ss, sproc, verbose=False)
+    S_shock = S_rest.copy()
+    S_shock[IS] = s_from_pd(pd_shock)
+    m = relief_purchase(rules, c, ss, sproc, S_shock) if share is None else float(share)
+    B = cal["B_gov_D_ss"]
+    # past the book's box edge the continuation reads the excess back as bank bonds (state_grid.clip)
+    if m * B > rules.grid.hi[IM]:
+        print(f"  NOTE: the purchase ({100 * m:.1f}% of the debt) passes the book box edge "
+              f"({100 * rules.grid.hi[IM] / B:.1f}%); the path after impact is clipped there")
+    out = dict(mode="relief", purchase=m, cap_bp=None, key_D=cal["tpi_key_D"], tpi_eps=None,
+               cap_solved=None, solve_ok=True)
+    # unanticipated: both economies rest at the no-TPI rest point
+    out["rest_off"] = out["rest_on"] = rest_point_row(rules, c, ss, sproc)
+    out["irf_off"] = dynamic_irf(rules, c, ss, sproc, pd_shock=pd_shock, T=T_IRF, rest_verbose=False,
+                                 exact=True)
+    out["irf_on"] = dynamic_irf(rules, c, ss, sproc, pd_shock=pd_shock, T=T_IRF, rest_verbose=False,
+                                exact=True, m0=m)
+    o_on = read_forced(rules, c, ss, sproc, S_shock.copy(), m)
+    o_off = read_exact(rules, c, ss, sproc, S_shock.copy())
+    out["bond_legs"] = decompose_bond_price(*({k: np.array([o[k]]) for k in _BOND_KEYS} for o in (o_on, o_off)),
+                                            cal)
+    out["relief"] = dict(mu_off=float(o_off["mu_D"]), mu_on=float(o_on["mu_D"]), lend_off=_lending_bp(o_off),
+                         lend_on=_lending_bp(o_on), sov_off=_sov_bp(o_off, cal), sov_on=_sov_bp(o_on, cal))
+    out["impact_rest"] = price_impact(rules, c, ss, sproc, S_rest)
+    out["impact_shock"] = price_impact(rules, c, ss, sproc, S_shock)
+    return out
+
+
 def compare(cal, ss, sproc, rules_on, rules_off, pd_shock=PD_SHOCK):
     # EVERY COMPARISON OF THE TWO SOLVED ECONOMIES.
-    c_on, c_off = dict(cal, tpi_on=True), dict(cal, tpi_on=False)
-    out = dict(cap_bp=cal["tpi_cap_bp"], key_D=cal["tpi_key_D"],
+    # the TPI economy is read at the smoothing its rules solve (recursive_experiment._tpi_direct may stop above tpi_eps)
+    c_on = dict(cal, tpi_on=True, tpi_eps=getattr(rules_on, "tpi_eps_solved", cal["tpi_eps"]))
+    c_off = dict(cal, tpi_on=False)
+    out = dict(cap_bp=cal["tpi_cap_bp"], key_D=cal["tpi_key_D"], tpi_eps=c_on["tpi_eps"],
                cap_solved=getattr(rules_on, "tpi_cap_solved", None),
                solve_ok=bool(getattr(rules_on, "solve_ok", True)))
     out["rest_off"] = rest_point_row(rules_off, c_off, ss, sproc)

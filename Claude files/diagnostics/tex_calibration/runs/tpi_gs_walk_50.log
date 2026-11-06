@@ -1,0 +1,30 @@
+  [gs 1137.5 bp] sweep 1: worst node residual 3.7e-05, 25 nodes moved
+  [gs 1137.5 bp] sweep 2: worst node residual 3.2e-05, 25 nodes moved
+  [gs 1137.5 bp] sweep 3: worst node residual 6.6e-05, 25 nodes moved
+  [gs 1137.5 bp] sweep 4: worst node residual 8.6e-05, 25 nodes moved
+  [gs 1137.5 bp] sweep 5: worst node residual 8.9e-05, 25 nodes moved
+  [gs 1137.5 bp] sweep 6: worst node residual 8.7e-05, 24 nodes moved
+  collocation solve TPI cap=1137.5bp (after sweeps): 1000 unknowns (20 rules x 2 regime(s) x 25 points), backend = parsolve
+    [parsolve TPI cap=1137.5bp (after sweeps)  1] sum|F|^2 = 3.482e-07   max|F| = 1.635e-04   step = 0.0312
+    [parsolve TPI cap=1137.5bp (after sweeps)  2] sum|F|^2 = 3.313e-07   max|F| = 1.584e-04   step = 0.0312
+    [parsolve TPI cap=1137.5bp (after sweeps)  3] sum|F|^2 = 1.078e-07   max|F| = 2.887e-04   LM lambda = 1e-10 s0^2
+    [parsolve TPI cap=1137.5bp (after sweeps)  4] sum|F|^2 = 9.751e-08   max|F| = 2.750e-04   step = 0.0625
+    [parsolve TPI cap=1137.5bp (after sweeps)  5] sum|F|^2 = 9.521e-08   max|F| = 2.727e-04   step = 0.0312
+    [parsolve TPI cap=1137.5bp (after sweeps)  6] sum|F|^2 = 9.501e-08   max|F| = 2.724e-04   step = 0.00195
+    [parsolve TPI cap=1137.5bp (after sweeps)  7] sum|F|^2 = 9.499e-08   max|F| = 2.725e-04   step = 0.00195
+    [parsolve TPI cap=1137.5bp (after sweeps)  8] sum|F|^2 = 2.767e-08   max|F| = 1.595e-04   LM lambda = 1e-07 s0^2
+    [parsolve TPI cap=1137.5bp (after sweeps)  9] sum|F|^2 = 2.678e-08   max|F| = 1.569e-04   step = 0.0312
+    [parsolve TPI cap=1137.5bp (after sweeps) 10] sum|F|^2 = 2.660e-08   max|F| = 1.564e-04   step = 0.0156
+    [parsolve TPI cap=1137.5bp (after sweeps) 11] sum|F|^2 = 2.658e-08   max|F| = 1.564e-04   step = 0.00781
+    [parsolve TPI cap=1137.5bp (after sweeps) 12] sum|F|^2 = 2.655e-08   max|F| = 1.563e-04   step = 0.00391
+    [parsolve TPI cap=1137.5bp (after sweeps) 13] sum|F|^2 = 2.652e-08   max|F| = 1.562e-04   step = 0.00195
+    [parsolve TPI cap=1137.5bp (after sweeps) 14] sum|F|^2 = 2.651e-08   max|F| = 1.562e-04   step = 0.00195
+    [parsolve TPI cap=1137.5bp (after sweeps) 15] sum|F|^2 = 2.065e-09   max|F| = 4.313e-05   LM lambda = 1e-07 s0^2
+    [parsolve TPI cap=1137.5bp (after sweeps) 16] sum|F|^2 = 4.390e-10   max|F| = 1.884e-05   LM lambda = 1e-07 s0^2
+    [parsolve TPI cap=1137.5bp (after sweeps) 17] sum|F|^2 = 4.884e-11   max|F| = 3.659e-06   LM lambda = 1e-06 s0^2
+    [parsolve TPI cap=1137.5bp (after sweeps) 18] sum|F|^2 = 4.878e-11   max|F| = 3.637e-06   LM lambda = 1e-06 s0^2
+    [parsolve TPI cap=1137.5bp (after sweeps) 19] sum|F|^2 = 4.848e-11   max|F| = 3.638e-06   LM lambda = 1e-06 s0^2
+    [parsolve TPI cap=1137.5bp (after sweeps) 20] sum|F|^2 = 4.846e-11   max|F| = 3.638e-06   LM lambda = 1e-06 s0^2
+    -> STOPPED in 20 iterations, max|F| = 3.64e-06  (worst equation: id_C_D 3.6e-06)
+[gs] cap 1137.5 bp: sweeps 8.7e-05, Newton ok False (3.6e-06); footprint None (1058s)
+[gs] stopped: cap 1137.5 bp not solved; last solved 1150.0 bp

@@ -1,0 +1,10 @@
+  [gs] next rung 994.48 bp (step 8.00); thresholds ahead 976.6, 973.7, 961.5, 956.1, 894.6, 852.1
+  [gs 994.5 bp] presolve: 14 nodes solved alone, worst node residual 2.2e-04
+  collocation solve TPI cap=994.5bp: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve TPI cap=994.5bp  1] sum|F|^2 = 6.166e-05   max|F| = 5.586e-03   LM lambda = 1e-09 s0^2
+    [parsolve TPI cap=994.5bp  2] sum|F|^2 = 6.006e-05   max|F| = 5.249e-03   step = 0.0625
+    [parsolve TPI cap=994.5bp  3] sum|F|^2 = 5.640e-05   max|F| = 4.674e-03   step = 0.125
+    [parsolve TPI cap=994.5bp  4] sum|F|^2 = 5.568e-05   max|F| = 4.536e-03   step = 0.0312
+    [parsolve TPI cap=994.5bp  5] sum|F|^2 = 5.565e-05   max|F| = 4.518e-03   step = 0.00391
+/opt/anaconda3/lib/python3.13/multiprocessing/resource_tracker.py:301: UserWarning: resource_tracker: There appear to be 5 leaked semaphore objects to clean up at shutdown: {'/mp-mqg1o8d3', '/mp-btz0u0r1', '/mp-vh1dpcvo', '/mp-3kbxy4dt', '/mp-_0eprdu9'}
+  warnings.warn(

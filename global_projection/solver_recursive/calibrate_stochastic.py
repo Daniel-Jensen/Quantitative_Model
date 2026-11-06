@@ -23,7 +23,7 @@ from global_projection.steady_state import solve_steady_state
 from global_projection.solver_recursive.state_grid import s_process_params, S_COVER_SD
 from global_projection.solver_recursive.recursive_main import calibrate_household_anchors
 from global_projection.solver_recursive.recursive_experiment import (
-    solve_recursive, stochastic_rest_point, read_at)
+    solve_recursive, stochastic_rest_point, read_at, read_exact)
 
 # (instrument, target, moment, tolerance, lower bound, upper bound), matched one to one
 PAIRS = (("leverage_target_D", "srp_leverage_D", "lev_D", 0.005, 6.0, 11.0),
@@ -44,10 +44,11 @@ REPRICE_YIELD = 0.091
 CRISIS_PD = 0.091
 
 
-def rest_point_read(rules, cal, ss, sproc):
-    # THE STOCHASTIC REST POINT AND THE FITTED READ THERE.
-    S = stochastic_rest_point(rules, cal, ss, sproc, verbose=False)
-    return S, read_at(rules, cal, ss, sproc, S.copy())
+def rest_point_read(rules, cal, ss, sproc, exact=False):
+    # THE STOCHASTIC REST POINT AND THE READ THERE.
+    # the calibration matches its targets on the fitted point and read (exact=False); run.py's table reads both exactly
+    S = stochastic_rest_point(rules, cal, ss, sproc, verbose=False, exact=exact)
+    return S, (read_exact if exact else read_at)(rules, cal, ss, sproc, S.copy())
 
 
 def rest_point_moments(o):
@@ -173,8 +174,9 @@ def calibration_values(o, cal, sproc, irf):
         pd_rest=100.0 / (1.0 + np.exp(-sproc["s_star"])),
         # the AR(1) for s is Gaussian, so its ergodic share above a threshold is exact
         crisis_share=100 * norm.sf(z), crisis_z=float(z),
-        pd_box_top=max(100.0 / (1.0 + np.exp(-(sproc["s_star"] + S_COVER_SD * sd_s))),
-                       100.0 * cal.get("pd_box_top", 0.0)),
+        # the box top as state_grid._s_bounds sets it
+        pd_box_top=(100.0 * cal["pd_box_top"] if cal.get("pd_box_top")
+                    else 100.0 / (1.0 + np.exp(-(sproc["s_star"] + S_COVER_SD * sd_s)))),
         sov_spread=4e4 * (yD - yF), y_D=4e4 * yD, y_F=4e4 * yF,
         recovery=100 * cal["recovery_rate_D"],
         exp_D=100 * m["exp_D"], exp_F=100 * m["exp_F"],

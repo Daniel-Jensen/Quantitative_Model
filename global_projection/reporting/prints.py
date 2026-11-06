@@ -267,22 +267,31 @@ def print_bond_decomposition(bdec, channels):
 
 def print_tpi_report(res, bond_channels):
     # THE TPI AGAINST NO TPI: REST POINT, IMPACT, FOOTPRINT, PRICE IMPACT, KT CONDITIONS.
-    cap = res["cap_bp"]
-    solved = res["cap_solved"]
-    print(f"\n  TPI: spread cap {cap:.0f} bp/yr over the F bond, capital key D "
-          f"{res['key_D']:.3f}"
-          + ("" if res["solve_ok"] else f"   [NOT ROOTED at the target: last cap "
-                                         f"solved {solved}]"))
-    off, on = res["rest_off"], res["rest_on"]
-    print("\n  REST POINT (nothing is bought here: the gap is the ANNOUNCEMENT)")
-    print(f"   {'object':<26s}{'no TPI':>12s}{'TPI':>12s}{'diff':>12s}")
-    for k, lab in (("Q_bD", "Q_bD"), ("sov_bp", "sovereign spread bp/yr"),
-                   ("spread_bp", "credit spread bp/yr"), ("mu", "mu_D"),
-                   ("E_Om", "E[Omega_D]"), ("alpha", "alpha_D (franchise)"),
-                   ("n", "n_D (bank net worth)"), ("Y", "Y_D"), ("C", "C_D"),
-                   ("I", "I_D"), ("M", "Eurosystem book, % of B"),
-                   ("m", "purchases, % of B")):
-        print(f"   {lab:<26s}{off[k]:12.5f}{on[k]:12.5f}{on[k] - off[k]:+12.5f}")
+    # mode "relief" (tpi_experiment.intervention): one unanticipated purchase, so no rest-point gap and no rule to check
+    relief = res.get("mode") == "relief"
+    if relief:
+        r = res["relief"]
+        print(f"\n  TPI: relief intervention at the shock, unanticipated: {100 * res['purchase']:.1f}% of the SS D "
+              f"debt bought and held to maturity, capital key D {res['key_D']:.3f}")
+        print(f"   on impact: mu_D {r['mu_off']:.4f} -> {r['mu_on']:.4f}, lending spread {r['lend_off']:.0f} -> "
+              f"{r['lend_on']:.0f} bp/yr, sovereign spread {r['sov_off']:.0f} -> {r['sov_on']:.0f} bp/yr")
+    else:
+        cap = res["cap_bp"]
+        solved = res["cap_solved"]
+        print(f"\n  TPI: spread cap {cap:.0f} bp/yr over the F bond, capital key D "
+              f"{res['key_D']:.3f}"
+              + ("" if res["solve_ok"] else f"   [NOT ROOTED at the target: last cap "
+                                             f"solved {solved}]"))
+        off, on = res["rest_off"], res["rest_on"]
+        print("\n  REST POINT (nothing is bought here: the gap is the ANNOUNCEMENT)")
+        print(f"   {'object':<26s}{'no TPI':>12s}{'TPI':>12s}{'diff':>12s}")
+        for k, lab in (("Q_bD", "Q_bD"), ("sov_bp", "sovereign spread bp/yr"),
+                       ("spread_bp", "credit spread bp/yr"), ("mu", "mu_D"),
+                       ("E_Om", "E[Omega_D]"), ("alpha", "alpha_D (franchise)"),
+                       ("n", "n_D (bank net worth)"), ("Y", "Y_D"), ("C", "C_D"),
+                       ("I", "I_D"), ("M", "Eurosystem book, % of B"),
+                       ("m", "purchases, % of B")):
+            print(f"   {lab:<26s}{off[k]:12.5f}{on[k]:12.5f}{on[k] - off[k]:+12.5f}")
     io, im = res["irf_off"], res["irf_on"]
     print("\n  HEADLINE RISK SHOCK, impact (q0) and trough        no TPI        TPI")
     for k, lab in (("Y", "GDP % (level)"), ("sov_bp", "sovereign spread bp/yr"),
@@ -305,6 +314,8 @@ def print_tpi_report(res, bond_channels):
             print(f"    m = {100 * r['m']:5.1f}% of B: Q_bD {100 * (r['Q_bD'] / q0 - 1):+7.3f}%"
                   f"  spread {r['sov_bp']:7.1f} bp  mu_D {r['mu']:.4f}  b_DD {r['b_DD']:.3f}"
                   f"  (resid {r['resid']:.0e})")
+    if relief:
+        return
     kt = res["kt"]
     print(f"\n  COMPLEMENTARITY on the solved rules ({kt['n']} no-default nodes): floor binds "
           f"at {kt['n_binding']}, corner b_DD = 0 at {kt['n_corner']}")

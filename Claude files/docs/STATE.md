@@ -2622,6 +2622,50 @@ the committed calibration with a Prony / companion-eigenvalue extractor
 >     - The model has F banks buying D bonds in a D crisis (+13.5% over 2010's 314 → 910 bp). The data show German
 >       banks selling (about −21% in quantity, −36% in value) and Greek banks absorbing (home bias up).
 >     - psi only scales the wrong-signed flow.
+> - **2026-11-05, the 200 bp cap on the 6.2% box is not attainable as an interior equilibrium**
+>   (`Claude files/reports/tpi_root_cause_2026-11-05.md`):
+>   - **Economics:** the expected-loss-only spread passes 200 bp at p^d 3.3%. At 24 of 75 nodes the cap needs the
+>     Eurosystem to hold ~90% of the debt.
+>   - **Computation:** the `M_cb` band (±27.9% of the debt, sheared) reads purchases past its edge back as the bank's
+>     own bonds.
+>   - **The run now on:** the illustrative TPI.
+>     - `PD_BOX_TOP` 0.02 (a set top now binds below the 3.65-sd coverage);
+>     - `TPI_M_BAND` 1.0 (the D banks' whole book; 0.65 and 0.95 left the riskiest nodes outside, 1.15 corrupted the rules), no TPI where the Eurosystem's book is negative;
+>     - the cap solved by a cap ladder plus a smoothing walk (`_tpi_direct`); solved at 200 bp, smoothing 1e-4, all
+>       else hard.
+>   - **Result (2% shock):** spread 223 → 200 bp, purchases 41.4% of the D debt, bond price −4.9% vs −6.0%.
+>     - D bank net worth −7.9% vs −5.8%; GDP −0.056% vs +0.009% on impact.
+>     - Spreads run above the no-TPI path from quarter 2; the rest-point spread is 75 vs 69 bp.
+>     - The post-impact dynamics depend on a 3-node Eurosystem-book dimension (report §6).
+> - **2026-11-06, crisis shock and the TPI as a relief intervention (current run.py)**
+>   (`Claude files/reports/tpi_root_cause_2026-11-05.md` §7–9):
+>   - **Why the 2% TPI looked worse:**
+>     - The rest-point gaps were a bug (a fitted-read rest point, now an exact fixed point).
+>     - The spread gaps are interpolation leakage.
+>     - The real losses after impact: the D constraint is slack along the 2% path, so there is nothing to repair, and
+>       the capital key sends the no-default profit on crisis purchases 93% to F.
+>   - **Setup (author's choices):** 12% box (`WARM_START`'s), `RISK_SHOCK_PD` 0.06, `TPI_MODE` "relief" (buy just
+>     enough at the shock to switch the D constraint off, unanticipated, held to maturity, no-TPI rules), capital key
+>     0.071.
+>   - **Results (6% shock):** see report §9.
+>   - **Remittance test** (`tpi_key_D` 1, re-solved by continuation): the risk stays in D, purchases barely relieve
+>     the constraint (15.6% moves μ_D 0.105 → 0.095 at 9%), but GDP after impact beats no TPI at every horizon.
+>   - **Every readout exact (same day, author's decision):** IRFs, tables and decompositions clear the period map
+>     exactly at each visited state. At the 6% shock the fitted reads had doubled the impact recession (−0.309% vs
+>     −0.142%); the output decomposition now closes with no residual.
+>   - **Accuracy on the crisis path:** next-quarter bond-price errors 0.1–0.6%, franchise value 1–5%. The 12% box is
+>     centred on the deterministic SS, where the D constraint binds at 54 of 75 nodes, while the rest point sits
+>     b_DD +15.6%, K_D −2.6% off it.
+> - **2026-11-04, the TPI solve** (`Claude files/reports/tpi_bocola_scale_2026-11-03.md`):
+>   - **Method:** same as Bocola's replication (Smolyak/Chebyshev, Newton, the haircut ladder, ~3000 unknowns). His
+>     risk box tops at p^d 6.2%, against our 12%.
+>   - **The obstacle on the 12% box:** the 23-node top slice switches to buying within ~1150–950 bp, with switch caps
+>     as close as 0.1 bp. Solutions exist (single-node roots at every cap down to 200 bp) and there is no fold
+>     (Jacobian condition number ~4e6).
+>   - **The new walk** (`_solve_tpi`, TPI_WALK, checkpoints) crosses switches one at a time.
+>   - **run.py:** `PD_BOX_TOP` 0.062 (Bocola), `RUN_TPI` True.
+>   - **On the 6.2% box:** the D IC never binds at central states (2% shock: lending spread 0, Y_D ≈ 0, Bocola excess
+>     return +237 bp). Its top-slice switch caps span 444–618 bp.
 > - **2026-10-31, fix A and the binding-calibration search (B)** (`Claude files/reports/fixA_and_binding_calibration_2026-10-31.md`):
 >   - **Fix A (in the model):** the D banks' Eurosystem claim `Z_cb` counts in the IC at `lambda_cb_D` (new key, 0:
 >     Gertler–Karadi reserves; it was `lambda_bD_D`). With the TPI off the baseline is unchanged (rest point and 2%

@@ -14,6 +14,132 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-11-06: a crisis-sized shock and the TPI as a relief intervention; the exact rest point (`calibration`)
+
+Why the 2% TPI looked worse after impact, and the redesign the author chose
+(`Claude files/reports/tpi_root_cause_2026-11-05.md` §7–9).
+
+- **Diagnosis of the 2% run:**
+  - The rest-point gaps were a bug: the rest point iterated fitted reads, and in the TPI's GZ form the fitted purchase
+    rule sets the bond price (1.2% too high, so debt −4.7% and net worth −1.3%).
+  - The rest-spread gap (+6 bp) and the higher spreads after quarter 2 are interpolation leakage of the 23 top-risk
+    purchases.
+  - The real losses after impact are economics: the D constraint is slack along the whole 2% path (no recession to
+    repair), and the Eurosystem's no-default profit on bonds bought in the crisis goes 93% to F (capital key).
+- **Crisis shocks** (12% box, `data/global_warm_start.pkl`):
+  - The D constraint binds on impact only from p^d ~5% (none on the 2% or 6.2% boxes).
+  - At 6%: GDP −0.14%, lending spread +197 bp, D bank net worth −23%.
+  - A 200 bp cap has no solution there: after relief the spread is still ~530 bp (6%), almost all expected default
+    loss.
+- **What purchases can do:** relieve the constraint, mainly by moving D's default risk to F under the capital key.
+  - Kept in D (`tpi_key_D` 1, re-solved by continuation) the risk stays in D and a 15.6% purchase barely moves μ_D at
+    9%.
+- **Author's choices:** shock 6%/qtr, capital key 0.071, TPI as a relief intervention.
+- **Code:**
+  - `recursive_experiment.stochastic_rest_point(exact=True)` polishes the fitted iteration on the exact period map
+    (`_exact_rest`). The box re-centring and `calibrate_stochastic.rest_point_read` keep the fitted point.
+  - New `read_forced` and `relief_purchase`; `dynamic_irf(m0=)`.
+  - New `tpi_experiment.intervention`; `print_tpi_report` and the two TPI figures handle mode "relief".
+  - `run.py`: `RISK_SHOCK_PD` 0.06, `PD_BOX_TOP` 0.12, `TPI_M_BAND` 0.32, new `TPI_MODE` "relief".
+- **Every readout exact (author's decision, same day):** `run.py` clears the period map exactly at each visited state.
+  The fitted reads doubled the 6% impact recession (−0.309% vs −0.142%).
+  - New flags: `persistence_irf`/`tfp_irf(exact=)`, `read_exact(no_default=)`, `simulate(exact=)` (new
+    `_exact_read`), `calibrate_stochastic.rest_point_read(exact=)`.
+  - `report_rest_point` and `impact_table` now read exactly; the impact table keeps a fitted column and residual.
+  - The output decomposition's labour-FOC residual is now 0.
+  - The calibration table's transmission rows are read at p^d 2% as labelled (0.7 bp; before: 337.5 bp, the 6%
+    fitted response).
+  - The calibration routine keeps its fitted reads.
+- **Diagnostics** (read-only, `Claude files/diagnostics/tpi_root_cause/`): `post_impact`, `exact_rest`,
+  `one_off_purchase`, `regime_anatomy`, `one_step_exact`, `leakage_profile`, `capital_price_decomp`, `crisis_shock`,
+  `node_relief`, `consumption_sign`, `crisis_accuracy`, `key_test`/`key_homotopy`.
+  - The 2%-box results are kept in `results/GLOBAL_box2pct_2026-11-06`.
+
+## 2026-11-05/06: why the 200 bp walk stalled; the illustrative TPI on a 2% risk box, solved at the cap (`calibration`)
+
+- **Result** (`Claude files/reports/tpi_root_cause_2026-11-05.md` §6): the TPI economy at 200 bp is solved at
+  smoothing 1e-4 with every other condition hard.
+  - At the 2% shock it holds the spread at 200 bp (223 without) by buying 41.4% of the D debt.
+  - The bond price falls 4.9% instead of 6.0%.
+  - D bank net worth falls more (−7.9% vs −5.8%), investment and GDP dip, and spreads run above the no-TPI path from
+    quarter 2.
+  - The post-impact dynamics run through a 3-node Eurosystem-book dimension and are not robust yet.
+- **The solve (replaces the one-shot below):** `_tpi_direct` walks the cap 270 → 245 → 225 → 210 → 200 bp
+  (`TPI_WALK` ladder, `_tpi_presolve`, a failed rung halved). Then it walks the smoothing at 200 bp in factor-2 steps
+  to 1e-4.
+  - A stalled walk keeps the smallest smoothing solved: checkpoints carry it (`_tpi_checkpoint` eps,
+    `rules.tpi_eps_solved`), and `tpi_experiment.compare` reads the TPI there.
+- **Bugs fixed:**
+  - `recursive_main.calibrate_household_anchors` now reads the SS with the TPI off. In the GZ form it priced the bond
+    at the floor and gave D households 0.79% of GDP in the TPI's hard polish.
+  - `tpi_experiment.rest_point_row` reads exactly. The fitted read showed a spurious −23 bp rest-spread effect; the
+    exact read shows +7 bp.
+
+- **Root cause** (`Claude files/reports/tpi_root_cause_2026-11-05.md`): mainly economics. Above p^d ≈ 3.5%/qtr the
+  200 bp price is below what even a risk-neutral holder pays, so 24 of 75 nodes of the 6.2% box need the Eurosystem
+  to hold ~90% of the debt.
+  - The box could not hold that: the Eurosystem-book band was ±27.9% of the debt, and the box is sheared, so
+    purchases past the edge are read back as the bank's own bonds.
+  - The walk crossed unphysical `M_cb`−/`O_cb`− edge nodes, accepted a rung at 1e-4, and its margin rule made step
+    halving useless.
+  - The run was stopped after ~14 h at 595 bp.
+- **`state_grid._s_bounds`:** a set `pd_box_top` is now the box top even below the 3.65-sd coverage (3.0%).
+  - Unchanged for tops of 6.2% and 12%.
+  - `calibrate_stochastic` reports the same top.
+- **`recursive_experiment._tpi_direct`** first tried the target cap in one go: each node above the cap solved alone,
+  the global Newton at smoothing 1e-2, then the smoothing walked down. On the 1.0 box that stalled at 1.2e-2, so the
+  cap ladder above replaced it.
+- **run.py:**
+  - `PD_BOX_TOP` 0.02: the risk range is cut to the headline shock, so no node tops the cap by more than ~100 bp.
+  - `TPI_M_BAND` 1.0 (`BOX_KW` m_band; o_band 0.08/band keeps the claim band's width): the D banks' whole book, 87.3% of
+    the debt.
+    - Each bp of compression costs ~1.2% of the debt (the D IC is slack): 27% at the shock, the whole book at the
+      riskiest nodes.
+    - 0.65 and 0.95 left those nodes outside (0.95 stalled at 6e-4).
+    - Past ~1.0 the D bank's book at the M+ edge turns negative, and at 1.15 that corner corrupted the rules
+      (`m_band_edge.py`).
+- **`point_map._tpi_purchase_and_price`:** no TPI where the Eurosystem's book is negative (M < 0).
+  - Purchases are ≥ 0 from M = 0, so no TPI path reaches such a node.
+  - At the box's M− nodes (D banks holding ~175% of the debt) the cap had no root.
+  - `_tpi_form` keeps x = 0 there.
+- **Diagnostics:** `Claude files/diagnostics/tpi_root_cause/`:
+  - root cause: `fair_spread`, `rung_anatomy`, `switch_nodes`, `node_demand`, `clip_readback`, `time_residual`;
+  - box design: `box_top_scan`, `edge_spreads`, `demand_at_pd`, `cap_footprint`, `m_band_edge`, `m_edge_check`;
+  - results: `irf_purchase`, `eps_sensitivity`, `s_profile`, `rest_compare`, `recompare`;
+  - console logs in `runs/`.
+
+## 2026-11-04: the TPI cap walk rebuilt; run.py runs the TPI on Bocola's risk box (`calibration`)
+
+- **Why the old walk failed** (`Claude files/reports/tpi_bocola_scale_2026-11-03.md`):
+  - each node switches to buying at its own cap;
+  - a step that lands on a switch (both arguments of the purchase complementarity at zero) plateaus at ~1e-5, and one
+    that crosses many switches starts too far away;
+  - on the 12% box the 23-node top slice switches within ~1150–950 bp, with switch caps as close as 0.1 bp;
+  - no fold: the Jacobian's condition number is ~4e6 at solved caps.
+- **`recursive_experiment._solve_tpi`, the new walk (TPI_WALK):**
+  - starts just above the highest no-TPI node spread;
+  - keeps each rung `margin` bp from every node's switching cap (`_switch_caps`, `_next_cap`);
+  - tries a Jacobian-reuse pass first (`solve_collocation(jac_every=reuse)`), then the full Newton (`_tpi_rung`);
+  - accepts a rung above the target at `path_tol` (the target needs the full tolerance);
+  - halves the step on a failure and grows it on a success;
+  - checkpoints every accepted rung to `TPI_CHECKPOINTS`, keyed on the economy (`_tpi_key`), and resumes from the
+    lowest matching cap.
+- **Hard polish:** a walk short of its target is now polished at the cap it reached, not at the target.
+- **run.py:**
+  - `PD_BOX_TOP` 0.062 (Bocola's s ∈ [−11.41, −2.71]; 0.12 = the appendix-B box); the warm rules are seeded onto
+    another box automatically;
+  - `RUN_TPI` True, with `TPI_WALK` and `TPI_CHECKPOINTS` (`results/GLOBAL_tpi_walk`; delete it to restart the walk).
+- **On the 6.2% box** the D IC never binds at central states, so the 2% shock leaves the lending spread unchanged. Its
+  top-slice switch caps spread over 444–618 bp, so the walk can cross them one at a time.
+- **Diagnostics:** `bocola_size.py`, `tpi_gs_walk.py`, `tpi_jacobian_svd.py`, `tpi_direct.py`, `tpi_floor_sweep.py`.
+- **One click runs everything** (`Claude files/docs/RUN_GLOBAL.md`).
+  - run.py prints a step guide (steps 1–7, typical times) and a done line with the time after each step.
+  - It caches the solved TFP and risk rules in `results/GLOBAL_cache` (keyed on the calibration and the
+    solve settings), so a click with nothing changed skips ~1 h.
+  - It stops idle sleep with `caffeinate`.
+  - A TPI rung whose fast pass ends above `rescue × path_tol` is abandoned at once; that pass used to fall
+    into the full Newton for up to 2 h.
+
 ## 2026-10-31: fix A (Gertler–Karadi reserves); no spread target binds the D bank at rest (`calibration`)
 
 - **Model:** `calibration/global_projection.py` gains `lambda_cb_D` (divertable share of the D banks' Eurosystem

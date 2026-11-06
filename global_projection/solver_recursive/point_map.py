@@ -123,7 +123,9 @@ def _tpi_floor(Q_bF, cal):
 
 def _tpi_purchase_and_price(v, cal, ss):
     # PURCHASE AND PRICE FROM ONE SMOOTH VARIABLE x (GARCIA-ZANGWILL).
-    v.tpi = bool(cal["tpi_on"])
+    # no TPI where the Eurosystem's book is negative (2026-11-05): purchases are >= 0 from M = 0, so no TPI path reaches
+    # M < 0, and at the box's M- nodes (D banks holding ~175% of the debt) the cap had no root
+    v.tpi = bool(cal["tpi_on"]) and v.M_lag > -1e-10
     v.Q_floor = _tpi_floor(v.Q_bF, cal)
     v.Q_bD_slot = v.Q_bD
     B = cal["B_gov_D_ss"]

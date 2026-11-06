@@ -49,6 +49,9 @@ def calibrate_household_anchors(cal, ss, sproc, tol=1e-13, max_it=12):
     # = A_ss, deposits clearing by quantity). The working-capital flow is now in the budget, so
     # this is a residual anchor, zero up to the SS solve's tolerance; iterating to a fixed point
     # keeps it robust to the smooth guards.
+    # an SS property, read with the TPI off: nothing is bought at the SS, and in the TPI's GZ form x = 0 puts the bond
+    # price on the floor (it once gave D households a transfer of 0.8% of GDP, 2026-11-06)
+    cal = dict(cal, tpi_on=False)
     ss["hh_T_D"] = 0.0
     ss["hh_T_F"] = 0.0
     grid = build_state_box(ss, cal, mu=1)

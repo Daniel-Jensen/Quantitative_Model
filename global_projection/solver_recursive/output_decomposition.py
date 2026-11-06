@@ -55,6 +55,9 @@ def _refine(rules, cal, ss, sproc, S, x0):
     # obvious "fix" for a large residual channel is to re-solve, and it must not be
     # re-tried blind: the residual is real approximation error, cured by a finer
     # grid (mu=2), not by re-solving the current period.
+    # 2026-11-06 (author's decision): run.py's reports clear the map exactly (simulate(exact=True), _exact_read); at the
+    # appendix-B 6% crisis shock the exact read stays on the binding branch, where the fitted read's residual (4-6e-3)
+    # doubled the impact recession
     def f(x):
         try:
             return point_residuals(S, 0, x, rules, cal, ss, sproc, n_gh=rules.n_gh or 5,
@@ -73,8 +76,9 @@ def s_decay_path(sproc, s_shock, T):
 
 
 def simulate(rules, cal, ss, sproc, s_path, endogenous_states=True, refine=False,
-             S_init=None):
+             S_init=None, exact=False):
     # FORWARD-SIMULATE THE ECONOMY UNDER s_path, CARRYING THE ENDOGENOUS STATES.
+    # exact=True clears the period map exactly at every visited state (_exact_read), as dynamic_irf(exact=True)
     # The next state is the period map's own end-of-period stocks
     # [Kp_D, Kp_F, Pp_D, Pp_F, Bp_D], so K/P/B evolve exactly as the rules imply.
     # States are clipped into the Smolyak box (Chebyshev extrapolation is unsafe);
@@ -107,7 +111,9 @@ def simulate(rules, cal, ss, sproc, s_path, endogenous_states=True, refine=False
         S = rules.grid.clip(S)[0]
         states.append(S.copy())
         o = _read(rules, cal, ss, sproc, S)
-        if refine and o["_resid"] > 1e-11:
+        if exact:
+            o = _exact_read(rules, cal, ss, sproc, S, o)
+        elif refine and o["_resid"] > 1e-11:
             o = _refined_read(rules, cal, ss, sproc, S, o, counts)
         for k in REC_KEYS:
             rec[k][t] = o[k]
@@ -120,6 +126,16 @@ def simulate(rules, cal, ss, sproc, s_path, endogenous_states=True, refine=False
     rec["s"] = np.asarray(s_path, dtype=float)
     rec["S"] = np.array(states)
     return rec
+
+
+def _exact_read(rules, cal, ss, sproc, S, o):
+    # THE PERIOD MAP CLEARED EXACTLY AT S, WARM-STARTED AT THE RULE READ o (NO BRANCH CHECK).
+    x1, _ = _refine(rules, cal, ss, sproc, S, o["_x"])
+    res, o1 = point_residuals(S, 0, x1, rules, cal, ss, sproc, n_gh=rules.n_gh or 5,
+                              no_default=False)
+    o1["_x"], o1["_res"] = x1, res
+    o1["_resid"] = float(np.max(np.abs(res)))
+    return o1
 
 
 def _refined_read(rules, cal, ss, sproc, S, o, counts):
