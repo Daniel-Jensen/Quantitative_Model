@@ -1,6 +1,15 @@
 # Handoff Notes
 
-## Where things are now — 2026-11-06 (branch `calibration`): the TPI as a relief intervention at a crisis shock
+## Where things are now — 2026-11-07 (branch `calibration`): faster fiscal rule; the TPI as a 200 bp cap
+
+- **`python3 run.py`:** appendix-B 12% box, `bohn_annual` 0.25 (warm start re-solved), a 1.5%/qtr shock, and
+  `TPI_MODE` "cap": unanticipated Eurosystem purchases hold the spread at 200 bp (16.7% of the debt on impact).
+- **Open:**
+  - the D exposure target is missed at the new rest point (13.0% vs 14.4%);
+  - under the capital key D consumption and capital run slightly below no TPI after impact.
+- Report §10 has the numbers. The section below describes the superseded 2026-11-06 relief setup.
+
+## 2026-11-06 (superseded): the TPI as a relief intervention at a crisis shock
 
 - **`python3 run.py`** runs the appendix-B 12% box (`PD_BOX_TOP` 0.12, warm start) with a 6%/qtr crisis shock
   (`RISK_SHOCK_PD` 0.06).

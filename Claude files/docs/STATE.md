@@ -2637,7 +2637,16 @@ the committed calibration with a Prony / companion-eigenvalue extractor
 >     - D bank net worth −7.9% vs −5.8%; GDP −0.056% vs +0.009% on impact.
 >     - Spreads run above the no-TPI path from quarter 2; the rest-point spread is 75 vs 69 bp.
 >     - The post-impact dynamics depend on a 3-node Eurosystem-book dimension (report §6).
-> - **2026-11-06, crisis shock and the TPI as a relief intervention (current run.py)**
+> - **2026-11-07, faster fiscal rule and the TPI as a 200 bp cap at a 1.5% shock (current run.py)**
+>   (`Claude files/reports/tpi_root_cause_2026-11-05.md` §10):
+>   - **Calibration:** `bohn_annual` 0.25 (was 0.06); `data/global_warm_start.pkl` re-solved by continuation (1.1e-8).
+>     The debt overhang half-life is now ~12 q (was ~60). The D IC binds from p^d ~1.2–1.5%.
+>   - **Setup:** `RISK_SHOCK_PD` 0.015, `TPI_MODE` "cap" (unanticipated purchases hold the spread at `TPI_CAP` 200 bp),
+>     capital key 0.071.
+>   - **Results:** spread 222 → 200 bp with 16.7% of the debt; GDP −0.076% → −0.045% on impact; lending spread
+>     68 → 20 bp.
+>   - **Calibration misses at the new rest point:** exp_D 13.0% vs 14.4% (re-tune `sov_exposure_D`); lev_D 7.96 vs 8.
+> - **2026-11-06, crisis shock and the TPI as a relief intervention (superseded 2026-11-07)**
 >   (`Claude files/reports/tpi_root_cause_2026-11-05.md` §7–9):
 >   - **Why the 2% TPI looked worse:**
 >     - The rest-point gaps were a bug (a fitted-read rest point, now an exact fixed point).

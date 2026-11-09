@@ -994,6 +994,18 @@ def relief_purchase(rules, cal, ss, sproc, S, top=0.6):
     return float(brentq(gap, 0.0, top, xtol=1e-6))
 
 
+def cap_purchase(rules, cal, ss, sproc, S, cap_bp, top=0.6):
+    # THE PURCHASE (SHARE OF THE SS D DEBT) THAT HOLDS THE D-F SPREAD AT cap_bp AT S, RULES HELD FIXED; 0 BELOW THE CAP.
+    def gap(m):
+        o = read_forced(rules, cal, ss, sproc, S, m)
+        return 4e4 * (cal["delta_b_D"] * (1 / o["Q_bD"] - 1) - cal["delta_b_F"] * (1 / o["Q_bF"] - 1)) - cap_bp
+    if gap(0.0) <= 0.0:
+        return 0.0
+    if gap(top) > 0.0:
+        raise RuntimeError(f"no purchase up to {100 * top:.0f}% of the D debt brings the spread to {cap_bp:.0f} bp")
+    return float(brentq(gap, 0.0, top, xtol=1e-6))
+
+
 def _spread_bp(o, cal, c="D"):
     # THE BANK LENDING SPREAD lambda_K*mu/alpha, ANNUALISED bp.
     return 4e4 * cal[f"lambda_K_{c}"] * o[f"mu_{c}"] / max(o[f"alpha_{c}"], 1e-6)
@@ -1283,10 +1295,10 @@ def _print_box_escapes(escapes, S0, S, T):
 
 
 def dynamic_irf(rules, cal, ss, sproc, pd_shock=0.0198, T=25, rest_verbose=True,
-                exact=False, m0=None):
+                exact=False, buy=None):
     # THE DYNAMIC IRF FROM THE REST POINT, NET OF THE UNSHOCKED PATH.
     # exact=True solves each quarter exactly: fitted reads break the TPI's corner
-    # m0: a one-off purchase at impact (share of the SS D debt, TPI off, rules held), tpi_experiment.intervention
+    # buy(t, S): the share of the SS D debt bought at quarter t, state S (TPI off, rules held), tpi_experiment.intervention
     read = read_exact if exact else read_at
     S0 = stochastic_rest_point(rules, cal, ss, sproc, verbose=rest_verbose)
     S = S0.copy()
@@ -1305,7 +1317,8 @@ def dynamic_irf(rules, cal, ss, sproc, pd_shock=0.0198, T=25, rest_verbose=True,
                             "at_wall")}
     walled = False
     for t in range(T):
-        o = read_forced(rules, cal, ss, sproc, S, m0) if (t == 0 and m0) else read(rules, cal, ss, sproc, S)
+        share = buy(t, S) if buy else 0.0
+        o = read_forced(rules, cal, ss, sproc, S, share) if share else read(rules, cal, ss, sproc, S)
         _append(path, _dynamic_row(o, ref[t], S, K_ref[t], cal, ss))
         # 1 when this quarter's state was put back on the box edge, not reached by the law of motion
         path["at_wall"].append(float(walled))
@@ -1326,7 +1339,8 @@ def dynamic_irf(rules, cal, ss, sproc, pd_shock=0.0198, T=25, rest_verbose=True,
                                                 100 * (S[i] / S0[i] - 1))
                                                if abs(S0[i]) > 1e-12 else (Sn[i], S[i])))
                                 for i in np.flatnonzero(esc)]))
-    _print_dynamic_summary(path, rules, cal, ss, sproc, S0, S, pd_shock, T, escapes, m0=m0)
+    _print_dynamic_summary(path, rules, cal, ss, sproc, S0, S, pd_shock, T, escapes,
+                           m0=(path["m_cb"][0] / 100 if buy else None))
     return {k: np.array(v) for k, v in path.items()}
 
 

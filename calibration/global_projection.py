@@ -113,8 +113,11 @@ def get_calibration():
         # the Bohn tax rule: annual response of the primary surplus to debt, both over annual output.
         # 0.06, the Greek 2001-2019 estimate in appendix B's fiscal table (decision 2026-10-26; the
         # appendix's Mendoza-Ostry 0.04 gave root 0.993 and an explosive rule below q = 0.821, and broke
-        # the coarse d0 solve alone); root 0.987 at the SS bond price 0.947, explosive below q = 0.732
-        bohn_annual=0.06,
+        # the coarse d0 solve alone); root 0.987 at the SS bond price 0.947, explosive below q = 0.732.
+        # 0.25 (2026-11-06, author's choice: a faster fiscal rule): at 0.06 a crisis left a debt overhang with a
+        # half-life of ~60 quarters, and the impulse responses had not returned by quarter 80; 0.25 gives root ~0.94,
+        # a half-life of ~11 quarters
+        bohn_annual=0.25,
         # government purchases over output (Eurostat nama_10_gdp; appendix B)
         G_D=0.204,              G_F=0.191,
 

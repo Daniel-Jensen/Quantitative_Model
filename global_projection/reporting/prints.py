@@ -267,12 +267,20 @@ def print_bond_decomposition(bdec, channels):
 
 def print_tpi_report(res, bond_channels):
     # THE TPI AGAINST NO TPI: REST POINT, IMPACT, FOOTPRINT, PRICE IMPACT, KT CONDITIONS.
-    # mode "relief" (tpi_experiment.intervention): one unanticipated purchase, so no rest-point gap and no rule to check
-    relief = res.get("mode") == "relief"
+    # modes "relief" and "cap" (tpi_experiment.intervention): unanticipated purchases, so no rest-point gap and no rule
+    # to check
+    relief = res.get("mode") in ("relief", "cap")
     if relief:
         r = res["relief"]
-        print(f"\n  TPI: relief intervention at the shock, unanticipated: {100 * res['purchase']:.1f}% of the SS D "
-              f"debt bought and held to maturity, capital key D {res['key_D']:.3f}")
+        if res.get("mode") == "cap":
+            m_path = np.asarray(res["irf_on"]["m_cb"], dtype=float)
+            later = ", ".join(f"q{t} {m_path[t]:.1f}%" for t in range(1, len(m_path)) if m_path[t] > 1e-6) or "none"
+            print(f"\n  TPI: spread cap {res['cap_bp']:.0f} bp/yr over the F bond, held by unanticipated purchases held to "
+                  f"maturity: {100 * res['purchase']:.1f}% of the SS D debt at impact, later {later}; capital key D "
+                  f"{res['key_D']:.3f}")
+        else:
+            print(f"\n  TPI: relief intervention at the shock, unanticipated: {100 * res['purchase']:.1f}% of the SS D "
+                  f"debt bought and held to maturity, capital key D {res['key_D']:.3f}")
         print(f"   on impact: mu_D {r['mu_off']:.4f} -> {r['mu_on']:.4f}, lending spread {r['lend_off']:.0f} -> "
               f"{r['lend_on']:.0f} bp/yr, sovereign spread {r['sov_off']:.0f} -> {r['sov_on']:.0f} bp/yr")
     else:

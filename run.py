@@ -48,10 +48,11 @@ ROTATE_P = False  # eigenbasis box for P: off, it measures worse
 ACCURACY_T = 1200  # simulated periods for the Euler-error report
 DECOMP_T = 25  # quarters in the decompositions
 TFP_SHOCK = 0.01  # one-off TFP shock to Z_D, decaying at rho_z = 0.9
-# one-off risk shock: p^d jumps from its rest value (cal["pd_rest"]) to this per quarter, then decays. 0.06
-# (2026-11-06, author's choice): a crisis-sized shock, so the D banks' constraint binds on impact (it binds from ~5%
-# on the 12% box; at the old 2% the D IC is slack along the whole path and there is no recession to repair)
-RISK_SHOCK_PD = 0.06
+# one-off risk shock: p^d jumps from its rest value (cal["pd_rest"]) to this per quarter, then decays. 0.015
+# (2026-11-06, author's choice, with bohn_annual 0.25): the D banks' constraint now binds from ~1.2-1.5%, so this is a
+# recession (GDP -0.08%, investment -1.5%, spread 222 bp) that the 200 bp cap reaches with ~17% of the debt. At
+# bohn_annual 0.06 it bound only from ~5%, where the expected-loss spread alone exceeds 200 bp
+RISK_SHOCK_PD = 0.015
 # the top of the risk box, p^d per quarter. 0.12 = the appendix-B box, WARM_START's own: the only box on which the
 # D IC binds on impact (at the 6% shock: GDP -0.14%, lending spread +197 bp). 0.062 = Bocola (2016)'s range (his s in
 # [-11.41, -2.71]), where it never binds; 0.02 = the illustrative 200 bp cap of 2026-11-05/06
@@ -64,17 +65,21 @@ PD_BOX_TOP = 0.12
 TPI_M_BAND = 0.32
 # solve the TPI and compare it with no TPI (on again 2026-11-04, with the cap walk below)
 RUN_TPI = True
-# how the TPI acts (2026-11-06, author's choice): "relief" = at the shock, unanticipated, the Eurosystem buys just enough
-# D bonds to switch the D banks' constraint off and holds them to maturity, on the no-TPI rules (no TPI solve;
-# tpi_experiment.intervention). "cap" = the spread cap TPI_CAP solved as an anticipated rule (the walk below); a
-# 200 bp cap has no solution at crisis shocks, where the spread left after relief is expected default loss
-TPI_MODE = "relief"
+# how the TPI acts (2026-11-06, author's choices), all on the no-TPI rules except "rule" (tpi_experiment.intervention):
+#   "cap"    = in every quarter the D-F spread would exceed TPI_CAP, the Eurosystem buys, unanticipated, just enough to
+#              hold it there, and holds the bonds to maturity;
+#   "relief" = at the shock it buys just enough to switch the D banks' constraint off;
+#   "rule"   = the cap solved as an anticipated rule (the walk below). On the 12% box the cap must then hold at its top
+#              (fair spread 566 bp at 12%), which forces near-total purchases there; it has not solved below ~1100 bp.
+# The cap must sit above the shock's expected-loss spread (313 bp at 6%), or the banks sell the Eurosystem everything
+TPI_MODE = "cap"
 JACOBIAN = "complex"  # the collocation Jacobian: "complex" (the complex step, exact) or "fd" (forward differences)
 # the solved appendix-B rules (fine grid, 75 points, 12% box) the risk solve starts from; None = the cold-start
 # ladder, which does not reach appendix B from the SS. A warm solve re-solves these rules at the current calibration
 # on their own grid (on another PD_BOX_TOP, evaluated at the new box's points first), so S_REFINE is not used
 WARM_START = ROOT / "data" / "global_warm_start.pkl"
-TPI_CAP = 200.0  # TPI spread cap, bp/yr; "rest" = defend the no-TPI rest-point spread (~56 bp)
+# TPI spread cap, bp/yr over the F bond (TPI_MODE "cap" and "rule"); "rest" = defend the no-TPI rest-point spread
+TPI_CAP = 200.0
 # the TPI cap walk (recursive_experiment.TPI_WALK): first step and its growth, smallest and largest step (bp), the
 # distance each rung keeps from every node's switching cap (bp), the tolerance of a rung above the target, Newton
 # iterations per rung, and how often the Jacobian is refreshed in each rung's first pass
@@ -99,7 +104,7 @@ GLOBAL_GUIDE = """
     Step 3/7  sovereign-risk solve, no TPI .................. ~50 min (seconds if cached)
     Step 4/7  rest point, IRFs, calibration table, decompositions, accuracy ... ~20 min
     Step 5/7  save the no-TPI results ................ results/GLOBAL/data (safe from here on)
-    Step 6/7  TPI: TPI_MODE "relief" = the relief purchase at the shock vs no TPI ......... ~10 min
+    Step 6/7  TPI: TPI_MODE "cap" = purchases holding the spread at TPI_CAP vs no TPI ....... ~5 min
               ("cap": the cap solved as a rule, 1-3 h, saved in results/GLOBAL_tpi_walk and reused)
     Step 7/7  figures ............................................... results/GLOBAL/figures
   The console is logged to results/GLOBAL/run.log. Keep the Mac awake (lid open, on power): a sleeping
@@ -261,11 +266,12 @@ def compute_global(quick=False):
 
         # 7. the TPI: the same economy with the spread cap switched on
         print("  step 5/7 done: every no-TPI result is saved; an interrupted TPI walk below loses none of it")
-        if RUN_TPI and TPI_MODE == "relief":
+        if RUN_TPI and TPI_MODE in ("cap", "relief"):
             t1 = time.perf_counter()
-            banner(f"Step 6/7 — TPI relief intervention at the {100 * RISK_SHOCK_PD:.0f}% shock "
-                   "(unanticipated, held to maturity, no-TPI rules)")
-            tpi = tpi_experiment.intervention(cal, ss, sproc, rules, pd_shock=RISK_SHOCK_PD)
+            banner(f"Step 6/7 — TPI {'cap ' + f'{float(TPI_CAP):.0f} bp' if TPI_MODE == 'cap' else 'relief'} at the "
+                   f"{100 * RISK_SHOCK_PD:g}% shock (unanticipated purchases, held to maturity, no-TPI rules)")
+            tpi = tpi_experiment.intervention(cal, ss, sproc, rules, pd_shock=RISK_SHOCK_PD, mode=TPI_MODE,
+                                              cap_bp=float(TPI_CAP))
             print_tpi_report(tpi, BOND_CHANNELS)
             save(data / "tpi", tpi)
             _step_done(6, t1, t0)

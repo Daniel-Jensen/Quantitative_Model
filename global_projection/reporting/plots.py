@@ -404,7 +404,8 @@ def plot_tpi_irf(res, filename="tpi_irf.png", note=""):
                     fontsize=9.5, color=INK)
         else:
             ax.legend(fontsize=8.5, frameon=False, loc="upper right")
-        flat[0].legend(fontsize=9, frameon=False, loc="upper right")
+        # lower left: the spread falls from the upper left, and the cap is labelled on the right
+        flat[0].legend(fontsize=9, frameon=False, loc="lower left")
         _save(fig, filename)
     return os.path.join(OUTDIR, filename)
 
@@ -413,7 +414,7 @@ def plot_tpi_mechanism(res, bond_channels, filename="tpi_mechanism.png"):
     # WHY THE TPI MOVES THE PRICE: the announcement at rest, the bond-price legs of its
     # effect at the shock, and what a purchase alone would do at fixed rules.
     # a relief intervention is unanticipated, so panel (a) shows the impact with and without the purchase instead
-    relief = res.get("mode") == "relief"
+    relief = res.get("mode") in ("relief", "cap")
     off, on = res["rest_off"], res["rest_on"]
     with plt.rc_context(PAPER_RC):
         fig, axes = plt.subplots(1, 3, figsize=(15.0, 4.9), layout="constrained")
@@ -470,9 +471,15 @@ def plot_tpi_mechanism(res, bond_channels, filename="tpi_mechanism.png"):
                     "D bond price, % change", zero=True)
         ax.set_xlabel("purchase, % of SS D debt", fontsize=9, color=INK)
         ax.legend(fontsize=9, frameon=False, loc="upper left")
-        fig.text(0.5, -0.02, (f"TPI relief intervention: {100 * float(res['purchase']):.1f}% of the SS D debt "
-                              "bought at the shock, unanticipated, held to maturity") if relief else
-                 f"TPI spread cap {float(res['cap_bp']):.0f} bp per year over the F bond",
+        if res.get("mode") == "cap":
+            caption = (f"TPI spread cap {float(res['cap_bp']):.0f} bp per year over the F bond, held by unanticipated "
+                       f"purchases ({100 * float(res['purchase']):.1f}% of the SS D debt at the shock), held to maturity")
+        elif relief:
+            caption = (f"TPI relief intervention: {100 * float(res['purchase']):.1f}% of the SS D debt bought at the "
+                       "shock, unanticipated, held to maturity")
+        else:
+            caption = f"TPI spread cap {float(res['cap_bp']):.0f} bp per year over the F bond"
+        fig.text(0.5, -0.02, caption,
                  ha="center", fontsize=9, color=INK_MUTED)
         _save(fig, filename)
     return os.path.join(OUTDIR, filename)

@@ -7,7 +7,7 @@ from global_projection.solver_recursive.decision_rules import SOLVE
 from global_projection.solver_recursive.point_map import point_residuals
 from global_projection.solver_recursive.recursive_experiment import (
     solve_recursive, dynamic_irf, stochastic_rest_point, read_at, read_exact, read_forced, relief_purchase,
-    s_from_pd, S_REFINE)
+    cap_purchase, s_from_pd, S_REFINE)
 from global_projection.solver_recursive.output_decomposition import decompose_bond_price
 
 PD_SHOCK, T_IRF = 0.0198, 25
@@ -86,27 +86,33 @@ def _lending_bp(o):
     return 4e4 * (o["r_wc_D"] - o["rdep_D"])
 
 
-def intervention(cal, ss, sproc, rules, pd_shock=PD_SHOCK, share=None):
-    # THE TPI AS A RELIEF INTERVENTION: AT THE SHOCK, UNANTICIPATED, THE EUROSYSTEM BUYS ENOUGH D BONDS TO SWITCH THE D
-    # BANKS' CONSTRAINT OFF AND HOLDS THEM TO MATURITY; NOTHING MORE IS BOUGHT OR EXPECTED, SO THE NO-TPI RULES CONTINUE.
+def intervention(cal, ss, sproc, rules, pd_shock=PD_SHOCK, mode="relief", cap_bp=None):
+    # THE TPI AS UNANTICIPATED PURCHASES ON THE NO-TPI RULES, HELD TO MATURITY. mode "cap": IN EVERY QUARTER THE D-F
+    # SPREAD WOULD EXCEED cap_bp THE EUROSYSTEM BUYS JUST ENOUGH TO HOLD IT THERE; "relief": AT THE SHOCK IT BUYS JUST
+    # ENOUGH TO SWITCH THE D BANKS' CONSTRAINT OFF. NO PURCHASE IS EVER EXPECTED, SO THE NO-TPI RULES CONTINUE.
     c = dict(cal, tpi_on=False)
     S_rest = stochastic_rest_point(rules, c, ss, sproc, verbose=False)
     S_shock = S_rest.copy()
     S_shock[IS] = s_from_pd(pd_shock)
-    m = relief_purchase(rules, c, ss, sproc, S_shock) if share is None else float(share)
+    if mode == "cap":
+        buy = lambda t, S: cap_purchase(rules, c, ss, sproc, S, cap_bp)
+    else:
+        m_relief = relief_purchase(rules, c, ss, sproc, S_shock)
+        buy = lambda t, S: m_relief if t == 0 else 0.0
+    m = buy(0, S_shock)
     B = cal["B_gov_D_ss"]
-    # past the book's box edge the continuation reads the excess back as bank bonds (state_grid.clip)
-    if m * B > rules.grid.hi[IM]:
-        print(f"  NOTE: the purchase ({100 * m:.1f}% of the debt) passes the book box edge "
-              f"({100 * rules.grid.hi[IM] / B:.1f}%); the path after impact is clipped there")
-    out = dict(mode="relief", purchase=m, cap_bp=None, key_D=cal["tpi_key_D"], tpi_eps=None,
-               cap_solved=None, solve_ok=True)
+    out = dict(mode=mode, purchase=m, cap_bp=cap_bp if mode == "cap" else None, key_D=cal["tpi_key_D"],
+               tpi_eps=None, cap_solved=None, solve_ok=True)
     # unanticipated: both economies rest at the no-TPI rest point
     out["rest_off"] = out["rest_on"] = rest_point_row(rules, c, ss, sproc)
     out["irf_off"] = dynamic_irf(rules, c, ss, sproc, pd_shock=pd_shock, T=T_IRF, rest_verbose=False,
                                  exact=True)
     out["irf_on"] = dynamic_irf(rules, c, ss, sproc, pd_shock=pd_shock, T=T_IRF, rest_verbose=False,
-                                exact=True, m0=m)
+                                exact=True, buy=buy)
+    # past the book's box edge the continuation reads the excess back as bank bonds (state_grid.clip)
+    if np.max(out["irf_on"]["M_cb"]) / 100 * B > rules.grid.hi[IM] or m * B > rules.grid.hi[IM]:
+        print(f"  NOTE: the Eurosystem's book passes the box edge ({100 * rules.grid.hi[IM] / B:.1f}% of the debt); "
+              "the path after it is clipped there")
     o_on = read_forced(rules, c, ss, sproc, S_shock.copy(), m)
     o_off = read_exact(rules, c, ss, sproc, S_shock.copy())
     out["bond_legs"] = decompose_bond_price(*({k: np.array([o[k]]) for k in _BOND_KEYS} for o in (o_on, o_off)),

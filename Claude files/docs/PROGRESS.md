@@ -14,6 +14,32 @@ and `.githooks/pre-commit` (terminal commits; enable with
 
 ---
 
+## 2026-11-07: faster fiscal rule (Bohn 0.25); the TPI as a 200 bp cap at a 1.5% shock (`calibration`)
+
+Author's choices after "the IRFs don't return ... TPI was supposed to work as a cap"
+(`Claude files/reports/tpi_root_cause_2026-11-05.md` §10).
+
+- **Calibration:** `bohn_annual` 0.06 → 0.25. At 0.06 the crisis debt overhang had a half-life of ~60 quarters and GDP
+  fell until q80; it is now ~12 quarters, and GDP returns monotonically.
+  - The no-TPI rules were re-solved by continuation (`diagnostics/tpi_root_cause/bohn_homotopy.py`, five rungs, last
+    1.1e-8) and are the new `data/global_warm_start.pkl`; the old one is `data/global_warm_start_bohn006.pkl`.
+- **Side effects:**
+  - The rest point is at the box centre (b_DD +2.5% off it, was +13.8%).
+  - The D constraint binds from p^d ~1.2–1.5% (was ~5%); a 2% shock gives GDP −0.12% (Bocola −0.157%).
+  - The exposure target is now missed (13.0% vs 14.4%), and the 2% transmission row is 142 bp (bound 108).
+- **Code:**
+  - `recursive_experiment.cap_purchase`, and `dynamic_irf(buy=)` with a purchase rule per quarter (replaces `m0`).
+  - `tpi_experiment.intervention(mode="cap"|"relief", cap_bp=)`; the printer and the two figures handle "cap".
+  - `run.py`: `TPI_MODE` "cap" (unanticipated purchases hold the spread at `TPI_CAP`; "relief" and "rule" kept),
+    `RISK_SHOCK_PD` 0.015, `TPI_CAP` 200.
+  - Cosmetics: the TPI figure's legend moved lower-left; the step banner prints 1.5%.
+- **Results (1.5% shock):**
+  - Spread 222 → 200 bp, holding the cap with 16.7% of the debt at impact.
+  - GDP −0.076% → −0.045%, investment −1.49% → −0.80%, lending spread 68 → 20 bp.
+  - After impact, D consumption and capital run slightly below no TPI (capital key).
+- **Diagnostics:** `persistence_check.py`, `cap_options.py`, `bohn_homotopy.py`; earlier runs in
+  `results/GLOBAL_crisis6pct_*`.
+
 ## 2026-11-06: a crisis-sized shock and the TPI as a relief intervention; the exact rest point (`calibration`)
 
 Why the 2% TPI looked worse after impact, and the redesign the author chose

@@ -537,3 +537,63 @@ exactly at each visited state.
     The 337.5 bp before was the 6% shock's fitted response under a 2% label.
 - Run: `diagnostics/tpi_root_cause/runs/run_crisis6pct_exact.out` (76 s on the cached solves). The fitted-read run is
   kept in `results/GLOBAL_crisis6pct_fitted_2026-11-06`.
+
+## 10. A faster fiscal rule, and the TPI as a cap at a 1.5% shock (2026-11-06/07)
+
+**Author's complaints.** The impulse responses did not return within 20 quarters, and the "TPI" let the spread run past
+500 bp.
+
+**Why the responses did not return** (`persistence_check.py`): the law of motion was stable (slowest root 0.991), but
+the crisis left a debt overhang. The government refinanced at bond prices 17% lower, the face value of debt rose 4.3%,
+and the Bohn rule (`bohn_annual` 0.06, the tax response to debt) repaid it with a half-life of ~60 quarters. Through a
+slightly higher deposit rate this crowded out capital, so GDP fell until q80.
+
+**Why the spread passed 500 bp.** The relief intervention was not a cap. At 6%/qtr even the expected-loss spread is
+313 bp, so a 200 bp cap means buying the whole debt.
+
+**Author's choices:** a faster fiscal rule (`bohn_annual` 0.25), and keep the cap mechanism at a shock that causes a
+recession, binds, solves, and needs well under the whole debt.
+
+**What was done:**
+- **Fiscal rule:** `calibration/global_projection.py` `bohn_annual` 0.25. The no-TPI rules were re-solved by
+  continuation 0.06 → 0.10 → 0.15 → 0.20 → 0.25, every rung converged (last 1.1e-8; `bohn_homotopy.py`). They are the
+  new `data/global_warm_start.pkl`; the old one is `data/global_warm_start_bohn006.pkl`.
+- **The cap as a mechanism:** `TPI_MODE` "cap" (`tpi_experiment.intervention(mode="cap")`). In every quarter the D-F
+  spread would exceed `TPI_CAP`, the Eurosystem buys, unanticipated, just enough to hold it there (`cap_purchase`),
+  and holds the bonds to maturity.
+  - "relief" stays as an option, and "rule" is the anticipated cap solve.
+  - `dynamic_irf(buy=)` takes a purchase rule per quarter.
+
+**What the faster rule changed** (`cap_options.py`):
+- The debt overhang now has a half-life of ~12 quarters, and GDP returns monotonically. Capital, with a half-life of
+  ~40–50 quarters, is now the slowest part.
+- The rest point moved to the box centre (the D banks' bond book +2.5% off it, from +13.8%).
+- The D constraint now binds from p^d ~1.2–1.5%, where before it bound only from ~5%. A 2% shock now gives GDP −0.12%,
+  near Bocola's −0.157%.
+- Measured options (shock → cap → purchase): 1.5% → 200 bp → 16.7%; 2% → 225 bp → 23.5%; 2% → 250 bp → 13.2%;
+  6% → 500 bp → 21.9%.
+- The author chose **1.5% and 200 bp**.
+
+**Results** (`runs/run_cap200_shock15.out`; exact reads):
+
+| 1.5% shock, % vs the no-shock path | Impact | q1 | q4 | q8 | q12 | q24 |
+|---|---|---|---|---|---|---|
+| Sovereign spread, no TPI / TPI (bp) | 222 / **200** | 186 / 171 | 128 / 121 | 94 / 92 | 79 / 78 | 65 / 66 |
+| GDP, no TPI | −0.076 | −0.041 | −0.043 | −0.041 | −0.037 | −0.028 |
+| GDP, TPI | **−0.045** | −0.037 | −0.041 | −0.042 | −0.041 | −0.036 |
+| Investment, no TPI / TPI | −1.49 / −0.80 | −0.96 / −0.57 | −0.41 / −0.28 | −0.12 / −0.14 | −0.03 / −0.09 | 0.00 / −0.07 |
+| Lending spread, no TPI / TPI (bp) | 68 / 20 | 0 / 0 | | | | |
+| D bank net worth, no TPI / TPI | −10.0 / −7.3 | −5.3 / −4.7 | +0.3 / −1.3 | +2.6 / +0.3 | +2.9 / +0.6 | +1.6 / +0.4 |
+| D consumption, no TPI / TPI | +0.13 / −0.04 | +0.11 / −0.07 | +0.03 / −0.14 | −0.03 / −0.18 | −0.04 / −0.18 | −0.05 / −0.14 |
+
+- **The cap holds:** 16.7% of the debt at impact, none later (from q1 the spread is below 200 bp anyway). The
+  constraint is mostly relieved (μ_D 0.015 → 0.004).
+  - The bond's excess return falls 88 bp: −50 bp liquidity premium, −39 bp risk premium.
+  - GDP falls 0.045% instead of 0.076%, and investment 0.8% instead of 1.5%.
+- **After impact, under the capital key,** the Eurosystem's profit on the bonds flows 93% to F. D consumption and
+  capital run slightly below the no-TPI path from about q8.
+- **Calibration table at the new rest point:**
+  - Leverage is 7.96 (target 8).
+  - **D sovereign exposure is 13.0% against the 14.4% target**: the rest-point debt is now near its SS level. Re-tuning
+    `sov_exposure_D` would restore it.
+  - The 2% transmission row is 142 bp against the 108 bp upper bound (0.7 bp before).

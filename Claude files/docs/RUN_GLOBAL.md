@@ -36,11 +36,12 @@ The terminal first prints the list of steps below, then announces each step as i
 
 | Setting | Now | Meaning |
 |---|---|---|
-| `RISK_SHOCK_PD` | 0.06 | the headline risk shock, p^d per quarter on impact (2026-11-06, a crisis-sized shock: the D banks' constraint binds on impact from ~5% on the 12% box; at the old 0.02 it is slack along the whole path and there is no recession) |
+| `RISK_SHOCK_PD` | 0.015 | the headline risk shock, p^d per quarter on impact (2026-11-07: with `bohn_annual` 0.25 the D banks' constraint binds from ~1.2–1.5%, so this is a recession that the 200 bp cap reaches with ~17% of the debt) |
 | `PD_BOX_TOP` | 0.12 | top of the risk grid, p^d per quarter. 0.12 = the appendix-B box, `WARM_START`'s own and the only one on which the D constraint binds on impact. 0.062 = Bocola (2016)'s range (it never binds there); 0.02 = the illustrative 200 bp cap of 2026-11-05/06 (`Claude files/reports/tpi_root_cause_2026-11-05.md` §6–8). |
 | `TPI_M_BAND` | 0.32 | half-width of the Eurosystem-book box, a share of the D banks' SS book: 0.32 = `WARM_START`'s own band, ±27.9% of the D debt, which holds the 6% shock's relief purchase (11.8%). 1.0 was the 200 bp cap's band on the 2% box; wider than 1.0 the D bank's book at the M+ edge turns negative. |
 | `RUN_TPI` | True | run the TPI experiment and compare it with no TPI |
-| `TPI_MODE` | "relief" | "relief": at the shock, unanticipated, the Eurosystem buys just enough D bonds to switch the D banks' constraint off and holds them to maturity; the no-TPI rules continue (`tpi_experiment.intervention`, no TPI solve). "cap": the spread cap `TPI_CAP` solved as an anticipated rule (`TPI_WALK`); a 200 bp cap has no solution at crisis shocks, where the spread left after relief is expected default loss. |
+| `TPI_MODE` | "cap" | "cap" (now): in every quarter the spread would exceed `TPI_CAP`, the Eurosystem buys, unanticipated, just enough to hold it there, and holds the bonds to maturity; the no-TPI rules continue. "rule": the cap solved as an anticipated rule (`TPI_WALK`). Otherwise as below. |
+| (`TPI_MODE`, before) | "relief" | "relief": at the shock, unanticipated, the Eurosystem buys just enough D bonds to switch the D banks' constraint off and holds them to maturity; the no-TPI rules continue (`tpi_experiment.intervention`, no TPI solve). "cap": the spread cap `TPI_CAP` solved as an anticipated rule (`TPI_WALK`); a 200 bp cap has no solution at crisis shocks, where the spread left after relief is expected default loss. |
 | `TPI_CAP` | 200.0 | the cap on the D-over-F sovereign spread, bp/yr |
 | `TPI_WALK` | direct, eps_start 1e-2 (walk: step 6, grow 1.2, margin 3, path_tol 1e-4, maxit 15, reuse 3, rescue 3) | direct: the cap solved in one go (nodes above it solved alone, then the smoothing walked 1e-2 → 1e-4); otherwise the cap walk below |
 | `TPI_CHECKPOINTS` | `results/GLOBAL_tpi_walk` | where each solved TPI step is kept; None = no resume |
