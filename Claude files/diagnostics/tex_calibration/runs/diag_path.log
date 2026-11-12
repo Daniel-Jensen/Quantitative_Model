@@ -1,0 +1,23 @@
+[start] old calibration: ok True  its 5  max|F| 1.02e-08
+[households] fraction 1.0000: ok True  its 8  max|F| 8.03e-10
+[households] done
+[markup] fraction 1.0000: ok True  its 4  max|F| 7.99e-09
+[markup] done
+[size+eta] fraction 1.0000: ok True  its 19  max|F| 1.01e-10
+[size+eta] done
+[foreign share] fraction 1.0000: ok True  its 6  max|F| 1.02e-10
+[foreign share] done
+[home bias] fraction 1.0000: ok False  its 30  max|F| 3.88e-05
+[home bias] fraction 0.5000: ok False  its 30  max|F| 3.26e-05
+[home bias] fraction 0.2500: ok False  its 30  max|F| 1.64e-04
+[home bias] fraction 0.1250: ok False  its 30  max|F| 4.05e-05
+[home bias] fraction 0.0625: ok True  its 12  max|F| 2.59e-09
+[home bias] fraction 0.1875: ok True  its 13  max|F| 1.58e-10
+[home bias] fraction 0.4375: ok True  its 18  max|F| 1.47e-09
+[home bias] fraction 0.9375: ok False  its 30  max|F| 5.06e-04
+[home bias] fraction 0.6875: ok True  its 12  max|F| 3.05e-10
+[home bias] fraction 1.0000: ok False  its 30  max|F| 6.03e-08
+[home bias] fraction 0.8438: ok True  its 7  max|F| 4.50e-10
+[home bias] fraction 1.0000: ok False  its 28  max|F| 6.03e-08
+/opt/anaconda3/lib/python3.13/multiprocessing/resource_tracker.py:301: UserWarning: resource_tracker: There appear to be 5 leaked semaphore objects to clean up at shutdown: {'/mp-t4kx8moy', '/mp-rs9ajhrn', '/mp-tp5nsdrw', '/mp-vbrfuist', '/mp-w_lbp5jo'}
+  warnings.warn(

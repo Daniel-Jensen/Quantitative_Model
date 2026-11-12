@@ -1,0 +1,13 @@
+[resume] from ckpt_G05625.pkl at group G
+[G] fraction 1.0000: ok False  its 30  max|F| 8.42e-05
+[G] fraction 0.7812: ok False  its 30  max|F| 8.79e-07  LOOSE (kept)
+[G] fraction 1.0000: ok False  its 30  max|F| 1.95e-03
+[G] fraction 0.8906: ok False  its 30  max|F| 1.15e-06  LOOSE (kept)
+[G] fraction 1.0000: ok False  its 30  max|F| 1.44e-06  LOOSE (kept)
+[G] done
+[home bias] fraction 1.0000: ok False  its 30  max|F| 2.93e-04
+[home bias] fraction 0.5000: ok False  its 30  max|F| 2.42e-03
+[home bias] fraction 0.2500: ok False  its 30  max|F| 2.58e-03
+[home bias] fraction 0.1250: ok False  its 30  max|F| 8.02e-05
+/opt/anaconda3/lib/python3.13/multiprocessing/resource_tracker.py:301: UserWarning: resource_tracker: There appear to be 5 leaked semaphore objects to clean up at shutdown: {'/mp-x339673a', '/mp-xj6h0pu7', '/mp-hp_kl_7x', '/mp-74xpx8qy', '/mp-4h6w4sn4'}
+  warnings.warn(

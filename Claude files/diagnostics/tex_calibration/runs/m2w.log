@@ -1,0 +1,99 @@
+
+=== bind phase: credit_spread_target_D 10.0 bp/yr
+  collocation solve m2 hard: 1000 unknowns (20 rules x 2 regime(s) x 25 points), backend = parsolve
+    [parsolve m2 hard  1] sum|F|^2 = 3.676e-08   max|F| = 7.682e-05   step = 1
+    [parsolve m2 hard  2] sum|F|^2 = 2.188e-13   max|F| = 1.245e-07   step = 1
+    [parsolve m2 hard  3] sum|F|^2 = 4.361e-25   max|F| = 4.227e-13   step = 1
+    -> converged in 4 iterations, max|F| = 4.23e-13  (worst equation: id_alpha_D 4.2e-13)
+[m2 hard] ok True  its 4  max|F| 4.23e-13
+[m2 hard] crisis nodes []
+  [m2] solved 4.2e-13 in 104s; rest point mu_D -0.00000 mu_F 0.00272; outside the box: ['b_DD']
+  [bind] rest-point D spread -0.00 bp (target 5.0)
+
+=== bind phase: credit_spread_target_D 20.0 bp/yr
+  collocation solve m2 hard: 1000 unknowns (20 rules x 2 regime(s) x 25 points), backend = parsolve
+    [parsolve m2 hard  1] sum|F|^2 = 2.487e-07   max|F| = 2.584e-04   step = 1
+    [parsolve m2 hard  2] sum|F|^2 = 1.905e-11   max|F| = 9.876e-07   step = 1
+    [parsolve m2 hard  3] sum|F|^2 = 9.798e-22   max|F| = 2.089e-11   step = 1
+    -> converged in 4 iterations, max|F| = 2.09e-11  (worst equation: id_alpha_D 2.1e-11)
+[m2 hard] ok True  its 4  max|F| 2.09e-11
+[m2 hard] crisis nodes []
+  [m2] solved 2.1e-11 in 112s; rest point mu_D -0.00000 mu_F 0.00272; outside the box: ['b_DD']
+  [bind] rest-point D spread -0.00 bp (target 5.0)
+
+=== bind phase: credit_spread_target_D 40.0 bp/yr
+  collocation solve m2 hard: 1000 unknowns (20 rules x 2 regime(s) x 25 points), backend = parsolve
+    [parsolve m2 hard  1] sum|F|^2 = 1.139e-04   max|F| = 1.025e-02   step = 1
+    [parsolve m2 hard  2] sum|F|^2 = 3.463e-07   max|F| = 5.355e-04   step = 1
+    [parsolve m2 hard  3] sum|F|^2 = 3.303e-07   max|F| = 4.686e-04   step = 0.125
+    [parsolve m2 hard  4] sum|F|^2 = 7.167e-08   max|F| = 2.580e-04   step = 1
+    [parsolve m2 hard  5] sum|F|^2 = 5.442e-12   max|F| = 7.156e-07   step = 1
+    [parsolve m2 hard  6] sum|F|^2 = 6.524e-15   max|F| = 2.479e-08   step = 1
+    [parsolve m2 hard  7] sum|F|^2 = 1.247e-20   max|F| = 3.424e-11   step = 1
+    -> converged in 8 iterations, max|F| = 3.42e-11  (worst equation: id_alpha_F 3.4e-11)
+[m2 hard] ok True  its 8  max|F| 3.42e-11
+[m2 hard] crisis nodes []
+  [m2] solved 3.4e-11 in 211s; rest point mu_D -0.00000 mu_F 0.00316; outside the box: ['b_DD']
+  [bind] rest-point D spread -0.00 bp (target 5.0)
+
+=== bind phase: credit_spread_target_D 80.0 bp/yr
+  collocation solve m2 hard: 1000 unknowns (20 rules x 2 regime(s) x 25 points), backend = parsolve
+    [parsolve m2 hard  1] sum|F|^2 = 4.975e-04   max|F| = 1.892e-02   step = 1
+    [parsolve m2 hard  2] sum|F|^2 = 3.186e-07   max|F| = 4.624e-04   step = 1
+    [parsolve m2 hard  3] sum|F|^2 = 3.512e-11   max|F| = 1.927e-06   step = 1
+    [parsolve m2 hard  4] sum|F|^2 = 3.501e-17   max|F| = 2.988e-09   step = 1
+    -> converged in 5 iterations, max|F| = 2.99e-09  (worst equation: id_alpha_F 3.0e-09)
+[m2 hard] ok True  its 5  max|F| 2.99e-09
+[m2 hard] crisis nodes []
+  [m2] solved 3.0e-09 in 125s; rest point mu_D -0.00000 mu_F 0.00218; outside the box: ['b_DD']
+  [bind] rest-point D spread -0.00 bp (target 5.0)
+
+=== bind phase: credit_spread_target_D 160.0 bp/yr
+  collocation solve m2 hard: 1000 unknowns (20 rules x 2 regime(s) x 25 points), backend = parsolve
+    [parsolve m2 hard  1] sum|F|^2 = 3.161e-03   max|F| = 2.043e-02   step = 0.25
+    [parsolve m2 hard  2] sum|F|^2 = 1.333e-04   max|F| = 7.616e-03   step = 1
+    [parsolve m2 hard  3] sum|F|^2 = 1.170e-04   max|F| = 7.141e-03   step = 0.0625
+    [parsolve m2 hard  4] sum|F|^2 = 1.166e-04   max|F| = 7.127e-03   step = 0.00195
+    [parsolve m2 hard  5] sum|F|^2 = 9.606e-05   max|F| = 9.697e-03   LM lambda = 1e-07 s0^2
+    [parsolve m2 hard  6] sum|F|^2 = 9.576e-05   max|F| = 7.273e-03   step = 0.25
+    [parsolve m2 hard  7] sum|F|^2 = 2.787e-05   max|F| = 3.636e-03   step = 0.5
+    [parsolve m2 hard  8] sum|F|^2 = 2.441e-05   max|F| = 3.182e-03   step = 0.125
+    [parsolve m2 hard  9] sum|F|^2 = 2.580e-07   max|F| = 3.170e-04   step = 1
+    [parsolve m2 hard 10] sum|F|^2 = 7.055e-08   max|F| = 2.251e-04   step = 1
+    [parsolve m2 hard 11] sum|F|^2 = 4.569e-10   max|F| = 1.914e-05   step = 1
+    [parsolve m2 hard 12] sum|F|^2 = 4.382e-11   max|F| = 2.331e-06   step = 1
+    [parsolve m2 hard 13] sum|F|^2 = 2.701e-11   max|F| = 1.827e-06   step = 0.5
+    [parsolve m2 hard 14] sum|F|^2 = 2.667e-11   max|F| = 1.815e-06   step = 0.0156
+    [parsolve m2 hard 15] sum|F|^2 = 1.253e-15   max|F| = 1.293e-08   LM lambda = 1e-15 s0^2
+    [parsolve m2 hard 16] sum|F|^2 = 5.919e-17   max|F| = 3.088e-09   LM lambda = 1e-14 s0^2
+    -> converged in 17 iterations, max|F| = 3.09e-09  (worst equation: id_C_F 3.1e-09)
+[m2 hard] ok True  its 17  max|F| 3.09e-09
+[m2 hard] crisis nodes []
+  [m2] solved 3.1e-09 in 509s; rest point mu_D -0.00000 mu_F 0.00036; outside the box: ['K_D', 'b_DD']
+  [bind] rest-point D spread -0.00 bp (target 5.0)
+
+=== bind phase: credit_spread_target_D 320.0 bp/yr
+Traceback (most recent call last):
+  File "/Users/Huawei/Desktop/Quantitative_Model/Claude files/diagnostics/tex_calibration/m2_warm.py", line 112, in <module>
+    main()
+    ~~~~^^
+  File "/Users/Huawei/Desktop/Quantitative_Model/Claude files/diagnostics/tex_calibration/m2_warm.py", line 102, in main
+    x = bind_phase(RE, x)
+  File "/Users/Huawei/Desktop/Quantitative_Model/Claude files/diagnostics/tex_calibration/m2_warm.py", line 76, in bind_phase
+    m, info = evaluate(RE, x)
+              ~~~~~~~~^^^^^^^
+  File "/Users/Huawei/Desktop/Quantitative_Model/Claude files/diagnostics/tex_calibration/m2_warm.py", line 50, in evaluate
+    ok, w = solve_at(RE, x)
+            ~~~~~~~~^^^^^^^
+  File "/Users/Huawei/Desktop/Quantitative_Model/Claude files/diagnostics/tex_calibration/m2_warm.py", line 27, in solve_at
+    cal_k, ss_k, sp_k = economy(CUR["base"], vv)
+                        ~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/Users/Huawei/Desktop/Quantitative_Model/Claude files/diagnostics/tex_calibration/diag_homotopy.py", line 52, in economy
+    ss = solve_steady_state(cal, verbose=False)
+  File "/Users/Huawei/Desktop/Quantitative_Model/global_projection/steady_state.py", line 295, in solve_steady_state
+    _check_targets(cal, bk, rk, fm, hold)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/Huawei/Desktop/Quantitative_Model/global_projection/steady_state.py", line 193, in _check_targets
+    assert abs(gap) < 1e-10, (
+           ^^^^^^^^^^^^^^^^
+AssertionError: [D] n_IC/n_ACCUM - 1 = 1.93e+00: the (f, spread, leverage) targets are fold-blocked -- raise f until leverage is the least root.

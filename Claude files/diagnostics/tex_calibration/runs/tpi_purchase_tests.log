@@ -1,0 +1,13 @@
+reserves count like bonds (before 2026-10-31)
+   p^d 2%: buy 5%: price +0.43%, lending spread -0 bp, output +0.001%, investment +0.27%, mu -0.000->-0.000 | buy 15%: price +2.01%, lending spread -0 bp, output +0.005%, investment +1.07%, mu -0.000->-0.000
+   p^d 5%: buy 5%: price +0.60%, lending spread +12 bp, output -0.010%, investment +0.18%, mu 0.041->0.043 | buy 15%: price +3.17%, lending spread -173 bp, output +0.078%, investment +1.29%, mu 0.041->-0.000
+   p^d 12%: buy 5%: price +1.26%, lending spread -167 bp, output +0.078%, investment +0.44%, mu 0.173->0.133 | buy 15%: price +5.58%, lending spread -693 bp, output +0.327%, investment +1.90%, mu 0.173->-0.000
+reserves not divertable (Gertler-Karadi, current)
+   p^d 2%: buy 5%: price +0.43%, lending spread -0 bp, output +0.001%, investment +0.27%, mu -0.000->-0.000 | buy 15%: price +2.01%, lending spread -0 bp, output +0.005%, investment +1.07%, mu -0.000->-0.000
+   p^d 5%: buy 5%: price +0.79%, lending spread -118 bp, output +0.059%, investment +0.45%, mu 0.041->0.013 | buy 15%: price +3.17%, lending spread -173 bp, output +0.078%, investment +1.29%, mu 0.041->-0.000
+   p^d 12%: buy 5%: price +1.38%, lending spread -239 bp, output +0.116%, investment +0.59%, mu 0.173->0.115 | buy 15%: price +5.58%, lending spread -693 bp, output +0.327%, investment +1.90%, mu 0.173->-0.000
+Bocola's capital premia, E[r^k'] - r (bp/yr); D output against the rest point
+   p^d  rest:     0.1 = risk    0.1 + liquidity   -0.0  (mu_D -0.0000), Y_D +0.000%
+   p^d    2%:     1.5 = risk    1.5 + liquidity   -0.0  (mu_D -0.0000), Y_D -0.031%
+   p^d    5%:   173.9 = risk    0.7 + liquidity  173.2  (mu_D 0.0407), Y_D -0.135%
+   p^d   12%:   695.6 = risk    2.6 + liquidity  693.0  (mu_D 0.1733), Y_D -0.409%

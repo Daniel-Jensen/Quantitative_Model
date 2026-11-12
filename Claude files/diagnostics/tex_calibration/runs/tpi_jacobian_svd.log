@@ -1,0 +1,110 @@
+
+=== tpi_gs_fine50_sharp_1002.pkl: cap 1002.5 bp, tpi_eps 0.0001, form FB; max|F| 9.2e-09; Jacobian (3000, 3000) in 386s
+  singular values: largest 4.45e+02; smallest 1.17e-04, 3.01e-04, 4.41e-04, 5.63e-04; cond 3.79e+06
+  direction 1 (sigma 1.17e-04):
+     unknown alpha_F  regime 0 node 31 (p^d 0.00%, {'K_D': -1.0}): +0.165
+     unknown alpha_F  regime 0 node 23 (p^d 0.21%, {'K_D': -1.0}): +0.164
+     unknown alpha_F  regime 1 node 23 (p^d 0.21%, {'K_D': -1.0}): +0.161
+     unknown alpha_F  regime 1 node 31 (p^d 0.00%, {'K_D': -1.0}): +0.158
+     unknown alpha_F  regime 1 node 33 (p^d 12.00%, {'K_D': -1.0}): +0.156
+     unknown alpha_F  regime 0 node 65 (p^d 12.00%, {'Z_D': -1.0}): +0.121
+     unknown alpha_F  regime 0 node 63 (p^d 0.00%, {'Z_D': -1.0}): +0.118
+     unknown alpha_F  regime 0 node  5 (p^d 0.21%, {'Z_D': -1.0}): +0.117
+     residual id_C_F    regime 0 node  0 (p^d 0.21%): -0.566
+     residual id_C_F    regime 0 node 19 (p^d 0.21%, {'P_D': -1.0}): +0.437
+     residual id_C_F    regime 0 node 28 (p^d 0.04%): +0.282
+     residual euler_F   regime 0 node  0 (p^d 0.21%): +0.260
+  direction 2 (sigma 3.01e-04):
+     unknown alpha_D  regime 0 node 37 (p^d 12.00%, {'K_F': -1.0}): -0.326
+     unknown alpha_D  regime 0 node 35 (p^d 0.00%, {'K_F': -1.0}): -0.307
+     unknown alpha_D  regime 0 node 21 (p^d 0.21%, {'K_F': -1.0}): -0.280
+     unknown alpha_D  regime 0 node 69 (p^d 12.00%, {'M_cb': -1.0}): -0.206
+     unknown alpha_D  regime 0 node 42 (p^d 12.00%, {'P_D': 1.0}): -0.198
+     unknown alpha_D  regime 0 node 65 (p^d 12.00%, {'Z_D': -1.0}): -0.179
+     unknown alpha_D  regime 0 node 49 (p^d 12.00%, {'b_DD': -1.0}): -0.173
+     unknown alpha_D  regime 0 node 45 (p^d 12.00%, {'P_F': -1.0}): -0.165
+     residual id_C_D    regime 0 node  0 (p^d 0.21%): +0.467
+     residual cap_D     regime 0 node  0 (p^d 0.21%): +0.413
+     residual dep_clear regime 0 node  8 (p^d 12.00%): -0.334
+     residual uip       regime 0 node  0 (p^d 0.21%): +0.230
+  direction 3 (sigma 4.41e-04):
+     unknown alpha_F  regime 1 node 21 (p^d 0.21%, {'K_F': -1.0}): -0.328
+     unknown alpha_F  regime 1 node 35 (p^d 0.00%, {'K_F': -1.0}): -0.309
+     unknown alpha_F  regime 1 node 37 (p^d 12.00%, {'K_F': -1.0}): -0.295
+     unknown alpha_F  regime 0 node 37 (p^d 12.00%, {'K_F': -1.0}): -0.196
+     unknown alpha_F  regime 1 node 31 (p^d 0.00%, {'K_D': -1.0}): -0.159
+     unknown alpha_F  regime 1 node 23 (p^d 0.21%, {'K_D': -1.0}): -0.158
+     unknown alpha_D  regime 0 node 42 (p^d 12.00%, {'P_D': 1.0}): +0.135
+     unknown alpha_F  regime 0 node 18 (p^d 0.21%, {'P_F': 1.0}): +0.128
+     residual id_C_F    regime 0 node  0 (p^d 0.21%): +0.419
+     residual id_C_F    regime 0 node 28 (p^d 0.04%): +0.386
+     residual cap_F     regime 0 node  0 (p^d 0.21%): +0.285
+     residual id_C_F    regime 0 node 15 (p^d 0.21%, {'b_DD': -1.0}): -0.233
+  direction 4 (sigma 5.63e-04):
+     unknown alpha_D  regime 0 node 35 (p^d 0.00%, {'K_F': -1.0}): +0.350
+     unknown alpha_D  regime 0 node 21 (p^d 0.21%, {'K_F': -1.0}): +0.318
+     unknown alpha_F  regime 0 node 45 (p^d 12.00%, {'P_F': -1.0}): +0.312
+     unknown alpha_F  regime 1 node 45 (p^d 12.00%, {'P_F': -1.0}): +0.294
+     unknown alpha_D  regime 0 node 70 (p^d 12.00%, {'M_cb': 1.0}): +0.207
+     unknown x_cb     regime 0 node 50 (p^d 12.00%, {'b_DD': 1.0}): -0.167
+     unknown alpha_D  regime 0 node 37 (p^d 12.00%, {'K_F': -1.0}): +0.164
+     unknown x_cb     regime 0 node 34 (p^d 12.00%, {'K_D': 1.0}): -0.140
+     residual dep_clear regime 0 node  8 (p^d 12.00%): -0.628
+     residual id_C_D    regime 0 node  0 (p^d 0.21%): -0.395
+     residual id_C_D    regime 0 node 17 (p^d 0.21%, {'P_F': -1.0}): +0.236
+     residual euler_D   regime 0 node  0 (p^d 0.21%): +0.177
+
+=== tpi_gs_fine50_sharp_1075.pkl: cap 1075.0 bp, tpi_eps 0.0001, form FB; max|F| 1.6e-09; Jacobian (3000, 3000) in 358s
+  singular values: largest 4.47e+02; smallest 1.25e-04, 2.77e-04, 4.34e-04, 5.62e-04; cond 3.56e+06
+  direction 1 (sigma 1.25e-04):
+     unknown alpha_F  regime 0 node 31 (p^d 0.00%, {'K_D': -1.0}): +0.172
+     unknown alpha_F  regime 0 node 23 (p^d 0.21%, {'K_D': -1.0}): +0.170
+     unknown alpha_F  regime 1 node 23 (p^d 0.21%, {'K_D': -1.0}): +0.169
+     unknown alpha_F  regime 1 node 31 (p^d 0.00%, {'K_D': -1.0}): +0.165
+     unknown alpha_F  regime 1 node 33 (p^d 12.00%, {'K_D': -1.0}): +0.163
+     unknown alpha_F  regime 0 node 65 (p^d 12.00%, {'Z_D': -1.0}): +0.125
+     unknown alpha_F  regime 0 node 63 (p^d 0.00%, {'Z_D': -1.0}): +0.122
+     unknown alpha_F  regime 0 node  5 (p^d 0.21%, {'Z_D': -1.0}): +0.121
+     residual id_C_F    regime 0 node  0 (p^d 0.21%): -0.567
+     residual id_C_F    regime 0 node 19 (p^d 0.21%, {'P_D': -1.0}): +0.435
+     residual id_C_F    regime 0 node 28 (p^d 0.04%): +0.285
+     residual euler_F   regime 0 node  0 (p^d 0.21%): +0.260
+  direction 2 (sigma 2.77e-04):
+     unknown alpha_D  regime 0 node 37 (p^d 12.00%, {'K_F': -1.0}): -0.317
+     unknown alpha_D  regime 0 node 42 (p^d 12.00%, {'P_D': 1.0}): -0.310
+     unknown alpha_D  regime 0 node 35 (p^d 0.00%, {'K_F': -1.0}): -0.292
+     unknown alpha_D  regime 0 node 21 (p^d 0.21%, {'K_F': -1.0}): -0.266
+     unknown alpha_D  regime 0 node 73 (p^d 12.00%, {'O_cb': -1.0}): -0.215
+     unknown alpha_D  regime 0 node 69 (p^d 12.00%, {'M_cb': -1.0}): -0.210
+     unknown alpha_D  regime 0 node 65 (p^d 12.00%, {'Z_D': -1.0}): -0.191
+     unknown alpha_D  regime 0 node 49 (p^d 12.00%, {'b_DD': -1.0}): -0.179
+     residual id_C_D    regime 0 node  0 (p^d 0.21%): +0.465
+     residual cap_D     regime 0 node  0 (p^d 0.21%): +0.418
+     residual dep_clear regime 0 node  8 (p^d 12.00%): -0.324
+     residual uip       regime 0 node  0 (p^d 0.21%): +0.241
+  direction 3 (sigma 4.34e-04):
+     unknown alpha_F  regime 1 node 21 (p^d 0.21%, {'K_F': -1.0}): -0.326
+     unknown alpha_F  regime 1 node 35 (p^d 0.00%, {'K_F': -1.0}): -0.305
+     unknown alpha_F  regime 1 node 37 (p^d 12.00%, {'K_F': -1.0}): -0.297
+     unknown alpha_F  regime 0 node 37 (p^d 12.00%, {'K_F': -1.0}): -0.199
+     unknown alpha_F  regime 1 node 31 (p^d 0.00%, {'K_D': -1.0}): -0.153
+     unknown alpha_F  regime 1 node 23 (p^d 0.21%, {'K_D': -1.0}): -0.152
+     unknown alpha_D  regime 0 node 35 (p^d 0.00%, {'K_F': -1.0}): -0.147
+     unknown alpha_F  regime 0 node 18 (p^d 0.21%, {'P_F': 1.0}): +0.135
+     residual id_C_F    regime 0 node  0 (p^d 0.21%): +0.416
+     residual id_C_F    regime 0 node 28 (p^d 0.04%): +0.401
+     residual cap_F     regime 0 node  0 (p^d 0.21%): +0.279
+     residual id_C_F    regime 0 node 19 (p^d 0.21%, {'P_D': -1.0}): +0.229
+  direction 4 (sigma 5.62e-04):
+     unknown alpha_D  regime 0 node 35 (p^d 0.00%, {'K_F': -1.0}): +0.439
+     unknown alpha_D  regime 0 node 21 (p^d 0.21%, {'K_F': -1.0}): +0.389
+     unknown alpha_F  regime 0 node 45 (p^d 12.00%, {'P_F': -1.0}): +0.217
+     unknown alpha_F  regime 1 node 45 (p^d 12.00%, {'P_F': -1.0}): +0.199
+     unknown alpha_D  regime 0 node 37 (p^d 12.00%, {'K_F': -1.0}): +0.189
+     unknown alpha_D  regime 0 node 42 (p^d 12.00%, {'P_D': 1.0}): -0.162
+     unknown alpha_D  regime 0 node 38 (p^d 12.00%, {'K_F': 1.0}): -0.147
+     unknown alpha_D  regime 1 node 39 (p^d 0.00%, {'P_D': -1.0}): +0.127
+     residual dep_clear regime 0 node  8 (p^d 12.00%): -0.454
+     residual id_C_D    regime 0 node  0 (p^d 0.21%): -0.420
+     residual id_C_D    regime 0 node 17 (p^d 0.21%, {'P_F': -1.0}): +0.306
+     residual id_C_D    regime 0 node 21 (p^d 0.21%, {'K_F': -1.0}): +0.209

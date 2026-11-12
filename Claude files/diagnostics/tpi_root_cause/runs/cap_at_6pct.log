@@ -1,0 +1,12 @@
+FAIR (EXPECTED-LOSS-ONLY) D-F SPREAD, bp/yr: p^d 2%: 140, p^d 4%: 229, p^d 6%: 313, p^d 9%: 439, p^d 12%: 566
+
+IMPACT SPREAD vs ONE-OFF PURCHASE at p^d 6%, rules fixed (the book box ends at 27.9% of the debt; beyond it the continuation is clipped, indicative only)
+   buy    0%: spread  567.3 bp  mu_D 0.046  D banks still hold  99.6% of the SS debt  resid 4e-15
+   buy   10%: spread  539.5 bp  mu_D 0.011  D banks still hold  89.8% of the SS debt  resid 4e-14
+   buy   20%: spread  503.9 bp  mu_D -0.000  D banks still hold  79.9% of the SS debt  resid 8e-15
+   buy   30%: spread  463.6 bp  mu_D -0.000  D banks still hold  69.9% of the SS debt  resid 3e-14   (past the box edge)
+   buy   40%: spread  459.0 bp  mu_D -0.000  D banks still hold  60.0% of the SS debt  resid 3e-14   (past the box edge)
+   buy   50%: spread  456.6 bp  mu_D -0.000  D banks still hold  50.1% of the SS debt  resid 7e-15   (past the box edge)
+   buy   60%: spread  456.5 bp  mu_D -0.000  D banks still hold  40.1% of the SS debt  resid 2e-14   (past the box edge)
+   buy   70%: spread  456.5 bp  mu_D -0.000  D banks still hold  30.1% of the SS debt  resid 9e-15   (past the box edge)
+   buy   80%: spread  456.5 bp  mu_D -0.000  D banks still hold  20.1% of the SS debt  resid 4e-15   (past the box edge)

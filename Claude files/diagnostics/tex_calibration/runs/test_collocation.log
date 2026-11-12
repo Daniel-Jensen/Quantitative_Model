@@ -1,0 +1,13 @@
+  LM fallback alone converges a 2x2 system in 7 steps (max|F| 2.0e-14): PASSED
+  pack/unpack round-trip exact over 1000 unknowns: PASSED
+  20 residuals per point = 14 from point_map + 6 identities: PASSED
+  refined grid 115 points, degree 4, cond 125, on-node exact: PASSED
+Traceback (most recent call last):
+  File "/Users/Huawei/Desktop/Quantitative_Model/Claude files/global_projection/tests/test_collocation.py", line 122, in <module>
+    test_solve_reaches_the_floor()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/Huawei/Desktop/Quantitative_Model/Claude files/global_projection/tests/test_collocation.py", line 91, in test_solve_reaches_the_floor
+    assert ok, f"collocation solve did not converge (max|F| = {worst:.2e})"
+           ^^
+AssertionError: collocation solve did not converge (max|F| = 2.75e-06)
+python3 "Claude files/global_projection/tests/test_collocation.py"  569.59s user 14.23s system 577% cpu 1:41.09 total

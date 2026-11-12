@@ -194,14 +194,11 @@ def plot_welfare_quintiles(labels, cost, gain, cons, quintile_income, note="",
 # decomposition uses so the figures read as one system: the shock and the price it
 # moves are neutral ink, the credit spread keeps its channel hue, and the real
 # quantities keep theirs. Never introduce a hue that is not already in the palette.
-# BOND-PRICE LEGS. Two of them are the SAME OBJECT as a leg of the output
-# decomposition and keep its hue: the deposit rate (#0072B2) and the bank constraint,
-# which is lambda*mu on both figures and so takes credit_spread's vermilion. The other
-# three get hues unused elsewhere here, all CVD-safe, and the residual stays the
-# documented neutral grey -- it is an accuracy diagnostic, not a channel.
+# BOCOLA'S BOND LEGS. The liquidity premium is the SAME OBJECT as the credit-spread leg of the
+# output decomposition (lambda*mu) and keeps its vermilion; the risk premium takes a hue unused
+# elsewhere here (CVD-safe), and the residual stays the documented neutral grey -- it is an
+# accuracy diagnostic, not a channel.
 CHANNEL_COLORS["liquidity_premium"] = CHANNEL_COLORS["credit_spread"]   # lambda*mu
-CHANNEL_COLORS["continuation"] = "#E69F00"      # amber -- the dominant leg
-CHANNEL_COLORS["expected_loss"] = "#882255"     # dark magenta
 CHANNEL_COLORS["risk_premium"] = "#44AA99"      # teal
 
 # ANNUALISATION FACTOR FOR A QUARTERLY-FLOW LEVEL GAP. This is Bocola's Table 5 unit:
@@ -226,21 +223,18 @@ def _annual_axis(ax, label="ann. %"):
 
 def plot_bond_decomposition(dec, chans, note="",
                             filename="bond_decomposition.png"):
-    # WHY THE D SOVEREIGN REPRICES: the bank's own FOC, split leg by leg.
+    # BOCOLA'S (2016) SPLIT OF THE D SOVEREIGN'S EXPECTED EXCESS RETURN: LIQUIDITY AND RISK PREMIA.
     # Same stacked-signed-bar treatment as the output decomposition, because it is the
-    # same kind of object -- an identity, not an attribution. Bocola's Table 4 splits
-    # the EXCESS RETURN into a risk premium and a liquidity premium; this splits the
-    # PRICE, and adds the two legs his table takes as given (the discount rate and the
-    # continuation price), so the bars sum to the observed repricing.
+    # same kind of object -- an identity from the bank's FOC, not an attribution.
     # ONE title only. The suptitle-plus-note-plus-panel-title stack the output
     # decomposition uses needs three panels' worth of width; on a single panel the
     # three lines land on top of each other.
     fig, ax = plt.subplots(1, 1, figsize=(8.2, 5.1), layout="constrained")
-    fig.suptitle("What reprices the D sovereign  $Q_{b,D}$"
+    fig.suptitle("Expected excess return on the D sovereign, $E[R_b]-R$"
                  + (f"\n{note}" if note else ""), fontsize=12, color=INK)
     _stacked_channels(ax, dec, chans, "", ann=False,
-                      ylab="% deviation from the no-shock path",
-                      total_label="Total bond-price response")
+                      ylab="bp per year, deviation from the no-shock path",
+                      total_label="Total excess-return response")
     ax.legend(fontsize=7.5, frameon=False, loc="best")
     _save(fig, filename)
     return os.path.join(OUTDIR, filename)
@@ -291,11 +285,29 @@ def _paper_axes(ax, title, ylabel, zero=True):
         ax.axhline(0.0, color="#B0B0B0", lw=0.7, zorder=1)
 
 
+WALL_SHADE = "#DCDCDC"
+
+
+def _first_wall(*paths):
+    # THE FIRST QUARTER ANY PATH READ ITS STATE AT THE BOX EDGE (dynamic_irf's at_wall), OR NONE.
+    hits = [int(np.flatnonzero(np.asarray(p["at_wall"], dtype=float) > 0)[0]) for p in paths
+            if "at_wall" in p and np.any(np.asarray(p["at_wall"], dtype=float) > 0)]
+    return min(hits) if hits else None
+
+
+def _shade_wall(ax, wall, q_end, label):
+    # GREY FROM THE FIRST BOX-EDGE QUARTER ON: BEYOND IT THE PATH IS THE BOX'S, NOT THE MODEL'S.
+    if wall is not None:
+        ax.axvspan(wall - 0.5, q_end, color=WALL_SHADE, lw=0, zorder=0,
+                   label="state at the box edge" if label else None)
+
+
 def _paper_irf(path, filename):
     # THE FIVE-PANEL COUNTRY-PAIR IRF FIGURE, shared by the risk and TFP experiments.
     # Both experiments record the same five series per country, so one panel spec draws
     # both figures and the two are read against each other panel by panel.
     q = np.arange(len(path["Y"]))
+    wall = _first_wall(path)
     with plt.rc_context(PAPER_RC):
         fig, axes = plt.subplots(2, 3, figsize=(13.2, 7.0), layout="constrained")
         flat = axes.ravel()
@@ -307,6 +319,7 @@ def _paper_irf(path, filename):
                     continue
                 ax.plot(q, scale * np.asarray(path[key], dtype=float), color=colour,
                         ls=ls, lw=1.5, label=lab, zorder=3)
+            _shade_wall(ax, wall, q[-1], i == 0)
             _paper_axes(ax, f"({chr(97 + i)}) {title}", ylab,
                         zero="deviation" in ylab)
             ax.set_xlim(q[0], q[-1])
@@ -350,8 +363,10 @@ def plot_tpi_irf(res, filename="tpi_irf.png", note=""):
     # Each economy starts from its OWN rest point, so a gap at q0 that the footprint panel
     # shows was not bought is the announcement. note is accepted and not drawn (paper
     # scheme: the caption carries it).
-    cap = float(res["cap_bp"])
+    # a relief intervention (tpi_experiment.intervention) has no cap to draw
+    cap = None if res.get("cap_bp") is None else float(res["cap_bp"])
     q = np.arange(len(res["irf_on"]["Y"]))
+    wall = _first_wall(*(res[run] for run, *_ in TPI_RUNS))
     with plt.rc_context(PAPER_RC):
         fig, axes = plt.subplots(3, 3, figsize=(13.2, 10.2), layout="constrained")
         flat = axes.ravel()
@@ -360,7 +375,8 @@ def plot_tpi_irf(res, filename="tpi_irf.png", note=""):
             for run, colour, ls, lab in TPI_RUNS:
                 ax.plot(q, np.asarray(res[run][key], dtype=float), color=colour, ls=ls,
                         lw=1.8, label=lab, zorder=3)
-            if key == "sov_bp":
+            _shade_wall(ax, wall, q[-1], i == 0)
+            if key == "sov_bp" and cap is not None:
                 ax.axhline(cap, color=INK_MUTED, lw=0.9, ls=":", zorder=2)
                 ax.annotate(f"cap {cap:.0f} bp", (q[-1], cap), xytext=(0, 4),
                             textcoords="offset points", ha="right", va="bottom",
@@ -388,7 +404,8 @@ def plot_tpi_irf(res, filename="tpi_irf.png", note=""):
                     fontsize=9.5, color=INK)
         else:
             ax.legend(fontsize=8.5, frameon=False, loc="upper right")
-        flat[0].legend(fontsize=9, frameon=False, loc="upper right")
+        # lower left: the spread falls from the upper left, and the cap is labelled on the right
+        flat[0].legend(fontsize=9, frameon=False, loc="lower left")
         _save(fig, filename)
     return os.path.join(OUTDIR, filename)
 
@@ -396,14 +413,17 @@ def plot_tpi_irf(res, filename="tpi_irf.png", note=""):
 def plot_tpi_mechanism(res, bond_channels, filename="tpi_mechanism.png"):
     # WHY THE TPI MOVES THE PRICE: the announcement at rest, the bond-price legs of its
     # effect at the shock, and what a purchase alone would do at fixed rules.
-    cap = float(res["cap_bp"])
+    # a relief intervention is unanticipated, so panel (a) shows the impact with and without the purchase instead
+    relief = res.get("mode") in ("relief", "cap")
     off, on = res["rest_off"], res["rest_on"]
     with plt.rc_context(PAPER_RC):
         fig, axes = plt.subplots(1, 3, figsize=(15.0, 4.9), layout="constrained")
         # (a) the rest point: both spreads, with and without, nothing bought
         ax = axes[0]
         labels = ("Sovereign spread", "Lending spread")
-        vals = ((off["sov_bp"], on["sov_bp"]), (off["spread_bp"], on["spread_bp"]))
+        r = res.get("relief")
+        vals = (((r["sov_off"], r["sov_on"]), (r["lend_off"], r["lend_on"])) if relief else
+                ((off["sov_bp"], on["sov_bp"]), (off["spread_bp"], on["spread_bp"])))
         xs = np.arange(len(labels))
         for j, (_, colour, _, lab) in enumerate(TPI_RUNS):
             bars = ax.bar(xs + (j - 0.5) * 0.36, [v[j] for v in vals], width=0.34,
@@ -413,11 +433,12 @@ def plot_tpi_mechanism(res, bond_channels, filename="tpi_mechanism.png"):
                             b.get_height()), xytext=(0, 3), textcoords="offset points",
                             ha="center", fontsize=8.5, color=INK)
         ax.set_xticks(xs, labels)
-        _paper_axes(ax, "(a) At rest: the announcement, nothing bought", "bp per year",
+        _paper_axes(ax, "(a) On impact: with and without the purchase" if relief else
+                    "(a) At rest: the announcement, nothing bought", "bp per year",
                     zero=False)
         ax.set_xlabel("")
         ax.legend(fontsize=9, frameon=False, loc="upper right")
-        # (b) the bond-price legs of the TPI's effect at the shock (they sum to the total)
+        # (b) Bocola's split of the TPI's effect on the bond's excess return at the shock (sums to the total)
         ax = axes[1]
         legs = [(lab, float(np.asarray(res["bond_legs"][k])[0])) for k, lab in bond_channels]
         total = float(np.asarray(res["bond_legs"]["total"])[0])
@@ -427,16 +448,16 @@ def plot_tpi_mechanism(res, bond_channels, filename="tpi_mechanism.png"):
                 height=0.62, zorder=3)
         for y, (_, v) in zip(ys, legs):
             # every label to the RIGHT of zero, clear of the category names
-            ax.annotate(f"{v:+.2f}", (max(v, 0.0), y), xytext=(4, 0),
+            ax.annotate(f"{v:+.1f}", (max(v, 0.0), y), xytext=(4, 0),
                         textcoords="offset points", ha="left", va="center",
                         fontsize=8.5, color=INK)
         ax.margins(x=0.12)
         ax.set_yticks(ys, [lab for lab, _ in legs])
         ax.axvline(0.0, color="#B0B0B0", lw=0.7, zorder=1)
-        _paper_axes(ax, f"(b) Why the bond is worth more at the shock\n"
-                        f"(TPI minus no TPI: {total:+.2f}% of $Q_{{b,D}}$)",
+        _paper_axes(ax, f"(b) The bond's excess return at the shock\n"
+                        f"(TPI minus no TPI: {total:+.1f} bp per year)",
                     "", zero=False)
-        ax.set_xlabel("% of the bond price", fontsize=9, color=INK)
+        ax.set_xlabel("bp per year", fontsize=9, color=INK)
         # (c) the price impact of a one-off purchase at fixed rules, rest vs shock
         ax = axes[2]
         for key, colour, marker, lab in (("impact_rest", ACTIVATION_RAMP[1], "o", "at rest"),
@@ -450,7 +471,15 @@ def plot_tpi_mechanism(res, bond_channels, filename="tpi_mechanism.png"):
                     "D bond price, % change", zero=True)
         ax.set_xlabel("purchase, % of SS D debt", fontsize=9, color=INK)
         ax.legend(fontsize=9, frameon=False, loc="upper left")
-        fig.text(0.5, -0.02, f"TPI spread cap {cap:.0f} bp per year over the F bond",
+        if res.get("mode") == "cap":
+            caption = (f"TPI spread cap {float(res['cap_bp']):.0f} bp per year over the F bond, held by unanticipated "
+                       f"purchases ({100 * float(res['purchase']):.1f}% of the SS D debt at the shock), held to maturity")
+        elif relief:
+            caption = (f"TPI relief intervention: {100 * float(res['purchase']):.1f}% of the SS D debt bought at the "
+                       "shock, unanticipated, held to maturity")
+        else:
+            caption = f"TPI spread cap {float(res['cap_bp']):.0f} bp per year over the F bond"
+        fig.text(0.5, -0.02, caption,
                  ha="center", fontsize=9, color=INK_MUTED)
         _save(fig, filename)
     return os.path.join(OUTDIR, filename)

@@ -1,0 +1,397 @@
+
+  WHAT THIS RUN DOES (full guide: Claude files/docs/RUN_GLOBAL.md)
+    Step 1/7  steady state ................................................ ~1 min
+    Step 2/7  TFP-shock solve ............................. ~10 min (seconds if cached)
+    Step 3/7  sovereign-risk solve, no TPI .................. ~50 min (seconds if cached)
+    Step 4/7  rest point, IRFs, calibration table, decompositions, accuracy ... ~20 min
+    Step 5/7  save the no-TPI results ................ results/GLOBAL/data (safe from here on)
+    Step 6/7  TPI solved at the cap, then the TPI-vs-no-TPI comparison ................ 1-3 h
+              the solved TPI is saved in results/GLOBAL_tpi_walk, and running run.py again reuses it
+    Step 7/7  figures ............................................... results/GLOBAL/figures
+  The console is logged to results/GLOBAL/run.log. Keep the Mac awake (lid open, on power): a sleeping
+  Mac pauses the run. Settings are at the top of run.py (PD_BOX_TOP, RUN_TPI, TPI_CAP, TPI_WALK).
+
+
+=================================================================
+  Step 1/7 — steady state (two-country HANK-GK monetary union)
+=================================================================
+=== Stage 1: external balance in p, books sized to the exposure targets ===
+  p_ss = 0.9893316368   current account / Y = 4.95e-17
+[bank-cal D] lambda=0.124900  omega_ent=0.009411  (theta=8.1087, spread=5.00 bps/yr, foreign-bond share 0.340% of assets)
+[bank-cal F] lambda=0.125800  omega_ent=0.009669  (theta=7.9689, spread=1.00 bps/yr, foreign-bond share 0.180% of assets)
+
+Stage 1 solution: rk_D=0.003125  rk_F=0.003025  p_ss=0.989332
+  Z_ss (rescaled): D=0.505835  F=0.505295
+  B_gov: D=1.856984  F=0.781477   n_ss_D=1.4685  n_ss_F=1.3939
+
+=== Stage 2: deposit markets {beta_D, beta_F} ===
+  beta_D=0.50000000  A - Dep = -1.0463e+01
+  beta_D=0.99690897  A - Dep = 5.5184e+01
+  beta_D=0.57919895  A - Dep = -1.0450e+01
+  beta_D=0.78805396  A - Dep = -1.0306e+01
+  beta_D=0.89248147  A - Dep = -9.8714e+00
+  beta_D=0.94469522  A - Dep = -8.9398e+00
+  beta_D=0.97080210  A - Dep = -7.3671e+00
+  beta_D=0.98385553  A - Dep = -5.0678e+00
+  beta_D=0.99038225  A - Dep = -1.9421e+00
+  beta_D=0.99364561  A - Dep = 2.1954e+00
+  beta_D=0.99191403  A - Dep = -4.8028e-01
+  beta_D=0.99232697  A - Dep = 2.5308e-02
+  beta_D=0.99230630  A - Dep = -1.4943e-03
+  beta_D=0.99230745  A - Dep = -4.4762e-06
+  beta_D=0.99230745  A - Dep = 2.0253e-10
+  beta_D=0.99230745  A - Dep = -6.2634e-09
+  beta_D=0.99230745  A - Dep = 2.0253e-10
+  beta_F=0.50000000  A - Dep = -9.7058e+00
+  beta_F=0.99690897  A - Dep = 5.4963e+01
+  beta_F=0.57457897  A - Dep = -9.6983e+00
+  beta_F=0.78574397  A - Dep = -9.5857e+00
+  beta_F=0.89132647  A - Dep = -9.2112e+00
+  beta_F=0.94411772  A - Dep = -8.3709e+00
+  beta_F=0.97051335  A - Dep = -6.9172e+00
+  beta_F=0.98371116  A - Dep = -4.7600e+00
+  beta_F=0.99031007  A - Dep = -1.7943e+00
+  beta_F=0.99360952  A - Dep = 2.1566e+00
+  beta_F=0.99180852  A - Dep = -4.5387e-01
+  beta_F=0.99222768  A - Dep = 2.4398e-02
+  beta_F=0.99220630  A - Dep = -1.4384e-03
+  beta_F=0.99220749  A - Dep = -4.3273e-06
+  beta_F=0.99220749  A - Dep = 1.9771e-12
+  beta_F=0.99220749  A - Dep = -6.0228e-09
+  beta_F=0.99220749  A - Dep = 1.9771e-12
+
+Stage 2 solution: beta_D=0.992307  beta_F=0.992207
+  A_D*P_D=10.4389  Dep_supply_D=10.4389
+  A_F*P_F=9.7137  Dep_supply_F=9.7137
+  SS goods markets: D 3.233e-10, F 2.593e-10;  current account D 3.411e-11  (NX_D = +0.000575, NFI_D = -0.000575)
+  solved in 5s
+
+─────────────────────────────────────────────────────────────────
+  Variable                   D (Greece)  F (Germany)  Note
+─────────────────────────────────────────────────────────────────
+  Y_ss                           1.0000      1.0000  normalised (Z rescaled)
+  K_ss                           9.6970      9.7316
+  I_ss                           0.2424      0.2433  = delta*K
+  C_ss                           0.5549      0.5656  HA aggregate, basket units
+  A_ss (HH deposits)            10.4748      9.7108  basket units
+  w_ss                           0.6344      0.6344
+  rk_ss (ann %)                   1.250       1.210  = r_dep + spread instrument
+  country mass                      1.0        11.3  F/D = 8: D is a small member
+  omega_home                    0.68000     0.97168  size-consistent: (1-w_F)=(1-w_D)/8
+─────────────────────────────────────────────────────────────────
+  n_ss (net worth)               1.4685      1.3939
+  theta (leverage)               8.1087      7.9689  instrument; 8 at the rest point
+  kappa (K/n)                    6.6035      6.9817
+  phi_bdom (dom bond/n)          1.0456      0.5177
+  phi_bfor (for bond/n)          0.0276      0.0143
+  own sovereign / assets        12.895%      6.496%  instrument; EBA 14.4% / 6.5% at rest
+  own sovereign / n               1.046       0.518  GR sovereign / CT1: 2.39
+  alpha (V/n)                    1.0128      1.0025  franchise value
+  mu (IC mult)                 0.001010    0.000199
+  Dep_supply (goods)            10.4389      9.7137
+  rb_dom (ann %)                  1.250       1.210  = rdep + IC spread
+─────────────────────────────────────────────────────────────────
+  p_ss (RER)                   0.989332           —  D-goods per F-good; free
+  P_CES_ss                     0.996567    1.000303  consumption-basket price
+  NX / Y (per capita)          +0.0575%    -0.0051%  pays the net coupons
+  net coupons from abroad / Y   -0.0575%    +0.0051%  NX + NFI = 0
+  Q_bD_ss / Q_bF_ss             0.94715     0.92802  IC-consistent prices
+  b_D_D / b_F_D (D-bank)         1.6211      0.0442  dom / for holdings, per D capita
+  b_F_F / b_D_F (F-bank)         0.7776      0.0209  per F capita (= b_D_F/sz)
+  held by the other's banks       12.7%       0.50%  of each stock (EBA: 20%, ~0)
+  B_gov / 4Y (face)               46.4%       19.5%  bank-held debt
+  Q*B_gov / 4Y (market)           44.0%       18.1%  EBA-held GR debt/GDP: 40%
+─────────────────────────────────────────────────────────────────
+  Calibrated in SS solve              D           F  Pins / target
+─────────────────────────────────────────────────────────────────
+  lambda (single, IC)           0.12490     0.12580  leverage + credit-spread targets
+  omega_ent (entrants)         0.009411    0.009669  solved jointly with lambda
+  Z_ss (rescaled)              0.505835    0.505295  pins Y_ss = 1
+  chi (GHH)                      0.6366      0.6343  pins N_ss = 1
+  beta_ss                      0.992307    0.992207  deposit-market clearing
+  xr_for (bps ann)                -4.00        4.00  foreign bond over own spread
+  friction ref - book         +3.90e-05   -9.26e-05  makes the SS books optimal
+  debt root (Bohn)             0.987288    0.986862  gamma_tau 0.01500
+─────────────────────────────────────────────────────────────────
+  Residual                            D           F  Threshold
+─────────────────────────────────────────────────────────────────
+  IC  (n_IC/n_ACCUM - 1)       2.82e-14   -8.33e-15  <= 1e-10
+  Deposit (A*P_CES - Dep)      2.02e-10    1.98e-12  <= 1e-9
+  Walras (Y-PC-I-G-NX)         3.23e-10    2.59e-10  <= 1e-8, F = diagnostic
+  current account              3.41e-11   -3.05e-12  <= 1e-8
+─────────────────────────────────────────────────────────────────
+  warm start: /Users/Huawei/Desktop/Quantitative_Model/data/global_warm_start.pkl (75 points)
+  the warm rules' box tops at p^d 12.00%; seeded onto PD_BOX_TOP 2.00% (75 points)
+
+  step 1/7 done in 0.1 min
+
+=================================================================
+  Step 2/7 — TFP shock, global collocation (Z_D as the TFP state)
+=================================================================
+  reusing the tfp rules solved before with these settings (/Users/Huawei/Desktop/Quantitative_Model/results/GLOBAL_cache/tfp_be75a96b9a67.pkl); delete /Users/Huawei/Desktop/Quantitative_Model/results/GLOBAL_cache to re-solve
+
+  TFP IRF (one-off 1% shock, rho_z=0.9 decay)
+   qtr    Z%     Y_D%     C_D%     I_D%    hours%
+     0   1.00   +1.285   +0.891    +2.47   +0.40
+     1   0.90   +1.156   +0.802    +2.23   +0.36
+     2   0.81   +1.041   +0.721    +2.02   +0.32
+     4   0.66   +0.843   +0.584    +1.64   +0.26
+     6   0.53   +0.683   +0.473    +1.34   +0.21
+     8   0.43   +0.554   +0.383    +1.09   +0.17
+    12   0.28   +0.363   +0.251    +0.72   +0.11
+    16   0.19   +0.238   +0.165    +0.47   +0.08
+    20   0.12   +0.156   +0.108    +0.31   +0.05
+
+  step 2/7 done in 0.0 min, 0 min since the start
+
+=================================================================
+  Step 3/7 — sovereign-risk pass-through, global collocation (12 states, Newton)
+=================================================================
+  reusing the risk rules solved before with these settings (/Users/Huawei/Desktop/Quantitative_Model/results/GLOBAL_cache/risk_be75a96b9a67.pkl); delete /Users/Huawei/Desktop/Quantitative_Model/results/GLOBAL_cache to re-solve
+
+  step 3/7 done in 0.0 min, 0 min since the start
+
+=================================================================
+  Step 4/7 — rest point, IRFs, calibration table, decompositions, accuracy
+=================================================================
+
+  DETERMINISTIC SS vs THE MODEL'S OWN REST POINT (the IRF baseline)
+   object                  at the det-SS state  at the rest point       diff
+   mu_D (IC multiplier)               0.031359          -0.000000  -100.000%
+   Q_bD                               0.918854           0.921447    +0.282%
+   n_D (bank net worth)               1.336099           1.493308   +11.766%
+   Y_D                                0.998712           0.990013    -0.871%
+   C_D                                0.556056           0.551555    -0.809%
+   I_D                                0.237379           0.236035    -0.566%
+   credit spread bp/yr                   142.6               -0.0    -142.6
+   rdep_D bp/yr                           62.8              136.7     +73.9
+   r_wc_D bp/yr                          210.2              136.7     -73.6
+   states at the rest point: K_D -2.636%, P_D -0.865%, b_DD +15.578%
+   (the gap is PRICED RISK, not solver error: solved at pi == 0 the model rests on
+    the deterministic SS exactly -- see CLAUDE.md)
+
+  IMPACT of priced default risk (deviation from the rest point)
+   pd_q%  pd_a%     Y%    Y_ann%   Y_exact%    C%    hours%     I%    rdep_bp  spread_bp  r_wc_bp    muD   muD_ex     Q_bD   resid
+    0.10   0.40  +0.0000   +0.0000   +0.0000  +0.0000  +0.0000  +0.000    136.7       -0.0    136.7 -0.00000 -0.00000  0.9214 1e-03
+    0.25   0.99  +0.0028   +0.0113   +0.0016  +0.0241  +0.0040  +0.033    137.1       -0.0    137.1 -0.00000 -0.00000  0.9142 1e-03
+    0.55   2.18  +0.0040   +0.0161   +0.0036  +0.0431  +0.0057  +0.055    135.9       -0.0    135.9 -0.00000 -0.00000  0.9030 1e-03
+    1.10   4.32  +0.0027   +0.0107   +0.0061  +0.0473  +0.0038  +0.059    132.2       -0.0    132.2 -0.00000 -0.00000  0.8862 1e-03
+    1.98   7.70  +0.0006   +0.0023   +0.0092  +0.0421  +0.0008  +0.065    127.1       -0.0    127.1 -0.00000 -0.00000  0.8666 1e-03
+    1.99   7.73  +0.0006   +0.0023   +0.0092  +0.0421  +0.0008  +0.065    127.0       -0.0    127.0 -0.00000 -0.00000  0.8665 1e-03
+    2.00   7.76  +0.0006   +0.0022   +0.0092  +0.0421  +0.0008  +0.065    127.0       -0.0    127.0 -0.00000 -0.00000  0.8663 1e-03
+
+  PERSISTENCE IRF (one-off risk shock to p^d = 2.00%/qtr, rho_s = 0.9 decay)
+   qtr  pd_q%  pd_a%     Y%    Y_ann%      C%     I%   hours%  rdep_bp  spread_bp  r_wc_bp   Q_bD
+     0   2.00   7.76  +0.0006   +0.0022  +0.0421  +0.065  +0.001    127.0       -0.0    127.0  0.8663
+     1   1.49   5.82  +0.0015   +0.0059  +0.0450  +0.059  +0.002    129.7       -0.0    129.7  0.8765
+     2   1.14   4.47  +0.0025   +0.0102  +0.0472  +0.059  +0.004    131.9       -0.0    131.9  0.8851
+     4   0.72   2.84  +0.0038   +0.0152  +0.0465  +0.059  +0.005    134.8       -0.0    134.8  0.8974
+     6   0.49   1.96  +0.0040   +0.0160  +0.0412  +0.053  +0.006    136.2       -0.0    136.2  0.9049
+     8   0.37   1.45  +0.0037   +0.0147  +0.0345  +0.046  +0.005    136.8       -0.0    136.8  0.9096
+    12   0.23   0.93  +0.0027   +0.0107  +0.0226  +0.032  +0.004    137.2       -0.0    137.2  0.9148
+    16   0.17   0.70  +0.0018   +0.0073  +0.0145  +0.021  +0.003    137.1       -0.0    137.1  0.9175
+    20   0.14   0.58  +0.0012   +0.0048  +0.0093  +0.014  +0.002    137.0       -0.0    137.0  0.9190
+
+  DYNAMIC IRF (states evolve; p^d shock to 2.00%/qtr, rho_s = 0.9)
+   qtr  pd_q%  pd_a%    GDP%   GDP_ann%     C%      I%   hours%  rdep_bp  bank_bp  r_wc_bp  sov_bp    K%      n%
+     0   2.00   7.76  +0.0006   +0.0022  +0.0421  +0.065  +0.001    127.0     -0.0    127.0   224.3  +0.000   -5.89
+     1   1.49   5.82  +0.0089   +0.0356  +0.0463  +0.116  +0.012    135.3     -0.0    135.3   193.8  +0.002   -3.67
+     2   1.14   4.47  +0.0149   +0.0597  +0.0437  +0.148  +0.019    141.2     -0.0    141.2   168.2  +0.004   -2.04
+     4   0.72   2.84  +0.0178   +0.0712  +0.0334  +0.132  +0.020    145.2     -0.0    145.2   133.4  +0.012   -0.32
+     6   0.49   1.96  +0.0150   +0.0601  +0.0200  +0.075  +0.014    144.7     -0.0    144.7   113.3  +0.017   +0.31
+     8   0.37   1.45  +0.0107   +0.0427  +0.0072  +0.018  +0.007    142.9     -0.0    142.9   101.1  +0.019   +0.53
+    12   0.23   0.93  +0.0024   +0.0096  -0.0111  -0.061  -0.003    139.9     -0.0    139.9    87.8  +0.016   +0.66
+    16   0.17   0.70  -0.0040   -0.0158  -0.0208  -0.100  -0.008    138.2     -0.0    138.2    81.0  +0.007   +0.72
+    20   0.14   0.58  -0.0089   -0.0356  -0.0250  -0.116  -0.011    137.4     -0.0    137.4    77.0  -0.004   +0.76
+    24   0.13   0.51  -0.0129   -0.0517  -0.0264  -0.121  -0.012    137.0     -0.0    137.0    74.7  -0.015   +0.78
+   trough GDP = -0.0129% level = -0.0517% annualised (Bocola Table 5 units)
+   impact GDP brackets [+0.0006%, +0.0092%]: +0.0006% reading the fitted rules, +0.0092% clearing the period map exactly at that state (mu -0.00000 -> -0.00000)
+   impact wedge: credit spread +0.0 bp/yr, deposit rate -9.7 bp/yr, NET r_wc -9.7 bp/yr (-257684858760% of the spread is cancelled by the funding rate)
+   like-for-like targets at this shock: -0.157% (his open economy -- GHH + working capital, our own structure), -0.223% (his closed benchmark), -0.360% (2011Q4 episode)
+   box: no escapes in 25 quarters (final |dev| from SS: K_D -0.02%, P_D +0.11%, P_F +0.00%, b_DD +1.86%)
+
+=================================================================
+  Calibration table — data against the stochastic rest point
+=================================================================
+
+  CALIBRATION TABLE (model at the stochastic rest point; rates annualised, p^d quarterly)
+   moment                                                         data       model   role
+   Banks
+     Leverage, GR fin. accounts, 2002-07                          7.98       7.927   Target
+     Leverage, GR credit book / CT1, 2010                          5.5       7.927   Narrower measure
+     Leverage, F bank                                               --       7.982   Target
+     Intermediation wedge r_wc - r_dep, D                        100bp      -0.0bp   Target
+     Intermediation wedge r_wc - r_dep, F                        100bp       5.3bp   Target
+     Lending spread, 2003-07, GR                                 290bp      -0.0bp   Upper bound
+     Lending spread, 2003-07, DE                                 180bp       5.3bp   Upper bound
+     Euribor-Eurepo, 2002-2012                                     8bp      -0.0bp   Not matched
+     Real deposit rate, 1999-2007 (parameter)                    1.11%       1.20%   Set (Bocola)
+     Real deposit rate at the rest point, D                      1.11%       1.37%   Set (Bocola)
+   Sovereign risk
+     Default probability, GR 1y CDS, 2008Q3                     0.092%        0.1%   Set directly
+     Share of quarters with p^d above the 2010-11 avg             9.1%   4.89e-05%   Validation
+     Bond-implied hazard, 1999-2007                              0.23%        0.1%   Upper bound
+     Bond-implied hazard, basis-adjusted                    0.02-0.05%        0.1%   Lower bound
+     GR-DE sovereign spread y_D - y_F                           25.3bp      69.8bp   Validation
+     PSI recovery, face value; NPV                       46.5%; 35-41%      45.00%   Bracket
+   Exposure
+     GR sovereign / GR bank assets                               14.4%      14.59%   Target
+     DE sovereign / DE bank assets                                6.5%       6.50%   Target
+     GR sovereign / GR Core Tier 1                                2.39       1.156   Limitation
+     Share of the D stock held by F banks                 12.7%; 39.6%      11.16%   Bracket
+     Share of the F stock held by D banks                           ~0      0.503%   Set
+     Duration, GR book, at the rest-point yield              4.4 years    4.13 yrs   Validation
+     Duration at the deterministic-SS yield                  4.4 years    4.24 yrs   Validation
+     Duration at 4.5%                                        4.4 years    3.76 yrs   Validation
+     Bank-held GR debt / GDP, market value                         40%      49.08%   Not matched
+     Bank-held GR debt / GDP, face value                           40%      53.26%   Not matched
+     Repricing loss / GR CT1, book revalued at 9.1%                40%      26.39%   Validation
+   Households
+     Liquid deposits / GDP, Greece                                 84%     261.25%   Validation
+   Transmission
+     GR-DE overdraft-spread rise, impact of p^d = 2%             108bp      -2.3bp   Upper bound
+     GR-DE overdraft-spread rise, peak                           108bp       1.5bp   Upper bound
+   targets at the rest point:
+     lev_D     7.9265473 vs 8  gap -7.35e-02 (tol 5.0e-03)  MISS   instrument leverage_target_D = 8.1087456
+     lev_F     7.9821351 vs 8  gap -1.79e-02 (tol 5.0e-03)  MISS   instrument leverage_target_F = 7.9689266
+     spread_D  -2.9538477e-12 vs 0.000125  gap -1.25e-04 (tol 2.5e-06)  MISS   instrument credit_spread_target_D = 0.000125
+     spread_F  0.00013128467 vs 0.000125  gap +6.28e-06 (tol 2.5e-06)  MISS   instrument credit_spread_target_F = 2.5e-05
+     exp_D     0.14585946 vs 0.144  gap +1.86e-03 (tol 1.0e-04)  MISS   instrument sov_exposure_D = 0.12895084
+     exp_F     0.064976942 vs 0.065  gap -2.31e-05 (tol 1.0e-04)  OK   instrument sov_exposure_F = 0.064964481
+   the solution box stops at p^d = 2.00%/qtr, so the 9.1% exceedance is the AR(1)'s own ergodic share (z = 4.90); p at rest 0.98603, mu_D -0.00000, mu_F 0.00104, read residual 1e-03
+
+=================================================================
+  Decompositions — which channels produce the response
+=================================================================
+    Deposit rate           impact  +0.0073%  ( +0.0294% annualised)
+    Capital stock          impact  +0.0000%  ( +0.0000% annualised)
+    Relative price / terms of trade impact  +0.0067%  ( +0.0269% annualised)
+    Labour-FOC residual    impact  -0.0135%  ( -0.0540% annualised)
+    TOTAL                  impact  +0.0006%  ( +0.0022% annualised)
+
+  D-bond expected excess return E[R_b] - R (Bocola 2016 split; bp/yr, deviation from the no-shock path)
+    Liquidity premium (bank constraint)      impact     +0.00 bp
+    Risk premium (kernel-return covariance)  impact   +225.13 bp
+    FOC residual                             impact     +0.00 bp
+    TOTAL                                    impact   +225.13 bp
+
+=================================================================
+  Solution accuracy — Euler errors on the ergodic set
+=================================================================
+
+  EULER-EQUATION ERRORS on the ergodic set — sovereign-risk rules
+   1200 simulated states (1200 evaluable), n_gh=5
+   equation     mean log10|R|   max log10|R|   90th pct
+   cap_D              -3.77          -3.30      -3.55
+   cap_F              -3.88          -3.82      -3.84
+   lab_D              -3.25          -2.85      -3.16
+   lab_F              -3.99          -3.91      -3.94
+   euler_D            -3.70          -3.14      -3.29
+   uip                -3.38          -3.29      -3.36
+   goods_D            -3.78          -3.57      -3.62
+   bondD_D            -3.84          -3.26      -3.52
+   bondD_F            -2.98          -2.82      -2.96
+   euler_F            -4.65          -4.19      -4.47
+   dep_clear          -5.74          -5.51      -5.54
+   bondF_F            -3.92          -3.86      -3.88
+   bondF_D            -3.04          -2.76      -3.00
+   tpi               -16.00         -16.00     -16.00
+   id_alpha_D         -2.09          -1.93      -2.03
+   id_alpha_F         -3.09          -3.02      -3.04
+   id_C_D             -3.77          -3.33      -3.42
+   id_C_F             -5.54          -4.87      -5.18
+   id_r_wc_D          -3.24          -2.85      -3.16
+   id_r_wc_F          -3.98          -3.91      -3.93
+   ALL                -4.38          -1.93      -3.00
+   box escapes (share of simulated periods outside, per state):
+     K_D=0.0%  K_F=0.0%  P_D=0.0%  P_F=0.0%  b_DD=0.0%  b_DF=0.0%  b_FD=0.0%  V_dep=0.0%  s=0.2%  Z_D=0.0%  M_cb=0.0%  O_cb=0.0%
+     worst overshoot = 1.28% of box width   any-dimension escape = 0.2% of periods
+   simulated p^d: mean 0.146%  p5 0.0192%  p95 0.440%
+
+  step 4/7 done in 0.3 min, 0 min since the start
+
+=================================================================
+  Step 5/7 — saving the no-TPI results -> /Users/Huawei/Desktop/Quantitative_Model/results/GLOBAL/data
+=================================================================
+  step 5/7 done: every no-TPI result is saved; an interrupted TPI walk below loses none of it
+
+=================================================================
+  Step 6/7 — TPI backstop, cap walk to 200.0 bp/yr over the F bond
+=================================================================
+  reusing the solved baseline
+  TPI walk starts at 325 bp (highest node spread 300 bp)
+  TPI direct: rung 270.0 bp, 4 nodes above it solved alone; smoothing 1e-02
+  collocation solve TPI cap=270.0bp (reuse 3): 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve TPI cap=270.0bp (reuse 3)  1] sum|F|^2 = 1.595e-04   max|F| = 7.220e-03   step = 1
+    [parsolve TPI cap=270.0bp (reuse 3)  2] sum|F|^2 = 5.685e-05   max|F| = 4.504e-03   step = 1
+    [parsolve TPI cap=270.0bp (reuse 3)  3] sum|F|^2 = 2.545e-05   max|F| = 3.040e-03   step = 1
+    [parsolve TPI cap=270.0bp (reuse 3)  4] sum|F|^2 = 1.849e-07   max|F| = 2.294e-04   step = 1
+    [parsolve TPI cap=270.0bp (reuse 3)  5] sum|F|^2 = 7.370e-09   max|F| = 6.823e-05   step = 1
+    [parsolve TPI cap=270.0bp (reuse 3)  6] sum|F|^2 = 6.264e-10   max|F| = 2.388e-05   step = 1
+    [parsolve TPI cap=270.0bp (reuse 3)  7] sum|F|^2 = 1.198e-14   max|F| = 1.094e-07   step = 1
+    [parsolve TPI cap=270.0bp (reuse 3)  8] sum|F|^2 = 1.005e-18   max|F| = 1.003e-09   step = 1
+    -> converged in 9 iterations, max|F| = 1.00e-09  (worst equation: tpi 1.0e-09)
+  TPI direct: rung 245.0 bp, 11 nodes above it solved alone; smoothing 1e-02
+  collocation solve TPI cap=245.0bp (reuse 3): 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve TPI cap=245.0bp (reuse 3)  1] sum|F|^2 = 6.362e-04   max|F| = 1.316e-02   step = 0.5
+    [parsolve TPI cap=245.0bp (reuse 3)  2] sum|F|^2 = 6.215e-04   max|F| = 1.396e-02   step = 0.5
+    [parsolve TPI cap=245.0bp (reuse 3)  3] sum|F|^2 = 4.442e-04   max|F| = 1.132e-02   step = 1
+    [parsolve TPI cap=245.0bp (reuse 3)  4] sum|F|^2 = 1.821e-04   max|F| = 1.292e-02   step = 1
+    [parsolve TPI cap=245.0bp (reuse 3)  5] sum|F|^2 = 1.486e-05   max|F| = 3.693e-03   step = 1
+    [parsolve TPI cap=245.0bp (reuse 3)  6] sum|F|^2 = 2.730e-06   max|F| = 1.606e-03   step = 1
+    [parsolve TPI cap=245.0bp (reuse 3)  7] sum|F|^2 = 8.949e-13   max|F| = 8.565e-07   step = 1
+    [parsolve TPI cap=245.0bp (reuse 3)  8] sum|F|^2 = 1.770e-16   max|F| = 1.323e-08   step = 1
+    -> converged in 9 iterations, max|F| = 1.32e-08  (worst equation: tpi 1.3e-08)
+  TPI direct: rung 225.0 bp, 20 nodes above it solved alone; smoothing 1e-02
+  collocation solve TPI cap=225.0bp (reuse 3): 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve TPI cap=225.0bp (reuse 3)  1] sum|F|^2 = 2.043e-04   max|F| = 6.317e-03   step = 1
+    [parsolve TPI cap=225.0bp (reuse 3)  2] sum|F|^2 = 3.359e-05   max|F| = 3.286e-03   step = 1
+    [parsolve TPI cap=225.0bp (reuse 3)  3] sum|F|^2 = 8.240e-06   max|F| = 1.972e-03   step = 1
+    [parsolve TPI cap=225.0bp (reuse 3)  4] sum|F|^2 = 2.147e-08   max|F| = 1.230e-04   step = 1
+    [parsolve TPI cap=225.0bp (reuse 3)  5] sum|F|^2 = 2.870e-09   max|F| = 5.062e-05   step = 1
+    [parsolve TPI cap=225.0bp (reuse 3)  6] sum|F|^2 = 1.916e-10   max|F| = 1.326e-05   step = 1
+    [parsolve TPI cap=225.0bp (reuse 3)  7] sum|F|^2 = 2.464e-17   max|F| = 4.774e-09   step = 1
+    -> converged in 8 iterations, max|F| = 4.77e-09  (worst equation: id_alpha_D 4.8e-09)
+  TPI direct: rung 210.0 bp, 22 nodes above it solved alone; smoothing 1e-02
+  collocation solve TPI cap=210.0bp (reuse 3): 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve TPI cap=210.0bp (reuse 3)  1] sum|F|^2 = 7.889e-04   max|F| = 2.661e-02   step = 1
+    [parsolve TPI cap=210.0bp (reuse 3)  2] sum|F|^2 = 5.892e-04   max|F| = 2.391e-02   step = 1
+    [parsolve TPI cap=210.0bp (reuse 3)  3] sum|F|^2 = 5.236e-06   max|F| = 1.722e-03   step = 0.5
+    [parsolve TPI cap=210.0bp (reuse 3)  4] sum|F|^2 = 3.136e-07   max|F| = 4.550e-04   step = 1
+    [parsolve TPI cap=210.0bp (reuse 3)  5] sum|F|^2 = 2.729e-07   max|F| = 4.550e-04   step = 1
+    [parsolve TPI cap=210.0bp (reuse 3)  6] sum|F|^2 = 2.615e-07   max|F| = 4.478e-04   step = 1
+    [parsolve TPI cap=210.0bp (reuse 3)  7] sum|F|^2 = 7.032e-11   max|F| = 7.009e-06   step = 1
+    [parsolve TPI cap=210.0bp (reuse 3)  8] sum|F|^2 = 5.431e-13   max|F| = 7.022e-07   step = 1
+    [parsolve TPI cap=210.0bp (reuse 3)  9] sum|F|^2 = 5.817e-15   max|F| = 7.354e-08   step = 1
+    [parsolve TPI cap=210.0bp (reuse 3) 10] sum|F|^2 = 1.647e-23   max|F| = 3.888e-12   step = 1
+    -> converged in 10 iterations, max|F| = 3.89e-12  (worst equation: id_alpha_F 3.9e-12)
+  TPI direct: rung 200.0 bp, 22 nodes above it solved alone; smoothing 1e-02
+  collocation solve TPI cap=200.0bp (reuse 3): 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve TPI cap=200.0bp (reuse 3)  1] sum|F|^2 = 1.610e-03   max|F| = 3.838e-02   step = 1
+    [parsolve TPI cap=200.0bp (reuse 3)  2] sum|F|^2 = 6.375e-06   max|F| = 1.460e-03   step = 1
+    [parsolve TPI cap=200.0bp (reuse 3)  3] sum|F|^2 = 4.661e-06   max|F| = 1.753e-03   step = 1
+    [parsolve TPI cap=200.0bp (reuse 3)  4] sum|F|^2 = 2.981e-10   max|F| = 1.430e-05   step = 1
+    [parsolve TPI cap=200.0bp (reuse 3)  5] sum|F|^2 = 2.308e-12   max|F| = 1.502e-06   step = 1
+    [parsolve TPI cap=200.0bp (reuse 3)  6] sum|F|^2 = 2.821e-14   max|F| = 1.673e-07   step = 1
+    [parsolve TPI cap=200.0bp (reuse 3)  7] sum|F|^2 = 4.355e-23   max|F| = 6.565e-12   step = 1
+    -> converged in 8 iterations, max|F| = 6.57e-12  (worst equation: tpi 6.6e-12)
+  TPI direct: smoothing 3.2e-03
+  collocation solve TPI cap=200.0bp (reuse 3): 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve TPI cap=200.0bp (reuse 3)  1] sum|F|^2 = 7.253e-05   max|F| = 3.147e-03   step = 0.0625
+    [parsolve TPI cap=200.0bp (reuse 3)  2] sum|F|^2 = 5.079e-06   max|F| = 8.532e-04   LM lambda = 1e-03 s0^2
+    [parsolve TPI cap=200.0bp (reuse 3)  3] sum|F|^2 = 4.902e-06   max|F| = 8.395e-04   step = 0.0156
+    [parsolve TPI cap=200.0bp (reuse 3)  4] sum|F|^2 = 4.734e-06   max|F| = 8.133e-04   step = 0.0312
+    [parsolve TPI cap=200.0bp (reuse 3)  5] sum|F|^2 = 8.990e-07   max|F| = 3.830e-04   LM lambda = 1e-04 s0^2
+    [parsolve TPI cap=200.0bp (reuse 3)  6] sum|F|^2 = 7.562e-07   max|F| = 3.604e-04   LM lambda = 1e-03 s0^2
+    [parsolve TPI cap=200.0bp (reuse 3)  7] sum|F|^2 = 7.458e-07   max|F| = 3.492e-04   step = 0.0312
+    [parsolve TPI cap=200.0bp (reuse 3)  8] sum|F|^2 = 5.936e-07   max|F| = 3.735e-04   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=200.0bp (reuse 3)  9] sum|F|^2 = 3.929e-07   max|F| = 3.080e-04   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=200.0bp (reuse 3) 10] sum|F|^2 = 3.666e-07   max|F| = 2.888e-04   step = 0.0625
+    -> STOPPED in 10 iterations, max|F| = 2.89e-04  (worst equation: id_alpha_F 2.9e-04)
+  collocation solve TPI cap=200.0bp: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve TPI cap=200.0bp  1] sum|F|^2 = 3.515e-07   max|F| = 2.707e-04   step = 0.0625
+    [parsolve TPI cap=200.0bp  2] sum|F|^2 = 3.434e-07   max|F| = 2.538e-04   step = 0.0625
+    [parsolve TPI cap=200.0bp  3] sum|F|^2 = 3.386e-07   max|F| = 2.463e-04   step = 0.0625
+    [parsolve TPI cap=200.0bp  4] sum|F|^2 = 3.347e-07   max|F| = 2.652e-04   step = 0.0625
+/opt/anaconda3/lib/python3.13/multiprocessing/resource_tracker.py:301: UserWarning: resource_tracker: There appear to be 5 leaked semaphore objects to clean up at shutdown: {'/mp-kdxanil_', '/mp-1t7if89f', '/mp-kd8cxhj0', '/mp-lr0351bc', '/mp-sisa2hci'}
+  warnings.warn(

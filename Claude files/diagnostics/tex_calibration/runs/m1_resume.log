@@ -1,0 +1,29 @@
+  collocation solve joint eps 1e-2 (resumed): 1000 unknowns (20 rules x 2 regime(s) x 25 points), backend = parsolve
+    [parsolve joint eps 1e-2 (resumed)  1] sum|F|^2 = 1.581e-07   max|F| = 2.090e-04   step = 0.00781
+    [parsolve joint eps 1e-2 (resumed)  2] sum|F|^2 = 1.579e-07   max|F| = 2.082e-04   step = 0.00391
+    [parsolve joint eps 1e-2 (resumed)  3] sum|F|^2 = 1.577e-07   max|F| = 2.078e-04   step = 0.00195
+    [parsolve joint eps 1e-2 (resumed)  4] sum|F|^2 = 1.999e-09   max|F| = 3.778e-05   LM lambda = 1e-12 s0^2
+    [parsolve joint eps 1e-2 (resumed)  5] sum|F|^2 = 2.269e-12   max|F| = 1.088e-06   LM lambda = 1e-11 s0^2
+    [parsolve joint eps 1e-2 (resumed)  6] sum|F|^2 = 2.083e-12   max|F| = 1.088e-06   LM lambda = 1e-10 s0^2
+    [parsolve joint eps 1e-2 (resumed)  7] sum|F|^2 = 2.083e-12   max|F| = 1.088e-06   LM lambda = 1e-10 s0^2
+    [parsolve joint eps 1e-2 (resumed)  8] sum|F|^2 = 2.082e-12   max|F| = 1.088e-06   LM lambda = 1e-10 s0^2
+    [parsolve joint eps 1e-2 (resumed)  9] sum|F|^2 = 2.082e-12   max|F| = 1.088e-06   LM lambda = 1e-10 s0^2
+    [parsolve joint eps 1e-2 (resumed) 10] sum|F|^2 = 2.082e-12   max|F| = 1.088e-06   LM lambda = 1e-10 s0^2
+    [parsolve joint eps 1e-2 (resumed) 11] sum|F|^2 = 2.081e-12   max|F| = 1.088e-06   LM lambda = 1e-10 s0^2
+    [parsolve joint eps 1e-2 (resumed) 12] sum|F|^2 = 2.081e-12   max|F| = 1.088e-06   LM lambda = 1e-10 s0^2
+    [parsolve joint eps 1e-2 (resumed) 13] sum|F|^2 = 2.081e-12   max|F| = 1.087e-06   LM lambda = 1e-10 s0^2
+    [parsolve joint eps 1e-2 (resumed) 14] sum|F|^2 = 2.080e-12   max|F| = 1.087e-06   LM lambda = 1e-10 s0^2
+    [parsolve joint eps 1e-2 (resumed) 15] sum|F|^2 = 2.080e-12   max|F| = 1.087e-06   LM lambda = 1e-10 s0^2
+    [parsolve joint eps 1e-2 (resumed) 16] sum|F|^2 = 2.079e-12   max|F| = 1.087e-06   LM lambda = 1e-10 s0^2
+    [parsolve joint eps 1e-2 (resumed) 17] sum|F|^2 = 2.079e-12   max|F| = 1.087e-06   LM lambda = 1e-10 s0^2
+    [parsolve joint eps 1e-2 (resumed) 18] sum|F|^2 = 2.079e-12   max|F| = 1.087e-06   LM lambda = 1e-10 s0^2
+    [parsolve joint eps 1e-2 (resumed) 19] sum|F|^2 = 2.078e-12   max|F| = 1.087e-06   LM lambda = 1e-10 s0^2
+    [parsolve joint eps 1e-2 (resumed) 20] sum|F|^2 = 2.078e-12   max|F| = 1.087e-06   LM lambda = 1e-10 s0^2
+    [parsolve joint eps 1e-2 (resumed) 21] sum|F|^2 = 2.078e-12   max|F| = 1.087e-06   LM lambda = 1e-10 s0^2
+    [parsolve joint eps 1e-2 (resumed) 22] sum|F|^2 = 2.077e-12   max|F| = 1.087e-06   LM lambda = 1e-10 s0^2
+    [parsolve joint eps 1e-2 (resumed) 23] sum|F|^2 = 2.077e-12   max|F| = 1.087e-06   LM lambda = 1e-10 s0^2
+    [parsolve joint eps 1e-2 (resumed) 24] sum|F|^2 = 2.077e-12   max|F| = 1.087e-06   LM lambda = 1e-10 s0^2
+    [parsolve joint eps 1e-2 (resumed) 25] sum|F|^2 = 2.076e-12   max|F| = 1.087e-06   LM lambda = 1e-10 s0^2
+    [parsolve joint eps 1e-2 (resumed) 26] sum|F|^2 = 2.076e-12   max|F| = 1.086e-06   LM lambda = 1e-10 s0^2
+/opt/anaconda3/lib/python3.13/multiprocessing/resource_tracker.py:301: UserWarning: resource_tracker: There appear to be 5 leaked semaphore objects to clean up at shutdown: {'/mp-8fc7q66u', '/mp-rucy5wkn', '/mp-9gzxwb1s', '/mp-tsxd3_7u', '/mp-jfygf9s0'}
+  warnings.warn(

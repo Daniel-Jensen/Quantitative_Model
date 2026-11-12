@@ -1,0 +1,421 @@
+
+  WHAT THIS RUN DOES (full guide: Claude files/docs/RUN_GLOBAL.md)
+    Step 1/7  steady state ................................................ ~1 min
+    Step 2/7  TFP-shock solve ............................. ~10 min (seconds if cached)
+    Step 3/7  sovereign-risk solve, no TPI .................. ~50 min (seconds if cached)
+    Step 4/7  rest point, IRFs, calibration table, decompositions, accuracy ... ~20 min
+    Step 5/7  save the no-TPI results ................ results/GLOBAL/data (safe from here on)
+    Step 6/7  TPI: TPI_MODE "relief" = the relief purchase at the shock vs no TPI ......... ~10 min
+              ("cap": the cap solved as a rule, 1-3 h, saved in results/GLOBAL_tpi_walk and reused)
+    Step 7/7  figures ............................................... results/GLOBAL/figures
+  The console is logged to results/GLOBAL/run.log. Keep the Mac awake (lid open, on power): a sleeping
+  Mac pauses the run. Settings are at the top of run.py (PD_BOX_TOP, RISK_SHOCK_PD, RUN_TPI, TPI_MODE, TPI_CAP, TPI_WALK).
+
+
+=================================================================
+  Step 1/7 — steady state (two-country HANK-GK monetary union)
+=================================================================
+=== Stage 1: external balance in p, books sized to the exposure targets ===
+  p_ss = 0.9893316368   current account / Y = 4.95e-17
+[bank-cal D] lambda=0.124900  omega_ent=0.009411  (theta=8.1087, spread=5.00 bps/yr, foreign-bond share 0.340% of assets)
+[bank-cal F] lambda=0.125800  omega_ent=0.009669  (theta=7.9689, spread=1.00 bps/yr, foreign-bond share 0.180% of assets)
+
+Stage 1 solution: rk_D=0.003125  rk_F=0.003025  p_ss=0.989332
+  Z_ss (rescaled): D=0.505835  F=0.505295
+  B_gov: D=1.856984  F=0.781477   n_ss_D=1.4685  n_ss_F=1.3939
+
+=== Stage 2: deposit markets {beta_D, beta_F} ===
+  beta_D=0.50000000  A - Dep = -1.0463e+01
+  beta_D=0.99690897  A - Dep = 5.5184e+01
+  beta_D=0.57919895  A - Dep = -1.0450e+01
+  beta_D=0.78805396  A - Dep = -1.0306e+01
+  beta_D=0.89248147  A - Dep = -9.8714e+00
+  beta_D=0.94469522  A - Dep = -8.9398e+00
+  beta_D=0.97080210  A - Dep = -7.3671e+00
+  beta_D=0.98385553  A - Dep = -5.0678e+00
+  beta_D=0.99038225  A - Dep = -1.9421e+00
+  beta_D=0.99364561  A - Dep = 2.1954e+00
+  beta_D=0.99191403  A - Dep = -4.8028e-01
+  beta_D=0.99232697  A - Dep = 2.5308e-02
+  beta_D=0.99230630  A - Dep = -1.4943e-03
+  beta_D=0.99230745  A - Dep = -4.4762e-06
+  beta_D=0.99230745  A - Dep = 2.0253e-10
+  beta_D=0.99230745  A - Dep = -6.2634e-09
+  beta_D=0.99230745  A - Dep = 2.0253e-10
+  beta_F=0.50000000  A - Dep = -9.7058e+00
+  beta_F=0.99690897  A - Dep = 5.4963e+01
+  beta_F=0.57457897  A - Dep = -9.6983e+00
+  beta_F=0.78574397  A - Dep = -9.5857e+00
+  beta_F=0.89132647  A - Dep = -9.2112e+00
+  beta_F=0.94411772  A - Dep = -8.3709e+00
+  beta_F=0.97051335  A - Dep = -6.9172e+00
+  beta_F=0.98371116  A - Dep = -4.7600e+00
+  beta_F=0.99031007  A - Dep = -1.7943e+00
+  beta_F=0.99360952  A - Dep = 2.1566e+00
+  beta_F=0.99180852  A - Dep = -4.5387e-01
+  beta_F=0.99222768  A - Dep = 2.4398e-02
+  beta_F=0.99220630  A - Dep = -1.4384e-03
+  beta_F=0.99220749  A - Dep = -4.3273e-06
+  beta_F=0.99220749  A - Dep = 1.9771e-12
+  beta_F=0.99220749  A - Dep = -6.0228e-09
+  beta_F=0.99220749  A - Dep = 1.9771e-12
+
+Stage 2 solution: beta_D=0.992307  beta_F=0.992207
+  A_D*P_D=10.4389  Dep_supply_D=10.4389
+  A_F*P_F=9.7137  Dep_supply_F=9.7137
+  SS goods markets: D 3.233e-10, F 2.593e-10;  current account D 3.411e-11  (NX_D = +0.000575, NFI_D = -0.000575)
+  solved in 9s
+
+─────────────────────────────────────────────────────────────────
+  Variable                   D (Greece)  F (Germany)  Note
+─────────────────────────────────────────────────────────────────
+  Y_ss                           1.0000      1.0000  normalised (Z rescaled)
+  K_ss                           9.6970      9.7316
+  I_ss                           0.2424      0.2433  = delta*K
+  C_ss                           0.5549      0.5656  HA aggregate, basket units
+  A_ss (HH deposits)            10.4748      9.7108  basket units
+  w_ss                           0.6344      0.6344
+  rk_ss (ann %)                   1.250       1.210  = r_dep + spread instrument
+  country mass                      1.0        11.3  F/D = 8: D is a small member
+  omega_home                    0.68000     0.97168  size-consistent: (1-w_F)=(1-w_D)/8
+─────────────────────────────────────────────────────────────────
+  n_ss (net worth)               1.4685      1.3939
+  theta (leverage)               8.1087      7.9689  instrument; 8 at the rest point
+  kappa (K/n)                    6.6035      6.9817
+  phi_bdom (dom bond/n)          1.0456      0.5177
+  phi_bfor (for bond/n)          0.0276      0.0143
+  own sovereign / assets        12.895%      6.496%  instrument; EBA 14.4% / 6.5% at rest
+  own sovereign / n               1.046       0.518  GR sovereign / CT1: 2.39
+  alpha (V/n)                    1.0128      1.0025  franchise value
+  mu (IC mult)                 0.001010    0.000199
+  Dep_supply (goods)            10.4389      9.7137
+  rb_dom (ann %)                  1.250       1.210  = rdep + IC spread
+─────────────────────────────────────────────────────────────────
+  p_ss (RER)                   0.989332           —  D-goods per F-good; free
+  P_CES_ss                     0.996567    1.000303  consumption-basket price
+  NX / Y (per capita)          +0.0575%    -0.0051%  pays the net coupons
+  net coupons from abroad / Y   -0.0575%    +0.0051%  NX + NFI = 0
+  Q_bD_ss / Q_bF_ss             0.94715     0.92802  IC-consistent prices
+  b_D_D / b_F_D (D-bank)         1.6211      0.0442  dom / for holdings, per D capita
+  b_F_F / b_D_F (F-bank)         0.7776      0.0209  per F capita (= b_D_F/sz)
+  held by the other's banks       12.7%       0.50%  of each stock (EBA: 20%, ~0)
+  B_gov / 4Y (face)               46.4%       19.5%  bank-held debt
+  Q*B_gov / 4Y (market)           44.0%       18.1%  EBA-held GR debt/GDP: 40%
+─────────────────────────────────────────────────────────────────
+  Calibrated in SS solve              D           F  Pins / target
+─────────────────────────────────────────────────────────────────
+  lambda (single, IC)           0.12490     0.12580  leverage + credit-spread targets
+  omega_ent (entrants)         0.009411    0.009669  solved jointly with lambda
+  Z_ss (rescaled)              0.505835    0.505295  pins Y_ss = 1
+  chi (GHH)                      0.6366      0.6343  pins N_ss = 1
+  beta_ss                      0.992307    0.992207  deposit-market clearing
+  xr_for (bps ann)                -4.00        4.00  foreign bond over own spread
+  friction ref - book         +3.90e-05   -9.26e-05  makes the SS books optimal
+  debt root (Bohn)             0.987288    0.986862  gamma_tau 0.01500
+─────────────────────────────────────────────────────────────────
+  Residual                            D           F  Threshold
+─────────────────────────────────────────────────────────────────
+  IC  (n_IC/n_ACCUM - 1)       2.82e-14   -8.33e-15  <= 1e-10
+  Deposit (A*P_CES - Dep)      2.02e-10    1.98e-12  <= 1e-9
+  Walras (Y-PC-I-G-NX)         3.23e-10    2.59e-10  <= 1e-8, F = diagnostic
+  current account              3.41e-11   -3.05e-12  <= 1e-8
+─────────────────────────────────────────────────────────────────
+  warm start: /Users/Huawei/Desktop/Quantitative_Model/data/global_warm_start.pkl (75 points)
+
+  step 1/7 done in 0.1 min
+
+=================================================================
+  Step 2/7 — TFP shock, global collocation (Z_D as the TFP state)
+=================================================================
+  reusing the tfp rules solved before with these settings (/Users/Huawei/Desktop/Quantitative_Model/results/GLOBAL_cache/tfp_31d9ee3ebafa.pkl); delete /Users/Huawei/Desktop/Quantitative_Model/results/GLOBAL_cache to re-solve
+
+  TFP IRF (one-off 1% shock, rho_z=0.9 decay)
+   qtr    Z%     Y_D%     C_D%     I_D%    hours%
+     0   1.00   +1.281   +0.881    +2.45   +0.39
+     1   0.90   +1.155   +0.795    +2.21   +0.35
+     2   0.81   +1.041   +0.717    +2.01   +0.32
+     4   0.66   +0.846   +0.585    +1.65   +0.27
+     6   0.53   +0.689   +0.478    +1.35   +0.22
+     8   0.43   +0.562   +0.391    +1.11   +0.19
+    12   0.28   +0.375   +0.265    +0.76   +0.13
+    16   0.19   +0.253   +0.183    +0.53   +0.10
+    20   0.12   +0.170   +0.125    +0.36   +0.07
+
+  step 2/7 done in 0.0 min, 0 min since the start
+
+=================================================================
+  Step 3/7 — sovereign-risk pass-through, global collocation (12 states, Newton)
+=================================================================
+  reusing the risk rules solved before with these settings (/Users/Huawei/Desktop/Quantitative_Model/results/GLOBAL_cache/risk_31d9ee3ebafa.pkl); delete /Users/Huawei/Desktop/Quantitative_Model/results/GLOBAL_cache to re-solve
+
+  step 3/7 done in 0.0 min, 0 min since the start
+
+=================================================================
+  Step 4/7 — rest point, IRFs, calibration table, decompositions, accuracy
+=================================================================
+
+  DETERMINISTIC SS vs THE MODEL'S OWN REST POINT (the IRF baseline)
+   object                  at the det-SS state  at the rest point       diff
+   mu_D (IC multiplier)               0.017496          -0.000000  -100.000%
+   Q_bD                               0.922657           0.924078    +0.154%
+   n_D (bank net worth)               1.372152           1.506387    +9.783%
+   Y_D                                0.999224           0.990980    -0.825%
+   C_D                                0.555851           0.551700    -0.747%
+   I_D                                0.239050           0.236739    -0.967%
+   credit spread bp/yr                    81.4               -0.0     -81.4
+   rdep_D bp/yr                           88.6              128.9     +40.3
+   r_wc_D bp/yr                          171.6              128.9     -42.7
+   states at the rest point: K_D -2.345%, P_D -0.960%, b_DD +13.754%
+   (the gap is PRICED RISK, not solver error: solved at pi == 0 the model rests on
+    the deterministic SS exactly -- see CLAUDE.md)
+
+  IMPACT of priced default risk (deviation from the rest point)
+   pd_q%  pd_a%     Y%    Y_ann%    Y_fit%    C%    hours%     I%    rdep_bp  spread_bp  r_wc_bp    muD  muD_fit     Q_bD  resid_fit
+    0.10   0.40  +0.0000   +0.0000   +0.0000  +0.0000  +0.0000  +0.000    128.9       -0.0    128.9 -0.00000 -0.00000  0.9241 1e-03
+    0.25   0.99  -0.0040   -0.0158   -0.0124  +0.0174  -0.0057  -0.131    128.1       -0.0    128.1 -0.00000 -0.00000  0.9147 1e-03
+    0.55   2.18  -0.0106   -0.0425   -0.0482  +0.0474  -0.0152  -0.367    125.9       -0.0    125.9 -0.00000 -0.00000  0.9003 2e-03
+    1.10   4.32  -0.0193   -0.0772   -0.1061  +0.0902  -0.0276  -0.693    122.2       -0.0    122.2 -0.00000 -0.00000  0.8799 4e-03
+    1.98   7.70  -0.0275   -0.1099   -0.1734  +0.1413  -0.0392  -1.036    117.4       -0.0    117.4 -0.00000 -0.00000  0.8536 6e-03
+    4.99  18.52  -0.0797   -0.3188   -0.2886  +0.1875  -0.1138  -1.712     80.1       78.6    160.4 0.01872  0.06282  0.7850 4e-03
+   12.00  40.03  -0.3387   -1.3549   -0.3646  -0.0327  -0.4836  -2.966   -103.5      492.9    470.0 0.14285  0.14459  0.6709 1e-03
+
+  PERSISTENCE IRF (one-off risk shock to p^d = 6.00%/qtr, rho_s = 0.9 decay)
+   qtr  pd_q%  pd_a%     Y%    Y_ann%      C%     I%   hours%  rdep_bp  spread_bp  r_wc_bp   Q_bD
+     0   6.00  21.93  -0.1421   -0.5685  +0.1296  -2.025  -0.203     36.2      188.0    233.4  0.7650
+     1   4.04  15.22  -0.0358   -0.1433  +0.2178  -1.447  -0.051    111.1       -0.0    111.1  0.8050
+     2   2.82  10.80  -0.0320   -0.1281  +0.1772  -1.247  -0.046    114.2       -0.0    114.2  0.8324
+     4   1.51   5.89  -0.0236   -0.0946  +0.1159  -0.871  -0.034    119.7       -0.0    119.7  0.8671
+     6   0.90   3.56  -0.0167   -0.0666  +0.0762  -0.590  -0.024    123.4       -0.0    123.4  0.8866
+     8   0.60   2.36  -0.0115   -0.0461  +0.0516  -0.400  -0.016    125.5       -0.0    125.5  0.8984
+    12   0.32   1.28  -0.0058   -0.0231  +0.0255  -0.194  -0.008    127.6       -0.0    127.6  0.9107
+    16   0.22   0.86  -0.0032   -0.0126  +0.0139  -0.103  -0.005    128.3       -0.0    128.3  0.9165
+    20   0.17   0.66  -0.0018   -0.0073  +0.0080  -0.059  -0.003    128.6       -0.0    128.6  0.9195
+
+  DYNAMIC IRF (states evolve; p^d shock to 6.00%/qtr, rho_s = 0.9)
+   qtr  pd_q%  pd_a%    GDP%   GDP_ann%     C%      I%   hours%  rdep_bp  bank_bp  r_wc_bp  sov_bp    K%      n%
+     0   6.00  21.93  -0.1421   -0.5685  +0.1296  -2.025  -0.203     36.2    188.0    233.4   567.3  +0.000  -22.91
+     1   4.04  15.22  -0.0451   -0.1802  +0.1526  -1.063  -0.043    118.8     -0.0    118.8   421.3  -0.051  -11.18
+     2   2.82  10.80  -0.0490   -0.1961  +0.0872  -0.791  -0.037    123.6     -0.0    123.6   328.7  -0.076   -5.41
+     4   1.51   5.89  -0.0525   -0.2101  +0.0070  -0.445  -0.029    128.6     -0.0    128.6   219.0  -0.107   +1.38
+     6   0.90   3.56  -0.0540   -0.2160  -0.0341  -0.275  -0.025    130.9     -0.0    130.9   161.4  -0.121   +4.48
+     8   0.60   2.36  -0.0550   -0.2200  -0.0537  -0.203  -0.024    131.9     -0.0    131.9   128.3  -0.127   +5.69
+    12   0.32   1.28  -0.0577   -0.2309  -0.0637  -0.196  -0.025    132.5     -0.0    132.5    94.8  -0.133   +5.73
+    16   0.22   0.86  -0.0620   -0.2480  -0.0599  -0.247  -0.028    132.3     -0.0    132.3    79.9  -0.141   +4.78
+    20   0.17   0.66  -0.0674   -0.2698  -0.0537  -0.300  -0.031    131.8     -0.0    131.8    72.5  -0.154   +3.77
+    24   0.14   0.56  -0.0734   -0.2936  -0.0486  -0.337  -0.032    131.3     -0.0    131.3    68.5  -0.169   +2.96
+   trough GDP = -0.1421% level = -0.5685% annualised (Bocola Table 5 units)
+   impact GDP -0.1421% clearing the period map exactly at that state, -0.3089% reading the fitted rules (mu -0.00000 -> 0.04631 exact, 0.07875 fitted)
+   impact wedge: credit spread +188.0 bp/yr, deposit rate -92.7 bp/yr, NET r_wc +104.5 bp/yr (-49% of the spread is cancelled by the funding rate)
+   like-for-like targets at this shock: -0.157% (his open economy -- GHH + working capital, our own structure), -0.223% (his closed benchmark), -0.360% (2011Q4 episode)
+   box: no escapes in 25 quarters (final |dev| from SS: K_D -0.17%, P_D +0.06%, P_F +0.00%, b_DD +4.59%)
+
+=================================================================
+  Calibration table — data against the stochastic rest point
+=================================================================
+
+  DYNAMIC IRF (states evolve; p^d shock to 2.00%/qtr, rho_s = 0.9)
+   qtr  pd_q%  pd_a%    GDP%   GDP_ann%     C%      I%   hours%  rdep_bp  bank_bp  r_wc_bp  sov_bp    K%      n%
+     0   2.00   7.76  -0.0276   -0.1103  +0.1421  -1.041  -0.039    117.3     -0.0    117.3   264.6  +0.000  -10.59
+     1   1.49   5.82  -0.0296   -0.1182  +0.0936  -0.748  -0.031    121.8     -0.0    121.8   219.5  -0.026   -6.48
+     2   1.14   4.47  -0.0305   -0.1220  +0.0591  -0.541  -0.025    124.5     -0.0    124.5   186.6  -0.044   -3.56
+     4   0.72   2.84  -0.0319   -0.1278  +0.0143  -0.295  -0.018    127.9     -0.0    127.9   143.5  -0.065   -0.04
+     6   0.49   1.96  -0.0326   -0.1303  -0.0092  -0.177  -0.015    129.5     -0.0    129.5   117.8  -0.075   +1.68
+     8   0.37   1.45  -0.0329   -0.1317  -0.0211  -0.124  -0.013    130.2     -0.0    130.2   101.6  -0.079   +2.45
+    12   0.23   0.93  -0.0338   -0.1353  -0.0292  -0.104  -0.013    130.6     -0.0    130.6    83.4  -0.082   +2.71
+    16   0.17   0.70  -0.0354   -0.1415  -0.0295  -0.122  -0.014    130.5     -0.0    130.5    74.5  -0.085   +2.37
+    20   0.14   0.58  -0.0375   -0.1499  -0.0277  -0.144  -0.015    130.3     -0.0    130.3    69.7  -0.089   +1.93
+    24   0.13   0.51  -0.0399   -0.1595  -0.0259  -0.161  -0.016    130.1     -0.0    130.1    67.0  -0.095   +1.55
+   trough GDP = -0.0399% level = -0.1595% annualised (Bocola Table 5 units)
+   impact GDP -0.0276% clearing the period map exactly at that state, -0.1744% reading the fitted rules (mu -0.00000 -> -0.00000 exact, -0.00000 fitted)
+   impact wedge: credit spread +0.0 bp/yr, deposit rate -11.6 bp/yr, NET r_wc -11.6 bp/yr (-832430539988% of the spread is cancelled by the funding rate)
+   like-for-like targets at this shock: -0.157% (his open economy -- GHH + working capital, our own structure), -0.223% (his closed benchmark), -0.360% (2011Q4 episode)
+   box: no escapes in 25 quarters (final |dev| from SS: K_D -0.10%, P_D +0.01%, P_F +0.00%, b_DD +2.28%)
+
+  CALIBRATION TABLE (model at the stochastic rest point; rates annualised, p^d quarterly)
+   moment                                                         data       model   role
+   Banks
+     Leverage, GR fin. accounts, 2002-07                          7.98       7.862   Target
+     Leverage, GR credit book / CT1, 2010                          5.5       7.862   Narrower measure
+     Leverage, F bank                                               --       7.967   Target
+     Intermediation wedge r_wc - r_dep, D                        100bp      -0.0bp   Target
+     Intermediation wedge r_wc - r_dep, F                        100bp       0.7bp   Target
+     Lending spread, 2003-07, GR                                 290bp      -0.0bp   Upper bound
+     Lending spread, 2003-07, DE                                 180bp       0.7bp   Upper bound
+     Euribor-Eurepo, 2002-2012                                     8bp      -0.0bp   Not matched
+     Real deposit rate, 1999-2007 (parameter)                    1.11%       1.20%   Set (Bocola)
+     Real deposit rate at the rest point, D                      1.11%       1.29%   Set (Bocola)
+   Sovereign risk
+     Default probability, GR 1y CDS, 2008Q3                     0.092%        0.1%   Set directly
+     Share of quarters with p^d above the 2010-11 avg             9.1%   4.89e-05%   Validation
+     Bond-implied hazard, 1999-2007                              0.23%        0.1%   Upper bound
+     Bond-implied hazard, basis-adjusted                    0.02-0.05%        0.1%   Lower bound
+     GR-DE sovereign spread y_D - y_F                           25.3bp      62.8bp   Validation
+     PSI recovery, face value; NPV                       46.5%; 35-41%      45.00%   Bracket
+   Exposure
+     GR sovereign / GR bank assets                               14.4%      14.39%   Target
+     DE sovereign / DE bank assets                                6.5%       6.50%   Target
+     GR sovereign / GR Core Tier 1                                2.39       1.131   Limitation
+     Share of the D stock held by F banks                 12.7%; 39.6%      11.35%   Bracket
+     Share of the F stock held by D banks                           ~0        0.5%   Set
+     Duration, GR book, at the rest-point yield              4.4 years    4.14 yrs   Validation
+     Duration at the deterministic-SS yield                  4.4 years    4.24 yrs   Validation
+     Duration at 4.5%                                        4.4 years    3.76 yrs   Validation
+     Bank-held GR debt / GDP, market value                         40%      48.49%   Not matched
+     Bank-held GR debt / GDP, face value                           40%      52.48%   Not matched
+     Repricing loss / GR CT1, book revalued at 9.1%                40%      26.07%   Validation
+   Households
+     Liquid deposits / GDP, Greece                                 84%     260.68%   Validation
+   Transmission
+     GR-DE overdraft-spread rise, impact of p^d = 2%             108bp       0.7bp   Upper bound
+     GR-DE overdraft-spread rise, peak                           108bp       0.7bp   Upper bound
+   targets at the rest point:
+     lev_D     7.861926 vs 8  gap -1.38e-01 (tol 5.0e-03)  MISS   instrument leverage_target_D = 8.1087456
+     lev_F     7.9674674 vs 8  gap -3.25e-02 (tol 5.0e-03)  MISS   instrument leverage_target_F = 7.9689266
+     spread_D  -2.9576385e-12 vs 0.000125  gap -1.25e-04 (tol 2.5e-06)  MISS   instrument credit_spread_target_D = 0.000125
+     spread_F  1.7834449e-05 vs 0.000125  gap -1.07e-04 (tol 2.5e-06)  MISS   instrument credit_spread_target_F = 2.5e-05
+     exp_D     0.14389093 vs 0.144  gap -1.09e-04 (tol 1.0e-04)  MISS   instrument sov_exposure_D = 0.12895084
+     exp_F     0.064978225 vs 0.065  gap -2.18e-05 (tol 1.0e-04)  OK   instrument sov_exposure_F = 0.064964481
+   the solution box stops at p^d = 12.00%/qtr, so the 9.1% exceedance is the AR(1)'s own ergodic share (z = 4.90); p at rest 0.98677, mu_D -0.00000, mu_F 0.00014, read residual 1e-14
+
+=================================================================
+  Decompositions — which channels produce the response
+=================================================================
+    Credit spread (bank leverage) impact  -0.1494%  ( -0.5977% annualised)
+    Deposit rate           impact  +0.0702%  ( +0.2809% annualised)
+    Capital stock          impact  +0.0000%  ( +0.0000% annualised)
+    Relative price / terms of trade impact  -0.0630%  ( -0.2521% annualised)
+    Labour-FOC residual    impact  -0.0000%  ( -0.0000% annualised)
+    TOTAL                  impact  -0.1422%  ( -0.5689% annualised)
+
+  D-bond expected excess return E[R_b] - R (Bocola 2016 split; bp/yr, deviation from the no-shock path)
+    Liquidity premium (bank constraint)      impact   +197.27 bp
+    Risk premium (kernel-return covariance)  impact   +674.78 bp
+    FOC residual                             impact     -0.00 bp
+    TOTAL                                    impact   +872.05 bp
+
+=================================================================
+  Solution accuracy — Euler errors on the ergodic set
+=================================================================
+
+  EULER-EQUATION ERRORS on the ergodic set — sovereign-risk rules
+   1200 simulated states (1200 evaluable), n_gh=5
+   equation     mean log10|R|   max log10|R|   90th pct
+   cap_D              -4.02          -2.28      -3.39
+   cap_F              -3.62          -3.56      -3.58
+   lab_D              -3.20          -2.35      -3.04
+   lab_F              -3.63          -3.56      -3.59
+   euler_D            -3.00          -2.41      -2.70
+   uip                -3.37          -3.08      -3.32
+   goods_D            -3.51          -3.21      -3.30
+   bondD_D            -3.77          -2.29      -3.24
+   bondD_F            -3.08          -2.71      -3.00
+   euler_F            -5.34          -4.09      -4.74
+   dep_clear          -5.30          -5.07      -5.12
+   bondF_F            -3.66          -3.59      -3.62
+   bondF_D            -3.04          -2.42      -2.91
+   tpi               -16.00         -16.00     -16.00
+   id_alpha_D         -2.08          -1.55      -1.95
+   id_alpha_F         -2.86          -2.78      -2.82
+   id_C_D             -3.24          -2.86      -2.98
+   id_C_F             -4.57          -4.47      -4.48
+   id_r_wc_D          -3.20          -2.35      -3.04
+   id_r_wc_F          -3.63          -3.56      -3.59
+   ALL                -4.21          -1.55      -2.85
+   box escapes (share of simulated periods outside, per state):
+     K_D=0.0%  K_F=0.0%  P_D=0.0%  P_F=0.0%  b_DD=0.0%  b_DF=0.0%  b_FD=0.0%  V_dep=0.0%  s=0.0%  Z_D=0.0%  M_cb=0.0%  O_cb=0.0%
+     worst overshoot = 0.00% of box width   any-dimension escape = 0.0% of periods
+   simulated p^d: mean 0.147%  p5 0.0192%  p95 0.443%
+
+  step 4/7 done in 0.9 min, 1 min since the start
+
+=================================================================
+  Step 5/7 — saving the no-TPI results -> /Users/Huawei/Desktop/Quantitative_Model/results/GLOBAL/data
+=================================================================
+  step 5/7 done: every no-TPI result is saved; an interrupted TPI walk below loses none of it
+
+=================================================================
+  Step 6/7 — TPI relief intervention at the 6% shock (unanticipated, held to maturity, no-TPI rules)
+=================================================================
+
+  DYNAMIC IRF (states evolve; p^d shock to 6.00%/qtr, rho_s = 0.9)
+   qtr  pd_q%  pd_a%    GDP%   GDP_ann%     C%      I%   hours%  rdep_bp  bank_bp  r_wc_bp  sov_bp    K%      n%
+     0   6.00  21.93  -0.1421   -0.5685  +0.1296  -2.025  -0.203     36.2    188.0    233.4   567.3  +0.000  -22.91
+     1   4.04  15.22  -0.0451   -0.1802  +0.1526  -1.063  -0.043    118.8     -0.0    118.8   421.3  -0.051  -11.18
+     2   2.82  10.80  -0.0490   -0.1961  +0.0872  -0.791  -0.037    123.6     -0.0    123.6   328.7  -0.076   -5.41
+     4   1.51   5.89  -0.0525   -0.2101  +0.0070  -0.445  -0.029    128.6     -0.0    128.6   219.0  -0.107   +1.38
+     6   0.90   3.56  -0.0540   -0.2160  -0.0341  -0.275  -0.025    130.9     -0.0    130.9   161.4  -0.121   +4.48
+     8   0.60   2.36  -0.0550   -0.2200  -0.0537  -0.203  -0.024    131.9     -0.0    131.9   128.3  -0.127   +5.69
+    12   0.32   1.28  -0.0577   -0.2309  -0.0637  -0.196  -0.025    132.5     -0.0    132.5    94.8  -0.133   +5.73
+    16   0.22   0.86  -0.0620   -0.2480  -0.0599  -0.247  -0.028    132.3     -0.0    132.3    79.9  -0.141   +4.78
+    20   0.17   0.66  -0.0674   -0.2698  -0.0537  -0.300  -0.031    131.8     -0.0    131.8    72.5  -0.154   +3.77
+    24   0.14   0.56  -0.0734   -0.2936  -0.0486  -0.337  -0.032    131.3     -0.0    131.3    68.5  -0.169   +2.96
+   trough GDP = -0.1421% level = -0.5685% annualised (Bocola Table 5 units)
+   impact GDP -0.1421% clearing the period map exactly at that state, -0.3089% reading the fitted rules (mu -0.00000 -> 0.04631 exact, 0.07875 fitted)
+   impact wedge: credit spread +188.0 bp/yr, deposit rate -92.7 bp/yr, NET r_wc +104.5 bp/yr (-49% of the spread is cancelled by the funding rate)
+   like-for-like targets at this shock: -0.157% (his open economy -- GHH + working capital, our own structure), -0.223% (his closed benchmark), -0.360% (2011Q4 episode)
+   box: no escapes in 25 quarters (final |dev| from SS: K_D -0.17%, P_D +0.06%, P_F +0.00%, b_DD +4.59%)
+
+  DYNAMIC IRF (states evolve; p^d shock to 6.00%/qtr, rho_s = 0.9)
+   qtr  pd_q%  pd_a%    GDP%   GDP_ann%     C%      I%   hours%  rdep_bp  bank_bp  r_wc_bp  sov_bp    K%      n%
+     0   6.00  21.93  -0.0446   -0.1785  +0.0739  -1.373  -0.064    115.1      0.0    115.1   532.2  +0.000  -20.02
+     1   4.04  15.22  -0.0572   -0.2289  -0.0393  -1.109  -0.067    123.4     -0.0    123.4   402.9  -0.034  -12.89
+     2   2.82  10.80  -0.0662   -0.2647  -0.1224  -0.906  -0.068    128.8     -0.0    128.8   315.6  -0.061   -7.85
+     4   1.51   5.89  -0.0772   -0.3088  -0.2239  -0.641  -0.068    134.1     -0.0    134.1   212.5  -0.099   -1.78
+     6   0.90   3.56  -0.0842   -0.3369  -0.2725  -0.513  -0.067    136.1     -0.0    136.1   158.5  -0.124   +1.12
+     8   0.60   2.36  -0.0896   -0.3583  -0.2915  -0.463  -0.067    136.6     -0.0    136.6   127.5  -0.143   +2.42
+    12   0.32   1.28  -0.0985   -0.3942  -0.2886  -0.460  -0.067    136.0     -0.0    136.0    96.0  -0.173   +2.99
+    16   0.22   0.86  -0.1067   -0.4270  -0.2663  -0.486  -0.066    135.0     -0.0    135.0    81.7  -0.201   +2.68
+    20   0.17   0.66  -0.1143   -0.4574  -0.2405  -0.505  -0.065    134.1     -0.0    134.1    74.2  -0.230   +2.24
+    24   0.14   0.56  -0.1212   -0.4849  -0.2165  -0.512  -0.063    133.4     -0.0    133.4    70.0  -0.256   +1.85
+   trough GDP = -0.1212% level = -0.4849% annualised (Bocola Table 5 units)
+   impact GDP -0.0446% with the one-off purchase of 11.8% of the debt, -0.1421% without it (mu 0.04631 -> 0.00000)
+   impact wedge: credit spread +0.0 bp/yr, deposit rate -13.8 bp/yr, NET r_wc -13.7 bp/yr (-323353% of the spread is cancelled by the funding rate)
+   like-for-like targets at this shock: -0.157% (his open economy -- GHH + working capital, our own structure), -0.223% (his closed benchmark), -0.360% (2011Q4 episode)
+   box: no escapes in 25 quarters (final |dev| from SS: K_D -0.26%, P_D +0.05%, P_F +0.02%, b_DD +1.32%)
+
+  TPI: relief intervention at the shock, unanticipated: 11.8% of the SS D debt bought and held to maturity, capital key D 0.071
+   on impact: mu_D 0.0463 -> 0.0000, lending spread 197 -> 0 bp/yr, sovereign spread 567 -> 532 bp/yr
+
+  HEADLINE RISK SHOCK, impact (q0) and trough        no TPI        TPI
+   GDP % (level)              q0     -0.1421    -0.0446    min    -0.1421    -0.1212
+   sovereign spread bp/yr     q0   +567.3181  +532.1968    min   +68.4857   +70.0296
+   credit spread bp/yr        q0   +187.9614    +0.0043    min    -0.0000    -0.0000
+   bank net worth %           q0    -22.9097   -20.0229    min   -22.9097   -20.0229
+   Q_bD % vs no-shock         q0    -17.2166   -16.2152    min   -17.2166   -16.2152
+   footprint: peak purchases 11.82% of B in one quarter, peak book 11.82% of B, worst P&L +0.0000% of quarterly GDP
+
+  THE TPI's EFFECT ON THE D-BOND EXCESS RETURN, BOCOLA SPLIT (bp/yr, TPI minus no TPI)
+    Liquidity premium (bank constraint)      q0   -197.26 bp
+    Risk premium (kernel-return covariance)  q0    -94.19 bp
+    FOC residual                             q0     -0.00 bp
+    TOTAL                                    q0   -291.45 bp
+
+  PRICE IMPACT OF A ONE-OFF PURCHASE at the rest point (rules fixed)
+    m =   0.0% of B: Q_bD  +0.000%  spread    62.8 bp  mu_D -0.0000  b_DD 1.844  (resid 3e-13)
+    m =   5.0% of B: Q_bD  +0.076%  spread    60.9 bp  mu_D -0.0000  b_DD 1.751  (resid 1e-14)
+    m =  10.0% of B: Q_bD  +0.140%  spread    59.4 bp  mu_D -0.0000  b_DD 1.658  (resid 1e-14)
+    m =  20.0% of B: Q_bD  +0.230%  spread    57.1 bp  mu_D -0.0000  b_DD 1.473  (resid 3e-14)
+    m =  30.0% of B: Q_bD  +0.261%  spread    56.4 bp  mu_D -0.0000  b_DD 1.287  (resid 8e-15)
+
+  PRICE IMPACT OF A ONE-OFF PURCHASE at the headline shock (rules fixed)
+    m =   0.0% of B: Q_bD  +0.000%  spread   567.3 bp  mu_D 0.0463  b_DD 1.849  (resid 2e-14)
+    m =   5.0% of B: Q_bD  +0.389%  spread   556.0 bp  mu_D 0.0339  b_DD 1.757  (resid 1e-14)
+    m =  10.0% of B: Q_bD  +0.957%  spread   539.5 bp  mu_D 0.0112  b_DD 1.667  (resid 5e-15)
+    m =  20.0% of B: Q_bD  +2.208%  spread   503.9 bp  mu_D -0.0000  b_DD 1.483  (resid 4e-13)
+    m =  30.0% of B: Q_bD  +3.667%  spread   463.6 bp  mu_D -0.0000  b_DD 1.297  (resid 2e-13)
+
+  step 6/7 done in 0.2 min, 1 min since the start
+  24 files written
+
+TOTAL  76s
+
+=================================================================
+  Step 7/7 — figures, drawn from the saved results
+=================================================================
+  figure -> /Users/Huawei/Desktop/Quantitative_Model/results/GLOBAL/figures/tfp_irf_recursive.png
+  figure -> /Users/Huawei/Desktop/Quantitative_Model/results/GLOBAL/figures/risk_irf_recursive.png
+  figure -> /Users/Huawei/Desktop/Quantitative_Model/results/GLOBAL/figures/output_decomposition.png
+  figure -> /Users/Huawei/Desktop/Quantitative_Model/results/GLOBAL/figures/bond_decomposition.png
+  figure -> /Users/Huawei/Desktop/Quantitative_Model/results/GLOBAL/figures/tpi_irf.png
+  figure -> /Users/Huawei/Desktop/Quantitative_Model/results/GLOBAL/figures/tpi_mechanism.png
+  figure -> /Users/Huawei/Desktop/Quantitative_Model/results/GLOBAL/figures/calibration_table.tex

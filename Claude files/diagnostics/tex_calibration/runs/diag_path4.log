@@ -1,0 +1,19 @@
+[resume] from diag_path_ckpt_G0375.pkl at group G
+[G] fraction 1.0000: ok False  its 30  max|F| 1.23e-05
+[G] fraction 0.8750: ok False  its 30  max|F| 6.18e-07
+[G] fraction 0.6250: ok False  its 30  max|F| 5.16e-07
+[G] fraction 0.5000: ok False  its 30  max|F| 2.72e-07  LOOSE (kept)
+[G] fraction 0.7500: ok False  its 30  max|F| 7.88e-07
+/Users/Huawei/Desktop/Quantitative_Model/global_projection/solver_recursive/point_map.py:425: RuntimeWarning: divide by zero encountered in scalar divide
+  v.w_D = v.w_D0 / (1.0 + zD * v.r_wc_D)
+/Users/Huawei/Desktop/Quantitative_Model/global_projection/solver_recursive/point_map.py:434: RuntimeWarning: invalid value encountered in scalar multiply
+  v.Div_D = (1 - mcD) * v.Y_D + v.capprof_D + div_bank_D + reb * wc_inc_D
+[G] fraction 0.6250: ok False  its 18  max|F| 5.16e-07
+/Users/Huawei/Desktop/Quantitative_Model/global_projection/solver_recursive/point_map.py:426: RuntimeWarning: divide by zero encountered in scalar divide
+  v.w_F = v.w_F0 / (1.0 + zF * v.r_wc_F)
+/Users/Huawei/Desktop/Quantitative_Model/global_projection/solver_recursive/point_map.py:435: RuntimeWarning: invalid value encountered in scalar multiply
+  v.Div_F = (1 - mcF) * v.Y_F + v.capprof_F + div_bank_F + reb * wc_inc_F
+[G] fraction 0.5625: ok False  its 29  max|F| 3.89e-07  LOOSE (kept)
+[G] fraction 0.6875: ok False  its 30  max|F| 3.91e-04
+[G] fraction 0.6250: ok False  its 30  max|F| 5.16e-07
+[G] BREAKS at fraction 0.5625 of its move

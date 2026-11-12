@@ -1,0 +1,21 @@
+  collocation solve m2 hard: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    -> converged in 1 iterations, max|F| = 1.55e-09  (worst equation: bondD_D 1.6e-09)
+[m2 hard] ok True  its 1  max|F| 1.55e-09
+[m2 hard] crisis nodes []
+[f] f_D 0.0800: IC binds from p^d 1.30% (inside the box); spread rise at p^d 2% 451.7 bp (target 108 bp)
+  collocation solve m2 hard: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve m2 hard  1] sum|F|^2 = 7.452e-03   max|F| = 2.079e-02   step = 1
+    [parsolve m2 hard  2] sum|F|^2 = 1.990e-03   max|F| = 3.316e-02   step = 1
+    [parsolve m2 hard  3] sum|F|^2 = 2.012e-06   max|F| = 7.737e-04   step = 1
+    [parsolve m2 hard  4] sum|F|^2 = 1.194e-10   max|F| = 6.583e-06   step = 1
+    [parsolve m2 hard  5] sum|F|^2 = 3.668e-15   max|F| = 4.064e-08   step = 1
+    [parsolve m2 hard  6] sum|F|^2 = 3.984e-24   max|F| = 1.384e-12   step = 1
+    -> converged in 7 iterations, max|F| = 1.38e-12  (worst equation: bondD_D 1.4e-12)
+[m2 hard] ok True  its 7  max|F| 1.38e-12
+[m2 hard] crisis nodes []
+[f] f_D 0.0600: IC binds from p^d 1.27% (inside the box); spread rise at p^d 2% 547.0 bp (target 108 bp)
+  collocation solve m2 hard: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve m2 hard  1] sum|F|^2 = 8.099e+00   max|F| = 1.429e+00   step = 1
+    [parsolve m2 hard  2] sum|F|^2 = 8.080e+00   max|F| = 1.408e+00   step = 0.0156
+/opt/anaconda3/lib/python3.13/multiprocessing/resource_tracker.py:301: UserWarning: resource_tracker: There appear to be 5 leaked semaphore objects to clean up at shutdown: {'/mp-ww64ys7b', '/mp-g758v5bk', '/mp-g1_a0f5w', '/mp-0zvw2i6w', '/mp-roph87t7'}
+  warnings.warn(

@@ -7,12 +7,10 @@ def markup_ss(cal, country="D"):
 
 
 def steady_state_firm(cal, Kap_ss, country="D"):
-    # STEADY-STATE FIRM BLOCK (Y, w, mpk, I, C, AND THE GHH chi THAT PINS N_ss=1).
+    # STEADY-STATE FIRM BLOCK (Y, w, mpk, I) AT N_ss = 1; chi IS SET WHERE p IS KNOWN.
     alpha  = cal[f"alpha_{country}"]
     delta  = cal[f"delta_{country}"]
     Z_ss   = cal[f"Z_ss_{country}"]
-    frisch = cal[f"frisch_{country}"]
-    G      = cal[f"G_{country}"]
 
     mc_ss  = markup_ss(cal, country)
     N_ss   = 1.0
@@ -22,11 +20,8 @@ def steady_state_firm(cal, Kap_ss, country="D"):
     w_ss   = mc_ss * (1 - alpha) * Y_ss / N_ss / (1.0 + zeta_wc * r_wc_ss)
     mpk_ss = mc_ss * alpha * Y_ss / Kap_ss
     I_ss   = delta * Kap_ss
-    C_ss   = Y_ss - I_ss - G
-    chi    = w_ss / (N_ss ** (1 / frisch))   # GHH static FOC
 
-    return dict(chi=chi, w_ss=w_ss, mpk_ss=mpk_ss,
-                Y_ss=Y_ss, C_ss=C_ss, I_ss=I_ss)
+    return dict(w_ss=w_ss, mpk_ss=mpk_ss, Y_ss=Y_ss, I_ss=I_ss)
 
 
 def solve_firm_path(N_path, Kap_prod_path, Z_path, cal, country="D"):

@@ -16,6 +16,30 @@ retired session-handoff file; its content is in git history.
 
 ---
 
+## 2026-11-12: PR #38 merged: the appendix-B calibration in the global solver (model, results)
+
+- Daniel's `calibration` branch (PR #38, head 0c80116) merged into `main` as written. The model
+  code on `main` is identical to the branch: where `main`'s three 2026-10-27 equilibrium
+  conditions overlapped, the branch already contained them, so its versions were kept.
+- Re-solved locally on the merged code (warm start, 10 minutes); every headline number of the
+  branch reproduces: at the 1.5%/qtr shock the 200 bp cap needs 16.7% of the D debt, impact GDP
+  -0.076% without it and -0.045% with it. This run is the new reference (STATE section 3); the
+  5 Nov run on the old code calibration is kept in `results/GLOBAL_2026-11-05_code_calibration`.
+- Findings recorded in STATE sections 1-2: the D bank is unconstrained at the rest point; the
+  rest-point targets are missed after the Bohn 0.25 change; the backstop is an unanticipated
+  purchase; D consumption still rises on impact.
+- Documents: `main`'s restructured CLAUDE.md, STATE and the retirement of HANDOFF.md were kept;
+  the branch's CLAUDE.md rewrite (its 2026-10-26 entry below) and HANDOFF.md were not carried.
+  The branch's cumulative STATE is in `shelved/STATE_calibration_branch_2026-11-09.md`, `main`'s
+  superseded sections in `shelved/STATE_archive_2026-11-12.md`. The branch's PROGRESS entries
+  are interleaved by date below.
+- TODO: closed by PR #38, the calibration transfer (all of appendix B but the Bohn coefficient,
+  now its own item) and the reserve decision (the D banks' Eurosystem claim is not divertible,
+  lambda_cb_D = 0, the recommended option); closed by the 2026-11-05 run (recorded in
+  [b1cf596]), the re-solve measuring the three 2026-10-27 equilibrium-condition fixes. National
+  clearing is reworded to its remaining dynamic part; new items for the fiscal rule, the
+  announced backstop, exact clearing and the paper's description of the solved economy.
+
 ## 2026-11-11: two paper items closed (TODO housekeeping)
 
 - Paper: the funding-risk sentence is reversed (sovereign risk relaxes the constraint through
@@ -23,6 +47,73 @@ retired session-handoff file; its content is in git history.
 - Paper: the banker's discount factor is stated to omit the ratio of consumer price indices (a
   choice, of order the import share times the terms-of-trade movement). Ticked 2026-10-28 in
   [118908b].
+
+## 2026-11-07: faster fiscal rule (Bohn 0.25); the TPI as a 200 bp cap at a 1.5% shock (`calibration`)
+
+Author's choices after "the IRFs don't return ... TPI was supposed to work as a cap"
+(`Claude files/reports/tpi_root_cause_2026-11-05.md` §10).
+
+- **Calibration:** `bohn_annual` 0.06 → 0.25. At 0.06 the crisis debt overhang had a half-life of ~60 quarters and GDP
+  fell until q80; it is now ~12 quarters, and GDP returns monotonically.
+  - The no-TPI rules were re-solved by continuation (`diagnostics/tpi_root_cause/bohn_homotopy.py`, five rungs, last
+    1.1e-8) and are the new `data/global_warm_start.pkl`; the old one is `data/global_warm_start_bohn006.pkl`.
+- **Side effects:**
+  - The rest point is at the box centre (b_DD +2.5% off it, was +13.8%).
+  - The D constraint binds from p^d ~1.2–1.5% (was ~5%); a 2% shock gives GDP −0.12% (Bocola −0.157%).
+  - The exposure target is now missed (13.0% vs 14.4%), and the 2% transmission row is 142 bp (bound 108).
+- **Code:**
+  - `recursive_experiment.cap_purchase`, and `dynamic_irf(buy=)` with a purchase rule per quarter (replaces `m0`).
+  - `tpi_experiment.intervention(mode="cap"|"relief", cap_bp=)`; the printer and the two figures handle "cap".
+  - `run.py`: `TPI_MODE` "cap" (unanticipated purchases hold the spread at `TPI_CAP`; "relief" and "rule" kept),
+    `RISK_SHOCK_PD` 0.015, `TPI_CAP` 200.
+  - Cosmetics: the TPI figure's legend moved lower-left; the step banner prints 1.5%.
+- **Results (1.5% shock):**
+  - Spread 222 → 200 bp, holding the cap with 16.7% of the debt at impact.
+  - GDP −0.076% → −0.045%, investment −1.49% → −0.80%, lending spread 68 → 20 bp.
+  - After impact, D consumption and capital run slightly below no TPI (capital key).
+- **Diagnostics:** `persistence_check.py`, `cap_options.py`, `bohn_homotopy.py`; earlier runs in
+  `results/GLOBAL_crisis6pct_*`.
+
+## 2026-11-06: a crisis-sized shock and the TPI as a relief intervention; the exact rest point (`calibration`)
+
+Why the 2% TPI looked worse after impact, and the redesign the author chose
+(`Claude files/reports/tpi_root_cause_2026-11-05.md` §7–9).
+
+- **Diagnosis of the 2% run:**
+  - The rest-point gaps were a bug: the rest point iterated fitted reads, and in the TPI's GZ form the fitted purchase
+    rule sets the bond price (1.2% too high, so debt −4.7% and net worth −1.3%).
+  - The rest-spread gap (+6 bp) and the higher spreads after quarter 2 are interpolation leakage of the 23 top-risk
+    purchases.
+  - The real losses after impact are economics: the D constraint is slack along the whole 2% path (no recession to
+    repair), and the Eurosystem's no-default profit on bonds bought in the crisis goes 93% to F (capital key).
+- **Crisis shocks** (12% box, `data/global_warm_start.pkl`):
+  - The D constraint binds on impact only from p^d ~5% (none on the 2% or 6.2% boxes).
+  - At 6%: GDP −0.14%, lending spread +197 bp, D bank net worth −23%.
+  - A 200 bp cap has no solution there: after relief the spread is still ~530 bp (6%), almost all expected default
+    loss.
+- **What purchases can do:** relieve the constraint, mainly by moving D's default risk to F under the capital key.
+  - Kept in D (`tpi_key_D` 1, re-solved by continuation) the risk stays in D and a 15.6% purchase barely moves μ_D at
+    9%.
+- **Author's choices:** shock 6%/qtr, capital key 0.071, TPI as a relief intervention.
+- **Code:**
+  - `recursive_experiment.stochastic_rest_point(exact=True)` polishes the fitted iteration on the exact period map
+    (`_exact_rest`). The box re-centring and `calibrate_stochastic.rest_point_read` keep the fitted point.
+  - New `read_forced` and `relief_purchase`; `dynamic_irf(m0=)`.
+  - New `tpi_experiment.intervention`; `print_tpi_report` and the two TPI figures handle mode "relief".
+  - `run.py`: `RISK_SHOCK_PD` 0.06, `PD_BOX_TOP` 0.12, `TPI_M_BAND` 0.32, new `TPI_MODE` "relief".
+- **Every readout exact (author's decision, same day):** `run.py` clears the period map exactly at each visited state.
+  The fitted reads doubled the 6% impact recession (−0.309% vs −0.142%).
+  - New flags: `persistence_irf`/`tfp_irf(exact=)`, `read_exact(no_default=)`, `simulate(exact=)` (new
+    `_exact_read`), `calibrate_stochastic.rest_point_read(exact=)`.
+  - `report_rest_point` and `impact_table` now read exactly; the impact table keeps a fitted column and residual.
+  - The output decomposition's labour-FOC residual is now 0.
+  - The calibration table's transmission rows are read at p^d 2% as labelled (0.7 bp; before: 337.5 bp, the 6%
+    fitted response).
+  - The calibration routine keeps its fitted reads.
+- **Diagnostics** (read-only, `Claude files/diagnostics/tpi_root_cause/`): `post_impact`, `exact_rest`,
+  `one_off_purchase`, `regime_anatomy`, `one_step_exact`, `leakage_profile`, `capital_price_decomp`, `crisis_shock`,
+  `node_relief`, `consumption_sign`, `crisis_accuracy`, `key_test`/`key_homotopy`.
+  - The 2%-box results are kept in `results/GLOBAL_box2pct_2026-11-06`.
 
 ## 2026-11-05: corrected main re-solved on the code calibration (results)
 
@@ -38,12 +129,211 @@ retired session-handoff file; its content is in git history.
 - STATE section 1 corrected: in the code calibration own sovereign is 7.4% (D) and 9.0% (F) of
   bank assets, and the foreign share of D debt is 20.0% (19.6% was the holdings parameter).
 
+## 2026-11-05/06: why the 200 bp walk stalled; the illustrative TPI on a 2% risk box, solved at the cap (`calibration`)
+
+- **Result** (`Claude files/reports/tpi_root_cause_2026-11-05.md` §6): the TPI economy at 200 bp is solved at
+  smoothing 1e-4 with every other condition hard.
+  - At the 2% shock it holds the spread at 200 bp (223 without) by buying 41.4% of the D debt.
+  - The bond price falls 4.9% instead of 6.0%.
+  - D bank net worth falls more (−7.9% vs −5.8%), investment and GDP dip, and spreads run above the no-TPI path from
+    quarter 2.
+  - The post-impact dynamics run through a 3-node Eurosystem-book dimension and are not robust yet.
+- **The solve (replaces the one-shot below):** `_tpi_direct` walks the cap 270 → 245 → 225 → 210 → 200 bp
+  (`TPI_WALK` ladder, `_tpi_presolve`, a failed rung halved). Then it walks the smoothing at 200 bp in factor-2 steps
+  to 1e-4.
+  - A stalled walk keeps the smallest smoothing solved: checkpoints carry it (`_tpi_checkpoint` eps,
+    `rules.tpi_eps_solved`), and `tpi_experiment.compare` reads the TPI there.
+- **Bugs fixed:**
+  - `recursive_main.calibrate_household_anchors` now reads the SS with the TPI off. In the GZ form it priced the bond
+    at the floor and gave D households 0.79% of GDP in the TPI's hard polish.
+  - `tpi_experiment.rest_point_row` reads exactly. The fitted read showed a spurious −23 bp rest-spread effect; the
+    exact read shows +7 bp.
+
+- **Root cause** (`Claude files/reports/tpi_root_cause_2026-11-05.md`): mainly economics. Above p^d ≈ 3.5%/qtr the
+  200 bp price is below what even a risk-neutral holder pays, so 24 of 75 nodes of the 6.2% box need the Eurosystem
+  to hold ~90% of the debt.
+  - The box could not hold that: the Eurosystem-book band was ±27.9% of the debt, and the box is sheared, so
+    purchases past the edge are read back as the bank's own bonds.
+  - The walk crossed unphysical `M_cb`−/`O_cb`− edge nodes, accepted a rung at 1e-4, and its margin rule made step
+    halving useless.
+  - The run was stopped after ~14 h at 595 bp.
+- **`state_grid._s_bounds`:** a set `pd_box_top` is now the box top even below the 3.65-sd coverage (3.0%).
+  - Unchanged for tops of 6.2% and 12%.
+  - `calibrate_stochastic` reports the same top.
+- **`recursive_experiment._tpi_direct`** first tried the target cap in one go: each node above the cap solved alone,
+  the global Newton at smoothing 1e-2, then the smoothing walked down. On the 1.0 box that stalled at 1.2e-2, so the
+  cap ladder above replaced it.
+- **run.py:**
+  - `PD_BOX_TOP` 0.02: the risk range is cut to the headline shock, so no node tops the cap by more than ~100 bp.
+  - `TPI_M_BAND` 1.0 (`BOX_KW` m_band; o_band 0.08/band keeps the claim band's width): the D banks' whole book, 87.3% of
+    the debt.
+    - Each bp of compression costs ~1.2% of the debt (the D IC is slack): 27% at the shock, the whole book at the
+      riskiest nodes.
+    - 0.65 and 0.95 left those nodes outside (0.95 stalled at 6e-4).
+    - Past ~1.0 the D bank's book at the M+ edge turns negative, and at 1.15 that corner corrupted the rules
+      (`m_band_edge.py`).
+- **`point_map._tpi_purchase_and_price`:** no TPI where the Eurosystem's book is negative (M < 0).
+  - Purchases are ≥ 0 from M = 0, so no TPI path reaches such a node.
+  - At the box's M− nodes (D banks holding ~175% of the debt) the cap had no root.
+  - `_tpi_form` keeps x = 0 there.
+- **Diagnostics:** `Claude files/diagnostics/tpi_root_cause/`:
+  - root cause: `fair_spread`, `rung_anatomy`, `switch_nodes`, `node_demand`, `clip_readback`, `time_residual`;
+  - box design: `box_top_scan`, `edge_spreads`, `demand_at_pd`, `cap_footprint`, `m_band_edge`, `m_edge_check`;
+  - results: `irf_purchase`, `eps_sensitivity`, `s_profile`, `rest_compare`, `recompare`;
+  - console logs in `runs/`.
+
+## 2026-11-04: the TPI cap walk rebuilt; run.py runs the TPI on Bocola's risk box (`calibration`)
+
+- **Why the old walk failed** (`Claude files/reports/tpi_bocola_scale_2026-11-03.md`):
+  - each node switches to buying at its own cap;
+  - a step that lands on a switch (both arguments of the purchase complementarity at zero) plateaus at ~1e-5, and one
+    that crosses many switches starts too far away;
+  - on the 12% box the 23-node top slice switches within ~1150–950 bp, with switch caps as close as 0.1 bp;
+  - no fold: the Jacobian's condition number is ~4e6 at solved caps.
+- **`recursive_experiment._solve_tpi`, the new walk (TPI_WALK):**
+  - starts just above the highest no-TPI node spread;
+  - keeps each rung `margin` bp from every node's switching cap (`_switch_caps`, `_next_cap`);
+  - tries a Jacobian-reuse pass first (`solve_collocation(jac_every=reuse)`), then the full Newton (`_tpi_rung`);
+  - accepts a rung above the target at `path_tol` (the target needs the full tolerance);
+  - halves the step on a failure and grows it on a success;
+  - checkpoints every accepted rung to `TPI_CHECKPOINTS`, keyed on the economy (`_tpi_key`), and resumes from the
+    lowest matching cap.
+- **Hard polish:** a walk short of its target is now polished at the cap it reached, not at the target.
+- **run.py:**
+  - `PD_BOX_TOP` 0.062 (Bocola's s ∈ [−11.41, −2.71]; 0.12 = the appendix-B box); the warm rules are seeded onto
+    another box automatically;
+  - `RUN_TPI` True, with `TPI_WALK` and `TPI_CHECKPOINTS` (`results/GLOBAL_tpi_walk`; delete it to restart the walk).
+- **On the 6.2% box** the D IC never binds at central states, so the 2% shock leaves the lending spread unchanged. Its
+  top-slice switch caps spread over 444–618 bp, so the walk can cross them one at a time.
+- **Diagnostics:** `bocola_size.py`, `tpi_gs_walk.py`, `tpi_jacobian_svd.py`, `tpi_direct.py`, `tpi_floor_sweep.py`.
+- **One click runs everything** (`Claude files/docs/RUN_GLOBAL.md`).
+  - run.py prints a step guide (steps 1–7, typical times) and a done line with the time after each step.
+  - It caches the solved TFP and risk rules in `results/GLOBAL_cache` (keyed on the calibration and the
+    solve settings), so a click with nothing changed skips ~1 h.
+  - It stops idle sleep with `caffeinate`.
+  - A TPI rung whose fast pass ends above `rescue × path_tol` is abandoned at once; that pass used to fall
+    into the full Newton for up to 2 h.
+
+## 2026-10-31: fix A (Gertler–Karadi reserves); no spread target binds the D bank at rest (`calibration`)
+
+- **Model:** `calibration/global_projection.py` gains `lambda_cb_D` (divertable share of the D banks' Eurosystem
+  claim, 0). `point_map._incentive_constraint` counts `Z_cb` at it, not at `lambda_bD_D`. The baseline is unchanged
+  with the TPI off; `run.py global` re-solved it, and `data/global_warm_start.pkl` now holds the fix-A rules.
+- **Diagnostics:** `tpi_purchase_tests.py` compares the two designs through the key (no source patch); `buy()` is
+  reusable. New driver `b_spread_sweep.py` raises `credit_spread_target_D` in warm fine solves and tests binding at
+  rest, the 2% acceptance signs and the real effects of purchases.
+- **Result:** 5–60 bp, rest slack 1.125 → 1.108 → 1.114, threshold never below p^d 3.4%; the 80 bp rung stalled.
+  Report: `Claude files/reports/fixA_and_binding_calibration_2026-10-31.md`.
+
+## 2026-10-30 (evening): why the TPI cannot hold its cap; purchase tests; cross-border theory vs data (`calibration`)
+
+No model code changed. These are read-only diagnostics on the solved appendix-B rules, with exact reads and the rules
+held fixed. Report: `Claude files/reports/tpi_mechanism_and_cross_border_2026-10-30.md`.
+- **`tpi_mechanism_check.py`:**
+  - the IC is slack below p^d 3.93% (the 5 bp target plus a rest E[Ω] of 1.117);
+  - the D yield premium splits into expected default loss, a risk premium and a liquidity premium (0–15% of the total);
+  - a 5% purchase moves the price 0.07–1.32%;
+  - the 200 bp cap needs Q_bD 0.875 against 0.670 at 12%.
+- **`tpi_purchase_tests.py`:**
+  - 5% / 15% purchases, current design against GK non-divertable reserves (diagnostic patch);
+  - Bocola's capital premia (risk 0.1–2.6 bp; the crisis lending spread is all liquidity premium);
+  - D output by risk level;
+  - real effects only where μ_D > 0: at 12%, a 15% purchase wins back 0.32 of the 0.41% output loss.
+- **`cross_border_test/`** (`model_side.py`, `compare.py`, `raw/` BIS CBS / ECB BSI / FRED, `README.md`): the model has
+  F banks buying D bonds in a D crisis, while the 2010 data show them selling; psi cannot flip the sign.
+
+## 2026-10-30 (later): run.py reproduces the appendix-B solution; Bocola's bond decomposition (`calibration`)
+
+- **Calibration:** the M2 instruments and `pd_box_top` 0.12 in `calibration/global_projection.py`.
+- **Box:** `BOX_KW` k_band 0.04, b_band 0.25; `_s_bounds` takes the box top from the calibration.
+- **run.py:**
+  - `JACOBIAN = "complex"`;
+  - `WARM_START` (`data/global_warm_start.pkl`): the solved fine rules. The risk solve uses `solve_recursive(base=...)`
+    with no refinement, and the TPI starts from the same rules.
+- **Decomposition:** `output_decomposition.decompose_bond_price` / `bond_premia` now give Bocola's (2016) split of the D
+  bond's expected excess return into a liquidity and a risk premium (bp/yr). The price legs (discount rate, duration,
+  default loss) are gone; prints and plots are updated. The legs use exact period-map reads at the simulated states
+  (`exact_bond_reads`; `simulate` now records the states), since at the fitted rules the FOC residual dominated.
+- **TFP:** `solve_tfp(seed=...)` seeds the no-default rules from the warm risk rules at the lowest s and skips the SS
+  ladder. The cold TFP solve fails at appendix B.
+- **TPI:** `run.RUN_TPI = False`. At appendix B the cap walk stalls (coarse: 1500 → 1150 bp, then no further; fine:
+  barely moves at 700 bp). Diagnostics: `tpi_check.py`, `tpi_wall.py`.
+
+## 2026-10-30: M2 calibrated on the final fine box; D IC binds from p^d 3.93% (`calibration`)
+
+- **Box widening:** `widen_b.py` widened the bond band (0.12 → 0.25), whose narrow version pinned the rest point at its edge,
+  and the capital band (0.02 → 0.04), which the rest point had crossed.
+- **Calibration:** `m2_ob.py` (`--bband`, `--kband`, `--drop`) matched leverage D/F and exposure D/F at the rest point. The
+  F spread target cannot be reached (its instrument sits at its bound).
+- **Outputs:** `final_outputs.py` writes the rest point, IRFs, decompositions, accuracy and figures to
+  `Claude files/diagnostics/tex_calibration/results_appendixB_final/`.
+
+## 2026-10-29 (later): f_D cannot reach the 108 bp transmission bound (`calibration`)
+
+- **Measured:** the f_D search on the fine 12%-top grid gives a 2% spread rise of 547/452/380 bp at f_D 0.06/0.08/0.10;
+  at 0.12 the hard solve stalls.
+- **Driver:** `m2_ob.py` gains a trust region on f (0.02 per warm fine solve) and the `spread2` target.
+
+## 2026-10-29: fine grid, s box to 12% p^d: the D IC binds from 1.3% and Bocola's mechanism appears (`calibration`)
+
+- **Fine grid (M3):** converged; it overturned the coarse M2 conclusion (the coarse 3-node s axis misled).
+- **Extended box:** with the s box top at 12% p^d on the fine grid, at f_D 0.08:
+  - the D IC binds from p^d 1.3%;
+  - at p^d 2%: n_D −21%, lending spread +452 bp, Y_D −0.30%, C_D −0.10%;
+  - all acceptance signs right except n_F (+0.3%).
+- **Code (`recursive_experiment._calm_branch` and the diagnostic copy):**
+  - the guard flags only nodes with p^d ≤ 1%;
+  - it polishes only after a real switch;
+  - sweep moves are capped at 0.05;
+  - non-finite node residuals count as a failed solve.
+  - Before these fixes the guard crashed a converged 12% solve and cascaded a spurious root.
+- **Drivers:** `m2_ob.py` (`--fine`, `--rungs`) and `m2_warm.seed_rel` (fine-grid seeding).
+
 ## 2026-10-28: GitHub notification when a TODO item is ticked (tooling)
 
 - A GitHub Action on pushes to `main` finds TODO items newly ticked in each pushed commit and
   comments on that commit, mentioning the other author for an [Adam] or [Daniel] item and both
   for a [joint] one. An item ticked and deleted in the same commit triggers nothing.
 - The audit and referee documents retired on 2026-10-14 are deleted in git as well.
+
+## 2026-10-28 (evening): calm selection in the solver; M2 finds no binding rest point (`calibration`)
+
+- **Code:**
+  - `recursive_experiment`: `_crisis_nodes`, `_node_residual`, `_node_solve` and `_calm_branch`, called after
+    the d0 and joint stages of `_solve_baseline` and after the joint polish of `solve_recursive`;
+  - `test_recursive_nesting` N5: the floor binds in default, with no normal-times top-up.
+- **Checks:** `check_calm_port.py` reproduces branch_select (d0 2.45e-12). The fast tests pass;
+  test_collocation's real solve still fails (a known failure).
+- **M2:** `m2_warm.py`, `probe_f.py`. The D bank's rest slack rises with the SS spread instrument (1.123 → 1.234 for
+  5 → 160 bp; 320 bp is SS-infeasible) and falls with f_D (1.054 at 0.24). No target-consistent binding rest point
+  exists at appendix B. Report: `Claude files/reports/appendix_B_validation_2026-10-28_m2.md`.
+
+## 2026-10-28 (later): calm-branch selection; first converged coarse appendix-B solve (`calibration`)
+
+- **Cause of the stall:** normal-times nodes, chiefly K_F+, sat on a self-fulfilling crisis branch. The node reads
+  its own continuation with weight 0.97; there n_D was 11% of n_ss and alpha_D 8.
+- **Calm roots:** solved alone from the centre's values, the node has a calm root (2e-14).
+- **Drivers:** `Claude files/diagnostics/tex_calibration/branch_select.py` (crisis scan, calm switch, Gauss-Seidel
+  polish) and `m1_coarse.calm_guard`. No model code changed.
+- **Result:**
+  - d0 2.5e-12, joint 5.6e-11, smoothing walk to 1e-4, hard polish 2.5e-10, no crisis node.
+  - Q_bD, n_D, n_F and Y_D fall at p^d 2%. The IC is 12% slack at rest, so the spread is flat; M2 is not run yet.
+
+## 2026-10-28: exact (complex-step) collocation Jacobian; recapitalisation floor in default only (`calibration`)
+
+- **Code:**
+  - `collocation`: `_column` and the `cal["jacobian"]` switch, `"fd"` or `"complex"` (`run.JACOBIAN`, default "fd");
+  - complex-safe residual path in `point_map` (no `float()` on traced values), `state_grid` (basis, fit, clip) and
+    `decision_rules` (to_fit, set_values). The real path is bitwise unchanged (34 recorded cases).
+- **Model:** `point_map._funded_floor` acts only in the default regime. At 50% in every regime it bound at the
+  normal-times K_F box edges and fed a debt-funded doom-loop branch (Q_bD 0.75, D debt ×3, alpha_D at its cap).
+- **Test:** `Claude files/global_projection/tests/test_complex_jacobian.py`.
+- **Result:**
+  - the FD Jacobian was not the bottleneck: equal conditioning; the exact Newton step does not descend either;
+  - the joint stage still stalled (3.3e-5). The first diagnosis (an alpha_D near-unit root) was wrong; the
+    cause is a crisis branch at normal-times nodes, entry below;
+  - the default regime converges quadratically.
+  - Details: `Claude files/reports/appendix_B_validation_2026-10-26.md`, follow-up 2026-10-28.
 
 ## 2026-10-27: three equilibrium conditions aligned with the paper; data reconciled and scripted (model, data)
 
@@ -96,8 +386,6 @@ retired session-handoff file; its content is in git history.
 - The handoff plugin is disabled for this project (local settings), so no handoff file is
   written at compaction.
 
----
-
 ## 2026-10-27: Project documents in one folder; old section drafts shelved (docs only)
 
 - GLOSSARY and DATA moved from the repository root to `Claude files/docs/`, beside STATE,
@@ -113,8 +401,6 @@ retired session-handoff file; its content is in git history.
   is described in the numerical-solution paragraph), and now defines the regime index d' and the
   expectation over the risk factor.
 
----
-
 ## 2026-10-27: Section 6 (welfare) removed from the viva draft (Overleaf `ff260e4`, repo `2cddb54`)
 
 - The welfare section rested on the shelved level-versus-change backstop, computed on the old
@@ -125,8 +411,6 @@ retired session-handoff file; its content is in git history.
 - TODO.md items now carry owners of the open task ([joint] by default, [Adam] or [Daniel] only
   where clearly one author's); completed items are deleted there and recorded here with the date
   and the PR or commit. This file does not attribute work; git records who changed what.
-
----
 
 ## 2026-10-27: Living documents restructured; welfare and policy-rule work shelved (docs only, `docs-restructure`)
 
@@ -157,7 +441,15 @@ retired session-handoff file; its content is in git history.
   `Claude files/docs/shelved/welfare_and_policy_rules.md`. The welfare evaluation and the
   warranted floor are on the long-term list in TODO.md.
 
----
+## 2026-10-27/28: Tier 2, 50% recapitalisation floor and Bohn 0.06 (`calibration`)
+
+- **Code:**
+  - `run.NW_FLOOR` 0.5;
+  - `calibration.bohn_annual` 0.06;
+  - the standalone mains of recursive_experiment and decomposition_experiment read `run.NW_FLOOR` instead of a copied 0.15.
+- **Result:** the risk channel's sign is right at the binding rest point (lending spread +175 bp, Y_D −0.13% at
+  p^d 2%). But the coarse joint system stalls at ~1e-5 with box-dependent rest points: indicative, not accepted.
+  Details: `Claude files/reports/appendix_B_validation_2026-10-26.md`, follow-up section.
 
 ## 2026-10-26: CLAUDE.md cut to an always-relevant core (docs only)
 
@@ -185,7 +477,27 @@ retired session-handoff file; its content is in git history.
   > trail (six structural fixes W-1…TPI-1, Walras forensics) lived in `audit.md`, `walras_forensics.md`
   > and `verification_report.md`, all deleted 2026-10-14 with the other audits and referee reports (git history).
 
----
+## 2026-10-26: Appendix B ported to the global model; F-tax leak fixed; genuine KKT conditions (`calibration`)
+
+- **Validation** of `B-calibration.tex` against the global solver: ~15 parameters differed (wedge 100 vs 5 bp,
+  ρ_s 0.95 vs 0.9, η 0.5 vs 1.5, κ 8 vs 11.3, G 0 vs 0.2, Bohn root 0.93 vs 4γ = 0.04, …). Every equation
+  matches the model text except: E1 (F taxes; fixed), the smoothed KKT switch (now hard), the union vs
+  national deposit market, the RA dynamic household, the unlisted 15% floor. Report:
+  `Claude files/reports/appendix_B_validation_2026-10-26.md`.
+- **Code:**
+  - `point_map._government`: F taxes close F's budget at today's price (the constant leaked into goods_F, the F goods-market residual);
+  - `point_map._funded_floor` reads `floor_eps`;
+  - `state_grid.s_process_params` reads `rho_s`; S_COVER_SD 3.65;
+  - `government.govt_steady_state` takes the Bohn coefficient as the primitive (`bohn_annual`);
+  - `recursive_experiment`: `HARD_WORK`, `_soften`, `_hard_polish` (genuine IC max, book pairs and floor, after
+    every stage ran at working smoothings), called from `solve_recursive` and `solve_no_default`;
+  - `calibrate_stochastic.PAIRS` spread bounds from 1 bp;
+  - the calibration ported (old values in STATE.md Part II, 2026-10-26).
+- **Tests:** state_grid/ss_identities tied to the calibration; N4 drops the fixed-F-treasury term. Fast tests and
+  N1/N3/N4/N5 pass; test_collocation's real solve and N2 still fail (they failed before too).
+- **Solvability:** the SS solves (closed forms exact); the coarse d0 stage does not cold-start at appendix B.
+  A continuation path breaks at 0.19 of the δ_b^F move (floor > 1e-7, near-fold, cond 1.5e10). Details in
+  STATE.md and the report.
 
 ## 2026-10-06: Household budget, the working-capital flow replaces the constant anchor (`hh-budget-fix`)
 

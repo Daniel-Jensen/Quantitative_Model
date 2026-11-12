@@ -1,0 +1,23 @@
+{
+ "deposit_rate": {
+  "__array__": "/deposit_rate"
+ },
+ "continuation": {
+  "__array__": "/continuation"
+ },
+ "expected_loss": {
+  "__array__": "/expected_loss"
+ },
+ "risk_premium": {
+  "__array__": "/risk_premium"
+ },
+ "liquidity_premium": {
+  "__array__": "/liquidity_premium"
+ },
+ "total": {
+  "__array__": "/total"
+ },
+ "residual": {
+  "__array__": "/residual"
+ }
+}

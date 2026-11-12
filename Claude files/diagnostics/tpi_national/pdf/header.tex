@@ -1,0 +1,14 @@
+\directlua{luaotfload.add_fallback("fb", {"STIXGeneral:mode=node;", "STIX Two Math:mode=node;", "Apple Symbols:mode=node;"})}
+\setmainfont{STIXTwoText.ttf}[Path=/System/Library/Fonts/Supplemental/,
+  UprightFeatures={RawFeature={fallback=fb}},
+  BoldFont=STIXTwoText.ttf, BoldFeatures={RawFeature={instance=Bold;fallback=fb}},
+  ItalicFont=STIXTwoText-Italic.ttf, ItalicFeatures={RawFeature={fallback=fb}},
+  BoldItalicFont=STIXTwoText-Italic.ttf, BoldItalicFeatures={RawFeature={instance=Bold Italic;fallback=fb}}]
+\setmonofont{Menlo}[Scale=0.82,RawFeature={fallback=fb}]
+\setmathfont{STIX Two Math}
+\usepackage{etoolbox}
+\AtBeginEnvironment{longtable}{\footnotesize}
+% let long code spans and paths break after underscores and slashes
+\let\origunderscore\_
+\renewcommand{\_}{\origunderscore\allowbreak}
+\setlength{\emergencystretch}{3em}

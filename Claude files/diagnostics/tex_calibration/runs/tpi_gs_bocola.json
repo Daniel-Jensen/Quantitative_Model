@@ -1,0 +1,18 @@
+[
+ {
+  "cap": 597.875,
+  "tpi_eps": 0.0001,
+  "sweeps_worst": NaN,
+  "newton_ok": true,
+  "newton_worst": 6.901747532084279e-05,
+  "seconds": 1853.5040881249588,
+  "book": {
+   "buying": 2,
+   "corner": 0,
+   "max_m": 0.06444196109008467,
+   "max_book": 0.263715901532608,
+   "max_next_M_u": 0.944000220262772,
+   "nodes": 75
+  }
+ }
+]

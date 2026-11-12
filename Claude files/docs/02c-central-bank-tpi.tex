@@ -1,0 +1,565 @@
+% =============================================================================
+%  THE CENTRAL BANK: A SPREAD-CAP BACKSTOP
+%
+%  INSERT: replaces \subsection{The Central Bank} (\label{sec:cb}) of
+%          02-model.tex, i.e. the retired stochastic lending facility
+%          (pi^ell, ell_X, cb_t and eqs. P-state-cb ... expectation-compound).
+%          Cites eq. hm-yield and eq. spread-def from 02d-sovereign-spread.tex,
+%          which comes earlier in the paper (after Endogenous Premiums).
+%          A second block at the end replaces eq. (state) and the RCE
+%          definition, which still refer to the compound (d, cb) regime.
+%
+%  Written against global_projection/ on 2026-10-07: point_map.py
+%  (_tpi_floor, _tpi_purchase_and_price, _government, _balance_sheets,
+%  _incentive_constraint, _tpi_rule), tpi_experiment.py,
+%  output_decomposition.decompose_bond_price, calibration/global_projection.py
+%  (tpi_cap_bp = 200, tpi_key_D = 0.071, tpi_eps = 1e-4).
+%  Notation and macros (\E, \D, \F) follow 02-model.tex.
+%
+%  NEW SYMBOLS (none collide with 02-model.tex; Z is TFP and m/M index the
+%  Gauss-Hermite nodes there, hence the superscripts):
+%    \bar c            spread cap, per quarter (200 bp/yr = 0.005)
+%    y(q)              HM flow yield
+%    \underline q_t    price floor implied by the cap
+%    m^{cb}_t          purchases          M^{cb}_t   central-bank book
+%    \mathrm{res}_t    reserves held by D banks
+%    O^{cb}_t          obligation on reserves issued at t-1
+%    \Pi^{cb}_t        central-bank profit (remitted)
+%    \kappa_D          capital key, D share
+%    \mathcal F_{D,t}  D-bank D-bond first-order gap
+%    \tilde q_t        price that clears with no purchase at t
+%    \chi_t            Garcia-Zangwill variable (computation paragraph only)
+%
+%  BIB KEYS REQUIRED:
+%    @book{garcia1981pathways, author={Garcia, C. B. and Zangwill, W. I.},
+%      title={Pathways to Solutions, Fixed Points, and Equilibria},
+%      publisher={Prentice-Hall}, year={1981}}
+%    @article{fischer1992special, author={Fischer, A.},
+%      title={A special {Newton}-type optimization method},
+%      journal={Optimization}, volume={24}, pages={269--284}, year={1992}}
+%
+%  NUMBERS in "The backstop at work": results/GLOBAL/run.log of 2026-10-06
+%    (S_REFINE = 5, 115 points, cap 200 bp/yr, shock p^d -> 2%/qtr). That run
+%    PREDATES the uncommitted p'/p correction to the cross-border bond FOCs in
+%    point_map._bond_demands; refresh every number after the next full run.
+%    "Credit spread" there is the code's 4e4*lambda*mu/varphi.
+% =============================================================================
+
+
+\subsection{The Central Bank: a spread-cap backstop}
+\label{sec:cb}
+
+Sovereign risk reaches the real economy in this model through the price of the
+periphery bond. A rise in $\pi^{d}_t$ lowers $q^{D}_t$; the fall is a
+mark-to-market loss for the banks that hold the bond, which shrinks $n_{D,t}$
+through \eqref{eq:ng}, raises $\mu_{D,t}$ through \eqref{eq:mu-closed} and the
+credit spread through \eqref{eq:rwc}, and lowers hours through
+\eqref{eq:labour-demand}. The policy we study cuts this chain at its first link.
+After spreads between the sovereigns of the union have widened, the central bank
+announces that it will not let the spread of the $D$ sovereign over the $F$
+sovereign exceed a ceiling, and that it will buy $D$ bonds in whatever quantity
+it takes to enforce it. The design follows the ECB's Outright Monetary
+Transactions (2012) and Transmission Protection Instrument (2022): both are
+conditional on the state of the bond market and unlimited in size.
+
+We model the announcement as a permanent change of policy regime that every
+agent understands. The comparison is between two economies that are identical
+except for the backstop: in one, the purchase rule below is part of the
+equilibrium and enters every expectation; in the other, it does not exist. Two
+effects follow, and the model separates them. The \emph{announcement effect} is
+the difference between the two economies at their stochastic rest points, where
+the backstop is in place but nothing is bought. The \emph{intervention effect} is
+the difference between their responses to the same rise in $\pi^{d}_t$, where it
+may be used.
+
+\paragraph{The objective and the purchase rule:}
+The model is real, so we abstract from the central bank's price-stability
+mandate and from inflation dynamics, and state its objective in the bond market
+alone, in terms of the sovereign spread $sp_t=y(q^{D}_t)-y(q^{F}_t)$ of
+\eqref{eq:spread-def}, the gap between the two flow yields \eqref{eq:hm-yield}.
+The central bank announces a cap $\bar c$ on that spread and enforces it with the
+smallest intervention that does so:
+\begin{equation}
+\min_{m^{cb}_t\,\ge\,0}\;m^{cb}_t
+\qquad\text{s.t.}\qquad
+y\bigl(q^{D}_t\bigr)-y\bigl(q^{F}_t\bigr)\;\le\;\bar c
+\quad\text{if } d_t=0,
+\qquad\qquad
+m^{cb}_t=0\quad\text{if } d_t=1,
+\label{eq:cb-objective}
+\end{equation}
+where $m^{cb}_t$ is the quantity of $D$ bonds bought at $t$, in the issuer's
+per-capita units. Because \eqref{eq:hm-yield} is decreasing in $q$, the cap is a
+floor on the price of the $D$ bond:
+\begin{equation}
+q^{D}_t\;\ge\;\underline q_t\;\equiv\;\frac{\delta_b}{\delta_b+y\bigl(q^{F}_t\bigr)+\bar c}.
+\label{eq:tpi-floor}
+\end{equation}
+Purchases raise the market price of the bond (a property we verify below), so
+the solution of \eqref{eq:cb-objective} is the complementarity condition
+\begin{equation}
+m^{cb}_t\;\ge\;0,
+\qquad
+q^{D}_t-\underline q_t\;\ge\;0,
+\qquad
+m^{cb}_t\,\bigl(q^{D}_t-\underline q_t\bigr)\;=\;0
+\qquad\text{in } d_t=0,
+\label{eq:tpi-kkt}
+\end{equation}
+which is also the decision rule under which the central bank operates. As long as
+the market clears the $D$ bond above the floor, the central bank does nothing;
+when the market would clear below it, the central bank buys exactly the quantity
+that holds the price at $\underline q_t$, and no more. The problem is
+deliberately a constrained one: the central bank does not minimise the spread.
+An objective that rewarded a lower spread without limit would have the central
+bank buying in every state, for as long as one more purchase lowered the spread,
+and would turn the backstop into a permanent holding of the periphery's debt.
+The cap is what makes the policy a backstop: inactive inside the band,
+unlimited at its edge.
+
+Four features of \eqref{eq:cb-objective}--\eqref{eq:tpi-kkt} matter for what
+follows. First, the backstop operates only in the no-default regime: it insures
+bondholders against the \emph{price} of default risk, not against default
+itself. Second, purchases are held to maturity: $m^{cb}_t\ge0$, and bonds are
+never sold back. Third, the floor moves with the safe yield. When a flight to
+safety lowers $y(q^{F}_t)$, $\underline q_t$ rises and the central bank must buy
+more, precisely in the states where buying is dearest. Fourth, the cap is set in
+the flow-yield metric \eqref{eq:hm-yield}, the same metric in which we report
+spreads; in the baseline $\bar c$ is 200 basis points a year.
+
+\paragraph{How purchases are paid for:}
+The central bank pays for its bonds with a riskless one-period claim on itself,
+held by the $D$ banks and remunerated at the $D$ deposit rate: interest-bearing
+reserves, in effect. Let $M^{cb}_t$ be the stock of $D$ bonds the central bank
+carries into period $t$. Its book, the reserves outstanding at the end of $t$ and
+the obligation they create evolve as
+\begin{equation}
+M^{cb}_{t+1}=(1-\delta_b)\,h_t\,M^{cb}_t+m^{cb}_t,
+\qquad
+\mathrm{res}_t=q^{D}_t\,M^{cb}_{t+1},
+\qquad
+O^{cb}_{t+1}=R_{D,t}\,\mathrm{res}_t .
+\label{eq:cb-book}
+\end{equation}
+The central bank holds the bond on the same terms as any other investor: its
+book decays at the maturity rate and is written down by the same survival factor
+$h_t$ in default (it ranks \emph{pari passu}). Its profit in period $t$ is the
+payoff on the book less the obligation on the reserves issued at $t-1$,
+\begin{equation}
+\Pi^{cb}_t=\Xi^{D}_t\,M^{cb}_t-O^{cb}_t,
+\qquad
+\Xi^{D}_t=h_t\bigl[\delta_b+(1-\delta_b)\,q^{D}_t\bigr],
+\label{eq:cb-pl}
+\end{equation}
+and it is remitted in full every period, so the central bank carries no net
+worth. Given \eqref{eq:cb-book}, its cash flows
+\begin{equation*}
+\underbrace{\delta_b\,h_t\,M^{cb}_t}_{\text{coupons}}
++\underbrace{\mathrm{res}_t}_{\text{new reserves}}
+\;=\;
+\underbrace{O^{cb}_t}_{\text{reserves repaid}}
++\underbrace{\Pi^{cb}_t}_{\text{remittance}}
++\underbrace{q^{D}_t\,m^{cb}_t}_{\text{purchases}}
+\end{equation*}
+balance identically. The profit is shared by the euro-area capital key: a share
+$\kappa_D$ goes to the $D$ treasury and $1-\kappa_D$ to the $F$ treasury.
+
+\paragraph{The two treasuries:}
+The $D$ budget constraint \eqref{eq:govt-budget} gains the remittance,
+\begin{equation}
+G_D+\delta_b\,h_t\,B_{D,t}
+\;=\;T^{\tau}_{D,t}+\kappa_D\,\Pi^{cb}_t
++q^{D}_t\Bigl[B_{D,t+1}-(1-\delta_b)\,h_t\,B_{D,t}\Bigr],
+\qquad
+B_{D,t}=b^{D}_{D,t}+b^{D}_{F,t}+M^{cb}_t,
+\label{eq:govt-budget-cb}
+\end{equation}
+where $B_{D,t}$ is now the gross stock, including the central bank's holdings.
+Coupons and the Bohn rule \eqref{eq:bohn} apply to the gross stock: the
+government pays the central bank as it pays any other holder. The $F$ stock is
+fixed at $\bar B_\F$, so $F$'s share of the profit lowers $F$ taxes, expressed in
+$F$-goods per $F$ capita:
+\begin{equation}
+T^{\tau}_{F,t}\;=\;\bar T^{\tau}_{F}-\frac{(1-\kappa_D)\,\Pi^{cb}_t}{\varkappa\,p_t}.
+\label{eq:tax-F-cb}
+\end{equation}
+The remittance is how the backstop redistributes across the union. Along a path
+without default, the central bank earns the excess return on the bonds it bought,
+and $\Pi^{cb}_t>0$. In default it takes the haircut on its book, $\Pi^{cb}_t<0$,
+and the loss is split by the capital key. With $\kappa_D=0.071$, 92.9\% of either
+goes to $F$ households.
+
+\paragraph{The $D$ bank's balance sheet:}
+The reserves are an asset of the $D$ bank and the obligation on them is part of
+its payoff, so the balance sheet \eqref{eq:balance-sheet} and the payoff
+\eqref{eq:asset-payoff} become
+\begin{align}
+\mathcal{A}_{D,t}
+&=Q_{D,t}K_{D,t+1}+q^{D}_t\,b^{D}_{D,t+1}+p_t\,q^{F}_t\,b^{F}_{D,t+1}+L_{D,t}
+ +\mathrm{res}_t
+ \;=\;n_{D,t}+\mathrm{dep}_{D,t},
+\label{eq:balance-sheet-cb}\\[3pt]
+\mathcal{X}_{D,t+1}
+&=\bigl[mpk_{D,t+1}+(1-\delta_D)Q_{D,t+1}\bigr]K_{D,t+1}
+ +\Xi^{D}_{t+1}\,b^{D}_{D,t+1}+p_{t+1}\,\Xi^{F}_{t+1}\,b^{F}_{D,t+1}
+ +O^{cb}_{t+1},
+\label{eq:asset-payoff-cb}
+\end{align}
+and the market for the $D$ bond clears net of the central bank's book:
+\begin{equation}
+b^{D}_{D,t+1}=B_{D,t+1}-b^{D}_{F,t+1}-M^{cb}_{t+1}.
+\label{eq:bond-clearing-cb}
+\end{equation}
+Net worth \eqref{eq:nw-lom}, deposits, the carried obligation \eqref{eq:P-state},
+the entrant transfer and bank dividends \eqref{eq:bank-div} keep their formulas,
+applied to the enlarged $\mathcal{A}_{D,t}$ and $\mathcal{X}_{D,t+1}$.
+
+This involves two modelling choices. First, reserves are not a portfolio choice:
+the purchase creates them and the $D$ banks must hold all of them, so there is no
+first-order condition for $\mathrm{res}_t$. Second, reserves enter the incentive
+constraint \eqref{eq:IC} at the same divertibility $\lambda_D$ as every other
+asset. This is the conservative choice. It denies the backstop any mechanical
+relief of the constraint, so whatever the policy achieves must come through
+prices and future payoffs. This is also where it differs from a collateralised
+lending facility, whose credit cannot be diverted and counts as equity in the
+constraint.
+
+\paragraph{The bank may sell its whole book:}
+Without the backstop, the bank's bond condition \eqref{eq:bond-pricing} always
+holds with equality: the price falls until the bank is willing to hold the
+residual supply. With the backstop, the price can be held above the bank's own
+valuation, and the bank then sells to the central bank. Because its holdings are
+bounded below by zero, its first-order condition becomes a complementarity pair:
+\begin{equation}
+b^{D}_{D,t+1}\ge0,
+\qquad
+\mathcal{F}_{D,t}\equiv
+\E_t\bigl[\Omega_{D,t,t+1}\,\Xi^{D}_{t+1}\bigr]
+-q^{D}_t\Bigl(\E_t\bigl[\Omega_{D,t,t+1}\bigr]R_{D,t}+\lambda_D\,\mu_{D,t}\Bigr)\le0,
+\qquad
+b^{D}_{D,t+1}\,\mathcal{F}_{D,t}=0 .
+\label{eq:bank-bond-kkt}
+\end{equation}
+Together, \eqref{eq:tpi-kkt} and \eqref{eq:bank-bond-kkt} produce three cases in
+the no-default regime:
+\begin{enumerate}
+\item \emph{Floor slack} ($q^{D}_t>\underline q_t$). Nothing is bought,
+  $m^{cb}_t=0$, and $q^{D}_t$ is given by \eqref{eq:bond-pricing}, with
+  expectations formed in the backstop economy.
+\item \emph{Floor binding, interior} ($q^{D}_t=\underline q_t$,
+  $b^{D}_{D,t+1}>0$). The bank's condition holds at the floor price,
+  $\mathcal{F}_{D,t}=0$, and $m^{cb}_t>0$ is the purchase at which the bank values
+  the bond at exactly $\underline q_t$.
+\item \emph{Floor binding, corner} ($q^{D}_t=\underline q_t$,
+  $b^{D}_{D,t+1}=0$). The bank values the bond below the floor even when it holds
+  none, $\mathcal{F}_{D,t}<0$, and the central bank holds every bond the $F$ bank
+  does not: $M^{cb}_{t+1}=B_{D,t+1}-b^{D}_{F,t+1}$.
+\end{enumerate}
+In the default regime nothing is bought, and the price is set by
+\eqref{eq:bank-bond-kkt} alone. The $F$ bank's condition \eqref{eq:bondD-foreign}
+is unchanged: its adjustment cost makes its holdings fall as the price rises, so
+at the floor it sells to the central bank as well.
+
+Case 2 deserves a remark. The banker's value function is linear in net worth, so
+\eqref{eq:bank-bond-kkt} contains no quantity. A purchase can move the bank's
+valuation only through equilibrium objects: through $\mu_{D,t}$, which the swap
+below leaves unchanged on impact, and through the kernel $\Omega_{D,t,t+1}$,
+which depends on the next-period state
+$(b^{D}_{D,t+1},M^{cb}_{t+1},O^{cb}_{t+1})$. The inverse demand for the $D$
+bond,
+$q^{D}_t=q^{D}\bigl(B_{D,t+1}-M^{cb}_{t+1};\,n_{D,t},\mu_{D,t},\Omega_{D},\pi^{d}_t\bigr)$,
+is therefore a general-equilibrium object, and its slope in $M^{cb}$ is a result
+rather than an assumption. We deliberately add no home-bias or preferred-habitat
+cost to the bank's portfolio problem. Such a cost would put a quantity into
+\eqref{eq:bank-bond-kkt} by assumption, and the price effect of purchases would
+then be that assumption.
+
+\paragraph{A purchase is a swap today and a risk transfer tomorrow:}
+Consider a marginal purchase $dm$ at price $q^{D}_t$, holding prices and the
+bank's other choices fixed. The bank gives up $dm$ bonds,
+$db^{D}_{D,t+1}=-dm$, and receives reserves $d\,\mathrm{res}_t=q^{D}_t\,dm$. Its
+assets, the divertible base $\lambda_D\mathcal{A}_{D,t}$, deposits and the carried
+obligation $P_{D,t+1}$ are all unchanged, and so, by \eqref{eq:mu-closed}, is
+$\mu_{D,t}$. Within the period, the purchase does nothing to the bank. Next
+period, in regime $d'$, the bank is owed $R_{D,t}\,q^{D}_t\,dm$ on its reserves in
+place of the bonds' payoff $\Xi^{D}_{t+1}(d')\,dm$. By \eqref{eq:asset-payoff-cb},
+\eqref{eq:cb-pl} and \eqref{eq:nw-lom},
+\begin{equation}
+dn_{D,t+1}(d')=\bigl[(1-f_D)+\omega^{f}_{D}\,\kappa_D\bigr]
+\bigl(R_{D,t}\,q^{D}_t-\Xi^{D}_{t+1}(d')\bigr)\,dm,
+\qquad
+d\Pi^{cb}_{t+1}(d')=-\bigl(R_{D,t}\,q^{D}_t-\Xi^{D}_{t+1}(d')\bigr)\,dm .
+\label{eq:risk-transfer}
+\end{equation}
+The term $\omega^{f}_{D}\kappa_D$ arises because $D$'s share of the central bank's
+profit changes $D$'s new issuance by $-\kappa_D\,d\Pi^{cb}_{t+1}/q^{D}_{t+1}$; the
+$D$ bank absorbs the new bonds, and they enter the entrants' transfer through
+$\mathcal{A}_{D,t+1}$. Without default,
+$\Xi^{D}_{t+1}(0)=\delta_b+(1-\delta_b)q^{D}_{t+1}$ exceeds $R_{D,t}q^{D}_t$ by
+the bond's excess return, and the bank gives up a little of it. In default,
+$\Xi^{D}_{t+1}(1)=\varrho_D[\delta_b+(1-\delta_b)q^{D}_{t+1}]$ falls far short
+of $R_{D,t}q^{D}_t$, and the bank is insured: it holds a claim that pays in full
+where the bond it sold is written down by $1-\varrho_D$. In the calibrated model
+the net-worth gain in the default branch is two orders of magnitude larger than
+the cost in the no-default branch.
+
+The insurance reaches today's price through the banker's kernel. Higher net
+worth in the default branch lowers $\mu^{(1)}_{D,t+1}$, and with it the franchise
+value $\varphi^{(1)}_{D,t+1}$ in \eqref{eq:phi-recursion}, which lowers
+$\Omega^{(1)}_{D,t,t+1}$ in \eqref{eq:branch-sdf}. The covariance between the
+kernel and the bond's payoff in \eqref{eq:bond-decomposition} shrinks, the risk
+premium falls and $q^{D}_t$ rises. A franchise channel works in the opposite
+direction: a safer future lowers $\varphi_{D,t+1}$, hence
+$\E_t[\Omega_{D,t,t+1}]$, which by \eqref{eq:mu-closed} tightens today's
+constraint. Which channel dominates is a quantitative question. At the calibrated
+rest point $\E_t[\Omega_{D,t,t+1}]$ is higher in the backstop economy, so the
+franchise channel does not dominate.
+
+\paragraph{Credibility and the probability of intervention:}
+Financial intermediaries price the backstop through their assessment of how
+likely it is to be used. In the model the rule is fully credible: agents know the
+purchase function $m^{cb}(\mathcal{S})$ and know that
+$q^{D}(0,\mathcal{S})\ge\underline q(\mathcal{S})$ at every state. There is
+therefore no exogenous probability of intervention to assess. The probability
+that the central bank intervenes next period is nonetheless well defined, and it
+is endogenous. Under \eqref{eq:expectation},
+\begin{equation}
+\Pr_t\bigl(m^{cb}_{t+1}>0\bigr)
+=\bigl(1-\pi^{d}_t\bigr)\,
+\E^{s}_t\Bigl[\mathbb{1}\bigl\{\mathcal{S}_{t+1}\in\mathcal{S}^{\rm bind}\bigr\}\Bigr],
+\label{eq:prob-intervention}
+\end{equation}
+where $\mathcal{S}^{\rm bind}$ is the set of states at which the floor binds. A
+higher $s_t$ raises this probability through the persistence of
+\eqref{eq:s-process}, which moves next period's state towards
+$\mathcal{S}^{\rm bind}$. At the same time it lowers the weight $1-\pi^{d}_t$ on
+the regime in which the central bank buys at all.
+
+It is useful to write the next-period no-default price as
+$q^{D}_{t+1}(0)=\max\{\tilde q_{t+1},\underline q_{t+1}\}$, where
+$\tilde q_{t+1}$ is the price at which the market would clear at $t+1$ with no
+purchase at that date but with the backstop in place thereafter. The expected
+no-default payoff then splits into
+\begin{equation}
+\E^{s}_t\bigl[\Xi^{D}_{t+1}(0)\bigr]
+=\delta_b+(1-\delta_b)\,\E^{s}_t\bigl[\tilde q_{t+1}\bigr]
++\underbrace{(1-\delta_b)\,\E^{s}_t\Bigl[\bigl(\underline q_{t+1}-\tilde q_{t+1}\bigr)^{+}\Bigr]}_{\text{the backstop's put}} .
+\label{eq:put}
+\end{equation}
+The last term is the value of a put option on the $D$ bond, written by the
+central bank, struck at the floor and exercisable only if the sovereign has not
+defaulted. It enters today's price through the numerator of
+\eqref{eq:bond-pricing}, weighted by the kernel in the no-default branch. It does
+so at every state, including states where the floor is far from binding today and
+the put is out of the money. This is how the announcement alone moves the market.
+
+Credibility also lowers the cost of the backstop. The more the market prices the
+put, the higher $\tilde q$ is relative to the price in an economy without the
+backstop, and the less the central bank must buy when the floor binds. The
+purchase only has to close the gap between the floor and the backstop economy's
+own market price, not the gap to the price that would prevail without the
+backstop. The accounting cost is deferred as well. Along any path without default
+the central bank earns the bond's excess return; it makes losses only if the
+sovereign defaults while the book is still held.
+
+\paragraph{Time consistency:}
+The objective \eqref{eq:cb-objective} is static and the rule \eqref{eq:tpi-kkt}
+is Markov, a function of the current state alone. The purchase the rule
+prescribes at any date is therefore the one a central bank re-solving
+\eqref{eq:cb-objective} at that date would choose. Following the rule requires no
+commitment beyond the objective itself, and in this sense the backstop is time
+consistent. This is a property of the objective we assume, not a result. A
+central bank that also weighed the expected loss on its book,
+$-\pi^{d}_t\,\E^{s}_t\bigl[\Pi^{cb}_{t+1}(1)\bigr]$, would be tempted to renege in
+exactly the high-risk states where the floor binds, and the announcement would
+then be priced with a probability of reneging. We abstract from that temptation.
+If the announcement alone kept the spread below the cap, the commitment would
+never be tested. In the model this holds in normal times, since nothing is bought
+at the rest point, but not in a crisis, when the floor binds and the central bank
+buys.
+
+\paragraph{State and equilibrium:}
+The book and the obligation on reserves are two new states, both zero at the
+steady state. $O^{cb}_t$ must be carried separately from $M^{cb}_t$ because it
+embeds the price at which the reserves were issued,
+$O^{cb}_t=R_{D,t-1}\,q^{D}_{t-1}\,M^{cb}_t$, which nothing else in the state
+records. The backstop is a rule, not a random event, so expectations are taken
+under \eqref{eq:expectation} over the default regime alone. At each state and
+regime the equilibrium has one more unknown, the purchase $m^{cb}_t$, and one
+more condition, \eqref{eq:tpi-kkt}; the $D$ bank's $D$-bond condition takes the
+complementarity form \eqref{eq:bank-bond-kkt}. The deterministic steady state is
+unchanged ($M^{cb}=O^{cb}=\mathrm{res}=\Pi^{cb}=0$), and with the backstop
+switched off the model is exactly the one of the preceding sections.
+
+\paragraph{Computation:}
+The complementarity conditions \eqref{eq:tpi-kkt} and \eqref{eq:bank-bond-kkt}
+put kinks into the decision rules. We solve the purchase pair in the form of
+\cite{garcia1981pathways}, in which a single smooth variable $\chi_t$ carries both
+sides,
+\begin{equation}
+m^{cb}_t=\bar B_\D\,\max\{\chi_t,0\},
+\qquad
+q^{D}_t=\underline q_t+\bar q^{D}\,\max\{-\chi_t,0\},
+\label{eq:gz}
+\end{equation}
+so that \eqref{eq:tpi-kkt} holds by construction and the stored rule for
+$\chi_t$ is smooth across the floor. The bank's corner \eqref{eq:bank-bond-kkt} is
+imposed as a \cite{fischer1992special} pair. Both are smoothed at
+$\varepsilon=10^{-4}$. The cap is walked down in 50 bp steps from 700 bp, where
+it binds nowhere on the state space, to its target. Details are in the
+computational appendix.
+
+
+% -----------------------------------------------------------------------------
+%  RESULTS. Kept here so the section reads end to end; move to the results
+%  section if preferred. Source and caveat: see the header of this file.
+% -----------------------------------------------------------------------------
+
+\paragraph{The backstop at work:}
+At the baseline cap of 200 bp the floor binds at 43 of the 115 no-default
+collocation nodes. These are every node at the highest risk level on the grid
+($\pi^{d}=4.8\%$ a quarter) and most of those at the next. At 21 of them, all at
+the highest risk level, the bank sells its entire book to the central bank (case
+3).
+
+\begin{table}[ht]
+\centering
+\caption{The announcement effect: stochastic rest points, cap 200 bp}
+\label{tab:tpi-rest}
+\begin{tabular}{lccc}
+\hline
+ & No backstop & Backstop & Difference\\
+\hline
+Sovereign spread, bp/yr          & 55.8   & 51.6   & $-4.3$\\
+Credit spread, bp/yr             & 88.7   & 52.6   & $-36.1$\\
+$\mu_D$ (IC multiplier)          & 0.0110 & 0.0066 & $-0.0045$\\
+$\E[\Omega_D]$                   & 1.160  & 1.166  & $+0.53\%$\\
+$n_D$ (bank net worth)           & 1.939  & 1.948  & $+0.44\%$\\
+$Y_D$ (output)                   & 0.9994 & 1.0012 & $+0.18\%$\\
+$I_D$ (investment)               & 0.2046 & 0.2057 & $+0.56\%$\\
+Purchases, \% of $\bar B_\D$     & 0      & 0      & 0\\
+\hline
+\end{tabular}
+\end{table}
+
+The announcement works mainly through the banks' balance sheets, not through
+the sovereign spread (\cref{tab:tpi-rest}). At the rest point the floor is far
+out of the money: the spread is 56 bp against a cap of 200 bp. The bond price
+rises by only 0.24\% and the sovereign spread falls by 4 bp. Yet the multiplier
+$\mu_D$ falls by two-fifths and the credit spread by 36 bp, because both terms in
+the numerator of \eqref{eq:mu-closed} rise: net worth by 0.44\% and
+$\E[\Omega_D]$ by 0.53\%. Output is 0.18\% higher and investment 0.56\% higher,
+and nothing is bought.
+
+\begin{table}[ht]
+\centering
+\caption{The intervention effect: $\pi^{d}_t$ rises to 2\% a quarter, cap 200 bp}
+\label{tab:tpi-shock}
+\begin{tabular}{lcc}
+\hline
+ & No backstop & Backstop\\
+\hline
+Output, impact                              & $-0.128\%$ & $-0.076\%$\\
+Output, trough                              & $-0.128\%$ (q0) & $-0.149\%$ (q6)\\
+Consumption, impact                         & $-0.02\%$ & $-0.24\%$\\
+Sovereign spread, impact, bp/yr             & 303 & 200\\
+Credit spread, impact, bp/yr                & 180 & 31\\
+Bank net worth, impact                      & $-4.19\%$ & $-1.45\%$\\
+$q^{D}$, impact                             & $-8.97\%$ & $-5.68\%$\\
+Purchases, impact, \% of $\bar B_\D$        & --- & 44.3\\
+\hline
+\multicolumn{3}{p{0.75\linewidth}}{\footnotesize Quantities are deviations
+from each economy's own unshocked path, starting at its own rest point; spreads
+are levels. Both paths clear the period map exactly every quarter.}
+\end{tabular}
+\end{table}
+
+When $\pi^{d}_t$ jumps to 2\% a quarter, the backstop fires once
+(\cref{tab:tpi-shock}). The central bank buys 44\% of the steady-state stock on
+impact and holds the spread at the cap, 200 bp against 303 bp without the
+backstop. From the next quarter on the market spread is below the cap, nothing
+more is bought, and the book runs off at the maturity rate. The purchase is
+interior (case 2): the $D$ bank keeps part of its book. The impact fall in output
+is 40\% smaller, bank net worth falls by 1.4\% instead of 4.2\%, and the credit
+spread is 31 bp on impact instead of 180 bp.
+
+The intervention works mainly through the continuation value of the bond.
+Because the bank's condition holds with equality at the headline shock, the bond
+price factors exactly into
+\begin{equation}
+\log q^{D}_t
+=-\log R_{D,t}
++\log\E^{s}_t\bigl[\Xi^{D}_{t+1}(0)\bigr]
++\log\frac{\E_t\bigl[\Xi^{D}_{t+1}\bigr]}{\E^{s}_t\bigl[\Xi^{D}_{t+1}(0)\bigr]}
++\log\frac{\E_t\bigl[\Omega_{D}\Xi^{D}_{t+1}\bigr]}
+          {\E_t[\Omega_{D}]\,\E_t\bigl[\Xi^{D}_{t+1}\bigr]}
++\log\frac{\E_t[\Omega_{D}]\,R_{D,t}}{\E_t[\Omega_{D}]\,R_{D,t}+\lambda_D\mu_{D,t}},
+\label{eq:bond-log-decomp}
+\end{equation}
+where $\Xi^{D}_{t+1}(0)$ is the payoff in the no-default regime: discounting, the
+continuation price, the expected default loss, the risk premium and the liquidity
+premium, the exact counterpart of \eqref{eq:bond-decomposition}. The backstop
+economy prices the bond 3.89\% higher on impact. Of that, the continuation price
+contributes 3.31 percentage points, the liquidity premium 0.38, the risk premium
+0.31 and the expected default loss 0.05, against $-0.16$ from discounting. The
+purchase itself does little. Holding the decision rules fixed, a one-off purchase
+of 30\% of the stock raises $q^{D}_t$ by 0.61\% at the headline shock and by
+0.24\% at the rest point. The backstop supports the price through what it
+promises for tomorrow, the floor under the bond's resale value in \eqref{eq:put},
+rather than through what it buys today.
+
+The downturn is shallower on impact but longer. Output troughs at $-0.149\%$ in
+quarter 6, whereas without the backstop it turns positive within a year. An
+impulse response conditions on no default, and along such a path the risk
+transfer \eqref{eq:risk-transfer} runs in its no-default direction. The $D$ banks
+sold 44\% of the stock at the floor and hold reserves instead. The bonds' excess
+return, which in the economy without the backstop rebuilds bank net worth within
+a year, therefore accrues to the central bank, and 92.9\% of it goes to $F$
+households through \eqref{eq:tax-F-cb}. $D$ bank net worth stays depressed, the
+credit spread climbs to 83 bp by quarter 6, and $D$ consumption falls by 0.24\% on
+impact and 0.34\% at its trough. The impulse response therefore shows what the
+insurance costs and none of what it pays. Its benefit lies in the default branch,
+where the central bank, and through the capital key mostly $F$, takes the haircut
+in place of the $D$ banks. A welfare comparison needs that branch.
+
+
+% =============================================================================
+%  INSERT: replaces eq. (state) and the RCE definition in
+%          \subsection{Recursive Competitive Equilibrium} of 02-model.tex.
+%          The surrounding prose of that subsection is unchanged, except that
+%          "three of the four carried sovereign positions" now also needs the
+%          book: B_{D,t} = b^D_{D,t} + b^D_{F,t} + M^{cb}_t.
+% =============================================================================
+
+\begin{equation}
+\mathcal{S}_t=\Bigl[
+K_{\D,t},\;K_{\F,t},\;
+P_{\D,t},\;P_{\F,t},\;
+b^{D}_{D,t},\;b^{D}_{F,t},\;b^{F}_{D,t},\;
+V_t,\;s_t,\;Z_{\D,t},\;
+M^{cb}_t,\;O^{cb}_t\Bigr],
+\label{eq:state}
+\end{equation}
+
+\begin{definition}[Recursive competitive equilibrium]
+\label{def:rce}
+A recursive competitive equilibrium is a set of decision rules, one for each
+regime $d\in\{0,1\}$,
+\[
+\bigl\{N_X,\;K'_X,\;r_X,\;A_X,\;C_X,\;\varphi_X,\;r^{wc}_X,\;
+p,\;q^{D},\;q^{F},\;b^{D}_{F}{}',\;b^{F}_{D}{}',\;m^{cb}\bigr\}(d,\mathcal{S}),
+\]
+the implied multipliers $\mu_X$ from \eqref{eq:mu-closed}, and a law of motion
+for $\mathcal{S}$ generated by \eqref{eq:capital-lom}, \eqref{eq:P-state},
+\eqref{eq:govt-budget-cb}, \eqref{eq:V-lom}, \eqref{eq:s-process},
+\eqref{eq:z-process} and \eqref{eq:cb-book}, such that at every
+$(d,\mathcal{S})$: households satisfy \eqref{eq:agg-budget}--\eqref{eq:agg-euler};
+firms and capital producers satisfy \eqref{eq:labour-demand}--\eqref{eq:tobins-q};
+intermediaries satisfy \eqref{eq:foc-general} for every asset class, with the
+$D$ bank's $D$-bond condition in the form \eqref{eq:bank-bond-kkt}, together with
+\eqref{eq:mu-closed}; the governments satisfy \eqref{eq:govt-budget-cb},
+\eqref{eq:tax-F-cb} and \eqref{eq:bohn}; the central bank follows
+\eqref{eq:tpi-kkt}; expectations are taken under \eqref{eq:expectation}; and the
+goods, sovereign \eqref{eq:bond-clearing-cb}, deposit, capital and labour markets
+clear.
+\end{definition}

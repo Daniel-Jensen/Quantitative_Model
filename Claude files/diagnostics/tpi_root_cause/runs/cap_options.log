@@ -1,0 +1,24 @@
+  stochastic rest point: 1967 no-shock quarters, |dS| = 9.9e-12   (vs the deterministic SS: K_D -1.203%, P_D -0.962%, b_DD +2.548%)
+  exact rest point: |S - g(S)| = 1.6e-12
+slowest roots: 0.9862 (half-life 49.7 q), 0.9862 (half-life 49.7 q), 0.9536 (half-life 14.6 q), 0.9440 (half-life 12.0 q)
+
+6% shock, no TPI (exact; % vs rest):   q   GDP      K      I    debt    n_D   spread
+     0  -0.290  +0.000  -3.353  +1.181  -25.80   573.1
+     1  -0.074  -0.085  -1.625  +1.931  -10.29   419.1
+     2  -0.080  -0.123  -1.291  +2.422   -4.93   327.5
+     4  -0.084  -0.174  -0.770  +2.924   +1.17   218.4
+     8  -0.080  -0.207  -0.220  +3.011   +6.02   126.9
+    12  -0.073  -0.200  -0.036  +2.667   +6.52    93.1
+    16  -0.065  -0.182  +0.015  +2.233   +5.66    78.2
+    20  -0.059  -0.162  +0.019  +1.818   +4.51    70.8
+    24  -0.054  -0.145  +0.006  +1.457   +3.44    67.0
+    32  -0.046  -0.120  -0.024  +0.913   +1.87    63.7
+    40  -0.040  -0.104  -0.041  +0.563   +0.98    62.5
+    60  -0.031  -0.081  -0.044  +0.168   +0.22    61.9
+
+rest spread 61.5 bp; the book box ends at 27.9% of the debt
+  p^d  5.0%: no TPI spread  502.1 bp, GDP -0.263%, mu_D 0.087 | 450: buy 19.1% GDP -0.153 | 475: buy 12.1% GDP -0.218 | 500: buy  1.5% GDP -0.262 | 525: not binding
+  p^d  5.5%: no TPI spread  537.9 bp, GDP -0.278%, mu_D 0.094 | 450: buy 26.1% GDP -0.076 | 475: buy 20.7% GDP -0.133 | 500: buy 14.6% GDP -0.203 | 525: buy  6.5% GDP -0.260
+  p^d  6.0%: no TPI spread  573.1 bp, GDP -0.290%, mu_D 0.099 | 450: unreachable | 475: buy 27.4% GDP -0.079 | 500: buy 21.9% GDP -0.112 | 525: buy 16.5% GDP -0.186
+  p^d  7.0%: no TPI spread  641.8 bp, GDP -0.310%, mu_D 0.109 | 450: unreachable | 475: unreachable | 500: unreachable | 525: buy 30.6%* GDP -0.090
+  (* past the book box edge)

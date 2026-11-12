@@ -1,0 +1,159 @@
+  reusing the solved baseline
+  collocation solve joint: 1000 unknowns (20 rules x 2 regime(s) x 25 points), backend = parsolve
+    [parsolve joint  1] sum|F|^2 = 1.044e-03   max|F| = 2.245e-02   step = 1
+    [parsolve joint  2] sum|F|^2 = 5.218e-04   max|F| = 1.801e-02   step = 0.5
+    [parsolve joint  3] sum|F|^2 = 1.562e-04   max|F| = 6.398e-03   step = 0.25
+    [parsolve joint  4] sum|F|^2 = 1.175e-04   max|F| = 6.507e-03   step = 0.5
+    [parsolve joint  5] sum|F|^2 = 9.079e-05   max|F| = 5.313e-03   step = 0.125
+    [parsolve joint  6] sum|F|^2 = 6.155e-05   max|F| = 4.133e-03   step = 0.25
+    [parsolve joint  7] sum|F|^2 = 3.383e-05   max|F| = 5.534e-03   step = 1
+    [parsolve joint  8] sum|F|^2 = 2.900e-10   max|F| = 1.674e-05   step = 1
+    [parsolve joint  9] sum|F|^2 = 3.428e-20   max|F| = 1.795e-10   step = 1
+    -> converged in 10 iterations, max|F| = 1.80e-10  (worst equation: id_alpha_D 1.8e-10)
+  collocation solve joint hard polish: 1000 unknowns (20 rules x 2 regime(s) x 25 points), backend = parsolve
+    [parsolve joint hard polish  1] sum|F|^2 = 7.672e-16   max|F| = 1.782e-08   step = 1
+    -> converged in 2 iterations, max|F| = 1.78e-08  (worst equation: id_alpha_F 1.8e-08)
+[base] coarse no-TPI: ok True  worst 1.8e-08  (206s)
+  reusing the solved baseline
+  collocation solve TPI cap=1500.0bp: 1000 unknowns (20 rules x 2 regime(s) x 25 points), backend = parsolve
+    [parsolve TPI cap=1500.0bp  1] sum|F|^2 = 4.667e-15   max|F| = 4.688e-08   step = 1
+    [parsolve TPI cap=1500.0bp  2] sum|F|^2 = 1.117e-25   max|F| = 8.308e-14   step = 1
+    -> converged in 3 iterations, max|F| = 8.31e-14  (worst equation: id_alpha_F 8.3e-14)
+  collocation solve TPI cap=1400.0bp: 1000 unknowns (20 rules x 2 regime(s) x 25 points), backend = parsolve
+    [parsolve TPI cap=1400.0bp  1] sum|F|^2 = 7.419e-26   max|F| = 7.072e-14   step = 1
+    -> converged in 2 iterations, max|F| = 7.07e-14  (worst equation: id_alpha_D 7.1e-14)
+  collocation solve TPI cap=1300.0bp: 1000 unknowns (20 rules x 2 regime(s) x 25 points), backend = parsolve
+    [parsolve TPI cap=1300.0bp  1] sum|F|^2 = 8.098e-26   max|F| = 1.142e-13   step = 1
+    -> converged in 2 iterations, max|F| = 1.14e-13  (worst equation: tpi 1.1e-13)
+  collocation solve TPI cap=1200.0bp: 1000 unknowns (20 rules x 2 regime(s) x 25 points), backend = parsolve
+    [parsolve TPI cap=1200.0bp  1] sum|F|^2 = 1.719e-22   max|F| = 1.311e-11   step = 1
+    -> converged in 2 iterations, max|F| = 1.31e-11  (worst equation: tpi 1.3e-11)
+  collocation solve TPI cap=1100.0bp: 1000 unknowns (20 rules x 2 regime(s) x 25 points), backend = parsolve
+    [parsolve TPI cap=1100.0bp  1] sum|F|^2 = 1.024e-04   max|F| = 1.002e-02   step = 1
+    [parsolve TPI cap=1100.0bp  2] sum|F|^2 = 9.254e-05   max|F| = 8.851e-03   step = 0.125
+    [parsolve TPI cap=1100.0bp  3] sum|F|^2 = 5.452e-05   max|F| = 5.161e-03   step = 0.5
+    [parsolve TPI cap=1100.0bp  4] sum|F|^2 = 5.135e-05   max|F| = 5.000e-03   step = 0.0312
+    [parsolve TPI cap=1100.0bp  5] sum|F|^2 = 5.040e-05   max|F| = 4.922e-03   step = 0.0156
+    [parsolve TPI cap=1100.0bp  6] sum|F|^2 = 5.006e-05   max|F| = 4.845e-03   step = 0.0156
+    [parsolve TPI cap=1100.0bp  7] sum|F|^2 = 4.952e-05   max|F| = 4.934e-03   step = 0.0312
+    [parsolve TPI cap=1100.0bp  8] sum|F|^2 = 4.914e-05   max|F| = 4.966e-03   step = 0.0156
+    [parsolve TPI cap=1100.0bp  9] sum|F|^2 = 4.888e-05   max|F| = 5.066e-03   step = 0.0312
+    [parsolve TPI cap=1100.0bp 10] sum|F|^2 = 4.788e-05   max|F| = 5.028e-03   step = 0.0156
+    [parsolve TPI cap=1100.0bp 11] sum|F|^2 = 6.494e-06   max|F| = 2.409e-03   LM lambda = 1e-08 s0^2
+    [parsolve TPI cap=1100.0bp 12] sum|F|^2 = 6.255e-06   max|F| = 2.367e-03   step = 0.0312
+    [parsolve TPI cap=1100.0bp 13] sum|F|^2 = 5.949e-06   max|F| = 2.307e-03   step = 0.0312
+    [parsolve TPI cap=1100.0bp 14] sum|F|^2 = 5.943e-06   max|F| = 2.306e-03   step = 0.00195
+    [parsolve TPI cap=1100.0bp 15] sum|F|^2 = 5.417e-06   max|F| = 2.245e-03   LM lambda = 1e-07 s0^2
+    [parsolve TPI cap=1100.0bp 16] sum|F|^2 = 4.269e-06   max|F| = 1.965e-03   step = 0.125
+    [parsolve TPI cap=1100.0bp 17] sum|F|^2 = 4.166e-06   max|F| = 1.935e-03   step = 0.0156
+    [parsolve TPI cap=1100.0bp 18] sum|F|^2 = 8.588e-08   max|F| = 2.606e-04   LM lambda = 1e-06 s0^2
+    [parsolve TPI cap=1100.0bp 19] sum|F|^2 = 1.833e-08   max|F| = 1.228e-04   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=1100.0bp 20] sum|F|^2 = 2.807e-09   max|F| = 3.085e-05   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=1100.0bp 21] sum|F|^2 = 2.042e-09   max|F| = 1.936e-05   LM lambda = 1e-04 s0^2
+    [parsolve TPI cap=1100.0bp 22] sum|F|^2 = 1.674e-09   max|F| = 1.526e-05   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=1100.0bp 23] sum|F|^2 = 1.577e-09   max|F| = 1.507e-05   LM lambda = 1e-04 s0^2
+    [parsolve TPI cap=1100.0bp 24] sum|F|^2 = 1.533e-09   max|F| = 1.507e-05   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=1100.0bp 25] sum|F|^2 = 1.465e-09   max|F| = 1.461e-05   LM lambda = 1e-06 s0^2
+    [parsolve TPI cap=1100.0bp 26] sum|F|^2 = 1.462e-09   max|F| = 1.467e-05   LM lambda = 1e-04 s0^2
+    [parsolve TPI cap=1100.0bp 27] sum|F|^2 = 1.457e-09   max|F| = 1.464e-05   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=1100.0bp 28] sum|F|^2 = 1.452e-09   max|F| = 1.456e-05   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=1100.0bp 29] sum|F|^2 = 1.448e-09   max|F| = 1.455e-05   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=1100.0bp 30] sum|F|^2 = 1.420e-09   max|F| = 1.426e-05   LM lambda = 1e-06 s0^2
+    [parsolve TPI cap=1100.0bp 31] sum|F|^2 = 1.401e-09   max|F| = 1.404e-05   LM lambda = 1e-06 s0^2
+    [parsolve TPI cap=1100.0bp 32] sum|F|^2 = 1.386e-09   max|F| = 1.389e-05   LM lambda = 1e-06 s0^2
+    [parsolve TPI cap=1100.0bp 33] sum|F|^2 = 1.384e-09   max|F| = 1.389e-05   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=1100.0bp 34] sum|F|^2 = 1.372e-09   max|F| = 1.405e-05   LM lambda = 1e-06 s0^2
+    [parsolve TPI cap=1100.0bp 35] sum|F|^2 = 1.372e-09   max|F| = 1.429e-05   LM lambda = 1e-06 s0^2
+    [parsolve TPI cap=1100.0bp 36] sum|F|^2 = 1.363e-09   max|F| = 1.425e-05   LM lambda = 1e-04 s0^2
+    [parsolve TPI cap=1100.0bp 37] sum|F|^2 = 1.362e-09   max|F| = 1.424e-05   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=1100.0bp 38] sum|F|^2 = 1.358e-09   max|F| = 1.434e-05   LM lambda = 1e-06 s0^2
+    [parsolve TPI cap=1100.0bp 39] sum|F|^2 = 1.353e-09   max|F| = 1.441e-05   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=1100.0bp 40] sum|F|^2 = 1.346e-09   max|F| = 1.453e-05   LM lambda = 1e-06 s0^2
+    -> STOPPED in 40 iterations, max|F| = 1.45e-05  (worst equation: id_C_D 1.5e-05)
+  collocation solve TPI cap=1150.0bp: 1000 unknowns (20 rules x 2 regime(s) x 25 points), backend = parsolve
+    [parsolve TPI cap=1150.0bp  1] sum|F|^2 = 2.222e-06   max|F| = 1.491e-03   step = 1
+    [parsolve TPI cap=1150.0bp  2] sum|F|^2 = 2.111e-07   max|F| = 4.593e-04   step = 1
+    [parsolve TPI cap=1150.0bp  3] sum|F|^2 = 7.538e-10   max|F| = 1.981e-05   step = 1
+    [parsolve TPI cap=1150.0bp  4] sum|F|^2 = 7.727e-15   max|F| = 8.140e-08   step = 1
+    [parsolve TPI cap=1150.0bp  5] sum|F|^2 = 7.966e-26   max|F| = 4.482e-14   step = 1
+    -> converged in 6 iterations, max|F| = 4.48e-14  (worst equation: cap_D 4.5e-14)
+  collocation solve TPI cap=1100.0bp: 1000 unknowns (20 rules x 2 regime(s) x 25 points), backend = parsolve
+    [parsolve TPI cap=1100.0bp  1] sum|F|^2 = 6.801e-05   max|F| = 6.150e-03   step = 1
+    [parsolve TPI cap=1100.0bp  2] sum|F|^2 = 6.437e-05   max|F| = 5.959e-03   step = 0.0312
+    [parsolve TPI cap=1100.0bp  3] sum|F|^2 = 5.960e-05   max|F| = 5.591e-03   step = 0.0625
+    [parsolve TPI cap=1100.0bp  4] sum|F|^2 = 5.435e-05   max|F| = 5.302e-03   step = 0.25
+    [parsolve TPI cap=1100.0bp  5] sum|F|^2 = 5.414e-05   max|F| = 5.410e-03   step = 0.0312
+    [parsolve TPI cap=1100.0bp  6] sum|F|^2 = 5.367e-05   max|F| = 5.429e-03   step = 0.0156
+    [parsolve TPI cap=1100.0bp  7] sum|F|^2 = 2.496e-05   max|F| = 4.809e-03   LM lambda = 1e-08 s0^2
+    [parsolve TPI cap=1100.0bp  8] sum|F|^2 = 2.378e-05   max|F| = 4.659e-03   step = 0.0312
+    [parsolve TPI cap=1100.0bp  9] sum|F|^2 = 1.464e-05   max|F| = 3.501e-03   step = 0.25
+    [parsolve TPI cap=1100.0bp 10] sum|F|^2 = 1.449e-05   max|F| = 3.474e-03   step = 0.00781
+    [parsolve TPI cap=1100.0bp 11] sum|F|^2 = 1.445e-05   max|F| = 3.447e-03   step = 0.00781
+    [parsolve TPI cap=1100.0bp 12] sum|F|^2 = 1.444e-05   max|F| = 3.421e-03   step = 0.00781
+    [parsolve TPI cap=1100.0bp 13] sum|F|^2 = 1.568e-07   max|F| = 3.675e-04   LM lambda = 1e-06 s0^2
+    [parsolve TPI cap=1100.0bp 14] sum|F|^2 = 1.479e-07   max|F| = 3.471e-04   step = 0.0625
+    [parsolve TPI cap=1100.0bp 15] sum|F|^2 = 1.472e-07   max|F| = 3.458e-04   step = 0.00391
+    [parsolve TPI cap=1100.0bp 16] sum|F|^2 = 1.470e-07   max|F| = 3.451e-04   step = 0.00195
+    [parsolve TPI cap=1100.0bp 17] sum|F|^2 = 1.287e-08   max|F| = 1.037e-04   LM lambda = 1e-07 s0^2
+    [parsolve TPI cap=1100.0bp 18] sum|F|^2 = 4.849e-09   max|F| = 5.542e-05   LM lambda = 1e-06 s0^2
+    [parsolve TPI cap=1100.0bp 19] sum|F|^2 = 2.717e-09   max|F| = 3.405e-05   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=1100.0bp 20] sum|F|^2 = 1.862e-09   max|F| = 1.943e-05   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=1100.0bp 21] sum|F|^2 = 1.527e-09   max|F| = 1.458e-05   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=1100.0bp 22] sum|F|^2 = 1.436e-09   max|F| = 1.475e-05   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=1100.0bp 23] sum|F|^2 = 1.416e-09   max|F| = 1.465e-05   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=1100.0bp 24] sum|F|^2 = 1.403e-09   max|F| = 1.474e-05   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=1100.0bp 25] sum|F|^2 = 1.401e-09   max|F| = 1.470e-05   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=1100.0bp 26] sum|F|^2 = 1.389e-09   max|F| = 1.486e-05   LM lambda = 1e-06 s0^2
+    [parsolve TPI cap=1100.0bp 27] sum|F|^2 = 1.388e-09   max|F| = 1.486e-05   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=1100.0bp 28] sum|F|^2 = 1.380e-09   max|F| = 1.497e-05   LM lambda = 1e-06 s0^2
+    [parsolve TPI cap=1100.0bp 29] sum|F|^2 = 1.379e-09   max|F| = 1.501e-05   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=1100.0bp 30] sum|F|^2 = 1.372e-09   max|F| = 1.511e-05   LM lambda = 1e-06 s0^2
+    [parsolve TPI cap=1100.0bp 31] sum|F|^2 = 1.366e-09   max|F| = 1.526e-05   LM lambda = 1e-06 s0^2
+    [parsolve TPI cap=1100.0bp 32] sum|F|^2 = 1.365e-09   max|F| = 1.524e-05   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=1100.0bp 33] sum|F|^2 = 1.360e-09   max|F| = 1.533e-05   LM lambda = 1e-06 s0^2
+    [parsolve TPI cap=1100.0bp 34] sum|F|^2 = 1.356e-09   max|F| = 1.547e-05   LM lambda = 1e-06 s0^2
+    [parsolve TPI cap=1100.0bp 35] sum|F|^2 = 1.355e-09   max|F| = 1.545e-05   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=1100.0bp 36] sum|F|^2 = 1.351e-09   max|F| = 1.551e-05   LM lambda = 1e-06 s0^2
+    [parsolve TPI cap=1100.0bp 37] sum|F|^2 = 1.349e-09   max|F| = 1.565e-05   LM lambda = 1e-06 s0^2
+    [parsolve TPI cap=1100.0bp 38] sum|F|^2 = 1.347e-09   max|F| = 1.562e-05   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=1100.0bp 39] sum|F|^2 = 1.344e-09   max|F| = 1.567e-05   LM lambda = 1e-06 s0^2
+    [parsolve TPI cap=1100.0bp 40] sum|F|^2 = 1.342e-09   max|F| = 1.580e-05   LM lambda = 1e-06 s0^2
+    -> STOPPED in 40 iterations, max|F| = 1.58e-05  (worst equation: id_C_D 1.6e-05)
+  collocation solve TPI cap=1125.0bp: 1000 unknowns (20 rules x 2 regime(s) x 25 points), backend = parsolve
+    [parsolve TPI cap=1125.0bp  1] sum|F|^2 = 1.464e-05   max|F| = 2.612e-03   step = 1
+    [parsolve TPI cap=1125.0bp  2] sum|F|^2 = 1.271e-05   max|F| = 2.573e-03   step = 0.125
+    [parsolve TPI cap=1125.0bp  3] sum|F|^2 = 1.191e-05   max|F| = 2.665e-03   step = 0.125
+    [parsolve TPI cap=1125.0bp  4] sum|F|^2 = 1.131e-05   max|F| = 2.604e-03   step = 0.0312
+    [parsolve TPI cap=1125.0bp  5] sum|F|^2 = 1.215e-06   max|F| = 7.241e-04   LM lambda = 1e-10 s0^2
+    [parsolve TPI cap=1125.0bp  6] sum|F|^2 = 1.186e-06   max|F| = 7.244e-04   step = 0.0312
+    [parsolve TPI cap=1125.0bp  7] sum|F|^2 = 1.185e-06   max|F| = 7.293e-04   step = 0.00781
+    [parsolve TPI cap=1125.0bp  8] sum|F|^2 = 5.086e-07   max|F| = 6.879e-04   LM lambda = 1e-08 s0^2
+    [parsolve TPI cap=1125.0bp  9] sum|F|^2 = 4.624e-07   max|F| = 6.549e-04   step = 0.0625
+    [parsolve TPI cap=1125.0bp 10] sum|F|^2 = 4.594e-07   max|F| = 6.529e-04   step = 0.00781
+    [parsolve TPI cap=1125.0bp 11] sum|F|^2 = 4.593e-07   max|F| = 6.528e-04   step = 0.00391
+    [parsolve TPI cap=1125.0bp 12] sum|F|^2 = 2.982e-08   max|F| = 1.659e-04   LM lambda = 1e-07 s0^2
+    [parsolve TPI cap=1125.0bp 13] sum|F|^2 = 2.980e-08   max|F| = 1.658e-04   step = 0.00195
+    [parsolve TPI cap=1125.0bp 14] sum|F|^2 = 2.781e-08   max|F| = 1.600e-04   LM lambda = 1e-07 s0^2
+    [parsolve TPI cap=1125.0bp 15] sum|F|^2 = 2.774e-08   max|F| = 1.598e-04   step = 0.00391
+    [parsolve TPI cap=1125.0bp 16] sum|F|^2 = 2.769e-08   max|F| = 1.597e-04   step = 0.00195
+    [parsolve TPI cap=1125.0bp 17] sum|F|^2 = 2.765e-08   max|F| = 1.596e-04   step = 0.00195
+    [parsolve TPI cap=1125.0bp 18] sum|F|^2 = 3.170e-10   max|F| = 9.915e-06   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=1125.0bp 19] sum|F|^2 = 3.165e-10   max|F| = 9.931e-06   step = 0.00195
+    [parsolve TPI cap=1125.0bp 20] sum|F|^2 = 3.162e-10   max|F| = 9.954e-06   step = 0.00195
+    [parsolve TPI cap=1125.0bp 21] sum|F|^2 = 3.161e-10   max|F| = 9.985e-06   step = 0.00195
+    [parsolve TPI cap=1125.0bp 22] sum|F|^2 = 2.062e-10   max|F| = 6.358e-06   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=1125.0bp 23] sum|F|^2 = 1.978e-10   max|F| = 6.296e-06   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=1125.0bp 24] sum|F|^2 = 1.910e-10   max|F| = 6.279e-06   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=1125.0bp 25] sum|F|^2 = 1.901e-10   max|F| = 6.257e-06   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=1125.0bp 26] sum|F|^2 = 1.894e-10   max|F| = 6.246e-06   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=1125.0bp 27] sum|F|^2 = 1.891e-10   max|F| = 6.236e-06   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=1125.0bp 28] sum|F|^2 = 1.889e-10   max|F| = 6.230e-06   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=1125.0bp 29] sum|F|^2 = 1.887e-10   max|F| = 6.226e-06   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=1125.0bp 30] sum|F|^2 = 1.885e-10   max|F| = 6.223e-06   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=1125.0bp 31] sum|F|^2 = 1.884e-10   max|F| = 6.222e-06   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=1125.0bp 32] sum|F|^2 = 1.883e-10   max|F| = 6.221e-06   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=1125.0bp 33] sum|F|^2 = 1.882e-10   max|F| = 6.221e-06   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=1125.0bp 34] sum|F|^2 = 1.881e-10   max|F| = 6.222e-06   LM lambda = 1e-05 s0^2
+    [parsolve TPI cap=1125.0bp 35] sum|F|^2 = 1.880e-10   max|F| = 6.223e-06   LM lambda = 1e-05 s0^2
+/opt/anaconda3/lib/python3.13/multiprocessing/resource_tracker.py:301: UserWarning: resource_tracker: There appear to be 5 leaked semaphore objects to clean up at shutdown: {'/mp-gdvuih0d', '/mp-cjctfrzx', '/mp-3ogmuupm', '/mp-h6wmihxa', '/mp-lkx0vr86'}
+  warnings.warn(
