@@ -56,15 +56,11 @@ item is deleted. Last revised 2026-10-28.
   kappa (code 0.071; size share 0.081).
 - [ ] [joint] **Section 3's 2×2 matrix has no solved counterpart**: implement the warranted
   floor and uncertain execution, or cut to the credible cap.
-- [x] [Adam] **Reverse the funding-risk sentence**: sovereign risk relaxes the constraint via
-  franchise value; show the three margins.
 - [ ] [joint] **Rewrite the premium proposition**: its proof is incomplete and its premise fails
   (Omega(1)/Omega(0) = 1.29 from franchise value alone); call it a leverage-risk premium.
 - [ ] [Adam] **Say the backstop insures banks against default** (pari passu haircuts), and
   report outcomes including default.
 - [ ] [Adam] Cut the flight-to-safety claim; note the total-spread cap responds to r_D - r_F.
-- [x] [Adam] State that the banker's discount factor omits the ratio of consumer price indices
-  (a choice; of order the import share times the terms-of-trade movement).
 - [ ] [Adam] Fill every [TBC] once Code is done.
 - [ ] [joint] Fill the \placeholder items (income process source, HFCS moments, zeta
   sensitivity, payout share f; the 11.3 size ratio is German over Greek GDP in 2006).

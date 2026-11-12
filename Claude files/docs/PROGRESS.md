@@ -16,6 +16,28 @@ retired session-handoff file; its content is in git history.
 
 ---
 
+## 2026-11-11: two paper items closed (TODO housekeeping)
+
+- Paper: the funding-risk sentence is reversed (sovereign risk relaxes the constraint through
+  franchise value; the three margins are shown). Ticked 2026-10-28 in [118908b].
+- Paper: the banker's discount factor is stated to omit the ratio of consumer price indices (a
+  choice, of order the import share times the terms-of-trade movement). Ticked 2026-10-28 in
+  [118908b].
+
+## 2026-11-05: corrected main re-solved on the code calibration (results)
+
+- The existing global pipeline was run unchanged on `main` at 118908b (code calibration, not
+  the paper's). It is the new reference solution; the 6 Oct output files are kept in
+  `results/GLOBAL_2026-10-06_reference`.
+- The three 2026-10-27 equilibrium-condition fixes shrink the no-backstop impact output fall
+  from 0.073% to 0.059% (exact clearing 0.069% to 0.059%) through the terms of trade; the
+  financial responses and the backstop economy move only in the third digit.
+- With the 200 bp cap, output still falls more than without it (trough -0.30% against -0.06%).
+  It is a D-to-F redistribution of which the Eurosystem's remitted profit is only about a
+  quarter; the rest is not yet decomposed or classified. STATE section 3.
+- STATE section 1 corrected: in the code calibration own sovereign is 7.4% (D) and 9.0% (F) of
+  bank assets, and the foreign share of D debt is 20.0% (19.6% was the holdings parameter).
+
 ## 2026-10-28: GitHub notification when a TODO item is ticked (tooling)
 
 - A GitHub Action on pushes to `main` finds TODO items newly ticked in each pushed commit and
