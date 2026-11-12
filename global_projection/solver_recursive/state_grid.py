@@ -56,10 +56,8 @@ def _multi_indices(d, mu, mu_vec):
 
 def chebyshev_basis_1d(x, max_deg):
     # CHEBYSHEV POLYNOMIALS T_0..T_max_deg AT x.
-    # complex x passes through for the complex-step Jacobian
-    x = np.asarray(x)
-    x = x.astype(np.result_type(x.dtype, float), copy=False)
-    T = np.empty((x.size, max_deg + 1), dtype=x.dtype)
+    x = np.asarray(x, dtype=float)
+    T = np.empty((x.size, max_deg + 1))
     T[:, 0] = 1.0
     if max_deg >= 1:
         T[:, 1] = x
@@ -81,41 +79,9 @@ def _sparse_nodes(d, mu, mu_vec):
     return np.vstack(pts), np.vstack(degs).astype(int)
 
 
-def _axis_refine(d, mu, mu_vec, r, m_s, cross=False):
-    # A SPARSE GRID PLUS THE HIGHER LEVELS OF ONE DIMENSION ON ITS AXIS ALONE (THE OTHERS AT THE CENTRE).
-    pts, degs = _sparse_nodes(d, mu, mu_vec)
-    top = max(i[r] for i in _multi_indices(d, mu, mu_vec))
-    L = int(round(np.log2(m_s - 1))) + 1
-    assert m_s >= 3 and 2 ** (L - 1) + 1 == m_s, "an axis refinement needs 2^k + 1 nodes (3, 5, 9, 17)"
-    P, G = [pts], [degs]
-    # each added multi-index raises dimension r alone, so the set stays downward closed and the basis
-    # square: degree in r without new cross terms (2026-10-21: at leverage 8 the tensor refinement's
-    # s x bank-state nodes have no collocation solution near the coarse one)
-    for lev in range(top + 1, L + 1):
-        p, g = _new_points(lev), _new_degrees(lev)
-        P.append(np.zeros((p.size, d)))
-        P[-1][:, r] = p
-        G.append(np.zeros((g.size, d), dtype=int))
-        G[-1][:, r] = g
-    # cross: the level-2 x level-2 index of r with every other dimension, which a mu = 1 grid lacks
-    # (it is additive): the s profile then tilts with each state (2026-10-23: at the rest point's
-    # bank state the additive rules missed the bond FOC by 2-4e-3, all of one sign). Both lower
-    # indices are in the mu = 1 set, so the set stays downward closed
-    for j in (range(d) if cross and top == 2 else ()):
-        if j == r or mu_vec[j] < 1:
-            continue
-        pr, pj = np.meshgrid(_new_points(2), _new_points(2), indexing="ij")
-        gr, gj = np.meshgrid(_new_degrees(2), _new_degrees(2), indexing="ij")
-        P.append(np.zeros((4, d)))
-        P[-1][:, r], P[-1][:, j] = pr.ravel(), pj.ravel()
-        G.append(np.zeros((4, d), dtype=int))
-        G[-1][:, r], G[-1][:, j] = gr.ravel(), gj.ravel()
-    return np.vstack(P), np.vstack(G)
-
-
 def _tensor_refine(pts, degs, keep, refine, d):
     # A SPARSE GRID TIMES m DENSE NODES IN ONE DIMENSION.
-    r, m_s = refine[:2]
+    r, m_s = refine
     u_s = _level_points_m(m_s)
     d_s = np.arange(m_s)
     nb = pts.shape[0]
@@ -147,16 +113,9 @@ class SmolyakGrid:
         # rot need only be invertible, not orthogonal
         self.rot_inv = None if self.rot is None else np.linalg.inv(self.rot)
 
-        # refine = (dim, m) or (dim, m, mode): mode "tensor" (the default), "axis" or "cross"
-        # (_axis_refine)
-        self.refine = (None if refine is None else
-                       (int(refine[0]), int(refine[1]), refine[2] if len(refine) > 2 else "tensor"))
+        self.refine = None if refine is None else (int(refine[0]), int(refine[1]))
         if self.refine is None:
             self.points_unit, self.degrees = _sparse_nodes(self.d, self.mu, self.mu_vec)
-        elif self.refine[2] in ("axis", "cross"):
-            self.points_unit, self.degrees = _axis_refine(self.d, self.mu, self.mu_vec,
-                                                          *self.refine[:2],
-                                                          cross=self.refine[2] == "cross")
         else:
             # refined: sparse in every other dimension, dense in this one
             keep = [j for j in range(self.d) if j != self.refine[0]]
@@ -190,7 +149,7 @@ class SmolyakGrid:
     def _basis_unit(self, u):
         # THE BASIS MATRIX AT UNIT-BOX POINTS.
         u = np.atleast_2d(u)
-        B = np.ones((u.shape[0], self.n), dtype=np.result_type(u, float))
+        B = np.ones((u.shape[0], self.n))
         for j in range(self.d):
             Tj = chebyshev_basis_1d(u[:, j], self.max_deg)
             B *= Tj[:, self.degrees[:, j]]
@@ -202,10 +161,6 @@ class SmolyakGrid:
 
     def fit(self, values):
         # COLLOCATION COEFFICIENTS FROM VALUES AT THE NODES.
-        values = np.asarray(values)
-        # linear, so a complex-step perturbation is fitted as its own real system
-        if np.iscomplexobj(values):
-            return self.fit(values.real) + 1j * self.fit(values.imag)
         return lu_solve(self._lu, np.asarray(values, dtype=float))
 
     def fit_weighted(self, values, w=None, ridge=0.0):
@@ -228,19 +183,7 @@ class SmolyakGrid:
 
     def clip(self, x):
         # PROJECT POINTS INTO THE BOX.
-        z = self._fwd(x)
-        w = getattr(self, "clip_eps", 0.0)
-        if w <= 0.0:
-            return self._bwd(np.clip(z, self.lo, self.hi))
-        # clip_eps > 0: identity inside, a C1 saturation at most w half-widths outside, so a next
-        # state on the edge (K' = K at the capital edges) meets no corner
-        c, h = 0.5 * (self.hi + self.lo), 0.5 * (self.hi - self.lo)
-        u = (z - c) / h
-        # |u| and its sign from the real part, so a complex-step perturbation keeps its derivative
-        sg = np.sign(np.real(u))
-        a = sg * u
-        sat = sg * (1.0 + w * (1.0 - np.exp(-np.maximum(a - 1.0, 0.0) / w)))
-        return self._bwd(np.where(np.real(a) > 1.0, c + h * sat, z))
+        return self._bwd(np.clip(self._fwd(x), self.lo, self.hi))
 
     def outside(self, x):
         # HOW FAR EACH POINT LIES OUTSIDE THE BOX, AS A SHARE OF ITS WIDTH.
@@ -267,21 +210,14 @@ def _band(spec, default):
 IK_D, IK_F, IP_D, IP_F, IBDD, IBDF, IBFD, IV, IS, IZ, IM, IO = range(12)
 NSTATE = len(STATE_NAMES)
 
-# the s box covers this many unconditional sd either side of the p^d S_BOX_PD, whatever the rest
-# point's p^d (cal["pd_rest"]): at rho_s 0.9, sigma_s 0.41 (sd 0.94) and centred on 0.1% it spans
-# 0.003-3.0%/qtr, which reaches the 2% headline shock at 3.2 sd (2.75 stopped at 1.31%, 2026-10-26)
-S_COVER_SD = 3.65
-S_BOX_PD = 0.001
-# states outside the box are read through a C1 saturation reaching this many half-widths past
-# the edge (2026-10-20): at the capital edges K' ~ K lands on the edge, where a hard clip is a
-# corner the Newton could not cross
-CLIP_EPS = 0.05
+# the s box covers this many unconditional sd either side of s*
+S_COVER_SD = 2.75
 
 
 def build_state_box(ss, cal, s_lo=None, s_hi=None, s_halfwidth=None, k_band=0.03,
                     p_band=0.25, p_band_D=None, p_band_F=None,
                     b_band=0.30, b_lo_frac=None, mu=2, mu_vec=None, z_band=0.03, w_band=0.04,
-                    m_band=1.0, o_band=0.25, rot=None, centre=None, refine=None, at=None):
+                    m_band=1.0, o_band=0.25, rot=None, centre=None, refine=None):
     # THE STATE BOX AROUND THE STEADY STATE.
     c = _box_centre(ss, cal)
     s_lo, s_hi = _s_bounds(cal, s_lo, s_hi, s_halfwidth)
@@ -301,73 +237,19 @@ def build_state_box(ss, cal, s_lo=None, s_hi=None, s_halfwidth=None, k_band=0.03
                    (1 + b_band) * c["b_DD"], (1 + b_band) * c["b_DF"], (1 + b_band) * c["b_FD"],
                    +V_half,
                    s_hi, (1 + z_band) * c["Z_D"], +M_half, +O_half])
-    # at: a centre for the bank and deposit stocks (BOX_STOCKS) other than this SS's (an
-    # instrument walk holds its first economy's); the bands keep this SS's widths, and s and Z_D
-    # stay on this economy. The shear leaves these coordinates alone while M = O = 0
-    for k, v in (at or {}).items():
-        lo[_STOCK_INDEX[k]] += v - c[k]
-        hi[_STOCK_INDEX[k]] += v - c[k]
     if rot is not None:
         rot = np.asarray(rot, dtype=float)
         centre = np.asarray(centre, dtype=float)
         lo, hi = _rotate_box(lo, hi, rot, centre)
     else:
         rot, centre = np.eye(lo.size), np.zeros(lo.size)
-    # refine adds dense nodes in s, where p^d(s) curves
-    grid = SmolyakGrid(lo, hi, mu=(mu if mu_vec is None else int(max(mu_vec))),
-                       mu_vec=mu_vec, rot=_tpi_shear(ss, cal) @ rot, centre=centre, refine=refine)
-    grid.clip_eps = CLIP_EPS
-    return grid
-
-
-def _tpi_shear(ss, cal):
-    # THE TPI SHEAR: THE BOX BOUNDS b_DD + M AND O - rho*M, WHERE PURCHASES ACTUALLY GO.
-    shear = np.eye(NSTATE)
+    # the TPI shear: the box bounds b_DD + M and O - rho*M, where purchases actually go
+    shear = np.eye(lo.size)
     shear[IBDD, IM] = 1.0
     shear[IO, IM] = -(1.0 + cal["r_dep_D_target"]) * ss["Q_bD_ss"]
-    return shear
-
-
-# the D-bank balance-sheet block a measured box aligns (build_aligned_box): capital, deposit
-# obligations, the D bank's D-bond book and the cross-border deposit position
-ALIGN_BLOCK = (IK_D, IP_D, IBDD, IV)
-
-
-def align_weights(ss, cal):
-    # NET-WORTH UNITS FOR THE ALIGNED BLOCK: EACH STATE'S VALUE PER UNIT OVER THE D BANK'S SS NET WORTH.
-    R = 1.0 + cal["r_dep_D_target"]
-    return np.array([1.0, 1.0 / R, ss["Q_bD_ss"], 1.0 / R]) / ss["ss_bank_D"]["n_ss"]
-
-
-def build_aligned_box(ss, cal, spec, mu=1, mu_vec=None, refine=None):
-    # A BOX WHOSE D-BANK BLOCK LIES ON MEASURED AXES (spec: axes, lo, hi in net-worth units, and
-    # fractional bands for the other stocks); s, Z_D and the TPI book as in build_state_box.
-    c = _box_centre(ss, cal)
-    s_lo, s_hi = _s_bounds(cal, None, None, None)
-    b = spec["bands"]
-    centre = np.array([c["K_D"], c["K_F"], c["P_D"], c["P_F"], c["b_DD"], c["b_DF"], c["b_FD"],
-                       0.0, 0.5 * (s_lo + s_hi), c["Z_D"], 0.0, 0.0])
-    lo, hi = np.empty(NSTATE), np.empty(NSTATE)
-    for i, key in ((IK_F, "K_F"), (IP_F, "P_F"), (IBDF, "b_DF"), (IBFD, "b_FD"), (IZ, "Z_D")):
-        lo[i], hi[i] = np.asarray(b[key], dtype=float) * centre[i]
-    lo[IS], hi[IS] = s_lo - centre[IS], s_hi - centre[IS]
-    M_half = b["M_cb"] * c["b_DD"]
-    lo[IM], hi[IM] = -M_half, M_half
-    lo[IO], hi[IO] = -b["O_cb"] * M_half, b["O_cb"] * M_half
-    blk = list(ALIGN_BLOCK)
-    lo[blk], hi[blk] = spec["lo"], spec["hi"]
-    # z_block = axes @ diag(weights) @ (the sheared deviation)_block
-    R = np.eye(NSTATE)
-    R[np.ix_(blk, blk)] = np.asarray(spec["axes"], dtype=float) * align_weights(ss, cal)
-    grid = SmolyakGrid(lo, hi, mu=(mu if mu_vec is None else int(max(mu_vec))), mu_vec=mu_vec,
-                       rot=R @ _tpi_shear(ss, cal), centre=centre, refine=refine)
-    grid.clip_eps = CLIP_EPS
-    return grid
-
-
-# the stocks whose box centre an instrument walk holds (build_state_box's at), and their indices
-BOX_STOCKS = ("K_D", "K_F", "P_D", "P_F", "b_DD", "b_DF", "b_FD")
-_STOCK_INDEX = dict(zip(BOX_STOCKS, (IK_D, IK_F, IP_D, IP_F, IBDD, IBDF, IBFD)))
+    # refine adds dense nodes in s, where p^d(s) curves
+    return SmolyakGrid(lo, hi, mu=(mu if mu_vec is None else int(max(mu_vec))),
+                       mu_vec=mu_vec, rot=shear @ rot, centre=centre, refine=refine)
 
 
 def _box_centre(ss, cal):
@@ -384,15 +266,11 @@ def _box_centre(ss, cal):
 def _s_bounds(cal, s_lo, s_hi, s_halfwidth):
     # THE s BOUNDS: S_COVER_SD UNCONDITIONAL SD EITHER SIDE OF s*.
     _sp = s_process_params(cal)
-    s_star = np.log(S_BOX_PD / (1.0 - S_BOX_PD))
+    s_star = _sp["s_star"]
     if s_halfwidth is None:
         s_halfwidth = S_COVER_SD * _sp["sigma_s"] / np.sqrt(1.0 - _sp["rho_s"] ** 2)
     s_lo = s_star - s_halfwidth if s_lo is None else s_lo
-    # the box tops at cal["pd_box_top"] when it is set, above the coverage (the crisis region where the D bank
-    # binds) or below it (2026-11-05: the illustrative TPI run caps a 2% risk range)
-    top = cal.get("pd_box_top")
-    s_up = s_star + s_halfwidth if top is None else np.log(top / (1.0 - top))
-    s_hi = s_up if s_hi is None else s_hi
+    s_hi = s_star + s_halfwidth if s_hi is None else s_hi
     return s_lo, s_hi
 
 
@@ -414,10 +292,9 @@ def default_prob(s):
 
 def s_process_params(cal):
     # THE AR(1) FOR THE RISK FACTOR s.
-    pd_rest = float(cal.get("pd_rest", 0.001))  # the priced default probability at rest, per quarter
-    s_star = np.log(pd_rest / (1.0 - pd_rest))
-    rho_s = float(cal["rho_s"])  # the calibration sets it (it was hard-coded at Bocola's 0.95 here)
-    sigma_s = float(cal["sigma_s"])
+    s_star = np.log(0.001 / (1.0 - 0.001))  # p^d = 0.1% at rest
+    rho_s = 0.95  # Bocola's estimate
+    sigma_s = float(cal.get("sigma_s", 0.63))  # the calibration sets Bocola's effective 0.4455
     # Z_D is deterministic: it decays at rho_z with no innovation
     return dict(s_star=s_star, rho_s=rho_s, sigma_s=sigma_s,
                 z_star=cal["Z_ss_D"], rho_z=0.9)

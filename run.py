@@ -40,76 +40,17 @@ QUICK = False  # True: the coarse grid only, a quick preview (not converged); --
 SSJ_PYTHON = os.environ.get("SSJ_PYTHON", "/opt/anaconda3/envs/ssj/bin/python")
 
 # global model settings; its parameters live in calibration/global_projection.py
-NW_FLOOR = 0.5  # the funded recapitalisation floor in default, a share of n_ss (Bocola's 0.15 until 2026-10-26)
+NW_FLOOR = 0.15  # Bocola's net-worth floor, as a share of n_ss
 MU = 1  # Smolyak level of the TFP grid
 RISK_MU_VEC = None  # per-state Smolyak levels for the risk grid; None = mu 1
-S_REFINE = 9  # nodes in s: 9 = Bocola's (75 points with recursive_experiment.S_REFINE_MODE "cross"), 5, 0 = coarse only
+S_REFINE = 5  # dense nodes in s: 5 = 115 points (converged), 9 = Bocola's, 0 = coarse only
 ROTATE_P = False  # eigenbasis box for P: off, it measures worse
 ACCURACY_T = 1200  # simulated periods for the Euler-error report
 DECOMP_T = 25  # quarters in the decompositions
 TFP_SHOCK = 0.01  # one-off TFP shock to Z_D, decaying at rho_z = 0.9
-# one-off risk shock: p^d jumps from its rest value (cal["pd_rest"]) to this per quarter, then decays. 0.015
-# (2026-11-06, author's choice, with bohn_annual 0.25): the D banks' constraint now binds from ~1.2-1.5%, so this is a
-# recession (GDP -0.08%, investment -1.5%, spread 222 bp) that the 200 bp cap reaches with ~17% of the debt. At
-# bohn_annual 0.06 it bound only from ~5%, where the expected-loss spread alone exceeds 200 bp
-RISK_SHOCK_PD = 0.015
-# the top of the risk box, p^d per quarter. 0.12 = the appendix-B box, WARM_START's own: the only box on which the
-# D IC binds on impact (at the 6% shock: GDP -0.14%, lending spread +197 bp). 0.062 = Bocola (2016)'s range (his s in
-# [-11.41, -2.71]), where it never binds; 0.02 = the illustrative 200 bp cap of 2026-11-05/06
-# (Claude files/reports/tpi_root_cause_2026-11-05.md §6-8)
-PD_BOX_TOP = 0.12
-# the box half-width of the Eurosystem's D-bond book, a share of the D banks' SS book: 0.32 = WARM_START's own band,
-# +-27.9% of the D debt, which holds the 6% shock's relief purchase (11.8%). 1.0 (the D banks' whole book) was the
-# illustrative 200 bp cap's band on the 2% box; wider than 1.0 the bank's next book turns negative at the M+ edge
-# (diagnostics/tpi_root_cause/m_band_edge.py). The band of the Eurosystem's claim keeps its old width
-TPI_M_BAND = 0.32
-# solve the TPI and compare it with no TPI (on again 2026-11-04, with the cap walk below)
-RUN_TPI = True
-# how the TPI acts (2026-11-06, author's choices), all on the no-TPI rules except "rule" (tpi_experiment.intervention):
-#   "cap"    = in every quarter the D-F spread would exceed TPI_CAP, the Eurosystem buys, unanticipated, just enough to
-#              hold it there, and holds the bonds to maturity;
-#   "relief" = at the shock it buys just enough to switch the D banks' constraint off;
-#   "rule"   = the cap solved as an anticipated rule (the walk below). On the 12% box the cap must then hold at its top
-#              (fair spread 566 bp at 12%), which forces near-total purchases there; it has not solved below ~1100 bp.
-# The cap must sit above the shock's expected-loss spread (313 bp at 6%), or the banks sell the Eurosystem everything
-TPI_MODE = "cap"
-JACOBIAN = "complex"  # the collocation Jacobian: "complex" (the complex step, exact) or "fd" (forward differences)
-# the solved appendix-B rules (fine grid, 75 points, 12% box) the risk solve starts from; None = the cold-start
-# ladder, which does not reach appendix B from the SS. A warm solve re-solves these rules at the current calibration
-# on their own grid (on another PD_BOX_TOP, evaluated at the new box's points first), so S_REFINE is not used
-WARM_START = ROOT / "data" / "global_warm_start.pkl"
-# TPI spread cap, bp/yr over the F bond (TPI_MODE "cap" and "rule"); "rest" = defend the no-TPI rest-point spread
-TPI_CAP = 200.0
-# the TPI cap walk (recursive_experiment.TPI_WALK): first step and its growth, smallest and largest step (bp), the
-# distance each rung keeps from every node's switching cap (bp), the tolerance of a rung above the target, Newton
-# iterations per rung, and how often the Jacobian is refreshed in each rung's first pass
-TPI_WALK = dict(step=6.0, grow=1.2, min_step=0.5, max_step=100.0, margin=3.0, path_tol=1e-4, maxit=10, reuse=3,
-                # a rung whose fast pass ends within rescue x path_tol gets the full Newton
-                rescue=100.0,
-                # the cap in a few large smoothed rungs (2026-11-05), each started from its nodes above the cap solved
-                # alone; then the smoothing of the complementarities walked down from eps_start (one jump to 200 bp
-                # stalled at 1.2e-2 on the 1.0 box); False = the cap walk above
-                direct=True, eps_start=1e-2, ladder=(270.0, 245.0, 225.0, 210.0), halvings=3)
-# each accepted rung is saved here, so a stopped TPI walk resumes where it stopped (None: no checkpoints); delete the
-# folder to restart the walk from the top
-TPI_CHECKPOINTS = ROOT / "results" / "GLOBAL_tpi_walk"
-# the solved TFP and risk rules are stored here, keyed on the calibration and the solve settings, so a run with
-# nothing changed reuses them instead of re-solving (~1 h); None = always solve; delete the folder to force a re-solve
-SOLVE_CACHE = ROOT / "results" / "GLOBAL_cache"
-# what a global run prints first: the steps, their typical times, where everything goes, how to resume
-GLOBAL_GUIDE = """
-  WHAT THIS RUN DOES (full guide: Claude files/docs/RUN_GLOBAL.md)
-    Step 1/7  steady state ................................................ ~1 min
-    Step 2/7  TFP-shock solve ............................. ~10 min (seconds if cached)
-    Step 3/7  sovereign-risk solve, no TPI .................. ~50 min (seconds if cached)
-    Step 4/7  rest point, IRFs, calibration table, decompositions, accuracy ... ~20 min
-    Step 5/7  save the no-TPI results ................ results/GLOBAL/data (safe from here on)
-    Step 6/7  TPI: TPI_MODE "cap" = purchases holding the spread at TPI_CAP vs no TPI ....... ~5 min
-              ("cap": the cap solved as a rule, 1-3 h, saved in results/GLOBAL_tpi_walk and reused)
-    Step 7/7  figures ............................................... results/GLOBAL/figures
-  The console is logged to results/GLOBAL/run.log. Keep the Mac awake (lid open, on power): a sleeping
-  Mac pauses the run. Settings are at the top of run.py (PD_BOX_TOP, RISK_SHOCK_PD, RUN_TPI, TPI_MODE, TPI_CAP, TPI_WALK).
-"""
+RISK_SHOCK_PD = 0.02  # one-off risk shock: p^d jumps from 0.10% to this per quarter, then decays
+RUN_TPI = True  # solve the TPI and compare it with no TPI
+TPI_CAP = 200.0  # TPI spread cap, bp/yr; "rest" = defend the no-TPI rest-point spread (~56 bp)
 
 
 # ============================== THE GLOBAL MODEL ==============================
@@ -118,23 +59,18 @@ def compute_global(quick=False):
     """Every GLOBAL computation, step by step; each result is saved to results/GLOBAL/data."""
     from calibration.global_projection import get_calibration
     from global_projection.steady_state import solve_steady_state
-    from global_projection.solver_recursive.state_grid import s_process_params, STATE_NAMES, IS, default_prob
+    from global_projection.solver_recursive.state_grid import s_process_params, STATE_NAMES
     from global_projection.solver_recursive.recursive_main import calibrate_household_anchors
-    from global_projection.solver_recursive.decision_rules import RuleSet
-    from global_projection.solver_recursive import recursive_experiment as RE
     from global_projection.solver_recursive.recursive_experiment import (
         solve_tfp, tfp_irf, solve_recursive, report_rest_point, impact_table,
         persistence_irf, dynamic_irf, s_from_pd)
     from global_projection.solver_recursive.output_decomposition import (
         simulate, s_decay_path, decompose_output, active_channels, decompose_bond_price,
-        exact_bond_reads, BOND_CHANNELS)
+        BOND_CHANNELS)
     from global_projection.solver_recursive.accuracy import accuracy_report
-    from global_projection.solver_recursive.calibrate_stochastic import (
-        rest_point_read, rest_point_moments, calibration_values)
     from global_projection.reporting.prints import (banner, print_ss_table,
                                                     print_output_decomposition,
-                                                    print_bond_decomposition,
-                                                    print_calibration_table)
+                                                    print_bond_decomposition)
     from global_projection.reporting.export import export_irfs
     from global_projection.solver_recursive import tpi_experiment
     from global_projection.reporting.prints import print_tpi_report
@@ -144,95 +80,42 @@ def compute_global(quick=False):
                     NW_FLOOR=NW_FLOOR, MU=MU,
                     RISK_MU_VEC=RISK_MU_VEC, ROTATE_P=ROTATE_P, ACCURACY_T=ACCURACY_T,
                     DECOMP_T=DECOMP_T, TFP_SHOCK=TFP_SHOCK, RISK_SHOCK_PD=RISK_SHOCK_PD,
-                    RUN_TPI=RUN_TPI, TPI_MODE=TPI_MODE, TPI_CAP=TPI_CAP, JACOBIAN=JACOBIAN, PD_BOX_TOP=PD_BOX_TOP,
-                    TPI_M_BAND=TPI_M_BAND,
-                    TPI_WALK=TPI_WALK, TPI_CHECKPOINTS=str(TPI_CHECKPOINTS) if TPI_CHECKPOINTS else None,
-                    WARM_START=str(WARM_START) if WARM_START and WARM_START.exists() else None)
+                    RUN_TPI=RUN_TPI, TPI_CAP=TPI_CAP)
     t0 = time.perf_counter()
-    _keep_awake()
     with _logged(log, "w"):
-        print(GLOBAL_GUIDE)
         # 1. calibration and the deterministic steady state
-        banner("Step 1/7 — steady state (two-country HANK-GK monetary union)")
+        banner("Two-country HANK-GK monetary union: steady state")
         cal = get_calibration()
         cal["nw_floor_frac"] = NW_FLOOR
-        cal["jacobian"] = JACOBIAN
-        cal["pd_box_top"] = PD_BOX_TOP
-        RE.TPI_WALK.update(TPI_WALK)
-        RE.TPI_CHECKPOINTS = TPI_CHECKPOINTS
-        # o_band keeps the claim's half-width at 0.25 x 0.32 of the D banks' book whatever the book's band
-        RE.BOX_KW.update(m_band=TPI_M_BAND, o_band=0.08 / TPI_M_BAND)
         ss = solve_steady_state(cal)
         sproc = s_process_params(cal)
         calibrate_household_anchors(cal, ss, sproc)
         print(f"  solved in {time.perf_counter() - t0:.0f}s")
         print_ss_table(ss, cal)
 
-        # the solved rules both global solves start from (WARM_START), if any
-        warm = None
-        if settings["WARM_START"]:
-            with open(settings["WARM_START"], "rb") as fh:
-                warm = pickle.load(fh)
-            print(f"  warm start: {settings['WARM_START']} ({warm.grid.n} points)")
-            grid = RE.normal_box(ss, cal, mu=1, refine=(IS, S_REFINE, "cross"))
-            if abs(grid.hi[IS] - warm.grid.hi[IS]) > 1e-9:
-                # solved on another risk box: the rules evaluated at this box's points seed the solve
-                print(f"  the warm rules' box tops at p^d {100 * default_prob(warm.grid.hi[IS]):.2f}%; seeded onto "
-                      f"PD_BOX_TOP {100 * PD_BOX_TOP:.2f}% ({grid.n} points)")
-                warm = RE._seed_from(RuleSet(grid, 2), warm)
-
         # 2. TFP shock
-        key = _cache_key(cal, settings)
-        _step_done(1, t0)
-        banner("Step 2/7 — TFP shock, global collocation (Z_D as the TFP state)")
-        t1 = time.perf_counter()
-        rules_tfp = _cached("tfp", key, lambda: solve_tfp(cal, ss, sproc, mu=MU, seed=warm))
-        if not rules_tfp.solve_ok:
-            print(f"  NOTE: the TFP solve did not converge (max|F| {rules_tfp.solve_worst:.1e}); its IRF is not usable")
-        tfp = tfp_irf(rules_tfp, cal, ss, sproc, dz=TFP_SHOCK, exact=True)
+        banner("TFP shock — global collocation (Z_D as the TFP state)")
+        rules_tfp = solve_tfp(cal, ss, sproc, mu=MU)
+        tfp = tfp_irf(rules_tfp, cal, ss, sproc, dz=TFP_SHOCK)
 
         # 3. sovereign-risk pass-through: solve, find the rest point, read the IRFs
-        _step_done(2, t1, t0)
-        banner("Step 3/7 — sovereign-risk pass-through, global collocation (12 states, Newton)")
-        t1 = time.perf_counter()
+        banner("Sovereign-risk pass-through — global collocation (12-state, Newton)")
         base = []  # the coarse no-TPI baseline, reused by the TPI
-        rules = _cached("risk", key, lambda: solve_recursive(cal, ss, sproc, mu_vec=RISK_MU_VEC, rotate=ROTATE_P,
-                                                             s_refine=0 if warm else settings["S_REFINE"],
-                                                             base=warm, base_out=base))
-        if not base:
-            base.append(rules)
-        _step_done(3, t1, t0)
-        banner("Step 4/7 — rest point, IRFs, calibration table, decompositions, accuracy")
-        t1 = time.perf_counter()
-        # the TPI starts from the coarse baseline, or, warm, from the solved rules on their own grid
-        tpi_base, tpi_refine = (rules, 0) if warm else (base[0], settings["S_REFINE"])
-        # every readout clears the period map exactly at each visited state (2026-11-06, author's decision): at the 6%
-        # crisis shock the fitted rules' residual (4-6e-3) doubled the impact recession against the exact read
+        rules = solve_recursive(cal, ss, sproc, mu_vec=RISK_MU_VEC, rotate=ROTATE_P,
+                                s_refine=settings["S_REFINE"], base_out=base)
         S_rest = report_rest_point(rules, cal, ss, sproc)  # every IRF starts here
         impact_table(rules, cal, ss, sproc)
-        persistence = persistence_irf(rules, cal, ss, sproc, pd_shock=RISK_SHOCK_PD, exact=True)
-        risk = dynamic_irf(rules, cal, ss, sproc, pd_shock=RISK_SHOCK_PD, T=25, exact=True)
-
-        # 3b. the calibration table: every target and validation moment at the rest point
-        banner("Calibration table — data against the stochastic rest point")
-        _, o_rest = rest_point_read(rules, cal, ss, sproc, exact=True)
-        srp_moments = rest_point_moments(o_rest)
-        # its transmission rows are the p^d 2%/qtr impact (appendix B's 108 bp row), whatever the headline shock
-        irf_2 = (risk if abs(RISK_SHOCK_PD - 0.02) < 1e-12 else
-                 dynamic_irf(rules, cal, ss, sproc, pd_shock=0.02, T=25, rest_verbose=False, exact=True))
-        calib = calibration_values(o_rest, cal, sproc, irf_2)
-        print_calibration_table(calib, srp_moments, cal)
+        persistence = persistence_irf(rules, cal, ss, sproc, pd_shock=RISK_SHOCK_PD)
+        risk = dynamic_irf(rules, cal, ss, sproc, pd_shock=RISK_SHOCK_PD, T=25)
 
         # 4. decompositions of the same shock
         banner("Decompositions — which channels produce the response")
         s_path = s_decay_path(sproc, s_from_pd(RISK_SHOCK_PD), DECOMP_T)
-        sim = simulate(rules, cal, ss, sproc, s_path, S_init=S_rest, exact=True)
-        ref = simulate(rules, cal, ss, sproc, [sproc["s_star"]] * DECOMP_T, S_init=S_rest, exact=True)
+        sim = simulate(rules, cal, ss, sproc, s_path, S_init=S_rest)
+        ref = simulate(rules, cal, ss, sproc, [sproc["s_star"]] * DECOMP_T, S_init=S_rest)
         output_dec = decompose_output(sim, ref, cal)
         print_output_decomposition(output_dec, active_channels(output_dec))
-        # Bocola's split of the bond's excess return, on period maps cleared exactly along both paths
-        bond_dec = decompose_bond_price(exact_bond_reads(rules, cal, ss, sproc, sim),
-                                        exact_bond_reads(rules, cal, ss, sproc, ref), cal)
+        bond_dec = decompose_bond_price(sim, ref, cal)
         print_bond_decomposition(bond_dec, BOND_CHANNELS)
 
         # 5. solution accuracy on the ergodic set
@@ -243,8 +126,7 @@ def compute_global(quick=False):
         # 6. save every no-TPI result before the long TPI solve, with the TPI's cap already set
         cal["tpi_cap_bp"] = (tpi_experiment.rest_point_row(rules, cal, ss, sproc)["sov_bp"]
                              if TPI_CAP == "rest" else float(TPI_CAP))
-        _step_done(4, t1, t0)
-        banner(f"Step 5/7 — saving the no-TPI results -> {data}")
+        banner(f"Saving -> {data}")
         save(data / "settings", settings)
         save(data / "calibration", cal)
         save(data / "steady_state", ss)
@@ -252,41 +134,28 @@ def compute_global(quick=False):
         save(data / "rest_point", dict(zip(STATE_NAMES, S_rest)))
         save(data / "persistence_irf", persistence)
         save(data / "risk_irf", risk)
-        save(data / "calibration_table", dict(values=calib, moments=srp_moments))
         save(data / "output_decomposition", output_dec)
         save(data / "bond_decomposition", bond_dec)
         save(data / "accuracy", accuracy)
         # the solved rules, and the coarse baseline the TPI starts from
         for name, r in (("rules_tfp", rules_tfp), ("rules_risk", rules),
-                        ("rules_base_coarse", tpi_base)):
+                        ("rules_base_coarse", base[0])):
             with open(data / f"{name}.pkl", "wb") as fh:
                 pickle.dump(r, fh)
         export_irfs(risk, tfp, sproc, RISK_SHOCK_PD, TFP_SHOCK, data / "comparison_irfs.json",
                     grid_note=" [--quick: coarse grid]" if quick else "")
 
         # 7. the TPI: the same economy with the spread cap switched on
-        print("  step 5/7 done: every no-TPI result is saved; an interrupted TPI walk below loses none of it")
-        if RUN_TPI and TPI_MODE in ("cap", "relief"):
-            t1 = time.perf_counter()
-            banner(f"Step 6/7 — TPI {'cap ' + f'{float(TPI_CAP):.0f} bp' if TPI_MODE == 'cap' else 'relief'} at the "
-                   f"{100 * RISK_SHOCK_PD:g}% shock (unanticipated purchases, held to maturity, no-TPI rules)")
-            tpi = tpi_experiment.intervention(cal, ss, sproc, rules, pd_shock=RISK_SHOCK_PD, mode=TPI_MODE,
-                                              cap_bp=float(TPI_CAP))
-            print_tpi_report(tpi, BOND_CHANNELS)
-            save(data / "tpi", tpi)
-            _step_done(6, t1, t0)
-        elif RUN_TPI:
-            t1 = time.perf_counter()
-            banner(f"Step 6/7 — TPI backstop, cap walk to {cal['tpi_cap_bp']:.1f} bp/yr over the F bond"
+        if RUN_TPI:
+            banner(f"TPI backstop — spread cap {cal['tpi_cap_bp']:.1f} bp/yr over the F bond"
                    + (" (the no-TPI rest-point spread)" if TPI_CAP == "rest" else ""))
-            tpi, rules_tpi = tpi_experiment.run(cal, ss, sproc, rules, tpi_base,
-                                                s_refine=tpi_refine,
+            tpi, rules_tpi = tpi_experiment.run(cal, ss, sproc, rules, base[0],
+                                                s_refine=settings["S_REFINE"],
                                                 mu_vec=RISK_MU_VEC, pd_shock=RISK_SHOCK_PD)
             print_tpi_report(tpi, BOND_CHANNELS)
             save(data / "tpi", tpi)
             with open(data / "rules_tpi.pkl", "wb") as fh:
                 pickle.dump(rules_tpi, fh)
-            _step_done(6, t1, t0)
         print(f"  {len(list(data.iterdir()))} files written")
         print(f"\nTOTAL  {time.perf_counter() - t0:.0f}s")
 
@@ -294,7 +163,6 @@ def compute_global(quick=False):
 def plot_global():
     """Every GLOBAL figure, drawn from results/GLOBAL/data into results/GLOBAL/figures."""
     from global_projection.reporting import plots
-    from global_projection.reporting.export import export_calibration_tex
     from global_projection.reporting.prints import banner
     from global_projection.solver_recursive.output_decomposition import (active_channels,
                                                                          BOND_CHANNELS)
@@ -302,7 +170,7 @@ def plot_global():
     data, figures, log = results_io.model_dirs(RESULTS / "GLOBAL")
     plots.OUTDIR = str(figures)
     with _logged(log, "a"):
-        banner("Step 7/7 — figures, drawn from the saved results")
+        banner("Figures — drawn from the saved results")
         s = load(data / "settings")
         shock = f"p-d shock to {100 * s['RISK_SHOCK_PD']:.2f}%/qtr"
         output_dec = load(data / "output_decomposition")
@@ -317,16 +185,12 @@ def plot_global():
                      "sum to the total identically"),
             plots.plot_bond_decomposition(load(data / "bond_decomposition"),
                                           list(BOND_CHANNELS),
-                                          note="Bocola (2016): liquidity premium $\\lambda\\mu/E[\\Omega]$ "
-                                               "and risk premium $-Cov(\\Omega, R_b)/E[\\Omega]$"),
+                                          note="the D bank first-order condition, split leg by leg"),
         ]
         if s.get("RUN_TPI"):
             tpi = load(data / "tpi")
             paths += [plots.plot_tpi_irf(tpi, note=shock),
                       plots.plot_tpi_mechanism(tpi, list(BOND_CHANNELS))]
-        # the paper's calibration table, filled from the saved rest-point moments
-        paths.append(export_calibration_tex(load(data / "calibration_table")["values"],
-                                            str(figures / "calibration_table.tex")))
         for p in paths:
             print(f"  figure -> {p}")
 
@@ -380,47 +244,6 @@ class _Tee:
     def flush(self):
         for s in self.streams:
             s.flush()
-
-
-def _cache_key(cal, settings):
-    """A short hash of everything the TFP and risk solves depend on: the calibration and the solve settings."""
-    import hashlib
-    import json
-    scalars = {k: (round(v, 12) if isinstance(v, float) else v) for k, v in cal.items()
-               if isinstance(v, (bool, int, float, str))}
-    solve = {k: settings.get(k) for k in ("quick", "S_REFINE", "NW_FLOOR", "MU", "RISK_MU_VEC", "ROTATE_P",
-                                          "JACOBIAN", "PD_BOX_TOP", "TPI_M_BAND", "WARM_START")}
-    return hashlib.md5(json.dumps(dict(cal=scalars, solve=solve), sort_keys=True, default=str).encode()).hexdigest()[:12]
-
-
-def _cached(name, key, solve):
-    """The rules `name` from SOLVE_CACHE when solved before with this key; otherwise solve() and store them."""
-    path = None if SOLVE_CACHE is None else Path(SOLVE_CACHE) / f"{name}_{key}.pkl"
-    if path is not None and path.exists():
-        with open(path, "rb") as fh:
-            rules = pickle.load(fh)
-        print(f"  reusing the {name} rules solved before with these settings ({path}); delete "
-              f"{SOLVE_CACHE} to re-solve")
-        return rules
-    rules = solve()
-    if path is not None and getattr(rules, "solve_ok", False):
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "wb") as fh:
-            pickle.dump(rules, fh)
-    return rules
-
-
-def _step_done(k, t_step, t0=None):
-    """One line after each step of the global run: its time and the time so far."""
-    now = time.perf_counter()
-    total = "" if t0 is None else f", {(now - t0) / 60:.0f} min since the start"
-    print(f"\n  step {k}/7 done in {(now - t_step) / 60:.1f} min{total}")
-
-
-def _keep_awake():
-    """On a Mac, stop idle sleep while this process runs (closing the lid still sleeps it)."""
-    if sys.platform == "darwin" and shutil.which("caffeinate"):
-        subprocess.Popen(["caffeinate", "-ims", "-w", str(os.getpid())])
 
 
 @contextlib.contextmanager

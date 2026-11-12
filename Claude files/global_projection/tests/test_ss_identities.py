@@ -1,7 +1,6 @@
 # STEADY-STATE IDENTITIES AGAINST GK/BOCOLA THEORY, AT MACHINE PRECISION.
 
 from common import get_ss
-from global_projection.blocks.trade import ces_price, import_demand, trade_balance, size_ratio
 
 
 def test_bank_bellman_and_pricing():
@@ -33,48 +32,34 @@ def test_bank_bellman_and_pricing():
 
 
 def test_ss_market_clearing():
-    # DEPOSITS, BOTH GOODS MARKETS AND THE CURRENT ACCOUNT CLEAR AT THE SOLVED SS, AT ANY p.
-    # Recomputed here from the blocks, not read back: NX from the trade block at the HA
-    # consumption, net coupon income from the books at each bond's own yield.
+    # DEPOSIT AND GOODS MARKETS MUST CLEAR AT THE SOLVED STEADY STATE.
     cal, ss = get_ss()
-    p, sz = ss["p_ss"], size_ratio(cal)
-    P = {c: ces_price(p, cal, c) for c in ("D", "F")}
     for c in ("D", "F"):
-        # households hold deposits in basket units, banks issue them in goods
-        gap = ss[f"A_{c}_ss"] * P[c] - ss[f"ss_bank_{c}"]["Dep_supply_ss"]
-        assert abs(gap) < 1e-8, f"SS deposit market {c}: {gap:.2e}"
-    IM_D = import_demand(p, ss["C_D_ss"], P["D"], cal, "D")
-    IM_F = import_demand(p, ss["C_F_ss"], P["F"], cal, "F")
-    NX = dict(zip(("D", "F"), trade_balance(p, IM_D, IM_F, cal)))
-    for c in ("D", "F"):
-        fm = ss[f"ss_firm_{c}"]
-        walras = fm["Y_ss"] - P[c] * ss[f"C_{c}_ss"] - fm["I_ss"] - cal[f"G_{c}"] - NX[c]
-        assert abs(walras) < 1e-8, f"SS goods market {c}: {walras:.2e}"
-    yD = cal["r_dep_D_target"] + cal["credit_spread_target_D"]
-    yF = cal["r_dep_F_target"] + cal["credit_spread_target_F"]
-    nfi_D = yF * p * ss["Q_bF_ss"] * ss["b_F_D_ss"] - yD * ss["Q_bD_ss"] * ss["b_D_F_ss"]
-    assert abs(NX["D"] + nfi_D) < 1e-8, f"D current account {NX['D'] + nfi_D:.2e}"
-    assert abs(NX["F"] - nfi_D / (sz * p)) < 1e-8, "F current account"
-    # chi pins N_ss = 1 at the real wage w/P_CES
-    for c in ("D", "F"):
-        assert abs(cal[f"chi_{c}"] - ss[f"ss_firm_{c}"]["w_ss"] / P[c]) < 1e-15
+        bk = ss[f"ss_bank_{c}"]
+        assert abs(ss[f"A_{c}_ss"] - bk["Dep_supply_ss"]) < 1e-6
+        walras = (ss[f"ss_firm_{c}"]["Y_ss"] - ss[f"C_{c}_ss"]
+                  - ss[f"ss_firm_{c}"]["I_ss"] - cal[f"G_{c}"])
+        assert abs(walras) < 5e-6, f"SS goods market {c}: {walras:.2e}"
 
 
 def test_calibration_targets():
-    # THE DETERMINISTIC-SS INSTRUMENTS IN calibration.py MUST HOLD EXACTLY AT THE SOLVED SS.
+    # THE BOCOLA CALIBRATION ANCHORS DOCUMENTED IN calibration.py MUST BE HIT.
     cal, ss = get_ss()
-    sz = size_ratio(cal)
-    # EXPOSURE IS OWN-SOVEREIGN BONDS AS A SHARE OF OWN-BANK ASSETS (EBA 2010: GR 14.4%,
-    # DE 6.5%), and the debt stocks are solved to deliver it. These are the instruments; the
-    # 14.4%/6.5% TARGETS are hit at the stochastic rest point (calibrate_stochastic.py).
-    for c, own in (("D", ss["Q_bD_ss"] * ss["b_D_D_ss"]), ("F", ss["Q_bF_ss"] * ss["b_F_F_ss"])):
-        bk = ss[f"ss_bank_{c}"]
-        exposure = own / (bk["theta_ss"] * bk["n_ss"])
-        assert abs(exposure - cal[f"sov_exposure_{c}"]) < 1e-12, \
-            f"{c}-sovereign exposure/assets = {exposure:.6f} != {cal[f'sov_exposure_{c}']}"
-    # each stock's foreign slice: F banks hold foreign_share_D of D's, D banks foreign_share_F of F's
-    assert abs(ss["b_D_F_ss"] / cal["B_gov_D_ss"] - cal["foreign_share_D"]) < 1e-14
-    assert abs(ss["b_F_D_ss"] / sz / cal["B_gov_F_ss"] - cal["foreign_share_F"]) < 1e-14
+    bk = ss["ss_bank_D"]
+    # THE CALIBRATION TARGET IS EXPOSURE AS A SHARE OF BANK ASSETS: Bocola's exp^bg =
+    # 7.6% (Table B1, 160/2093), which is what B_gov_D_ss is set to deliver. This used
+    # to assert 0.7-1.1 on exposure/NET WORTH, a threshold left over from the 3.722
+    # B_gov misreading ("93% of bank EQUITY" read as a debt/GDP ratio); it has been red
+    # at 0.36 ever since B_gov was corrected -- and 0.36 is right, since 7.6% of assets
+    # at leverage 5 IS 0.38 of net worth (Bocola's own q*b/n = 0.38).
+    assets = bk["theta_ss"] * bk["n_ss"]
+    exposure = ss["Q_bD_ss"] * ss["b_D_D_ss"] / assets
+    assert 0.06 < exposure < 0.09, \
+        f"D-sovereign exposure/assets = {exposure:.4f} (target 0.076, Bocola Table B1)"
+    # the F bank is sz times bigger, so its OWN book carries b_D_F_ss/sz of the D bond
+    assets_F = ss["ss_bank_F"]["theta_ss"] * ss["ss_bank_F"]["n_ss"]
+    exp_F = ss["Q_bF_ss"] * ss["b_F_F_ss"] / assets_F
+    assert 0.06 < exp_F < 0.11, f"F-sovereign exposure/assets = {exp_F:.4f}"
     # λ and ω_ent are calibrated to hit leverage and credit-spread targets
     for c in ("D", "F"):
         bkc = ss[f"ss_bank_{c}"]
@@ -85,20 +70,8 @@ def test_calibration_targets():
             f"[{c}] credit spread {spread:.5f} ≠ target {cal[f'credit_spread_target_{c}']}"
 
 
-def test_bohn_debt_root():
-    # THE CALIBRATED BOHN COEFFICIENT, AND A STABLE DEBT ROOT AT THE PRICE THE PERIOD MAP ISSUES AT.
-    cal, ss = get_ss()
-    for c in ("D", "F"):
-        gs, db = ss[f"gs_{c}"], cal[f"delta_b_{c}"]
-        assert gs["Q_B_ss"] == ss[f"Q_b{c}_ss"], f"[{c}] fiscal block not at the SS bond price"
-        assert abs(4.0 * gs["gamma_tau"] - cal["bohn_annual"]) < 1e-15, f"[{c}] Bohn coefficient"
-        root = (1.0 - db) + (db - gs["gamma_tau"]) / gs["Q_B_ss"]
-        assert root < 1.0, f"[{c}] debt root {root:.10f} >= 1: the Bohn rule does not stabilise debt"
-
-
 if __name__ == "__main__":
     test_bank_bellman_and_pricing()
     test_ss_market_clearing()
     test_calibration_targets()
-    test_bohn_debt_root()
     print("test_ss_identities: ALL PASSED")

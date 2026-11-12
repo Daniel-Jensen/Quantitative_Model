@@ -25,9 +25,8 @@ def ss_state(ss, cal, sproc):
     # two banks' carried holdings of the D sovereign and b_FD is the D bank's carried
     # holding of the F sovereign (both splits endogenous); V_dep is the carried
     # cross-border deposit position W_D - P_D, the margin national clearing suppressed.
-    # It is ZERO at the SS (deposit-UIP's premium admits no other rest point), where each
-    # household's claim equals its own bank's obligation. The TPI book M_cb/O_cb is empty
-    # at the SS, whether or not the TPI is on.
+    # It is ZERO at the symmetric SS, where each household's claim equals its own bank's
+    # obligation. The TPI book M_cb/O_cb is empty at the SS, whether or not the TPI is on.
     b_DF = cal["b_D_F_ss"]
     return np.array([ss["Kap_D_ss"], ss["Kap_F_ss"],
                      ss["ss_bank_D"]["P_state_ss"], ss["ss_bank_F"]["P_state_ss"],
@@ -49,9 +48,6 @@ def calibrate_household_anchors(cal, ss, sproc, tol=1e-13, max_it=12):
     # = A_ss, deposits clearing by quantity). The working-capital flow is now in the budget, so
     # this is a residual anchor, zero up to the SS solve's tolerance; iterating to a fixed point
     # keeps it robust to the smooth guards.
-    # an SS property, read with the TPI off: nothing is bought at the SS, and in the TPI's GZ form x = 0 puts the bond
-    # price on the floor (it once gave D households a transfer of 0.8% of GDP, 2026-11-06)
-    cal = dict(cal, tpi_on=False)
     ss["hh_T_D"] = 0.0
     ss["hh_T_F"] = 0.0
     grid = build_state_box(ss, cal, mu=1)

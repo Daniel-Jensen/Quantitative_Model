@@ -4,9 +4,9 @@
 def get_calibration():
     # BUILD THE PARAMETER DICT USED BY EVERY BLOCK.
     cal = dict(
-        # households, GHH (appendix B, 2026-10-26): risk aversion 1.35 and Frisch 0.5 (Smets-Wouters 2003)
-        sigma_D=1.35,  sigma_F=1.35,
-        frisch_D=0.5,  frisch_F=0.5,
+        # households: log utility, Frisch elasticity 2 (Bocola), GHH preferences
+        sigma_D=1.0,   sigma_F=1.0,
+        frisch_D=2.0,  frisch_F=2.0,
         chi_D=0.5417,  chi_F=0.5417,  # overwritten by the SS solve to pin N_ss = 1
 
         # idiosyncratic income (Rouwenhorst)
@@ -19,7 +19,7 @@ def get_calibration():
         a_min_F=0.0, a_max_F=87.2, n_a_F=250, a_curve_F=2.0,
 
         # firms: Cobb-Douglas, flexible prices
-        epsilon_D=11.0, epsilon_F=11.0,  # demand elasticity: a 10% SS markup
+        epsilon_D=6.0, epsilon_F=6.0,  # demand elasticity
         Z_ss_D=0.45,   Z_ss_F=0.45,  # overwritten by the SS solve to pin Y_ss = 1
 
         # capital: Jermann adjustment costs; ksi = 0.50 is inside Bocola's posterior
@@ -29,24 +29,13 @@ def get_calibration():
 
         # banker exit share: 0.08, vs Bocola's 0.0354 (the bank block's one departure)
         f_D=0.08,               f_F=0.08,
-        # risk-free rate 1.003 a quarter (Bocola); beta_inter = 1/(1 + r) is set below the dict
+        # risk-free rate 1.003 a quarter (Bocola)
         r_dep_D_target=0.003,   r_dep_F_target=0.003,
-        # THE TARGETS, hit at the STOCHASTIC REST POINT (calibrate_stochastic.py): leverage 8 (GR
-        # financial accounts 2002-07: 7.98; not Bocola's 5), the loan spread r_wc - r_dep at
-        # 5 bp/yr (appendix B: the 2002Q2-2009Q4 Euribor-Eurepo spread; it was 100 bp until
-        # 2026-10-26), and own-sovereign bonds as a share of own-bank assets (EBA 2010: GR 14.4%,
-        # DE 6.5%; not Bocola's 7.6%)
-        srp_leverage_D=8.0,     srp_leverage_F=8.0,
-        srp_spread_D=0.000125,  srp_spread_F=0.000125,
-        srp_exposure_D=0.144,   srp_exposure_F=0.065,
-        # the deterministic-SS instruments that deliver them, from the rest-point loop on the fine grid
-        # (2026-10-30, Claude files/diagnostics/tex_calibration/m2_ob.py: leverage 8.00/8.00 and exposure
-        # 14.40%/6.50% at the rest point). The D bank is slack at rest by design (occasionally binding,
-        # from p^d 3.9%), so the D spread instrument stays at its appendix value; the F rest spread does
-        # not respond to its instrument (12 bp at the 1 bp bound) and the target is not met
-        leverage_target_D=8.108745648164863,   leverage_target_F=7.968926569751571,
-        credit_spread_target_D=0.000125,       credit_spread_target_F=2.5e-05,
-        sov_exposure_D=0.1289508412398137,     sov_exposure_F=0.06496448122294675,
+        # beta*R = 1 at the SS, so beta_inter must move with r_dep_target
+        beta_inter_D=0.997,     beta_inter_F=0.997,
+        # leverage 5 (Bocola); spread 100 bp/yr, not his 8, so the constraint binds at rest
+        leverage_target_D=5.0,            leverage_target_F=5.0,
+        credit_spread_target_D=0.0025,    credit_spread_target_F=0.0025,  # 100 bp/yr
         # warm starts, overwritten by calibrate_bank_targets
         lambda_K_D=0.22,        lambda_K_F=0.22,
         lambda_bD_D=0.22,       lambda_bD_F=0.22,
@@ -57,49 +46,22 @@ def get_calibration():
         kappa_nfa=0.01,
         # cross-border adjustment costs; they pin each sovereign's split between the banks
         psi_bF_D=2.0,           psi_bD_F=2.0,
-        # the share of each stock held by the OTHER country's banks (EBA 2010): F banks hold 12.7%
-        # of the D stock (German banks' share of Greek and German banks' holdings; appendix B), D
-        # banks 0.5% of the F stock (not in the appendix; ~0 in the data, positive so the book stays
-        # clear of the solver's floors; kept by decision 2026-10-26)
-        foreign_share_D=0.127,  foreign_share_F=0.005,
-        # B_gov_D/F_ss, b_D_F_ss, b_F_D_ss and the friction anchors are SOLVED in the SS
-        # (steady_state._size_books) from the exposure instruments and these shares
-        # no short sales on the cross-border books: each book >= 0 against its FOC <= 0, a
-        # Fischer-Burmeister pair, HARD (2026-10-26): the solve ladder works at 1e-4 and polishes
-        # the exact pair in at the end (recursive_experiment.HARD_WORK)
-        book_eps=0.0,
+        b_F_D_ss=0.196,         b_D_F_ss=0.196,  # ~20% of each stock held abroad
+        excess_return_F_D_ss=0.0,  # overwritten after the SS solve
+        excess_return_D_F_ss=0.0,  # overwritten after the SS solve
 
-        # coupon decay (Eurostat irt, appendix B): D 5.6% a quarter, Macaulay duration 4.2 years at
-        # the 1.25% SS yield (Greek banks' Greek book, EBA 2010: 4.4 years); F 3.9%
-        delta_b_D=0.056,        delta_b_F=0.039,
+        # bonds mature at 5.6% a quarter (Bocola's pi); long duration drives the repricing
+        delta_b_D=0.056,        delta_b_F=0.056,
+        # debt sized so sovereigns are 7.6% of D-bank assets (Bocola)
+        B_gov_D_ss=0.98,        B_gov_F_ss=0.98,
 
         # default risk is an exogenous input (Bocola's s-shock); only D is risky
         recovery_rate_D=0.45,  # 55% haircut (Greek PSI; Bocola)
-        # the logit-p^d AR(1) (appendix B, risk-process table): persistence 0.9 (the bias-corrected
-        # 2001-07 ten-year estimate), innovation s.d. 0.41 (full-sample ten-year, rescaled by the
-        # one-year CDS ratio); the probabilists' Gauss-Hermite rule takes it as is
-        rho_s=0.9,              sigma_s=0.41,
-
-        # the leverage constraint's KKT switch mu = max(z, 0) is a GENUINE max (2026-10-26 decision):
-        # the solve ladder walks the smoothing (z + sqrt(z^2 + eps^2))/2 down from 1e-2 to 1e-4 and
-        # polishes the hard max in at the end (recursive_experiment.HARD_WORK); 0 here also gives
-        # the appendix's closed-form SS (bank.ic_slack_factor = 0)
-        mu_eps=0.0,
-        # the funded net-worth floor's max, HARD as well (solved at 1e-3 first)
-        floor_eps=0.0,
-        # the priced default probability at rest, per quarter (the AR(1) mean of s): 0.10%
-        # (appendix B; GR 1y CDS 2008Q3: 0.092%)
-        pd_rest=0.001,
-        # the top of the solution's s box, p^d per quarter: past the 2010-11 average (9.1%), so the crisis
-        # region where the D bank binds (from p^d 3.9%) is inside the grid (2026-10-30; the symmetric 3.65-sd
-        # box stopped at 3%)
-        pd_box_top=0.12,
+        # Bocola's 0.63 under his physicists' Gauss-Hermite rule, i.e. 0.63/sqrt(2) here
+        sigma_s=0.4455,
 
         # TPI: the D share of the Eurosystem P&L (capital key, as in calibration/ssj.py)
         tpi_key_D=0.071,
-        # divertable share of the D banks' claim on the Eurosystem (the reserves a purchase pays with): 0 as in
-        # Gertler-Karadi (2011), so each euro bought frees lambda_bD_D of the IC (2026-10-31; lambda_bD_D before)
-        lambda_cb_D=0.0,
         # TPI switch, spread cap (bp/yr over the F bond) and smoothing of its two kinks
         tpi_on=False,
         tpi_cap_bp=200.0,
@@ -110,23 +72,15 @@ def get_calibration():
         # working capital: firms pre-finance the wage bill at r_wc; zeta = 0 switches it off
         zeta_wc_D=1.0,          zeta_wc_F=1.0,
 
-        # the Bohn tax rule: annual response of the primary surplus to debt, both over annual output.
-        # 0.06, the Greek 2001-2019 estimate in appendix B's fiscal table (decision 2026-10-26; the
-        # appendix's Mendoza-Ostry 0.04 gave root 0.993 and an explosive rule below q = 0.821, and broke
-        # the coarse d0 solve alone); root 0.987 at the SS bond price 0.947, explosive below q = 0.732.
-        # 0.25 (2026-11-06, author's choice: a faster fiscal rule): at 0.06 a crisis left a debt overhang with a
-        # half-life of ~60 quarters, and the impulse responses had not returned by quarter 80; 0.25 gives root ~0.94,
-        # a half-life of ~11 quarters
-        bohn_annual=0.25,
-        # government purchases over output (Eurostat nama_10_gdp; appendix B)
-        G_D=0.204,              G_F=0.191,
+        # the Bohn tax rule, stated as the debt root it delivers
+        debt_root_D=0.93,       debt_root_F=0.93,
+        G_D=0.0,                G_F=0.0,
 
-        # F is 11.3 times D's size (DE/GR nominal GDP); every variable is per capita of its own country
-        size_D=1.0,             size_F=11.3,
+        # F is eight times D's size; every variable is per capita of its own country
+        size_D=1.0,             size_F=8.0,
 
-        # home bias (Greek import share 32%, 2012) and trade elasticity 1.5 (Fitzgerald-Haller 2014);
-        # omega_home_F is derived below so trade balances at p = 1
-        omega_home_D=0.68,      epsilon_trade=1.5,
+        # home bias; omega_home_F is derived below so trade balances at p = 1
+        omega_home_D=0.85,      epsilon_trade=0.5,
 
         # solver settings
         T=300,  # risk-shock horizon
@@ -137,9 +91,6 @@ def get_calibration():
         n_jobs=0,  # Jacobian workers: 0 = every core, 1 = serial
         use_numba=True,  # numba kernels; numpy fallback
     )
-    # derived: the banker discount factor with beta_inter*(1 + r) = 1 exactly (appendix B)
-    for c in ("D", "F"):
-        cal[f"beta_inter_{c}"] = 1.0 / (1.0 + cal[f"r_dep_{c}_target"])
     # derived: F's home bias consistent with the country sizes
     cal["omega_home_F"] = 1.0 - (1.0 - cal["omega_home_D"]) * cal["size_D"] / cal["size_F"]
     cal["omega_home"] = cal["omega_home_D"]  # legacy key

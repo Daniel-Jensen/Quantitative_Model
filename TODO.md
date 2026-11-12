@@ -12,37 +12,37 @@ Completed work never stays here. Ticking a box (`- [x]`) marks an item done but 
 nothing else; at the start of each session Claude deletes ticked items and records each in
 `Claude files/docs/PROGRESS.md` with the date and the PR or commit. Pushing a tick to `main`
 notifies the co-author on GitHub (both authors for a [joint] item), so tick and push before the
-item is deleted. Last revised 2026-11-12.
+item is deleted. Last revised 2026-10-28.
 
 ## Code
 
-- [ ] [joint] **Reconcile the fiscal rule and re-tune the rest point**: the code's Bohn
-  coefficient is 0.25 against the paper's 0.04 (Greek estimates 0.06-0.15); at 0.25 leverage
-  (7.96) and D exposure (13.0% against 14.4%) miss their rest-point targets and the
-  transmission row overshoots its bound (142 against 108 bp). STATE section 1.
+- [ ] [Daniel] **Put the paper's calibration into the code** (`calibration/global_projection.py`;
+  rho_s is hard-coded 0.95 in the grid builder). Values: STATE section 1. Propose the changes
+  for approval first (a first attempt, 7c683bb, was reverted). Size the sovereign stocks to the
+  own-sovereign shares (in closed form at p = 1, D debt is 52.6% of annual GDP against the 40%
+  EBA banks held) and state the tax rule by its Bohn coefficient (gamma_tau = 0.01).
+  Proposal: PR #38 (merged and reverted 2026-11-12; three decisions open, STATE section 1).
 - [ ] [Daniel] **Fix the working-capital wedge** to zeta (r_wc - r)/(1 + r), with dividends
   carrying producers' surplus (impact output roughly 2.5x larger; backstop impact sign flips).
+- [ ] [joint] **Decide whether reserves are divertible.** If divertible, Proposition 1 fails
+  (mu = mu_hat / (1 - s_R)) and a purchase tightens the constraint; recommended: non-divertible.
 - [ ] [joint] **Decide the reserve remuneration rate** (national deposit rate vs a union rate).
-- [ ] [Daniel] **Implement national deposit clearing in the dynamics.** The steady state
-  clears nationally since PR #38 (p_bar = 0.9893), but the dynamic deposit market is still one
-  union market with deposit-UIP; D consumption's rise on impact runs through its deposit-rate
-  fall (STATE section 3).
-- [ ] [joint] **Solve the backstop as an announced rule** (the paper's framing): the reference
-  cap is unanticipated purchases; the anticipated cap has not solved below about 1100 bp on
-  the 12% box.
-- [ ] [joint] **Make exact clearing exact**: today's franchise value, loan rate and banker
-  consumption still come from the fitted rules, and fitted and exactly cleared impact output
-  differ by a factor of two (STATE section 3).
+- [ ] [Daniel] **Implement national deposit clearing**, including the steady-state external
+  balance (p_bar ≠ 1) and D banks' holdings of F bonds (the paper is silent; the six Greek EBA
+  banks held Bunds worth 0.11% of their assets). Precondition for the paper calibration: the
+  steady state imposes one union deposit market, which clears only a symmetric economy.
 - [ ] [joint] **Bring the default branch onto its solved domain** (D-bank holdings 0.238 against
   a floor of 0.690): stock-and-share state space, then choose the post-default fiscal rule.
 - [ ] [joint] **Decide the remittance rule and capital-account closure**: mark-to-market vs
   realised income, the 2012 SMP-income return to Greece, the untargeted psi.
 - [ ] [joint] **Decide HA vs RA framing**: bring the household distribution into equilibrium or
   call the model representative-agent with an overlay; fix the overlay's r_wc B_L income bias.
-- [ ] [Daniel] **Re-solve the paper calibration** once the items above are in (the first
-  solve without them is the 12 Nov reference, PR #38); report fitted and exactly cleared output
-  side by side.
+- [ ] [Daniel] **Solve the paper calibration** once the items above are in; report fitted and
+  exactly cleared output side by side (kink risk, STATE section 2).
 - [ ] [Adam] Update the constants of `bohn.py` and `risk_process.py` to the paper (committed with the old calibration's; at the paper's they reproduce appendix B's table and roots).
+- [ ] [joint] Re-solve the reference (Bocola) calibration to measure the three
+  equilibrium-condition fixes of 2026-10-27 (terms of trade in the cross-border bond
+  conditions, F budget balance, gamma_tau at the traded price; STATE section 4).
 - [ ] [Daniel] Record sources for coupon decay (0.056, 0.039) and the 32% import share behind
   home bias 0.68, which no national-accounts ratio reproduces (DATA.md section 4).
 - [ ] [joint] Recover or drop the basis-adjusted bond hazard (0.02-0.05%) in appendix B.
@@ -51,10 +51,6 @@ item is deleted. Last revised 2026-11-12.
 
 ## Paper
 
-- [ ] [joint] **Describe the solved economy**: the D bank is unconstrained at the rest point
-  (the 5 bp wedge holds only at the deterministic steady state), the constraint binds from
-  p^d of about 1.2-1.5%, and the solver selects the calm root where a self-fulfilling crisis
-  root exists (the "no bad equilibrium" sentences). STATE sections 2 and 4.
 - [ ] [joint] **Close the backstop economy**: Eurosystem holdings M in D-bond clearing, M and
   the reserve obligation O in the state, complementarity conditions on the purchase rule.
 - [ ] [joint] **Fix the government budget** (each treasury gets the whole profit) and state

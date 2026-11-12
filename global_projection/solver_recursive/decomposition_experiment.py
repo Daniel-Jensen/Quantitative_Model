@@ -117,8 +117,7 @@ def main():
     import sys
     mu = int(sys.argv[1]) if len(sys.argv) > 1 else 1
     cal = get_calibration()
-    import run
-    cal["nw_floor_frac"] = run.NW_FLOOR  # the pipeline's floor
+    cal["nw_floor_frac"] = 0.15          # match main.py
     # NOTE: this used to silently override f = 0.12 and the credit spread to 0.018
     # (720bp/yr) whenever mu >= 2 -- the "720bp detour" main.py's own header calls a
     # regression, and 90x the calibrated 8bp. An experiment must not re-calibrate the

@@ -1,5 +1,0 @@
-[start] old calibration: ok True  its 5  max|F| 1.02e-08
-[fiscal] fraction 1.000: ok False  its 30  max|F| 4.18e-02  (mu_ss 0.01958, lambda 0.1653)
-[fiscal] fraction 0.500: ok False  its 30  max|F| 1.08e-01  (mu_ss 0.01958, lambda 0.1653)
-/opt/anaconda3/lib/python3.13/multiprocessing/resource_tracker.py:301: UserWarning: resource_tracker: There appear to be 5 leaked semaphore objects to clean up at shutdown: {'/mp-yqe4nu2a', '/mp-zo86wasm', '/mp-p0_y1g0e', '/mp-c0y7xvj4', '/mp-9vph6d01'}
-  warnings.warn(
