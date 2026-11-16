@@ -1,9 +1,12 @@
 # Project State
 
 Current truth only, global model first. Every number names its solver, its calibration and the
-run that produced it. What is superseded is moved, verbatim, to
-`Claude files/docs/shelved/STATE_archive_2026-10-27.md` (the full history to 27 Oct 2026);
-the timeline is `PROGRESS.md`; open work is `TODO.md` at the repository root; symbols are in
+run that produced it. What is superseded is moved, verbatim, to `Claude files/docs/shelved/`:
+`STATE_archive_2026-10-27.md` (the full history to 27 Oct 2026), `STATE_archive_2026-11-05.md`,
+`STATE_archive_2026-11-12.md` (the old code calibration's last sections),
+`STATE_archive_2026-11-16.md` (the Bohn 0.25 reference and the surprise cap) and
+`STATE_calibration_branch_2026-11-09.md` (the cumulative STATE Daniel's PR #38 carried). The
+timeline is `PROGRESS.md`; open work is `TODO.md` at the repository root; symbols are in
 `GLOSSARY.md`; data provenance is in `DATA.md`.
 
 Rules for this file: replace a section when it is superseded and move the old text to the
@@ -13,128 +16,107 @@ archive; never stack dated notes on top of each other; keep it under about 300 l
 
 # Part I: Global projection model (the paper's model)
 
-## 1. Calibration status, as of 2026-10-27: the paper is ahead of the code
+## 1. Calibration status, as of 2026-11-16: appendix B with Bohn 0.15 and a 2% headline shock
 
-The viva paper (sections 2 and 4, appendix B) and the code calibration
-(`calibration/global_projection.py`) describe different economies. Until they agree, every
-model number in the paper stays [TBC] and no code number goes into the paper.
+PR #38 put the paper's appendix-B calibration into `calibration/global_projection.py` and
+calibrates the bank block at the stochastic rest point. On 2026-11-13 the authors set the Bohn
+coefficient to 0.15 and the headline shock to p^d (quarterly priced default probability) = 2%,
+keeping 1.5% as the lower-stress case (`run.py` RISK_SHOCK_PD). The paper and the code still
+differ in the rows marked below.
 
 | | Paper (Overleaf, 2026-10-22) | Code (every global result below) |
 |---|---|---|
-| Deposit market | national clearing | one union market, real deposit-rate parity |
-| Leverage | 8 (Greek financial accounts, 7.98) | 5 (Bocola) |
-| Intermediation wedge r^k - r | 5 bp/yr (mu_bar = 0.0010) | 100 bp/yr (mu_bar ≈ 0.012) |
-| Own sovereign / bank assets | 14.4% (D), 6.5% (F) | 7.4% (D), 9.0% (F) (Bocola's Italian banks: 7.6%) |
-| Foreign share of D debt | 12.7% (German banks) | 20.0% |
-| Relative size F/D | 11.3 | 8 |
-| sigma_s (risk-factor innovation s.d.) | 0.41 | 0.4455 |
-| rho_s (risk-factor persistence) | 0.9 | 0.95 |
-| Households, trade, fiscal | asymmetric (sigma 1.35, Frisch 0.5, home bias 0.68, eta 1.5, G 0.204/0.191, delta_b 0.056/0.039, Bohn 0.04) | symmetric per capita (log utility, Frisch 2, home bias 0.85, eta 0.5, G = 0, delta_b 0.056, debt root 0.93) |
+| Deposit market | national clearing | **differs:** national in the steady state (p_ss = 0.9893); one union market with deposit-UIP and a debt-elastic premium (kappa_nfa 0.01) in the dynamics. Left as is for the viva draft (authors, 2026-11-16) |
+| Bohn coefficient (annual surplus response to debt, both over GDP) | 0.04 | **differs: 0.15**, the Greek 2010-19 estimate (s.e. 0.02); debt root 0.9635, half-life about 19 quarters |
+| Leverage | 8 | instruments 8.109 (D), 7.969 (F); **7.95 at the rest point** |
+| Intermediation wedge r^k - r | 5 bp/yr | 5 bp at the deterministic SS; **0 at the rest point** (section 2) |
+| Own sovereign / bank assets | 14.4% (D), 6.5% (F) | **13.2% (D)** and 6.5% (F) at the rest point |
+| Reserves (the D banks' claim on the Eurosystem) | divertible (in the asset base of the IC) | **differs:** not divertible (lambda_cb_D = 0) |
+| Foreign share of D debt, F/D size, sigma_s, rho_s, pd_rest | 12.7%, 11.3, 0.41, 0.9, 0.10%/qtr | same |
 
-Unreconciled wording: the 6 Oct results call the code calibration "Daniel's calibration",
-while the 14 Oct calibration merge records Daniel's values as the paper's. The paper's values
-are the ones agreed with the coauthor.
+Other code-only choices: a funded net-worth floor at 50% of n_ss that acts in default only; no
+short sales on the cross-border books; the risk grid runs to p^d = 12%. The previous solution
+(Bohn 0.25) is kept in `results/GLOBAL_2026-11-12_pr38` (main repo).
 
-**PR #38 (appendix B in the global solver) is under review, not on `main`.** It was merged on
-2026-11-12 and reverted the same day, pending three decisions: its Bohn coefficient (annual
-surplus response to debt) of 0.25 against the paper's 0.04, deposits clearing nationally in
-its steady state but across the union in its dynamics, and a backstop computed as surprise
-purchases rather than the announced promise the paper studies. Its solution reproduces on this
-machine (1.5%/qtr shock: the 200 bp cap buys 16.7% of the D debt; impact GDP -0.076% without
-it, -0.045% with it); output in `results/GLOBAL_2026-11-12_pr38`. In that solution the D bank
-is unconstrained at the rest point, the constraint binds from a quarterly default probability
-of about 1.2-1.5%, and fitted and exactly cleared impact output differ by a factor of two.
-None of it is quotable.
+## 2. The D bank is unconstrained at the rest point (economic result)
 
-## 2. Open numerical risk under the paper's wedge
+At the rest point mu_D (the multiplier on the D bank's incentive constraint) is zero and D bank
+net worth is 8.0% above its deterministic-steady-state value: the bank earns the default premium
+in every history without default. The constraint binds from p^d = 1.31%/qtr (exact one-quarter
+clearing; 1.30% with two quarters cleared jointly). The 2% headline shock is 3.2 unconditional
+s.d. of the risk factor above its mean (7.4 innovations); the stationary distribution puts 0.07%
+of quarters above it (1.5%: 2.9 s.d., 0.19%).
 
-At 100 bp the incentive constraint binds at the stochastic rest point and the fitted and
-exactly cleared output responses agree closely. At 8 bp the rest point sat on the kink
-(mu = 0) and the output response was not numerically identified. The paper's 5 bp at
-leverage 8 gives mu_bar = 0.0010, the same order, so the problem may return: priced default
-risk leaves banks richer at the rest point, and the cushion before the constraint goes slack
-is only 0.0125% of assets. Unresolved until the paper calibration is solved and both
-responses are compared.
+## 3. Reference solution: the canonical run of 13 Nov 2026 and the announced k = 2 rule
 
-## 3. Reference solution: the 5 Nov 2026 run of corrected main
+Outputs in `results/GLOBAL_2026-11-13_bohn015` (main repo): `no_policy/` (the pipeline run,
+1.2e-9 at the nodes), `rules_bft_k2.pkl` (the rule, 1.3e-8), `headline.json`, `forensic/`.
+Scripts in `Claude files/diagnostics/bft_rule/bohn015/canonical/`; narrative in
+`Claude files/diagnostics/bft_rule/FINDINGS.md`. The policy is the proportional purchase rule
+M' q = k q_ss B_ss (ER - ER_ref), never selling, known to all agents, k = 2, ER_ref 15.45 bp/yr
+(the no-policy rest point's expected excess return). Each economy is measured from its own rest
+point; numbers clear the impact quarter exactly, two-quarter joint clearing in parentheses.
 
-The run of `main` at 118908b on the code calibration (section 1), after the three
-equilibrium-condition fixes of 2026-10-27 (section 4): real deposit parity, 115-point grid, a
-2.00%/qtr headline shock decaying at rho_s = 0.95, and the 200 bp spread cap as the backstop.
-Source: `results/GLOBAL/run.log`; the 6 Oct run it replaces is kept in
-`results/GLOBAL_2026-10-06_reference` and its section here in
-`Claude files/docs/shelved/STATE_archive_2026-11-05.md`. Spreads in bp/yr; output, consumption
-and net worth in % of the economy's own rest point. "Lending spread" is the intermediation
-wedge lambda_K mu_D / alpha_D (the excess return on capital the binding constraint requires).
+| Impact, 2% shock | No backstop | Rule | Effect |
+|---|---|---|---|
+| Lending spread (bp) | 115 (119) | 0 (8) | -115 (-110) |
+| mu_D | 0.025 | 0 (0.002) | |
+| Sovereign spread (bp, rise) | 207 | 194 | -13 (-11) |
+| D bank net worth (%) | -12.5 | -9.6 | +2.9 (+2.5) |
+| Investment / output (%) | -1.77 / -0.103 | -0.93 / -0.024 | +0.84 / +0.079 |
+| Purchases (% of SS D debt) | | 1.42 (1.49) | |
 
-| | No backstop | Cap 200 bp |
-|---|---|---|
-| Rest point: sovereign / lending spread | 56.4 / 98.6 | 50.8 / 63.5 |
-| Rest point: mu_D (multiplier on the D bank constraint) | 0.0123 | 0.0079 |
-| Rest point: output vs no backstop | 0 | +0.24% |
-| Headline shock, impact: sovereign / lending spread | 298 / 178 | 200 / 20 |
-| Headline shock, impact: D bank net worth, D bond price | -3.8%, -8.8% | -1.4%, -5.7% |
-| Headline shock, quarter 8: D bank net worth, lending spread | +0.85%, 64 | -0.58%, 100 |
-| Headline shock: peak purchases (% of the stock) | 0 | 36.4 |
-| Headline shock: output on impact, trough | -0.059% (impact is the trough) | -0.130%, -0.299% (q8) |
-| Headline shock: D consumption on impact, quarter 8 | +0.08%, -0.03% | -0.45%, -0.68% |
-
-- **Effect of the 27 Oct fixes.** Impact output without the backstop falls by 0.059% against
-  0.073% on 6 Oct (exact clearing: 0.059% against 0.069%); the terms-of-trade contribution
-  rises from +0.011 to +0.018 pp. Every financial object and the whole backstop economy move
-  only in the third digit.
-- **Cap 200 bp: output falls more, cause not established.** The cap stabilises the bond and
-  the banks on impact (lending spread 157 bp below the no-backstop value), yet output falls
-  more on impact and for longer; exact clearing confirms the impact number. The responses are
-  a redistribution from D to F: summed over 25 quarters, D consumption falls short of the
-  no-backstop economy by 11.7% of quarterly D GDP while F consumption gains 10.6%. Only about a
-  quarter of that is the Eurosystem's profit remitted to F (the bond's excess return over the D
-  deposit rate on the 36% bought, 3.1% of quarterly D GDP after the 0.071 key, on the
-  no-default trajectory). Two further candidates, neither decomposed: the backstop removes the
-  fall in the D deposit rate that cushions the shock without it (61 bp higher on impact), and D
-  banks lose the recapitalisation from the bond-price recovery (mu_D above its no-backstop
-  value from quarter 4, lending spread +37 bp at quarter 8). Until decomposed, the backstop's
-  output response is not classified (economic offset or accounting error) and is not quotable.
-- **Price impact per euro is small.** At the rest point with rules fixed, buying 20% of the
-  stock raises the D bond price 0.19% and lowers the sovereign spread 5 bp; at the shock,
-  0.46% and 12 bp.
-- **Accuracy (numerical).** Every reported collocation solve converges (no-backstop 115-point
-  max error 3.7e-8; backstop 4.6e-11). The first step of the working-capital homotopy
-  (no working capital, coarse grid) stops at 3.5e-3 in the F franchise-value identity; it only
-  seeds the next step, which converges to 4.5e-9. No-backstop rules: mean log10 Euler error
-  -4.92 on the ergodic set (max -2.50, D franchise value). Euler errors are not computed for
-  the backstop rules. Complementarity: floor binds at 43 of 115 nodes, D banks hold no D bonds
-  at 21; max |m x gap| 2.5e-9. Exact clearing still takes today's consumption and loan rate
-  from the fitted rules.
-- **Convergence in s (numerical).** Checked on 2026-08-29 at the 100 bp calibration, before the
-  household fix: going from 5 to 9 nodes in the risk factor moves impact output by 1.6%
-  (fitted) and 3.4% (exact), well inside the 13% identification bracket, and every other
-  reported object only in the third digit. Not repeated on this run.
+- **1.5% shock:** the rule removes a 35 bp lending spread with purchases of 1.06%; output
+  -0.055% to -0.020%.
+- **Announcement effect at rest:** sovereign spread -1.7 bp, output +0.04%, investment +0.10%.
+- **Mechanism (controlled counterfactuals at the common no-policy state, 2%):** the rule known
+  but no purchase in the impact quarter gives 97% of the rise in the price of capital (+0.44% of
+  +0.46%) and the whole cut in the lending spread; the same purchase as a surprise gives
+  +0.015%. Q_K: expected resale value +0.28, constraint premium +0.29 (the slack constraint
+  removing the no-policy spread), deposit rate -0.11. Net worth +3.6%: capital revaluation 3.0,
+  sovereign gain 0.6.
+- **Without a backstop:** sovereign spread 62 to 269 bp, net worth -12.5%; output decomposes
+  into lending spread -0.087 pp, terms of trade -0.060, deposit rate +0.043 (the D deposit rate
+  falls 57 bp). Excess return +381 bp: 267 risk premium, 115 constraint premium.
+- **Surprise 200 bp cap:** holds at 1.5% with 17.1% purchases (the purchase lowers next
+  quarter's spread and with it the fair spread, 207 to about 191 bp); fails at 2% for purchases
+  up to the 28% book band. Dropped from the paper (2026-11-16).
+- **Accuracy (numerical).** Identities exact at every reported state (net worth 2e-15, bond
+  market 1e-11, mu = max(psi, 0) 3e-11). Off-grid, on an exactly cleared 1,200-quarter
+  simulation: mean / max log10 Euler error -4.4 / -1.9 (no policy), -3.8 / -1.7 (rule). The
+  fitted rules overstate next quarter's franchise value by up to 3.4%. The fitted simulation of
+  the solver's own accuracy report turns the Eurosystem book negative, which switches the rule
+  off: not an accuracy measure for any BFT solution. The policy rest point must be the exact
+  fixed point from a zero book (the fitted iteration lands at a book of -3.4% of the debt).
+- **Open:** whether the rule leaves the constraint exactly slack at 2% (threshold 2.39% one
+  quarter, 1.92% two); k >= 4 fails at the 27.9% book band; D consumption rises on impact.
 
 ## 4. Standing facts about the global model
 
 - Default risk is exogenous: the priced probability pi^d = 1/(1 + exp(-s)) depends on the
-  latent factor s, never on debt. Only D bonds are risky.
-- The default branch is solved on the same grid; regimes d' in {0, 1}. The LTRO backstop was
-  deleted on 2026-10-01 (bit-for-bit neutral for the two-regime model).
-- The backstop (TPI) adds the Eurosystem book as two states (M_cb, O_cb) and purchases m_cb as
-  an unknown under a complementarity condition; 12 states, 14 unknowns. A full run with the
-  backstop needs 4-5 hours of awake machine time on 8 cores.
-- Three equilibrium conditions were brought into line with the paper on 2026-10-27 and are
-  in the 5 Nov reference run: (i) each bank prices the foreign sovereign at its return in
-  home goods, including the expected change in the terms of trade p_{t+1}/p_t (net worth
-  already valued the realised legs that way, so the portfolio choice and the accounting were
-  inconsistent); (ii) F taxes balance F's budget each period at the current F bond price with
-  the stock held at B_F, closing the F budget leak that left the F goods market clearing only
-  to about 2e-4 of F output on impact; (iii) the Bohn response gamma_tau is inverted from the
-  debt root at the price banks pay rather than the risk-free price (a 0.8% fall in gamma at
-  the Bocola calibration: the debt root moves from 0.9294 to its 0.93 target). None changes the
-  deterministic steady state; all three move the dynamics, (i) through the terms of trade and
-  (ii) through F household income. Their measured effect is in section 3.
+  latent factor s, never on debt. Only D bonds are risky. The default branch is solved on the
+  same grid; regimes d' in {0, 1}.
+- The backstop adds the Eurosystem book as two states (M_cb, O_cb) and purchases m_cb as an
+  unknown. Three modes: "cap" (the reference, unanticipated), "relief" (buy at the shock until
+  mu_D = 0) and "rule" (the cap anticipated as a rule). Under "cap" and "relief" no one prices
+  the promise in advance; the anticipated rule has not solved below about 1100 bp on the 12% box.
+- The three equilibrium conditions aligned with the paper on 2026-10-27 (terms of trade in the
+  cross-border bond conditions, F budget balance at the current F bond price, the Bohn response
+  set at the traded bond price) are in PR #38's code; the Bohn coefficient is now the
+  calibrated primitive rather than the debt root.
+- Equilibrium selection: at some normal-times grid points (p^d at most 1%) the period
+  conditions also admit a self-fulfilling crisis solution (D net worth below half its SS value,
+  first met at the capital-box edges). The solver selects the calm one. This bears on the paper's "no bad equilibrium" sentences.
+- The multiplier switch mu = max(z, 0) and the net-worth floor are hard maxima in the final
+  solve (smoothing walked down, then polished out); the collocation Jacobian uses the complex
+  step. The rest point is a fixed point of the exactly cleared period map.
 - The banker's discount factor omits the ratio of consumer price indices, as the paper's
   (branch-sdf) does; recorded as a deliberate choice in the modelling-choices reference.
 - Deliberate modelling choices and their reasons: `Claude files/docs/reference/global_modelling_choices.md`.
-  Solver, grid and tolerances: `Claude files/docs/reference/global_solver.md`.
+  Solver: `Claude files/docs/reference/global_solver.md` (before PR #38) and Daniel's
+  `Claude files/docs/guide_global.md`; how to run, resume and cache: `Claude files/docs/RUN_GLOBAL.md`.
+  Daniel's analyses behind sections 1-3: `Claude files/reports/` (appendix-B validation,
+  fix A, TPI mechanism, TPI root cause).
 
 ---
 

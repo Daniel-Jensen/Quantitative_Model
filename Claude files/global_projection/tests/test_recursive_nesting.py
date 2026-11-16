@@ -9,6 +9,7 @@
 #     risk to the Eurosystem next period, by exactly (qR - Xi')*dm in every regime.
 # N4  every budget in the period map sums to the union goods market, TPI on or off,
 #     at arbitrary (not solved) points: the TPI's flows cancel exactly.
+# N5  the same identity with the net-worth floor binding: its top-up is funded, not created.
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
 
@@ -20,11 +21,10 @@ from global_projection.solver_recursive.state_grid import (build_state_box, s_pr
 from global_projection.blocks.trade import import_demand, trade_balance, size_ratio
 from global_projection.solver_recursive.decision_rules import RuleSet
 from global_projection.solver_recursive.point_map import point_residuals
-from global_projection.solver_recursive.recursive_main import (time_iteration, calibrate_household_anchors,
+from global_projection.solver_recursive.recursive_main import (calibrate_household_anchors,
                             ss_state, ss_x)
-from global_projection.solver_recursive.recursive_experiment import BOX_KW, WC_LADDER, advance
-from global_projection.solver_recursive.collocation import (solve_collocation, TOL_MAXF, RES_NAMES,
-                                          N_RES_POINT)
+from global_projection.solver_recursive.recursive_experiment import normal_box, N_GH, solve_no_default, advance
+from global_projection.solver_recursive.collocation import TOL_MAXF, RES_NAMES, N_RES_POINT
 
 # SINGLE-SOURCED FROM THE SOLVER. This list used to be a hand-kept copy and went stale
 # at every change to the residual system -- the assert below is what catches that now.
@@ -62,7 +62,7 @@ def _tpi_setup():
     cal = dict(cal, tpi_on=True, nw_floor_frac=0.0)
     sp = s_process_params(cal)
     calibrate_household_anchors(cal, ss, sp)
-    grid = build_state_box(ss, cal, mu=1, **BOX_KW)
+    grid = normal_box(ss, cal, mu=1)
     return cal, ss, sp, grid, RuleSet.from_ss(grid, ss, cal)
 
 
@@ -112,8 +112,9 @@ def test_n3_tpi_swap_and_risk_transfer():
 
 
 def _union_identity(o, x, cal, ss):
-    # UNION GOODS GAP MINUS THE KNOWN TERMS (F treasury, working capital vs the anchor,
-    # deposit clearing), with consumption UNGUARDED -- zero up to the bond floors' bias.
+    # UNION GOODS GAP MINUS THE KNOWN TERMS (working capital vs the anchor, deposit clearing),
+    # with consumption UNGUARDED -- zero up to the bond floors' bias. The F treasury term
+    # delta_b_F*B_F*(Q_bF - Q_bF_ss) is gone: F taxes now close F's budget (2026-10-26).
     sz, p = size_ratio(cal), o["p"]
     PD, PF = o["P_CES_D"], o["P_CES_F"]
     CD = o["W_D"] / PD + o["inc_D"] - o["A_D"]
@@ -124,11 +125,10 @@ def _union_identity(o, x, cal, ss):
     NXD, NXF = (z[0] for z in trade_balance(a([p]), a([IMD]), a([IMF]), cal))
     gap = ((o["Y_D"] - PD * CD - o["I_D"] - NXD - cal["G_D"])
            + sz * p * (o["Y_F"] - PF * CF - o["I_F"] - NXF - cal["G_F"]))
-    treas = sz * p * cal["delta_b_F"] * cal["B_gov_F_ss"] * (o["Q_bF"] - ss["Q_bF_ss"])
     # the working-capital flow is in the household budget, so only the residual anchor remains
     wcD = -PD * ss["hh_T_D"]
     wcF = -PF * ss["hh_T_F"]
-    return gap - treas - wcD - sz * p * wcF - (o["save_union"] - o["dep_union"])
+    return gap - wcD - sz * p * wcF - (o["save_union"] - o["dep_union"])
 
 
 def test_n4_union_budget_identity():
@@ -154,6 +154,37 @@ def test_n4_union_budget_identity():
               f"{worst:.1e} at 40 random points")
 
 
+def test_n5_funded_floor_closes_the_budget():
+    # N5: THE NET-WORTH FLOOR IS FUNDED, SO THE UNION BUDGET CLOSES WHERE IT BINDS.
+    # D's top-up is new D debt the banks absorb and F's an F lump-sum tax, so the identity N4
+    # checks must hold at points where the floor binds; a floor share of 0.9 makes it bind at
+    # most of them, and the top-up must be real there (an unfunded floor leaks by exactly it).
+    # Since 2026-10-28 the floor is a recapitalisation in default only: no top-up in normal times.
+    cal, ss, sp, grid, rules = _tpi_setup()
+    rng = np.random.default_rng(1)
+    for nwf in (0.15, 0.9):
+        c = dict(cal, tpi_on=False, nw_floor_frac=nwf)
+        worst, n_bind, top, top_d0 = 0.0, 0, 0.0, 0.0
+        for _ in range(20):
+            S = grid.lo + (grid.hi - grid.lo) * rng.random(grid.d)
+            x = ss_x(ss, c) * (1.0 + 0.01 * rng.standard_normal(len(ss_x(ss, c))))
+            x[-1] = 0.0
+            for d in (0, 1):
+                _, o = point_residuals(S, d, x, rules, c, ss, sp, n_gh=5)
+                worst = max(worst, abs(_union_identity(o, x, c, ss)))
+                if d == 0:
+                    top_d0 = max(top_d0, abs(o["recap_D"]), abs(o["recap_F"]))
+                    continue
+                n_bind += int(o["recap_D"] > 1e-6)
+                top = max(top, o["recap_D"])
+        assert worst < 1e-8, f"union budget leaks with the floor at {nwf}: {worst:.3e}"
+        assert top_d0 == 0.0, f"a normal-times top-up of {top_d0:.3e} (the floor acts in default only)"
+        if nwf > 0.5:
+            assert n_bind > 5, f"the floor bound at only {n_bind}/20 default-regime points"
+        print(f"    N5 floor {nwf:.2f}: union identity holds to {worst:.1e}; top-up binding at "
+              f"{n_bind}/20 default-regime points, largest {top:.3f}, none in normal times")
+
+
 def test_n2_no_default_grid_solve():
     # N2: THE GRID-WIDE FIXED POINT AT pi = 0 MUST ACTUALLY BE FOUND.
     # This used to be a REPORTING probe rather than a gate, because damped time
@@ -166,29 +197,21 @@ def test_n2_no_default_grid_solve():
     sp = s_process_params(cal)
     calibrate_household_anchors(cal, ss, sp)
     # bands MUST match what solve_recursive ships, or the probe measures a box defect
-    # rather than the solver -- imported from BOX_KW so the two cannot drift apart.
+    # rather than the solver -- the production box (normal_box) so the two cannot drift apart.
     # (Hard-wired bands here went stale at the 9-state change: the old 0.12/0.20 P
     # bands admit corners the period map cannot solve now that the household claim W_D
     # is a separate state, and the probe reported their |F| = 9.0 as a solver failure.)
-    grid = build_state_box(ss, cal, mu=1, **BOX_KW)
+    grid = normal_box(ss, cal, mu=1)
     rules = RuleSet.from_ss(grid, ss, cal, n_regimes=2)
 
-    rules.n_gh = 5
-    time_iteration(rules, cal, ss, sp, regimes=(0,), no_default=True, damp=0.5,
-                   tol=1e-4, max_it=12, n_gh=5, verbose=False)                               # warm start only
-    # the working-capital flow is walked into the household budget, as the solve ladder does
-    for w in WC_LADDER:
-        cal["wc_flow_D"] = cal["wc_flow_F"] = w
-        calibrate_household_anchors(cal, ss, sp)
-        ok, its, worst = solve_collocation(rules, cal, ss, sp, regimes=(0,),
-                                           no_default=True, n_gh=5, backend="parsolve",
-                                           maxit=20, verbose=False, label=" N2")
-    cal.pop("wc_flow_D"); cal.pop("wc_flow_F")
-    calibrate_household_anchors(cal, ss, sp)
+    rules.n_gh = N_GH
+    # the solver's own no-default sequence: the FX valuation and the working-capital flow
+    # walked in at MU_EPS_START, then the KKT smoothing walked down to cal["mu_eps"] (one
+    # source, so the test cannot drift from what the solver does)
+    ok, worst = solve_no_default(rules, cal, ss, sp, "N2", False)
     assert ok, f"N2: collocation solve did not converge (max|F| = {worst:.2e})"
     assert worst <= 10 * TOL_MAXF, f"N2: max|F| = {worst:.2e}"
-    print(f"    N2 (grid-wide solve at pi=0): converged in {its} Newton steps, "
-          f"max|F| = {worst:.2e}")
+    print(f"    N2 (grid-wide solve at pi=0, mu_eps {cal['mu_eps']:.1e}): max|F| = {worst:.2e}")
 
 
 if __name__ == "__main__":
@@ -198,5 +221,7 @@ if __name__ == "__main__":
     print("test_recursive_nesting N3 (TPI swap and risk transfer): PASSED")
     test_n4_union_budget_identity()
     print("test_recursive_nesting N4 (union budget identity): PASSED")
+    test_n5_funded_floor_closes_the_budget()
+    print("test_recursive_nesting N5 (funded net-worth floor): PASSED")
     test_n2_no_default_grid_solve()
     print("test_recursive_nesting N2 (grid-wide solve): PASSED")

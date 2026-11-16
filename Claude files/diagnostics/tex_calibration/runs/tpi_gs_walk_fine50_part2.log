@@ -1,0 +1,8 @@
+  collocation solve TPI cap=1025.0bp: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve TPI cap=1025.0bp  1] sum|F|^2 = 6.128e-05   max|F| = 5.204e-03   step = 1
+    [parsolve TPI cap=1025.0bp  2] sum|F|^2 = 6.667e-06   max|F| = 2.228e-03   step = 1
+    [parsolve TPI cap=1025.0bp  3] sum|F|^2 = 6.485e-06   max|F| = 2.313e-03   step = 0.25
+    [parsolve TPI cap=1025.0bp  4] sum|F|^2 = 5.363e-06   max|F| = 2.160e-03   step = 0.25
+    [parsolve TPI cap=1025.0bp  5] sum|F|^2 = 5.189e-06   max|F| = 2.133e-03   step = 0.0625
+/opt/anaconda3/lib/python3.13/multiprocessing/resource_tracker.py:301: UserWarning: resource_tracker: There appear to be 5 leaked semaphore objects to clean up at shutdown: {'/mp-fhq37usc', '/mp-bazflfu7', '/mp-n70p62n4', '/mp-fihdvqg8', '/mp-kqmdtk1w'}
+  warnings.warn(

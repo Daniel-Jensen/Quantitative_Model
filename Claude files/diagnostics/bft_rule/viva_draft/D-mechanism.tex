@@ -1,0 +1,109 @@
+% !TEX root = ../main.tex
+% =============================================================================
+%  Appendix D - Decomposition of the announced rule's effect
+% =============================================================================
+% PROVISIONAL NUMBERS (2026-11-16), canonical calibration (Bohn 0.15). One-quarter and joint
+% two-quarter clearings on the saved solutions; source results/GLOBAL_2026-11-13_bohn015/forensic.
+\section{Decomposition of the announced rule's effect}
+\label{app:mechanism}
+
+This appendix gives the decompositions behind \cref{sec:res-mechanism}. Every comparison is at
+the common state of \cref{tab:mechanism}: the stochastic rest point of the economy without a
+backstop, with the quarterly default probability raised to 2\% (1.5\% in brackets). Three kinds
+of object appear. Accounting identities hold exactly at a given allocation. Controlled
+counterfactuals are allocations that clear one quarter under assumptions no announced policy
+would produce, and isolate one channel. Shapley allocations share an effect among interacting
+factors by averaging over the order in which they are switched on; they are a convention, not an
+identity.
+
+\subsection{The price of capital}
+\label{app:mech-capital}
+
+Equation \eqref{eq:capital-price} factors the price of capital exactly as
+\begin{equation}
+\begin{aligned}
+Q_{D,t}={}&\underbrace{\frac{\E_t[\Pi^K_{t+1}]}{R_{D,t}}}_{\text{expected payoff}}
+\times\underbrace{\frac{\E_t\bigl[\Omega_{D,t,t+1}\,\Pi^K_{t+1}\bigr]}
+{\E_t[\Omega_{D,t,t+1}]\,\E_t[\Pi^K_{t+1}]}}_{\text{covariance}}
+\times\underbrace{\frac{\E_t[\Omega_{D,t,t+1}]R_{D,t}}{\E_t[\Omega_{D,t,t+1}]R_{D,t}+\lambda_D\mu_{D,t}}}_{\text{constraint premium}},\\
+&\Pi^K_{t+1}\equiv mpk_{D,t+1}+(1-\delta_D)\,Q_{D,t+1},
+\end{aligned}
+\label{eq:capital-price-factors}
+\end{equation}
+where $\Pi^K_{t+1}$ is the payoff on a unit of capital, so the log change in $Q_{D,t}$ is the sum of the log changes in the three factors, with the
+expected payoff split between the resale value and the dividend in proportion to their changes.
+The identity holds to $10^{-14}$ in every column of \cref{tab:app-capital}.
+
+\begin{table}[htbp]
+\centering
+\caption{Accounting decomposition of the rise in the price of capital}
+\label{tab:app-capital}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lccc}
+\toprule
+Change in $Q_{D,t}$ against no backstop (\%) & Surprise purchase & Rule, purchases & Announced rule \\
+ & & from next quarter & \\
+\midrule
+Expected resale value $Q_{D,t+1}$ & +0.021 [+0.017] & +0.266 [+0.254] & +0.281 [+0.267] \\
+Expected dividend $mpk_{D,t+1}$ & 0.000 [0.000] & 0.000 [0.000] & 0.000 [0.000] \\
+Constraint premium $\lambda_D\mu_{D,t}$ & $-$0.008 [$-$0.006] & +0.287 [+0.087] & +0.287 [+0.087] \\
+Deposit rate $R_{D,t}$ & +0.001 [+0.001] & $-$0.110 [$-$0.034] & $-$0.112 [$-$0.035] \\
+Covariance & +0.001 [+0.001] & 0.000 [0.000] & +0.001 [+0.001] \\
+\midrule
+Total & +0.015 [+0.012] & +0.443 [+0.308] & +0.458 [+0.321] \\
+\bottomrule
+\end{tabular}
+\par\medskip
+\begin{minipage}{0.92\linewidth}\footnotesize
+\emph{Notes:} common state, default probability 2\% [1.5\%] a quarter, one quarter cleared. The
+constraint-premium entry under the rule equals the no-backstop lending spread per quarter
+($115/4$ and $35/4$\,bp): it records the constraint going slack, not an independent cause.
+\end{minipage}
+\end{table}
+
+The source of the higher expected resale value is a controlled counterfactual. Starting from
+the economy without a backstop, we replace groups of next-quarter values by those of the policy
+economy one group at a time, re-clear the impact quarter exactly, and allocate the change by
+Shapley. Of the 0.458\% rise at 2\%, expected capital accumulation and hours next quarter
+contribute 0.233 points, expected household demand, the terms of trade and $F$ variables 0.200,
+the bond's own continuation price 0.015, the franchise value 0.002, and the impact-quarter
+purchase 0.017. Expected capital accumulation alone, switched on by itself, eliminates the whole
+115\,bp lending spread.
+
+\subsection{Bank net worth}
+\label{app:mech-networth}
+
+Net worth is gross returns on the assets carried into the quarter less deposits owed, plus the
+start-up funds of entrants, \eqref{eq:nw-lom}. At the common state the rule raises it by 3.60\%
+of no-backstop net worth at 2\% (2.43\% at 1.5\%). The revaluation of capital contributes
+3.02 points, of which 3.00 is the identity \eqref{eq:revaluation}: a 0.458\% price rise times
+capital worth 6.55 times net worth. The sovereign capital gain adds 0.55, start-up funds 0.04,
+and the remaining items less than 0.01. Clearing two quarters jointly gives 3.14\%, of which
+capital 2.63 and the sovereign gain 0.48.
+
+From the policy economy's own rest point the same comparison gives 3.30\% of shocked
+no-backstop net worth. The difference of $-0.29$ points comes from the initial state: the policy
+rest point carries more capital financed with deposits (deposits owed $-0.60$, capital return
+$+0.45$) and fewer legacy bonds ($-0.15$). Divided instead by rest-point net worth, which is 14\%
+larger, the change is the 2.9 points of \cref{tab:headline-impact}.
+
+\subsection{The constraint}
+\label{app:mech-constraint}
+
+Equation \eqref{eq:mu-closed} writes the multiplier as a function of the discount factor, the
+deposit rate, net worth and the divertible base. Switching each from its no-backstop to its
+policy value and allocating by Shapley, the 115\,bp cut in the lending spread at 2\% splits into
+the capital revaluation of net worth ($-107$\,bp), the sovereign capital gain ($-12.5$), the swap
+of bonds for reserves banks cannot divert ($-4.5$), the deposit rate ($-2.6$), the franchise
+value ($-2.7$), the banker's discount factor ($+3.7$) and the larger divertible base as banks buy
+more capital ($+9.1$). At the no-backstop allocation the semi-elasticity of the multiplier in the
+price of capital is $\partial\mu_{D,t}/\partial\ln Q_{D,t}=-5.66$: net worth rises 6.62 times as
+fast as the price and the divertible base 0.82 times as fast. Holding the allocation at its
+no-backstop value, the promise raises the price banks will pay for capital by 0.335\%; in
+equilibrium the rise is 0.457\%, an amplification of 1.36.
+
+The surprise purchase's effect on the lending spread, $+3.3$\,bp with one quarter cleared,
+combines a slightly lower franchise value next quarter ($+19$\,bp), as banks expect to be better
+capitalised, with the reserve swap ($-9$\,bp) and the capital and sovereign gains ($-7$\,bp). With
+two quarters cleared the sign reverses ($-4.6$\,bp). Neither sign is established.

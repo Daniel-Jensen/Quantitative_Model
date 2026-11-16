@@ -1,0 +1,57 @@
+\begin{table}[H]
+  \centering
+  \caption{Empirical targets and validation benchmarks}
+  \label{tab:targets}
+  \footnotesize\setstretch{1}
+  \begin{tabular}{llll}
+    \toprule
+    Moment & Data & Model & Role \\
+    \midrule
+    \multicolumn{4}{l}{\emph{Banks}} \\
+    Leverage, GR fin.\ accounts, 2002--07 & $7.98$ & $8.00$ & Target \\
+    Leverage, GR credit book / CT1, 2010 & $5.5$ & $8.00$ & Narrower measure \\
+    Intermediation wedge & $100$bp & $-0$bp & Target \\
+    Lending spread, 2003--07, GR; DE & $290$; $180$bp & $-0$; $12$bp & Upper bound \\
+    Euribor--Eurepo, 2002--2012 & $8$bp & $-0$bp & Not matched \\
+    Real deposit rate, 1999--2007 & $1.11\%$ & $1.20\%$ & Set (Bocola) \\
+    \addlinespace
+    \multicolumn{4}{l}{\emph{Sovereign risk and recovery}} \\
+    Default probability, Greek 1y CDS, 2008Q3 & $0.092\%$ & $0.10\%$ & Set directly \\
+    Default probability, 2010--2011 average & $9.1\%$ & $4.9e-05\%$ & Validation \\
+    Bond-implied hazard, 1999--2007 & $0.23\%$ & $0.10\%$ & Upper bound \\
+    Bond-implied hazard, basis-adjusted & $0.02$--$0.05\%$ & $0.10\%$ & Lower bound \\
+    Greek--German 10y spread, 2002--2007 & $25.3$bp & $59.3$bp & Validation \\
+    PSI recovery, face value; NPV & $46.5\%$; $35$--$41\%$ & $45\%$ & Bracket \\
+    \addlinespace
+    \multicolumn{4}{l}{\emph{Sovereign exposure}} \\
+    GR sovereign / GR bank assets & $14.4\%$ & $14.4\%$ & Target \\
+    DE sovereign / DE bank assets & $6.5\%$ & $6.5\%$ & Target \\
+    GR sovereign / GR Core Tier 1 & $2.39$ & $1.15$ & Limitation \\
+    Foreign share, German banks; all foreign & $12.7\%$; $39.6\%$ & $11\%$ & Bracket \\
+    Duration of Greek banks' Greek book & $4.4$ years & $4.1$ years & Validation \\
+    EBA-held Greek debt / GDP, 2010 & $40\%$ & $49\%$ & Not matched \\
+    End-2011 repricing loss / GR CT1 & $40\%$ & $27\%$ & Validation \\
+    \addlinespace
+    \multicolumn{4}{l}{\emph{Households}} \\
+    Liquid deposits / GDP, Greece & $84\%$ & $262\%$ & Validation \\
+    \addlinespace
+    \multicolumn{4}{l}{\emph{Transmission}} \\
+    GR$-$DE rise in overdraft spread & $108$bp & $46$bp & Upper bound \\
+    \bottomrule
+  \end{tabular}
+  \tabnote{Note: rates and spreads are annualised; default probabilities are
+  quarterly. Bank stocks are gross direct long positions at 31 December 2010
+  \citep{eba2011}. Bond-implied hazards assume a flat hazard at $\varrho_D=0.45$;
+  the basis adjustment deflates the ten-year spread by the ten-year/one-year CDS
+  ratio. CT1 is Core Tier 1 capital. The German foreign share is of Greek and
+  German banks' combined holdings; the all-foreign share is of the EBA total.
+  Durations are Macaulay, discounted at $4.5\%$ in the data and at the model's
+  rest-point yield ($1.83\%$; $3.8$ years at $4.5\%$). The repricing loss revalues
+  the 2010 book at a ten-year yield of $9.1\%$, the 2010 average. Model moments are
+  read at the stochastic rest point, where leverage, the intermediation wedge
+  $r^{wc}-r$ and both exposure shares are targeted; model debt is held by banks,
+  at market value. Against the $2010$--$2011$ average, the model entry is the
+  ergodic share of quarters with $\pi^d_t$ above it; the overdraft-spread rise is
+  the model's $D-F$ lending-spread rise on impact when the default probability
+  jumps to $2\%$ a quarter.}
+\end{table}

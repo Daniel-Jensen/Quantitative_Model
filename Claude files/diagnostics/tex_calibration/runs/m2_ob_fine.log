@@ -1,0 +1,46 @@
+  collocation solve m2 hard: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    -> converged in 1 iterations, max|F| = 8.64e-10  (worst equation: id_alpha_D 8.6e-10)
+[m2 hard] ok True  its 1  max|F| 8.64e-10
+[m2 hard] crisis nodes []
+[f] f_D 0.0800: IC binds from p^d 3.76% (inside the box); spread rise at p^d 2% 0.0 bp (target 108 bp)
+
+[OB fine, f_D 0.080] rest point box position u: K_D -0.59, P_D -0.30, b_DD +0.55, s -0.18
+[OB fine, f_D 0.080] fitted rest: mu_D -0.00000  loan spread -0.0bp  leverage 8.065  sov spread 62.1bp  E[Om] 1.1191  goods_F +3.5e-05
+   p^d 2.00%: dQ_bD -8.27%  dn_D -14.08%  dn_F +0.13%  dY_D -0.2200%  dC_D +0.0495%  dspread +44.4bp  mu_D 0.01010  E[Om] 1.1274 = nd 1.1145/d 1.757 (alpha' nd 1.125, d 1.859)
+   p^d 4.00%: dQ_bD -13.62%  dn_D -21.81%  dn_F +0.13%  dY_D -0.3214%  dC_D -0.0128%  dspread +299.9bp  mu_D 0.06974  E[Om] 1.1525 = nd 1.1274/d 1.755 (alpha' nd 1.137, d 1.850)
+   p^d 6.00%: dQ_bD -17.91%  dn_D -27.26%  dn_F +0.09%  dY_D -0.3758%  dC_D -0.0672%  dspread +452.2bp  mu_D 0.10762  E[Om] 1.1796 = nd 1.1430/d 1.753 (alpha' nd 1.153, d 1.845)
+   p^d 9.10%: dQ_bD -23.38%  dn_D -33.66%  dn_F +0.03%  dY_D -0.4220%  dC_D -0.1303%  dspread +608.4bp  mu_D 0.14991  E[Om] 1.2214 = nd 1.1683/d 1.752 (alpha' nd 1.180, d 1.840)
+[OB fine, f_D 0.080] exact rest: mu_D -0.00000  loan spread -0.0bp  leverage 8.046  sov spread 61.5bp  E[Om] 1.1184  goods_F +1.3e-10
+   p^d 2.00%: dQ_bD -7.78%  dn_D -11.46%  dn_F +0.04%  dY_D -0.0343%  dC_D +0.1272%  dspread +0.0bp  mu_D -0.00000  E[Om] 1.1431 = nd 1.1306/d 1.752 (alpha' nd 1.151, d 1.865)
+   p^d 4.00%: dQ_bD -12.96%  dn_D -18.32%  dn_F +0.02%  dY_D -0.0695%  dC_D +0.1603%  dspread +46.2bp  mu_D 0.01094  E[Om] 1.1732 = nd 1.1493/d 1.747 (alpha' nd 1.174, d 1.858)
+   p^d 6.00%: dQ_bD -17.48%  dn_D -25.20%  dn_F +0.04%  dY_D -0.2191%  dC_D +0.0104%  dspread +323.4bp  mu_D 0.07735  E[Om] 1.1854 = nd 1.1495/d 1.748 (alpha' nd 1.168, d 1.849)
+   p^d 9.10%: dQ_bD -23.19%  dn_D -32.85%  dn_F +0.02%  dY_D -0.3500%  dC_D -0.1148%  dspread +571.8bp  mu_D 0.14057  E[Om] 1.2185 = nd 1.1655/d 1.749 (alpha' nd 1.180, d 1.840)
+
+=== calibration evaluation 0: leverage_target_D=8.1736708  leverage_target_F=7.9461327  sov_exposure_D=0.12952186  sov_exposure_F=0.064971075
+  collocation solve m2 hard: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    -> converged in 1 iterations, max|F| = 8.64e-10  (worst equation: id_alpha_D 8.6e-10)
+[m2 hard] ok True  its 1  max|F| 8.64e-10
+[m2 hard] crisis nodes []
+  [m2] solved 8.6e-10 in 24s; rest point mu_D -0.00000 mu_F 0.00173; outside the box: none
+  rest point: lev_D=8.0649252  lev_F=7.9772061  exp_D=0.14457101  exp_F=0.065006593
+  scaled gaps (|.| <= 1 converges): +12.99  -4.56  +5.71  +0.07   [24s, solve ok True]
+
+=== calibration evaluation 1: leverage_target_D=8.1087456  leverage_target_F=7.9689266  sov_exposure_D=0.12895084  sov_exposure_F=0.064964481
+  collocation solve m2 hard: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve m2 hard  1] sum|F|^2 = 1.329e-05   max|F| = 3.569e-03   step = 1
+    [parsolve m2 hard  2] sum|F|^2 = 7.797e-11   max|F| = 8.768e-06   step = 1
+    [parsolve m2 hard  3] sum|F|^2 = 2.281e-23   max|F| = 4.104e-12   step = 1
+    -> converged in 4 iterations, max|F| = 4.10e-12  (worst equation: bondF_D 4.1e-12)
+[m2 hard] ok True  its 4  max|F| 4.10e-12
+[m2 hard] crisis nodes []
+  [m2] solved 4.1e-12 in 1191s; rest point mu_D -0.00000 mu_F 0.00174; outside the box: none
+  rest point: lev_D=7.9969625  lev_F=8.0001764  exp_D=0.14401737  exp_F=0.065000086
+  scaled gaps (|.| <= 1 converges): -0.61  +0.04  +0.17  +0.00   [1191s, solve ok True]
+
+  CONVERGED: paste into calibration/global_projection.py
+    leverage_target_D = np.float64(8.108745648164863)
+    leverage_target_F = np.float64(7.968926569751571)
+    sov_exposure_D = np.float64(0.1289508412398137)
+    sov_exposure_F = np.float64(0.06496448122294675)
+
+[ob] CONVERGED; f_D 0.0800; IC binds from p^d 3.93% (inside the box); leverage_target_D=8.10875  leverage_target_F=7.96893  sov_exposure_D=0.128951  sov_exposure_F=0.0649645

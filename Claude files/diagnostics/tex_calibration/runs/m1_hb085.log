@@ -1,0 +1,23 @@
+[load] d0_wedge_hb085.pkl: lambda 0.12358  mu_ss 0.00102  spread instrument 5.0bp
+[d1 rec=0.85] ok True  its 6  max|F| 9.80e-11
+[d1 rec=0.80] ok True  its 5  max|F| 2.24e-10
+[d1 rec=0.75] ok True  its 4  max|F| 1.15e-08
+[d1 rec=0.70] ok True  its 5  max|F| 1.71e-11
+[d1 rec=0.65] ok True  its 5  max|F| 8.38e-11
+[d1 rec=0.60] ok True  its 4  max|F| 1.39e-09
+[d1 rec=0.55] ok True  its 5  max|F| 1.59e-12
+[d1 rec=0.50] ok True  its 4  max|F| 6.01e-09
+[d1 rec=0.45] ok True  its 4  max|F| 3.74e-09
+[joint eps 1e-2] ok False  its 30  max|F| 2.11e-04
+
+[joint eps 1e-2 (unconverged)] rest point box position u: K_D +1.05, K_F -1.02, P_D +0.64, P_F -1.05, b_DD +0.28, b_DF +0.08, b_FD -0.12, V_dep +1.04
+[joint eps 1e-2 (unconverged)] fitted rest: mu_D 0.00005  loan spread 0.2bp  leverage 6.739  sov spread -21.2bp  E[Om] 1.2336  goods_F +3.4e-04
+   p^d 0.25%: dQ_bD -2.39%  dn_D -2.67%  dn_F -0.01%  dY_D -0.0127%  dC_D +0.0774%  dspread +0.0bp  mu_D 0.00005  E[Om] 1.2539 = nd 1.2528/d 1.694 (alpha' nd 1.279, d 1.846)
+   p^d 0.50%: dQ_bD -4.58%  dn_D -5.11%  dn_F -0.03%  dY_D -0.0243%  dC_D +0.1544%  dspread +0.0bp  mu_D 0.00005  E[Om] 1.2740 = nd 1.2719/d 1.696 (alpha' nd 1.300, d 1.845)
+   p^d 1.00%: dQ_bD -7.08%  dn_D -7.90%  dn_F -0.04%  dY_D -0.0376%  dC_D +0.2534%  dspread +0.0bp  mu_D 0.00006  E[Om] 1.2993 = nd 1.2952/d 1.699 (alpha' nd 1.325, d 1.844)
+   p^d 2.00%: dQ_bD -9.87%  dn_D -11.02%  dn_F -0.06%  dY_D -0.0528%  dC_D +0.3808%  dspread -0.0bp  mu_D 0.00006  E[Om] 1.3307 = nd 1.3232/d 1.702 (alpha' nd 1.356, d 1.843)
+[joint eps 1e-2 (unconverged)] exact rest: mu_D 0.00009  loan spread 0.4bp  leverage 6.767  sov spread -69.6bp  E[Om] 1.0848  goods_F -3.6e-07
+   p^d 0.25%: dQ_bD -2.16%  dn_D -2.29%  dn_F -0.02%  dY_D -0.0117%  dC_D +0.0742%  dspread -0.0bp  mu_D 0.00009  E[Om] 1.1138 = nd 1.1125/d 1.651 (alpha' nd 1.139, d 1.830)
+   p^d 0.50%: dQ_bD -4.19%  dn_D -4.44%  dn_F -0.03%  dY_D -0.0223%  dC_D +0.1461%  dspread -0.0bp  mu_D 0.00008  E[Om] 1.1418 = nd 1.1393/d 1.655 (alpha' nd 1.168, d 1.831)
+   p^d 1.00%: dQ_bD -6.63%  dn_D -7.03%  dn_F -0.05%  dY_D -0.0347%  dC_D +0.2365%  dspread -0.1bp  mu_D 0.00008  E[Om] 1.1761 = nd 1.1712/d 1.659 (alpha' nd 1.203, d 1.831)
+   p^d 2.00%: dQ_bD -9.61%  dn_D -10.19%  dn_F -0.07%  dY_D -0.0495%  dC_D +0.3525%  dspread -0.1bp  mu_D 0.00008  E[Om] 1.2180 = nd 1.2089/d 1.663 (alpha' nd 1.245, d 1.832)

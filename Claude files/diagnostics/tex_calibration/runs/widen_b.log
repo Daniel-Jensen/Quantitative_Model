@@ -1,0 +1,21 @@
+  collocation solve b_band 0.18: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve b_band 0.18  1] sum|F|^2 = 2.128e-02   max|F| = 1.073e-01   step = 1
+    [parsolve b_band 0.18  2] sum|F|^2 = 5.278e-04   max|F| = 2.103e-02   step = 1
+    [parsolve b_band 0.18  3] sum|F|^2 = 9.662e-08   max|F| = 2.745e-04   step = 1
+    [parsolve b_band 0.18  4] sum|F|^2 = 1.071e-15   max|F| = 3.013e-08   step = 1
+    -> converged in 5 iterations, max|F| = 3.01e-08  (worst equation: id_alpha_D 3.0e-08)
+[b_band 0.18] ok True  its 5  max|F| 3.01e-08
+[b_band 0.18] crisis nodes []
+[b] b_band 0.18: ok True  max|F| 3.01e-08
+[b] rest: lev_D 7.9857  lev_F 7.9989  spread_D -2.9628e-12  spread_F 0.00030853  exp_D 0.14573  exp_F 0.064999  (u b_DD +0.63)
+  collocation solve b_band 0.25: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve b_band 0.25  1] sum|F|^2 = 2.666e-02   max|F| = 7.015e-02   step = 1
+    [parsolve b_band 0.25  2] sum|F|^2 = 4.201e-03   max|F| = 3.390e-02   step = 1
+    [parsolve b_band 0.25  3] sum|F|^2 = 1.314e-06   max|F| = 6.144e-04   step = 1
+    [parsolve b_band 0.25  4] sum|F|^2 = 7.027e-12   max|F| = 1.498e-06   step = 1
+    [parsolve b_band 0.25  5] sum|F|^2 = 3.208e-20   max|F| = 1.051e-10   step = 1
+    -> converged in 6 iterations, max|F| = 1.05e-10  (worst equation: bondD_F 1.1e-10)
+[b_band 0.25] ok True  its 6  max|F| 1.05e-10
+[b_band 0.25] crisis nodes []
+[b] b_band 0.25: ok True  max|F| 1.05e-10
+[b] rest: lev_D 7.8793  lev_F 7.997  spread_D -2.9598e-12  spread_F 0.00030528  exp_D 0.14793  exp_F 0.064998  (u b_DD +0.54)

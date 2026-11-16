@@ -1,0 +1,40 @@
+THE BANKER'S KERNEL AT IMPACT: E_Om = sum_j w_j E[Lam_j (f + (1-f) alpha'_j)]
+
+ [A no TPI]  E_Om 1.1409  pd 2.00%  b_DD' 1.8716  M' 0.0000B  O' 0.0000  Q_bD 0.8662  Q_K 1.00043
+   regime 0: weight 0.9800  E[Lam] 0.9977  E[alpha'] 1.1424  E[Om] 1.1284  contribution 1.1058  E[C'] 0.5518  E[Q_bD'] 0.8770  E[R_K']    129.9bp
+      alpha' by GH node: [1.1181 1.128  1.1429 1.1561 1.157 ]   Lam: [0.9983 0.998  0.9977 0.9974 0.9974]
+   regime 1: weight 0.0200  E[Lam] 0.9778  E[alpha'] 1.8632  E[Om] 1.7543  contribution 0.0351  E[C'] 0.5548  E[Q_bD'] 0.8878  E[R_K']     41.4bp
+      alpha' by GH node: [1.8592 1.8612 1.8633 1.8652 1.8653]   Lam: [0.9772 0.9775 0.9778 0.978  0.978 ]
+
+ [B TPI]  E_Om 1.2322  pd 2.00%  b_DD' 1.1425  M' 0.4071B  O' 0.6635  Q_bD 0.8749  Q_K 0.99503
+   regime 0: weight 0.9800  E[Lam] 0.9974  E[alpha'] 1.2498  E[Om] 1.2267  contribution 1.2022  E[C'] 0.5500  E[Q_bD'] 0.8830  E[R_K']    124.7bp
+      alpha' by GH node: [1.2167 1.2133 1.2085 1.3788 1.4105]   Lam: [0.9977 0.9962 0.9964 1.0007 1.0013]
+   regime 1: weight 0.0200  E[Lam] 0.9657  E[alpha'] 1.6045  E[Om] 1.5027  contribution 0.0301  E[C'] 0.5591  E[Q_bD'] 0.8829  E[R_K']    472.2bp
+      alpha' by GH node: [1.5851 1.5951 1.6049 1.6134 1.6141]   Lam: [0.9665 0.9654 0.9654 0.9666 0.9668]
+
+ [C no TPI + 41% buy]  E_Om 1.2331  pd 2.00%  b_DD' 1.1179  M' 0.4071B  O' 0.6616  Q_bD 0.8725  Q_K 0.99624
+   regime 0: weight 0.9800  E[Lam] 1.0030  E[alpha'] 1.2427  E[Om] 1.2269  contribution 1.2024  E[C'] 0.5498  E[Q_bD'] 0.8805  E[R_K']    106.7bp
+      alpha' by GH node: [1.1981 1.218  1.2436 1.2662 1.2678]   Lam: [1.0051 1.004  1.0029 1.002  1.0019]
+   regime 1: weight 0.0200  E[Lam] 0.9781  E[alpha'] 1.6210  E[Om] 1.5369  contribution 0.0307  E[C'] 0.5577  E[Q_bD'] 0.9006  E[R_K']    646.7bp
+      alpha' by GH node: [1.5966 1.6087 1.6215 1.6326 1.6335]   Lam: [0.9777 0.9779 0.9782 0.9783 0.9784]
+
+RULE vs EXACT AT THE NEXT STATE (centre GH node), BOTH REGIMES: % gaps (rdep in bp/yr)
+ [A no TPI]  next state in box units: s +0.906  b_DD+M +0.618  M +0.000  O +0.000
+   regime 0 (resid 1e-14): alpha_D +0.789  C_D +0.032  N_D +0.019  Q_bD -0.044  Kp_D -0.002  p +0.029  rdep_D +9.857  A_D -0.013   exact alpha 1.1339 mu -0.0000 n_D 1.4549
+   regime 1 (resid 6e-15): alpha_D +0.938  C_D -0.027  N_D -0.026  Q_bD -0.050  Kp_D -0.002  p +0.007  rdep_D -10.818  A_D -0.006   exact alpha 1.8460 mu 0.2001 n_D 0.7342
+ [B TPI]  next state in box units: s +0.906  b_DD+M +0.684  M +0.466  O -0.422
+   regime 0 (resid 1e-14): alpha_D +0.218  C_D +0.037  N_D +0.016  Q_bD -0.084  Kp_D -0.000  p -0.027  rdep_D +6.752  A_D +0.014   exact alpha 1.2059 mu -0.0000 n_D 1.4241
+   regime 1 (resid 7e-14): alpha_D +20.509  C_D -0.855  N_D -0.447  Q_bD -0.304  Kp_D -0.053  p +1.146  rdep_D -160.468  A_D -0.482   exact alpha 1.3318 mu -0.0000 n_D 1.0531
+ [C no TPI + 41% buy]  next state in box units: s +0.906  b_DD+M +0.624  M +0.466  O -0.436
+   regime 0 (resid 8e-15): alpha_D +3.731  C_D -0.063  N_D -0.082  Q_bD -0.181  Kp_D -0.008  p +0.070  rdep_D -36.701  A_D -0.042   exact alpha 1.1989 mu -0.0000 n_D 1.4260
+   regime 1 (resid 8e-15): alpha_D +18.277  C_D -0.832  N_D -0.402  Q_bD -0.519  Kp_D -0.047  p +1.108  rdep_D -137.435  A_D -0.451   exact alpha 1.3709 mu -0.0000 n_D 1.1096
+
+THE RULES ALONG THE M AXIS (other states at the box centre)
+  no TPI s_u +0 regime 0: (alpha, C_D, Q_bD) at u_M -1,-.5,0,.47,.87,1:   1.3443  0.5566  0.9125 |  1.1894  0.5562  0.9165 |  1.0963  0.5561  0.9204 |  1.0539  0.5562  0.9239 |  1.0486  0.5565  0.9269 |  1.0528  0.5566  0.9279
+  no TPI s_u +0 regime 1: (alpha, C_D, Q_bD) at u_M -1,-.5,0,.47,.87,1:   2.0842  0.5467  0.8864 |  2.0528  0.5528  0.9025 |  1.8598  0.5586  0.9182 |  1.5706  0.5637  0.9325 |  1.2833  0.5678  0.9443 |  1.1881  0.5691  0.9480
+  no TPI s_u +1 regime 0: (alpha, C_D, Q_bD) at u_M -1,-.5,0,.47,.87,1:   1.6196  0.5528  0.8523 |  1.3200  0.5545  0.8525 |  1.1862  0.5561  0.8575 |  1.1728  0.5574  0.8666 |  1.2431  0.5583  0.8778 |  1.2840  0.5586  0.8821
+  no TPI s_u +1 regime 1: (alpha, C_D, Q_bD) at u_M -1,-.5,0,.47,.87,1:   2.0855  0.5469  0.8405 |  2.0326  0.5530  0.8558 |  1.8610  0.5587  0.8706 |  1.6180  0.5635  0.8840 |  1.3751  0.5674  0.8951 |  1.2931  0.5685  0.8986
+  TPI    s_u +0 regime 0: (alpha, C_D, Q_bD) at u_M -1,-.5,0,.47,.87,1:   1.3565  0.5568  0.9098 |  1.1963  0.5563  0.9149 |  1.1000  0.5563  0.9193 |  1.0561  0.5565  0.9228 |  1.0502  0.5569  0.9253 |  1.0544  0.5571  0.9260
+  TPI    s_u +0 regime 1: (alpha, C_D, Q_bD) at u_M -1,-.5,0,.47,.87,1:   2.0842  0.5468  0.8859 |  2.0603  0.5530  0.8978 |  1.8598  0.5591  0.9150 |  1.5550  0.5648  0.9364 |  1.2535  0.5695  0.9588 |  1.1542  0.5710  0.9670
+  TPI    s_u +1 regime 0: (alpha, C_D, Q_bD) at u_M -1,-.5,0,.47,.87,1:   1.8109  0.5524  0.8415 |  1.4039  0.5538  0.8621 |  1.2162  0.5555  0.8748 |  1.1759  0.5575  0.8794 |  1.2344  0.5594  0.8776 |  1.2734  0.5601  0.8759
+  TPI    s_u +1 regime 1: (alpha, C_D, Q_bD) at u_M -1,-.5,0,.47,.87,1:   2.0835  0.5441  0.8508 |  2.0309  0.5525  0.8526 |  1.8597  0.5598  0.8590 |  1.6173  0.5656  0.8695 |  1.3749  0.5697  0.8819 |  1.2931  0.5708  0.8866

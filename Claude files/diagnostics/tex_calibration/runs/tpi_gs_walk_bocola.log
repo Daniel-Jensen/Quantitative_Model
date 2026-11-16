@@ -1,0 +1,40 @@
+  [gs] next rung 640.00 bp (step 10.00); thresholds ahead 618.0, 599.0, 589.8, 582.1, 576.6, 572.7
+  collocation solve TPI cap=640.0bp: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve TPI cap=640.0bp  1] sum|F|^2 = 1.402e-11   max|F| = 2.867e-06   step = 1
+    [parsolve TPI cap=640.0bp  2] sum|F|^2 = 9.246e-17   max|F| = 9.260e-09   step = 1
+    -> converged in 3 iterations, max|F| = 9.26e-09  (worst equation: id_alpha_F 9.3e-09)
+[gs] cap 640.0 bp (tpi_eps 0.0001): Newton ok True (9.3e-09); footprint {'buying': 0, 'corner': 0, 'max_m': 4.289085370969177e-07, 'max_book': 0.2637158872442827, 'max_next_M_u': 0.9440001691161322, 'nodes': 75} (821s)
+  [gs] next rung 627.50 bp (step 12.50); thresholds ahead 618.0, 599.0, 589.8, 582.1, 576.5, 572.7
+  collocation solve TPI cap=627.5bp: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve TPI cap=627.5bp  1] sum|F|^2 = 6.143e-20   max|F| = 2.478e-10   step = 1
+    -> converged in 2 iterations, max|F| = 2.48e-10  (worst equation: tpi 2.5e-10)
+[gs] cap 627.5 bp (tpi_eps 0.0001): Newton ok True (2.5e-10); footprint {'buying': 0, 'corner': 0, 'max_m': 9.885997274200128e-07, 'max_book': 0.2637158903815677, 'max_next_M_u': 0.9440001803463902, 'nodes': 75} (507s)
+  [gs] next rung 611.88 bp (step 15.62); thresholds ahead 618.0, 599.0, 589.8, 582.1, 576.5, 572.7
+  collocation solve TPI cap=611.9bp: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve TPI cap=611.9bp  1] sum|F|^2 = 3.175e-06   max|F| = 1.782e-03   step = 1
+    [parsolve TPI cap=611.9bp  2] sum|F|^2 = 7.593e-07   max|F| = 8.711e-04   step = 1
+    [parsolve TPI cap=611.9bp  3] sum|F|^2 = 3.901e-09   max|F| = 5.412e-05   step = 1
+    [parsolve TPI cap=611.9bp  4] sum|F|^2 = 1.125e-14   max|F| = 6.540e-08   step = 1
+    [parsolve TPI cap=611.9bp  5] sum|F|^2 = 2.664e-25   max|F| = 1.449e-13   step = 1
+    -> converged in 6 iterations, max|F| = 1.45e-13  (worst equation: id_alpha_D 1.4e-13)
+[gs] cap 611.9 bp (tpi_eps 0.0001): Newton ok True (1.4e-13); footprint {'buying': 1, 'corner': 0, 'max_m': 0.02241054661313789, 'max_book': 0.26371589538515455, 'max_next_M_u': 0.944000198257283, 'nodes': 75} (2712s)
+  [gs] next rung 592.34 bp (step 19.53); thresholds ahead 599.9, 590.7, 583.0, 577.6, 573.4, 571.9
+  collocation solve TPI cap=592.3bp: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve TPI cap=592.3bp  1] sum|F|^2 = 1.929e-05   max|F| = 4.048e-03   step = 1
+    [parsolve TPI cap=592.3bp  2] sum|F|^2 = 1.926e-05   max|F| = 4.047e-03   step = 0.00391
+    [parsolve TPI cap=592.3bp  3] sum|F|^2 = 7.477e-06   max|F| = 2.725e-03   LM lambda = 1e-06 s0^2
+    [parsolve TPI cap=592.3bp  4] sum|F|^2 = 7.367e-06   max|F| = 2.704e-03   step = 0.00781
+    [parsolve TPI cap=592.3bp  5] sum|F|^2 = 7.273e-06   max|F| = 2.317e-03   step = 0.5
+    [parsolve TPI cap=592.3bp  6] sum|F|^2 = 2.236e-07   max|F| = 3.599e-04   LM lambda = 1e-04 s0^2
+    [parsolve TPI cap=592.3bp  7] sum|F|^2 = 2.004e-07   max|F| = 3.431e-04   step = 0.0625
+    [parsolve TPI cap=592.3bp  8] sum|F|^2 = 1.940e-07   max|F| = 3.412e-04   step = 0.0312
+    [parsolve TPI cap=592.3bp  9] sum|F|^2 = 1.931e-07   max|F| = 3.416e-04   step = 0.00781
+    [parsolve TPI cap=592.3bp 10] sum|F|^2 = 1.928e-07   max|F| = 3.415e-04   step = 0.00195
+    [parsolve TPI cap=592.3bp 11] sum|F|^2 = 8.458e-08   max|F| = 1.448e-04   LM lambda = 1e-02 s0^2
+    [parsolve TPI cap=592.3bp 12] sum|F|^2 = 8.301e-08   max|F| = 1.462e-04   step = 0.0156
+    -> STOPPED in 12 iterations, max|F| = 1.46e-04  (worst equation: tpi 1.5e-04)
+[gs] cap 592.3 bp (tpi_eps 0.0001): Newton ok False (1.5e-04); footprint None (5329s)
+  [gs] next rung 602.11 bp (step 9.77); thresholds ahead 599.9, 590.7, 583.0, 577.6, 573.4, 571.9
+  collocation solve TPI cap=602.1bp: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+/opt/anaconda3/lib/python3.13/multiprocessing/resource_tracker.py:301: UserWarning: resource_tracker: There appear to be 5 leaked semaphore objects to clean up at shutdown: {'/mp-tntyftm_', '/mp-4r2qxdxm', '/mp-0qblupas', '/mp-p4fc9lln', '/mp-zhrl1k4p'}
+  warnings.warn(

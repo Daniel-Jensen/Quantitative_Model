@@ -1,0 +1,12 @@
+  collocation solve k_band 0.04: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve k_band 0.04  1] sum|F|^2 = 6.450e-02   max|F| = 1.537e-01   step = 0.25
+    [parsolve k_band 0.04  2] sum|F|^2 = 5.566e-04   max|F| = 8.456e-03   step = 1
+    [parsolve k_band 0.04  3] sum|F|^2 = 3.453e-04   max|F| = 1.414e-02   step = 0.5
+    [parsolve k_band 0.04  4] sum|F|^2 = 1.677e-05   max|F| = 3.836e-03   step = 1
+    [parsolve k_band 0.04  5] sum|F|^2 = 9.925e-10   max|F| = 3.084e-05   step = 1
+    [parsolve k_band 0.04  6] sum|F|^2 = 1.520e-18   max|F| = 8.643e-10   step = 1
+    -> converged in 7 iterations, max|F| = 8.64e-10  (worst equation: id_alpha_D 8.6e-10)
+[k_band 0.04] ok True  its 7  max|F| 8.64e-10
+[k_band 0.04] crisis nodes []
+[b] k_band 0.04: ok True  max|F| 8.64e-10
+[b] rest: lev_D 8.0649  lev_F 7.9772  spread_D -2.914e-12  spread_F 0.00021829  exp_D 0.14457  exp_F 0.065007  (u K_D -0.59, b_DD +0.55)

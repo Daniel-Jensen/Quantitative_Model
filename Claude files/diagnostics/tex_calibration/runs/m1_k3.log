@@ -1,0 +1,13 @@
+[joint k_band 0.03] ok False  its 60  max|F| 7.75e-07
+
+[joint k_band 0.03 (unconverged)] rest point box position u: K_D +1.05, K_F -0.30, P_D +0.87, P_F -0.41, b_DD +0.43, b_DF +0.52, b_FD -1.04, V_dep +1.04
+[joint k_band 0.03 (unconverged)] fitted rest: mu_D 0.00005  loan spread 0.2bp  leverage 6.039  sov spread 19.5bp  E[Om] 1.1098  goods_F -2.0e-04
+   p^d 0.25%: dQ_bD -2.47%  dn_D -2.70%  dn_F +0.01%  dY_D -0.0214%  dC_D +0.0891%  dspread +0.0bp  mu_D 0.00005  E[Om] 1.1284 = nd 1.1280/d 1.304 (alpha' nd 1.143, d 1.373)
+   p^d 0.50%: dQ_bD -4.73%  dn_D -5.14%  dn_F +0.02%  dY_D -0.0406%  dC_D +0.1719%  dspread +0.0bp  mu_D 0.00005  E[Om] 1.1469 = nd 1.1461/d 1.304 (alpha' nd 1.164, d 1.372)
+   p^d 1.00%: dQ_bD -7.30%  dn_D -7.90%  dn_F +0.02%  dY_D -0.0624%  dC_D +0.2744%  dspread -0.0bp  mu_D 0.00005  E[Om] 1.1699 = nd 1.1686/d 1.304 (alpha' nd 1.189, d 1.371)
+   p^d 2.00%: dQ_bD -10.18%  dn_D -10.99%  dn_F +0.03%  dY_D -0.0869%  dC_D +0.4038%  dspread -0.0bp  mu_D 0.00006  E[Om] 1.1980 = nd 1.1959/d 1.305 (alpha' nd 1.219, d 1.371)
+[joint k_band 0.03 (unconverged)] exact rest: mu_D 0.00008  loan spread 0.4bp  leverage 6.619  sov spread 8.6bp  E[Om] 1.0826  goods_F -3.6e-07
+   p^d 0.25%: dQ_bD -2.20%  dn_D -2.40%  dn_F +0.01%  dY_D -0.0164%  dC_D +0.0918%  dspread -0.0bp  mu_D 0.00007  E[Om] 1.1156 = nd 1.1152/d 1.292 (alpha' nd 1.136, d 1.375)
+   p^d 0.50%: dQ_bD -4.25%  dn_D -4.60%  dn_F +0.01%  dY_D -0.0305%  dC_D +0.1725%  dspread -0.0bp  mu_D 0.00007  E[Om] 1.1469 = nd 1.1461/d 1.294 (alpha' nd 1.169, d 1.375)
+   p^d 1.00%: dQ_bD -6.66%  dn_D -7.16%  dn_F +0.02%  dY_D -0.0463%  dC_D +0.2644%  dspread -0.1bp  mu_D 0.00007  E[Om] 1.1841 = nd 1.1829/d 1.295 (alpha' nd 1.210, d 1.375)
+   p^d 2.00%: dQ_bD -9.52%  dn_D -10.15%  dn_F +0.02%  dY_D -0.0635%  dC_D +0.3692%  dspread -0.1bp  mu_D 0.00007  E[Om] 1.2271 = nd 1.2256/d 1.297 (alpha' nd 1.256, d 1.376)

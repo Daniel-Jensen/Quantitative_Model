@@ -1,0 +1,577 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,booktabs,array}
+\usepackage[round,authoryear]{natbib}
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
+\setlength{\parskip}{0.45em}
+\setlength{\parindent}{0pt}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\A}{\mathcal{A}}
+\newcommand{\Pg}{\mathfrak{P}}
+\newcommand{\code}[1]{\texttt{\small #1}}
+
+\title{Deposit funding and cross-border sovereign portfolios\\[2pt]
+\large Diagnosis, tractable alternatives, and a stress test for the global model}
+\author{Working note, branch \code{analysis} (from \code{main} at \code{55e174d})}
+\date{12 October 2026}
+
+\begin{document}
+\sloppy
+\maketitle
+
+\section*{Summary}
+
+\textbf{Issue 1 (deposit funding rate).} In every deposit closure the code offers, the deposit
+rate is an \emph{equilibrium price that falls} when sovereign risk rises, and that fall cancels
+51--61\% of the credit-spread increase before it reaches firms' working-capital cost. The
+model's own output decomposition attributes $-0.179\%$ of impact output to the credit spread
+and $+0.104\%$ to the deposit rate, for a total of $-0.073\%$. The credit-spread channel alone
+is close to Bocola's open-economy benchmark of $-0.157\%$; the funding-rate offset is what
+separates the model from it. The two closures also cost tractability in different ways. The
+national closure needs three solver devices and cannot host the TPI. The union closure needs an
+extra state whose stationarity rests on a borrowed premium. And the choice between the two
+flips the sign of the 25-quarter cumulative output response ($-3.9$ against $+0.5$). In the
+stress test, the union closure's uncalibrated premium $\kappa_{\rm nfa}$ moves impact output four
+times as much per log unit as the portfolio cost $\psi$.
+
+\textbf{Issue 2 (cross-border holdings).} The adjustment cost $\psi$ does four jobs at once: it
+selects a portfolio that single-$\lambda$ banks leave indeterminate; it sets the return
+semi-elasticity of cross-border holdings, which is exactly $1/\psi$; under national funding
+it is the inverse elasticity of the country's \emph{entire} external adjustment; and it keeps
+the default branch solvable, since below $\psi\approx1$ the union economy has no solution on
+the current ladder. Over the solvable range ($\psi\in[1,32]$, quick grid) impact output moves
+by a third of its value, while the deposit-rate channel is about five times larger. Two calibration
+faults compound this. The anchor is a \emph{level}, so a growing debt stock is absorbed at home
+by construction. And the symmetric gross position gives the D bank a foreign share of its
+sovereign book of 20\%, against 0.75\% in the EBA 2010 data.
+
+\textbf{Recommendations.} (i) Fund the marginal unit of bank liabilities through a Eurosystem
+refinancing facility at a policy rate, with sovereign collateral and a penalty schedule
+(option D3). It nests Bocola's own open-economy closure, puts the baseline and the TPI on one
+funding structure, and makes the deposit rate move only when collateral binds. (ii) Anchor
+cross-border holdings on \emph{shares} with a return semi-elasticity calibrated to an observable
+(option P1). Move to fixed shares (P3, two fewer states) once the funding side carries the
+external margin, if the stress test confirms that the portfolio channel is then small.
+(iii) Finish the stress test of Section~\ref{sec:stress}: the script is provided, the
+quick-grid union sweep is done, and the national sweep and the full-grid confirmation remain.
+
+\section{The two specifications, and what is wrong with them}
+\label{sec:diag}
+
+Notation follows the paper draft. Countries $X\in\{D,F\}$; $\varkappa=\mathcal M_F/\mathcal M_D=8$
+is the size of $F$ relative to $D$; $p_t$ is the price of the $F$ good in $D$ goods.
+$R_{X,t}\equiv1+r_{X,t}$ is the deposit rate set at $t$ and paid at $t+1$. $\Omega_{X,t,t+1}$ is
+the banker's stochastic discount factor (Bocola's kernel). $\lambda_X$ is the divertible fraction
+of assets $\A_{X,t}$, $n_{X,t}$ is net worth, and $\mu_{X,t}$ is the multiplier on the incentive
+constraint $\alpha_{X,t}n_{X,t}\ge\lambda_X\A_{X,t}$, with Bocola's closed form
+\begin{equation}
+\mu_{X,t}=\max\Bigl\{1-\frac{\E_t[\Omega_{X,t,t+1}]R_{X,t}\,n_{X,t}}{\lambda_X\A_{X,t}},\,0\Bigr\},
+\qquad
+r^{wc}_{X,t}=r_{X,t}+\frac{\lambda_X\mu_{X,t}}{\E_t[\Omega_{X,t,t+1}]}.
+\label{eq:mu}
+\end{equation}
+The loan rate $r^{wc}$ (the rate on working-capital loans) is the only channel from the financial
+block to output, through labour demand $w_{X,t}/(1+\zeta r^{wc}_{X,t})$, where $\zeta$ is the
+working-capital share.
+
+\subsection{Deposit funding}
+
+\textbf{National market} (the default on the unmerged branch \code{domestic-funding-fix}):
+$\mathrm{dep}_{X,t}=P^c_{X,t}HA_{X,t}$ for each $X$, where $HA$ is household deposits in basket
+units and $P^c$ the consumption price index; $R_{X,t}$ is whatever clears it.
+
+\textbf{Union market} (\code{main}, and the TPI's economy on every branch): one union-wide
+clearing condition plus real interest parity with the debt-elastic premium of
+\citet{schmittgrohe2003closing},
+\begin{gather}
+\mathrm{dep}_{D,t}+\varkappa p_t\,\mathrm{dep}_{F,t}=P^c_{D,t}HA_{D,t}+\varkappa p_tP^c_{F,t}HA_{F,t},
+\label{eq:union-clear}\\
+R_{D,t}=R_{F,t}\frac{\E_t[p_{t+1}]}{p_t}-\kappa_{\rm nfa}\frac{V^{\rm flow}_{D,t}}{\bar Y_D},
+\qquad V_{t+1}=R_{D,t}V^{\rm flow}_{D,t},
+\label{eq:uip}
+\end{gather}
+where $V^{\rm flow}_{D,t}$ is $D$'s net cross-border deposit position and $\kappa_{\rm nfa}=0.01$
+(\code{point\_map.py:451}, \code{calibration/global\_projection.py:46}).
+
+\paragraph{Fault 1: the funding rate is an automatic stabiliser with the wrong sign.}
+In both closures the deposit rate is the price of a riskless claim whose demand by banks falls
+when sovereign risk rises (banks shrink and the bond losses hit net worth). The rate therefore
+falls, and because $r^{wc}=r+\text{spread}$, the fall offsets the spread one for one:
+
+\begin{center}
+\small
+\begin{tabular}{lccc}
+\toprule
+Headline shock ($p^d=2\%$/qtr), impact & union, \code{main} & union, current & national, current\\
+\midrule
+credit spread $\lambda\mu/\E[\Omega]$ (bp/yr) & $+79.4$ & $+76.6$ & $+65.0$\\
+deposit rate $r_D$ (bp/yr) & $-47.9$ & $-46.6$ & $-33.1$\\
+net loan rate $r^{wc}_D$ (bp/yr) & $+34.5$ & $+32.9$ & $+34.1$\\
+share of the spread cancelled & 60\% & 61\% & 51\%\\
+\addlinespace
+output, credit-spread channel (\%) & $-0.179$ & $-0.173$ & $-0.146$\\
+output, deposit-rate channel (\%) & $+0.104$ & $+0.101$ & $+0.072$\\
+output, total impact (\%) & $-0.073$ & $-0.061$ & $-0.068$\\
+\bottomrule
+\end{tabular}
+\end{center}
+{\footnotesize Full grid (\code{S\_REFINE}=5). ``Current'' is \code{domestic-funding-fix} with
+the household-budget and cross-border $p'/p$ fixes. Source: \code{results/GLOBAL},
+\code{results/UNION\_current}, \code{results/NATIONAL} run logs, \code{output\_decomposition}.}
+
+The credit-spread channel alone ($-0.15$ to $-0.18\%$) lands on Bocola's like-for-like target
+for his open economy, $-0.157\%$, whose transmission (GHH preferences plus working capital) this
+model shares. In that economy the funding rate is a world rate,
+$R=1/\beta+0.01\,B^{\rm for}/\mathrm{gdp}$, which hardly moves on impact. The gap between our
+impact response and his is therefore, to first order, the endogenous funding rate. (This is an
+accounting decomposition, not a counterfactual: a closure that pins the rate also changes the
+general equilibrium. The stress test can measure that directly.)
+
+The fall is also counterfactual. In 2010--12 periphery bank funding costs \emph{rose}: deposit
+rates in Greece rose relative to the euro area, private deposits ran off, and the Eurosystem
+(MROs, LTROs, ELA) became the marginal funder. Bank and sovereign credit risk co-moved
+\citep{acharya2014pyrrhic}, and sovereign stress reached bank lending through banks' sovereign exposures
+\citep{altavilla2017bank}. The model cannot produce this, because deposits are riskless in both
+regimes (the household-side ``$\pi$-blindness'' listed in \code{CLAUDE.md}) and nothing else
+connects the deposit rate to the sovereign.
+
+\paragraph{Fault 2: each closure buys solvability with a device.}
+\emph{National:} the D market has no external margin except the banks' cross-border sovereign
+books. Solving it at the 55\% haircut needs no-short-sale Fischer--Burmeister pairs on all three
+bank books, a collapsed TPI band, and a least-squares fallback in the Newton. A purchase barely
+moves the D bond price, so the TPI cap cannot be held below about 490 bp, and the backstop is
+evaluated on a different economy (union) from the paper's baseline (national).
+\emph{Union:} the external position $V$ is a twelfth state whose only anchor is $\kappa_{\rm nfa}$,
+a stationarity device borrowed from the small-open-economy literature and never calibrated here.
+Parity also puts an expectation $\E_t[p_{t+1}]$ inside a residual.
+
+\paragraph{Fault 3: the closure, not the friction, decides the medium run.}
+On the current code, cumulative output over 25 quarters is $-3.89$ (national) against $+0.51$
+(union); cumulative investment is $-6.00$ against $+4.07$. The impact responses are almost the
+same. A reader cannot tell from the paper which of these is the model's answer.
+
+\subsection{Cross-border holdings}
+
+The F bank's first-order condition for the D bond, with its non-pecuniary cost, is
+(\code{point\_map.py:356--357, 465}; the $p_t/p_{t+1}$ factor is in the draft and on
+\code{domestic-funding-fix}, \emph{not on \code{main}})
+\begin{equation}
+\E_t\Bigl[\Omega_{F,t,t+1}\Xi^D_{t+1}\frac{p_t}{p_{t+1}}\Bigr]
+=q^D_t\bigl(\E_t[\Omega_{F,t,t+1}]R_{F,t}+\lambda_F\mu_{F,t}\bigr)
+\Bigl[1+\psi_F\frac{b^D_{F,t+1}-\bar b^D_F}{\bar B_D}\Bigr],
+\label{eq:psi}
+\end{equation}
+with $\psi_F=\psi_D=2$ and $\bar b^D_F=\bar b^F_D=0.196$ (per $D$ capita). Here $\Xi^D$ is the
+bond's payoff (coupon plus continuation value, times recovery in default), $q^D$ its price,
+$b^D_F$ the F bank's holding, and $\bar B_D$ the SS debt stock.
+
+\paragraph{What $\psi$ is.} Define the F bank's expected excess return on the D bond, net of its
+marginal funding cost including the shadow cost of its constraint,
+\begin{equation}
+e^D_{F,t}\equiv\frac{\E_t[\Omega_{F,t,t+1}\Xi^D_{t+1}p_t/p_{t+1}]}
+{q^D_t(\E_t[\Omega_{F,t,t+1}]R_{F,t}+\lambda_F\mu_{F,t})}-1 .
+\end{equation}
+Then \eqref{eq:psi} is \emph{exactly}
+\begin{equation}
+\frac{b^D_{F,t+1}-\bar b^D_F}{\bar B_D}=\frac{e^D_{F,t}}{\psi_F}.
+\label{eq:semi}
+\end{equation}
+So $1/\psi$ is the semi-elasticity of cross-border holdings, as a fraction of the stock, with
+respect to the quarterly excess return. At $\psi=2$, an excess return of 100 bp/yr moves holdings
+by 0.125\% of the stock. Because the D bank prices the bond with no friction, $e^D_F$ is the gap
+between the two banks' risk-adjusted valuations. That gap is driven by how differently
+$\Omega_D$ and $\Omega_F$ load on the default state, and by $\mu_D$ against $\mu_F$.
+
+\paragraph{Four jobs for one parameter.} (a) \emph{Selection.} A single-$\lambda$ banker's
+value is linear in its portfolio, so at a symmetric SS the split of each bond between the two
+banks is indeterminate, and off the SS it jumps to a corner. $\psi>0$ is what makes it
+determinate. (b) \emph{Elasticity.} By \eqref{eq:semi}, $\psi$ alone scales the retrenchment
+or flight-home response. (c) \emph{External margin.} Under national funding, $D$'s external
+position is the net cross-border sovereign book
+$\mathrm{nfa}_D=p\,q^F b^F_D-q^D b^D_F$. Every unit of the current account therefore passes
+through \eqref{eq:psi} and its twin, and $\psi$ becomes the inverse elasticity of $D$'s access to
+foreign saving. That is the mechanism behind the national ``$S=I$ trap'' (Fault~3), and it is
+why one should expect $\psi$ to matter far more under national than under union funding.
+(d) \emph{Solvability.} In the default branch, at the 55\% haircut, F banks want to sell their
+entire D book. A finite $\psi$ is what keeps that branch interior: the sweep finds no solution
+at $\psi\le0.5$ (Section~\ref{sec:stress}), the same corner that forced the no-short-sale pairs
+under national funding.
+
+\paragraph{Calibration faults.} (e) \emph{The anchor is a level.} When the risk shock raises the
+debt stock, \eqref{eq:psi} makes F banks resist holding more than $\bar b^D_F$, so new issuance is
+absorbed at home and the F share falls mechanically. That is home bias produced by the units, not
+by a mechanism. The quick-grid sweep below shows it: a larger $\psi$ gives a \emph{larger} fall
+in the F share. (f) \emph{The SS position contradicts the data on the D side.} The symmetric gross
+positions required for a zero net position at $p=1$ give:
+
+\begin{center}
+\small
+\begin{tabular}{lcc}
+\toprule
+& model SS & EBA 2011 stress test (Dec 2010)\\
+\midrule
+F-bank share of bank-held D debt & 20.0\% & 12.7\%\\
+foreign share of the D bank's sovereign book & 20.0\% & 0.75\%\\
+foreign share of the F bank's sovereign book & 2.5\% & 2.45\%\\
+\bottomrule
+\end{tabular}
+\end{center}
+{\footnotesize EBA: Greek banks hold EUR 54.4bn of Greek and 0.41bn of German sovereigns; German
+banks hold 7.93bn of Greek and 315.3bn of German (\code{data/eba\_moments.json}, gross direct long).}
+
+So the D bank carries a buffer of foreign safe bonds about 27 times the one Greek banks
+actually had. Under national funding that buffer is $D$'s only way to finance a current-account
+gap.
+
+\section{Literature}
+\label{sec:lit}
+
+\paragraph{Funding rates in intermediary models.} In \citet{gertler2011model} and
+\citet{gertler2010financial} deposits are riskless and the rate comes from the household Euler
+equation. \citet{gertler2010financial} add an interbank market in which a fraction $\omega$ of
+interbank borrowing escapes the divertibility problem, which spans segmented and frictionless
+funding. \citet{bocola2016} keeps deposits riskless; his open-economy section (§V.C) closes the
+model with a world rate plus a debt-elastic premium in the manner of
+\citet{schmittgrohe2003closing}. In emerging-market models with banks,
+\citet{aoki2016monetary} let banks borrow both domestically and abroad, with foreign funding more
+easily diverted; the convex divertibility $\theta(1+\tfrac{\gamma}{2}x^2)$, where $x$ is the
+foreign share, prices the funding mix. \citet{akinci2018exchange} and
+\citet{dedola2013global} build two-country intermediary models with cross-border funding and
+holdings; \citet{kollmann2011global} model a global bank. Country-spread closures, in which the
+borrowing rate is the world rate times a country premium, are standard since
+\citet{neumeyer2005business} and \citet{uribe2006country}. In \citet{neumeyer2005business} the
+spread works through working capital, which is this model's own output channel. On the
+sovereign-to-private pass-through, \citet{corsetti2013sovereign} posit that private funding
+costs load a fraction of the sovereign spread. Deposit-supply frictions and convenience yields
+\citep{drechsler2017deposits,begenau2020capital} make deposit rates sticky relative to the
+safe rate. On the euro-area plumbing, \citet{drechsler2016who} show that weakly capitalised
+banks borrowed most from the lender of last resort against risky collateral, and
+\citet{crosignani2020unintended} show that LTRO funding was used to buy domestic sovereigns.
+\citet{gertler2016wholesale} split bank funding into retail and wholesale and add runs.
+
+\paragraph{Cross-border portfolios.} \citet{devereux2011country} and \citet{tille2010international}
+determine portfolios from second- and third-order terms around a deterministic SS. That is not
+needed in a global solution, but they show why first-order models need an extra device.
+Portfolio-balance and limited-risk-bearing closures, from \citet{blanchard2005international} to
+\citet{gabaix2015international} and \citet{itskhoki2021exchange}, make holdings a finite-elastic
+function of expected excess returns, with the elasticity tied to intermediaries' risk capacity.
+\citet{coeurdacier2013home} survey home bias. Demand-system estimation
+\citep{koijen2019demand,koijen2021inspecting} measures exactly the object in \eqref{eq:semi},
+the elasticity of a sector's holdings to yields, for euro-area sovereigns by holder sector. For
+the euro crisis, \citet{broner2014sovereign} and \citet{brutti2016repatriation} document the
+repatriation of periphery debt to domestic holders. Explanations include creditor
+discrimination \citep{broner2014sovereign}, risk-shifting or carry trades by weak banks
+\citep{acharya2015greatest}, moral suasion \citep{ongena2019invisible}, financial repression
+\citep{becker2018financial}, and the bank--sovereign doom loop
+\citep{farhi2018deadly,gennaioli2014sovereign}. \citet{altavilla2017bank} and
+\citet{battistini2014systemic} measure the exposures and their transmission. Value-at-risk
+constraints \citep{adrian2014procyclical} give a structural reason for risk-sensitive exposure
+limits.
+
+\section{Alternatives for the deposit funding rate}
+\label{sec:dep}
+
+Each option is stated with what it does to the period map (\code{point\_map.py}): its
+residuals, unknowns and states.
+
+\subsection*{D1. Two-tier funding with costly cross-border wholesale funding}
+
+The D bank funds itself with net worth, national retail deposits $\mathrm{dep}_D$ at $R_D$, and
+union wholesale funding $w_D$ (D goods) at $R^w$. Let $x_t\equiv w_{D,t}/\A_{D,t}$. In the spirit
+of \citet{aoki2016monetary}, wholesale funding raises divertibility:
+\begin{equation}
+\alpha_t n_t\ \ge\ \lambda\,\Theta(x_t)\A_t,\qquad \Theta(x)=1+\tfrac{\gamma}{2}x^2 .
+\end{equation}
+Because $\Theta(x)\A$ is homogeneous of degree one in $(\A,w)$, Bocola's closed form survives
+with $\lambda\to\lambda\Theta(x)$:
+\begin{gather}
+\mu_t=\max\Bigl\{1-\frac{\E_t[\Omega]R_{D,t}\,n_t}{\lambda\Theta(x_t)\A_t},0\Bigr\},\qquad
+\alpha_t=\frac{\E_t[\Omega]R_{D,t}}{1-\mu_t},\\
+\E_t[\Omega(R^K_{t+1}-R_{D,t})]=\lambda\mu_t\bigl(1-\tfrac{\gamma}{2}x_t^2\bigr)
+\quad\text{(and likewise for bonds and loans)},\\
+R_{D,t}-R^w_t=\frac{\lambda\gamma\,\mu_t\,x_t}{\E_t[\Omega]}+\kappa_w(x_t-\bar x),
+\label{eq:d1-gap}
+\end{gather}
+with retail clearing $\mathrm{dep}_{D,t}=P^c_{D,t}HA_{D,t}$, parity for the union lender
+$R^w_t=R_{F,t}\E_t[p_{t+1}]/p_t$, and $F$'s clearing net of its households' wholesale lending.
+The small $\kappa_w$ term is an SGU device that matters only where $\mu=0$.
+\emph{Nesting:} $\gamma\to\infty$ gives $x\to0$ (national); $\gamma=0$ gives $R_D=R^w$ (union).
+\emph{Sign:} when $\mu_D$ rises, \eqref{eq:d1-gap} pushes the domestic deposit rate \emph{up}
+relative to the union rate, the deposit competition of 2010--12.
+\emph{Calibration in closed form:} at the SS, dividing \eqref{eq:d1-gap} by the credit spread
+gives $\gamma=(R_D-R^w)/[\,\bar x\,(r^{wc}-r_D)\,]$ up to the $x^2$ term. That uses three
+observables: the retail deposit spread over Euribor (ECB MIR statistics), the lending spread
+(already targeted), and the non-resident wholesale share of Greek bank funding (Bank of Greece
+MFI balance sheets).
+\emph{Cost:} one unknown and one residual more (15); $V$ is reused as the wholesale position.
+
+\subsection*{D2. Defaultable deposits: sovereign risk in the deposit rate}
+
+Deposits pay a fraction $h^{\rm dep}\in(0,1]$ of their promised return in the default regime
+(bail-in, as in Cyprus in 2013, or redenomination; \citealp{krishnamurthy2018ecb} measure the
+latter). The household Euler weights the default branch:
+\begin{equation}
+x_{D,t}^{-\sigma}=\beta\,\E_t\Bigl[\bigl(1-(1-h^{\rm dep})d_{t+1}\bigr)R_{D,t}
+\frac{P^c_{D,t}}{P^c_{D,t+1}}\,x_{D,t+1}^{-\sigma}\Bigr],
+\label{eq:d2}
+\end{equation}
+where $x$ is the GHH composite and $d_{t+1}$ the default indicator. The bank's deposit leg is
+written down by the same factor in that branch,
+$\Pg^{d'=1}_{D,t+1}=h^{\rm dep}R_{D,t}\mathrm{dep}_{D,t}-R^{wc}_{D,t}L_{D,t}$,
+so the depositor's loss is the bank's gain and nothing leaks from the budget. To first order,
+\begin{equation}
+r_{D,t}-r^{h=1}_{D,t}\ \approx\ \pi_t(1-h^{\rm dep})\,
+\frac{\E_t[x^{-\sigma}_{t+1}\mid d'=1]}{\E_t[x^{-\sigma}_{t+1}]},
+\end{equation}
+so the deposit spread is the default probability times the deposit loss-given-default, weighted
+by marginal utility. Matching the reduced form of \citet{corsetti2013sovereign}, deposit spread
+$=\xi\times$ sovereign spread, gives $h^{\rm dep}\approx1-\xi(1-0.45)$.
+\emph{Cost:} no new state and no new unknown. The default branch already exists in the
+quadrature; only the next-period state for $d'=1$ becomes regime-specific inside
+\code{\_continuation}, which builds the state per regime anyway. \emph{Caveat:} the bail-in
+transfer cushions $n_D$ in default, so it lowers $\Omega^d$ and the bank-side risk premium;
+redenomination without a bank-side gain is the other polar case. Works with any deposit market.
+
+\subsection*{D3. Eurosystem refinancing at a policy rate, against sovereign collateral}
+
+The D bank's marginal funding is a Eurosystem facility $\ell_t$ (D goods). The facility is
+priced on a penalty schedule (ELA lends above the main refinancing rate) and limited by
+haircut-adjusted collateral:
+\begin{gather}
+\A_{D,t}=n_{D,t}+\mathrm{dep}_{D,t}+\ell_t,\qquad
+R^\ell_t=\bar R+\kappa_\ell\frac{\ell_t-\bar\ell}{\bar Y_D},\qquad
+\ell_t\le(1-h^c)\,q^D_tb^D_{D,t+1},\\
+R_{D,t}=R^\ell_t+\frac{\eta_t}{\E_t[\Omega_D]},\qquad
+\eta_t\ge0,\quad (1-h^c)q^D_tb^D_{D,t+1}-\ell_t\ge0,\quad \eta_t\,\bigl[(1-h^c)q^D_tb^D_{D,t+1}-\ell_t\bigr]=0,
+\label{eq:d3}\\
+q^D_t\bigl(\E_t[\Omega_D]R_{D,t}+\lambda\mu_{D,t}-(1-h^c)\eta_t\bigr)=\E_t[\Omega_D\Xi^D_{t+1}].
+\label{eq:d3-bond}
+\end{gather}
+Here $\eta$ is the collateral multiplier (in the bank's value units), $h^c$ the collateral
+haircut, and $\kappa_\ell$ the slope of the penalty schedule. The Eurosystem funds $\ell$ with
+reserves held by $F$ banks at $R_F$ and remits the facility's P\&L, including the
+terms-of-trade valuation, by the capital key, through the same accounts the TPI already uses
+($\Pi^{cb}$, \code{tpi\_key\_D}). That is what makes a rate fixed in D goods consistent in a
+two-country model: the valuation profit is assigned.
+
+\emph{What it does.} While collateral is slack, $R_D=R^\ell$ is set by policy: the deposit rate
+stops absorbing the shock, households are no longer forced to hold whatever deposits the bank
+wants, and $D$ can draw on union saving through the facility (TARGET2 in all but name). When the
+sovereign is marked down, collateral binds and $\eta>0$, which raises $R_D$: the pass-through has
+the right sign and runs through $q^D$. By \eqref{eq:d3-bond}, binding collateral also raises the
+D bank's valuation of its own sovereign, so repatriation becomes an outcome rather than a
+by-product of units \citep{crosignani2020unintended,drechsler2016who}.
+\emph{Nesting:} with collateral slack and $\bar\ell=0$, $R^\ell=\bar R+\kappa_\ell\,\ell/\bar Y_D$
+is Bocola's open-economy closure ($\kappa_\ell=0.01$, with $\ell$ in the role of his foreign
+debt); $\kappa_\ell\to\infty$ with $\bar\ell=0$ is the national market.
+\emph{Calibration:} $h^c$ comes from the published Eurosystem haircut schedule for the rating
+class; $\bar\ell$ from Greek banks' Eurosystem borrowing before the crisis; $\kappa_\ell$ from the
+ELA--MRO spread.
+\emph{Cost:} one state (the facility obligation, replacing the inert $V$ under national funding),
+one unknown and one Fischer--Burmeister pair, a device the code already uses. The national
+solver devices, the collapsed TPI band and the separate union baseline should no longer be
+needed, because the external margin now exists in every economy.
+
+\begin{center}
+\small
+\begin{tabular}{p{2.6cm}p{2.5cm}p{2.7cm}p{3.5cm}p{3.0cm}}
+\toprule
+& sign of $\Delta r_D$ on risk & nests & new parameters (data) & states / unknowns\\
+\midrule
+national (now) & falls & --- & --- & 12 / 14, 3 devices\\
+union (now) & falls & --- & $\kappa_{\rm nfa}$ (none) & 12 / 14\\
+D1 wholesale & rises if $\mu\uparrow$ & national, union & $\gamma,\bar x$ (MIR, BoG) & 12 / 15\\
+D2 defaultable & rises with $\pi$ & any closure & $h^{\rm dep}$ (MIR spread) & unchanged\\
+D3 Eurosystem & rises if collateral binds & national, Bocola §V.C & $h^c,\bar\ell,\kappa_\ell$ (ECB) & 12 / 15, 1 FB pair\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Recommendation: D3.} It is the only option in which the marginal funding rate is a
+policy rate rather than an equilibrium price, which removes Fault~1 by construction outside the
+collateral-binding region. It removes Fault~2, because baseline and TPI share one funding
+structure with the central bank in both. Its three parameters have published counterparts. D2
+can be layered on top if the paper wants deposit flight. D1 is the cleanest dial for a
+robustness section, since $\gamma$ moves the economy continuously from national to union.
+
+\section{Alternatives for cross-border holdings}
+\label{sec:port}
+
+\subsection*{P1. Share anchor with an identified return semi-elasticity}
+
+Replace the level anchor in \eqref{eq:psi} by the holder's share of the outstanding stock,
+$s_{F,t}\equiv b^D_{F,t+1}/B^D_{t+1}$:
+\begin{equation}
+\E_t\Bigl[\Omega_F\Xi^D_{t+1}\frac{p_t}{p_{t+1}}\Bigr]
+=q^D_t\bigl(\E_t[\Omega_F]R_{F,t}+\lambda\mu_{F,t}\bigr)\bigl[1+\tilde\psi_F(s_{F,t}-\bar s_F)\bigr]
+\iff s_{F,t}-\bar s_F=\frac{e^D_{F,t}}{\tilde\psi_F}.
+\end{equation}
+New issuance is then shared at $\bar s_F$ unless returns say otherwise. $1/\tilde\psi$ is the
+share's semi-elasticity, which can be read from demand-system estimates for foreign banks
+\citep{koijen2021inspecting}, or from the 2010--11 change in German banks' Greek exposure (EBA
+2011 stress test against the EBA 2011 capital exercise; BIS consolidated banking statistics)
+divided by the model-implied $\Delta e$ at the observed spread. Set $\bar s_F=12.7\%$ (EBA). Note
+that matching the D side (0.75\%) breaks the zero net position at $p=1$. Under D3 the facility
+can carry $D$'s SS net debt, so the asymmetry is absorbed on the funding side without moving
+$p_{\rm ss}$. \emph{Cost:} none; same residuals and states.
+
+\subsection*{P2. Limited risk-bearing capacity (a risk budget)}
+
+GK kernels price $D$'s default as nearly idiosyncratic for an $F$ banker, so the model has no
+force that makes foreign banks \emph{shed} when risk rises. A risk budget in the spirit of
+\citet{adrian2014procyclical} and \citet{gabaix2015international} adds one. Let
+$\chi_{F,t}\equiv q^D_tb^D_{F,t+1}/(\varkappa p_tn_{F,t})$ be the exposure as a share of $F$ net
+worth, and let $\mathcal V_t\equiv\mathrm{Var}_t\bigl(\Xi^D_{t+1}p_t/(q^D_tp_{t+1})\bigr)$ be its
+conditional return variance, computed on the existing $s'\times d'$ quadrature at no extra cost.
+Then
+\begin{equation}
+\chi_{F,t}\,(\bar\sigma^2+\mathcal V_t)=\chi_{\rm ss}\,\bar\sigma^2+\frac{e^D_{F,t}}{\gamma_F}.
+\label{eq:p2}
+\end{equation}
+At the deterministic SS ($\mathcal V=0$, $e=0$) $\chi=\chi_{\rm ss}$, so it is determinate. When
+$\pi$ rises, $\mathcal V_t$ rises roughly in proportion to $\pi_t(1-0.45)^2$ and the exposure
+falls by the factor $\bar\sigma^2/(\bar\sigma^2+\mathcal V_t)$; when $F$ net worth falls, the
+level falls too, which carries contagion. $\bar\sigma^2$ is the variance at which the budget
+halves the exposure; $\gamma_F$ is the return sensitivity. Both are identified by the
+2010--11 retrenchment together with its return. \emph{Cost:} same residual slots, a few
+quadrature sums.
+
+\subsection*{P3. Fixed shares (segmentation, the $\psi\to\infty$ limit)}
+
+$b^D_{F,t+1}=\bar s_FB^D_{t+1}$ and $b^F_{D,t+1}=\bar s_DB^F$ ($B^F$ is fixed in the code).
+Residuals 9 and 13 and their two unknowns go, and the states $b_{DF}$ and $b_{FD}$ become
+functions of $b_{DD}$ and $M^{cb}$, so the grid goes from 12 states to 10. On the measured
+scaling (the solve is $\propto n^2$, with 115 points falling to 95), the full grid is about 30\%
+cheaper. F banks still take marked-to-market losses on $\bar s_F$ of the D stock, so contagion
+survives; what is lost is cross-bank rebalancing, and with it the split of the TPI's purchases
+by seller. \emph{Only admissible with an external funding margin} (union, D1 or D3). Under
+national funding it closes the economy to foreign saving altogether.
+
+\textbf{Recommendation: P1 now; P3 once D3 is in, if Section~\ref{sec:stress} finds the
+portfolio channel small there; P2 if retrenchment dynamics become a target.} The general point
+is that the model needs exactly one external adjustment margin with a calibratable elasticity.
+Today, depending on the deposit closure, that margin is either a frictionless deposit position
+(union, $\kappa_{\rm nfa}$) or the $\psi$-governed bond books (national). D3 puts it on the
+funding side, where 2010--12 actually put it, and so leaves $\psi$ with one job, not three.
+
+\section{Stress test: how much does $\psi$ drive the dynamics?}
+\label{sec:stress}
+
+\paragraph{Design.} The question is quantitative and global, so each point is a full re-solve,
+never a perturbation of fixed rules.
+\begin{enumerate}
+\item \emph{Sweep.} $\psi\in\{0.25,0.5,1,2,4,8,32\}$ on a log grid, with both $\psi_F$ and
+$\psi_D$ moved together (then one at a time). Solve the calibrated point cold, then walk
+outward, warm-starting each solve from its neighbour: a continuation in $\psi$ that keeps every
+Newton inside its basin. Quick grid ($\mu=1$, 25 points) for the sweep; the full grid
+(\code{S\_REFINE}=5) at $\{0.5,2,8\}$ to confirm that the elasticities are grid-independent.
+\item \emph{Read.} Bocola's differenced IRF from each solution's own stochastic rest point,
+with the headline shock $p^d=2\%$/qtr for 25 quarters. Re-locate the rest point for every
+$\psi$: it moves with $\psi$, and differencing against a stale one charges the drift to the
+shock.
+\item \emph{Metrics.} Impact, trough and cumulative output; cumulative investment; impact
+$n_D$, $n_F$ and $q^D$; the credit spread and deposit rate on impact; the F-bank share of $D$
+debt at $q4$; $D$'s net external position at $q8$; and the model's retrenchment elasticity
+(pp of $D$ debt shed by F banks per 100 bp of sovereign spread), which is the moment to set
+against the data.
+\item \emph{Sensitivity.} The log-elasticity at the calibrated point,
+$\varepsilon_m=\partial\ln|m|/\partial\ln\psi$, from the two neighbours, and the sweep range
+$(\max m-\min m)/|m(\psi_{\rm ref})|$. Use elasticities rather than raw changes so that dials
+measured in different units can be ranked against each other (step 7).
+\item \emph{Isolation.} Two decompositions. (a) \emph{Portfolio channel}:
+$m(\psi)-m(\psi\to\infty)$, the IRF relative to fixed holdings (P3 is that limit). (b)
+\emph{Within-period versus expectations}: re-clear the period map exactly at impact under each
+$\psi$ while holding the reference continuation rules fixed. The ratio of that change to the
+fully re-solved change is the share of $\psi$'s effect that runs through the current FOC; the
+remainder runs through expectations of future rebalancing.
+\item \emph{Accuracy guards.} Each point records the solver verdict and worst residual
+(Bocola's $\sum F^2\le m\cdot10^{-18}$), the largest box clip along the IRF (the bond-state
+band is $\pm12\%$, so a small $\psi$ can push holdings out of the box), and the impact read two
+ways, fitted and exactly cleared. A $\psi$ effect smaller than that gap is not identified at
+the current resolution. On the full grid, add the Euler-error report on the ergodic set.
+\item \emph{Ranking against the other dials.} Repeat the sweep for $\kappa_{\rm nfa}$, $f$, the
+credit-spread target, $\zeta_{wc}$, the Jermann $\xi$, $\sigma_s$ and the recovery rate, and rank
+by $|\varepsilon_{\rm cumY}|$. That gives a tornado table, from one-at-a-time sweeps. For
+interactions, a Morris elementary-effects screen \citep{morris1991factorial} with ten
+trajectories over these eight dials is about 90 quick solves, roughly an overnight run at
+about 1--5 minutes each.
+\item \emph{Interaction with the funding closure.} The whole sweep in both deposit markets.
+Under national funding, $\psi$ is predicted (Section~\ref{sec:diag}) to govern the medium run;
+under union funding only the composition. The ratio of the two elasticities is the cleanest
+test of that claim.
+\end{enumerate}
+
+\paragraph{Implementation.} \code{Claude files/diagnostics/portfolio\_stress/psi\_sweep.py} does
+steps 1--6 for any calibration key, and step 7 as a ranking table (\code{--compare}) across saved
+sweeps. Results go to \code{results/STRESS/<key>\_<market>\_s<refine>.json}, with a six-panel
+figure. Typical calls:
+\begin{verbatim}
+S="Claude files/diagnostics/portfolio_stress/psi_sweep.py"
+python3 "$S"                                   # psi, quick grid
+python3 "$S" --values 0.5 8 --s-refine 5       # full-grid confirmation
+python3 "$S" --param kappa_nfa --values 0.0025 0.04
+python3 "$S" --set deposit_market=national     # domestic-funding-fix only
+python3 "$S" --compare                         # rank all saved sweeps
+\end{verbatim}
+\code{--set deposit\_market=national} works only on \code{domestic-funding-fix}; on \code{main}
+the key does not exist and the run is the union economy.
+
+\input{deposit_portfolio_results.tex}
+
+\section{Next steps}
+
+\begin{enumerate}
+\item Merge or port the cross-border $p'/p$ fix to \code{main} before quoting any $\psi$ result;
+the sweep above is on \code{main}'s FOC.
+\item Run the sweep under national funding on \code{domestic-funding-fix}, and the full-grid
+confirmation at $\{0.5,2,8\}$.
+\item Pull the four data moments: the GR--euro area deposit spread (ECB MIR), the non-resident
+wholesale share and Eurosystem borrowing of Greek banks (Bank of Greece, ECB), German banks'
+Greek exposure in 2011 (EBA capital exercise, BIS CBS), and the ELA penalty spread.
+\item Implement D3 behind a \code{deposit\_market="eurosystem"} switch (the N1--N5 nesting tests
+extend directly: $\kappa_\ell\to\infty$ must reproduce national), then P1, re-run the sweep, and
+decide on P3.
+\end{enumerate}
+
+\begin{thebibliography}{99}
+\small
+\bibitem[Acharya et~al.(2014)]{acharya2014pyrrhic} Acharya, V., I. Drechsler and P. Schnabl (2014). A pyrrhic victory? Bank bailouts and sovereign credit risk. \emph{Journal of Finance} 69(6).
+\bibitem[Acharya and Steffen(2015)]{acharya2015greatest} Acharya, V. and S. Steffen (2015). The ``greatest'' carry trade ever? Understanding eurozone bank risks. \emph{Journal of Financial Economics} 115(2).
+\bibitem[Adrian and Shin(2014)]{adrian2014procyclical} Adrian, T. and H. S. Shin (2014). Procyclical leverage and value-at-risk. \emph{Review of Financial Studies} 27(2).
+\bibitem[Akinci and Queralto(2018)]{akinci2018exchange} Akinci, O. and A. Queralto (2018). Exchange rate dynamics and monetary spillovers with imperfect financial markets. Federal Reserve Bank of New York Staff Report.
+\bibitem[Altavilla et~al.(2017)]{altavilla2017bank} Altavilla, C., M. Pagano and S. Simonelli (2017). Bank exposures and sovereign stress transmission. \emph{Review of Finance} 21(6).
+\bibitem[Aoki et~al.(2016)]{aoki2016monetary} Aoki, K., G. Benigno and N. Kiyotaki (2016). Monetary and financial policies in emerging markets. Working paper.
+\bibitem[Battistini et~al.(2014)]{battistini2014systemic} Battistini, N., M. Pagano and S. Simonelli (2014). Systemic risk, sovereign yields and bank exposures in the euro crisis. \emph{Economic Policy} 29(78).
+\bibitem[Becker and Ivashina(2018)]{becker2018financial} Becker, B. and V. Ivashina (2018). Financial repression in the European sovereign debt crisis. \emph{Review of Finance} 22(1).
+\bibitem[Begenau(2020)]{begenau2020capital} Begenau, J. (2020). Capital requirements, risk choice, and liquidity provision in a business-cycle model. \emph{Journal of Financial Economics} 136(2).
+\bibitem[Blanchard et~al.(2005)]{blanchard2005international} Blanchard, O., F. Giavazzi and F. Sa (2005). International investors, the U.S. current account, and the dollar. \emph{Brookings Papers on Economic Activity} 2005(1).
+\bibitem[Bocola(2016)]{bocola2016} Bocola, L. (2016). The pass-through of sovereign risk. \emph{Journal of Political Economy} 124(4).
+\bibitem[Broner et~al.(2014)]{broner2014sovereign} Broner, F., A. Erce, A. Martin and J. Ventura (2014). Sovereign debt markets in turbulent times: Creditor discrimination and crowding-out effects. \emph{Journal of Monetary Economics} 61.
+\bibitem[Brutti and Saur\'e(2016)]{brutti2016repatriation} Brutti, F. and P. Saur\'e (2016). Repatriation of debt in the euro crisis. \emph{Journal of the European Economic Association} 14(1).
+\bibitem[Coeurdacier and Rey(2013)]{coeurdacier2013home} Coeurdacier, N. and H. Rey (2013). Home bias in open economy financial macroeconomics. \emph{Journal of Economic Literature} 51(1).
+\bibitem[Corsetti et~al.(2013)]{corsetti2013sovereign} Corsetti, G., K. Kuester, A. Meier and G. M\"uller (2013). Sovereign risk, fiscal policy, and macroeconomic stability. \emph{Economic Journal} 123(566).
+\bibitem[Crosignani et~al.(2020)]{crosignani2020unintended} Crosignani, M., M. Faria-e-Castro and L. Fonseca (2020). The (unintended?) consequences of the largest liquidity injection ever. \emph{Journal of Monetary Economics} 112.
+\bibitem[Dedola et~al.(2013)]{dedola2013global} Dedola, L., P. Karadi and G. Lombardo (2013). Global implications of national unconventional policies. \emph{Journal of Monetary Economics} 60(1).
+\bibitem[Devereux and Sutherland(2011)]{devereux2011country} Devereux, M. and A. Sutherland (2011). Country portfolios in open economy macro-models. \emph{Journal of the European Economic Association} 9(2).
+\bibitem[Drechsler et~al.(2016)]{drechsler2016who} Drechsler, I., T. Drechsel, D. Marques-Ibanez and P. Schnabl (2016). Who borrows from the lender of last resort? \emph{Journal of Finance} 71(5).
+\bibitem[Drechsler et~al.(2017)]{drechsler2017deposits} Drechsler, I., A. Savov and P. Schnabl (2017). The deposits channel of monetary policy. \emph{Quarterly Journal of Economics} 132(4).
+\bibitem[Farhi and Tirole(2018)]{farhi2018deadly} Farhi, E. and J. Tirole (2018). Deadly embrace: Sovereign and financial balance sheets doom loops. \emph{Review of Economic Studies} 85(3).
+\bibitem[Gabaix and Maggiori(2015)]{gabaix2015international} Gabaix, X. and M. Maggiori (2015). International liquidity and exchange rate dynamics. \emph{Quarterly Journal of Economics} 130(3).
+\bibitem[Gennaioli et~al.(2014)]{gennaioli2014sovereign} Gennaioli, N., A. Martin and S. Rossi (2014). Sovereign default, domestic banks, and financial institutions. \emph{Journal of Finance} 69(2).
+\bibitem[Gertler and Karadi(2011)]{gertler2011model} Gertler, M. and P. Karadi (2011). A model of unconventional monetary policy. \emph{Journal of Monetary Economics} 58(1).
+\bibitem[Gertler and Kiyotaki(2010)]{gertler2010financial} Gertler, M. and N. Kiyotaki (2010). Financial intermediation and credit policy in business cycle analysis. \emph{Handbook of Monetary Economics} 3A.
+\bibitem[Gertler et~al.(2016)]{gertler2016wholesale} Gertler, M., N. Kiyotaki and A. Prestipino (2016). Wholesale banking and bank runs in macroeconomic modeling of financial crises. \emph{Handbook of Macroeconomics} 2.
+\bibitem[Itskhoki and Mukhin(2021)]{itskhoki2021exchange} Itskhoki, O. and D. Mukhin (2021). Exchange rate disconnect in general equilibrium. \emph{Journal of Political Economy} 129(8).
+\bibitem[Koijen et~al.(2021)]{koijen2021inspecting} Koijen, R., F. Koulischer, B. Nguyen and M. Yogo (2021). Inspecting the mechanism of quantitative easing in the euro area. \emph{Journal of Financial Economics} 140(1).
+\bibitem[Koijen and Yogo(2019)]{koijen2019demand} Koijen, R. and M. Yogo (2019). A demand system approach to asset pricing. \emph{Journal of Political Economy} 127(4).
+\bibitem[Kollmann et~al.(2011)]{kollmann2011global} Kollmann, R., Z. Enders and G. M\"uller (2011). Global banking and international business cycles. \emph{European Economic Review} 55(3).
+\bibitem[Krishnamurthy et~al.(2018)]{krishnamurthy2018ecb} Krishnamurthy, A., S. Nagel and A. Vissing-Jorgensen (2018). ECB policies involving government bond purchases: Impact and channels. \emph{Review of Finance} 22(1).
+\bibitem[Morris(1991)]{morris1991factorial} Morris, M. (1991). Factorial sampling plans for preliminary computational experiments. \emph{Technometrics} 33(2).
+\bibitem[Neumeyer and Perri(2005)]{neumeyer2005business} Neumeyer, P. A. and F. Perri (2005). Business cycles in emerging economies: The role of interest rates. \emph{Journal of Monetary Economics} 52(2).
+\bibitem[Ongena et~al.(2019)]{ongena2019invisible} Ongena, S., A. Popov and N. Van Horen (2019). The invisible hand of the government: Moral suasion during the European sovereign debt crisis. \emph{American Economic Journal: Macroeconomics} 11(4).
+\bibitem[Schmitt-Groh\'e and Uribe(2003)]{schmittgrohe2003closing} Schmitt-Groh\'e, S. and M. Uribe (2003). Closing small open economy models. \emph{Journal of International Economics} 61(1).
+\bibitem[Tille and van Wincoop(2010)]{tille2010international} Tille, C. and E. van Wincoop (2010). International capital flows. \emph{Journal of International Economics} 80(2).
+\bibitem[Uribe and Yue(2006)]{uribe2006country} Uribe, M. and V. Yue (2006). Country spreads and emerging countries: Who drives whom? \emph{Journal of International Economics} 69(1).
+\end{thebibliography}
+
+\end{document}

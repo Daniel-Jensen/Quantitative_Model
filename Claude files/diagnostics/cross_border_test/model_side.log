@@ -1,0 +1,8 @@
+psi_bD_F 2.0: (b_DF - b_ref)/B = (F banks' excess return on D bonds)/psi
+   p^d  rest: F book  +0.00% vs rest, foreign share of D stock 11.32%, F excess return     -12 bp/yr, sovereign spread     62 bp
+   p^d    2%: F book  +2.28% vs rest, foreign share of D stock 11.52%, F excess return    +219 bp/yr, sovereign spread    264 bp
+   p^d    5%: F book  +7.07% vs rest, foreign share of D stock 12.00%, F excess return    +705 bp/yr, sovereign spread    496 bp
+   p^d   12%: F book +17.98% vs rest, foreign share of D stock 13.07%, F excess return   +1812 bp/yr, sovereign spread    982 bp
+2010Q1: model p^d 2.62%, German share of German + Greek bank holdings 11.6%, price 0.837
+2010Q4: model p^d 10.90%, German share of German + Greek bank holdings 13.0%, price 0.685
+2010Q1 -> 2010Q4: German book +13.5% (quantity), -7.1% (value); Greek banks' book -18.4% (value); price -18.2%
