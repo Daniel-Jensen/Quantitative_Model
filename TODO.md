@@ -12,14 +12,21 @@ Completed work never stays here. Ticking a box (`- [x]`) marks an item done but 
 nothing else; at the start of each session Claude deletes ticked items and records each in
 `Claude files/docs/PROGRESS.md` with the date and the PR or commit. Pushing a tick to `main`
 notifies the co-author on GitHub (both authors for a [joint] item), so tick and push before the
-item is deleted. Last revised 2026-11-12.
+item is deleted. Last revised 2026-11-16.
 
 ## Code
 
-- [ ] [joint] **Reconcile the fiscal rule and re-tune the rest point**: the code's Bohn
-  coefficient is 0.25 against the paper's 0.04 (Greek estimates 0.06-0.15); at 0.25 leverage
-  (7.96) and D exposure (13.0% against 14.4%) miss their rest-point targets and the
-  transmission row overshoots its bound (142 against 108 bp). STATE section 1.
+- [ ] [joint] **Re-tune the rest-point targets at Bohn 0.15**: leverage 7.95 against 8, D
+  exposure 13.2% against 14.4%, D wedge 0 against 5 bp (STATE section 1).
+- [ ] [joint] **Decide whether reserves are divertible**: the code has lambda_cb_D = 0, the paper's
+  incentive constraint counts them in the divertible asset base; the rule's results lean on the
+  code's choice (STATE sections 1 and 3).
+- [ ] [joint] **Switch off the surprise-cap step of the pipeline** (`run.py` RUN_TPI): at the 2%
+  headline shock no purchase within the book band holds 200 bp, so the run stops after saving
+  the no-policy results.
+- [ ] [joint] **Stronger rules (k >= 4)** fail at the 27.9% book band; widen the band or leave k = 2.
+- [ ] [Adam] Regenerate the 2% impulse-response figure with the lending spread measured as in the
+  headline table (the figure shows 112 bp on impact, the table 115).
 - [ ] [Daniel] **Fix the working-capital wedge** to zeta (r_wc - r)/(1 + r), with dividends
   carrying producers' surplus (impact output roughly 2.5x larger; backstop impact sign flips).
 - [ ] [joint] **Decide the reserve remuneration rate** (national deposit rate vs a union rate).
@@ -27,9 +34,6 @@ item is deleted. Last revised 2026-11-12.
   clears nationally since PR #38 (p_bar = 0.9893), but the dynamic deposit market is still one
   union market with deposit-UIP; D consumption's rise on impact runs through its deposit-rate
   fall (STATE section 3).
-- [ ] [joint] **Solve the backstop as an announced rule** (the paper's framing): the reference
-  cap is unanticipated purchases; the anticipated cap has not solved below about 1100 bp on
-  the 12% box.
 - [ ] [joint] **Make exact clearing exact**: today's franchise value, loan rate and banker
   consumption still come from the fitted rules, and fitted and exactly cleared impact output
   differ by a factor of two (STATE section 3).
@@ -59,8 +63,16 @@ item is deleted. Last revised 2026-11-12.
   the reserve obligation O in the state, complementarity conditions on the purchase rule.
 - [ ] [joint] **Fix the government budget** (each treasury gets the whole profit) and state
   kappa (code 0.071; size share 0.081).
-- [ ] [joint] **Section 3's 2×2 matrix has no solved counterpart**: implement the warranted
-  floor and uncertain execution, or cut to the credible cap.
+- [ ] [joint] **Review the rule-only results section and appendix D** drafted on 2026-11-16
+  (`Claude files/diagnostics/bft_rule/viva_draft/`), then paste them into Overleaf.
+- [ ] [joint] **Rewrite section 3 around the proportional rule**: replace the cap problem, the
+  price-floor equation and the 2×2 cap matrix (no solved counterpart) with the rule; keep the
+  announcement-effect definition, reserves, run-off and profit sharing.
+- [ ] [joint] **Align the introduction and calibration with the rule and Bohn 0.15**: the
+  introduction's "benchmark spread cap", the Bohn 0.04 and 23-year half-life in section 4 and
+  appendix B, and the [TBC] impact spread (62 to 269 bp at 2%).
+- [ ] [joint] **Solution appendix**: describe the rule (continuation in k, the never-sell
+  constraint, the book band, exactly cleared accuracy) instead of the cap's price-floor kink.
 - [ ] [joint] **Rewrite the premium proposition**: its proof is incomplete and its premise fails
   (Omega(1)/Omega(0) = 1.29 from franchise value alone); call it a leverage-risk premium.
 - [ ] [Adam] **Say the backstop insures banks against default** (pari passu haircuts), and

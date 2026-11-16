@@ -51,8 +51,11 @@ TFP_SHOCK = 0.01  # one-off TFP shock to Z_D, decaying at rho_z = 0.9
 # one-off risk shock: p^d jumps from its rest value (cal["pd_rest"]) to this per quarter, then decays. 0.015
 # (2026-11-06, author's choice, with bohn_annual 0.25): the D banks' constraint now binds from ~1.2-1.5%, so this is a
 # recession (GDP -0.08%, investment -1.5%, spread 222 bp) that the 200 bp cap reaches with ~17% of the debt. At
-# bohn_annual 0.06 it bound only from ~5%, where the expected-loss spread alone exceeds 200 bp
-RISK_SHOCK_PD = 0.015
+# bohn_annual 0.06 it bound only from ~5%, where the expected-loss spread alone exceeds 200 bp.
+# 0.02 (2026-11-13, authors' decision, with bohn_annual 0.15): the headline crisis experiment, 3.2 unconditional sd
+# above the rest point (stationary tail 0.07%). At 0.15 the no-policy constraint binds from ~1.3%, so 1.5% sits on
+# the threshold; 1.5% is kept as the lower-stress comparison (Claude files/diagnostics/bft_rule/bohn015/k2)
+RISK_SHOCK_PD = 0.02
 # the top of the risk box, p^d per quarter. 0.12 = the appendix-B box, WARM_START's own: the only box on which the
 # D IC binds on impact (at the 6% shock: GDP -0.14%, lending spread +197 bp). 0.062 = Bocola (2016)'s range (his s in
 # [-11.41, -2.71]), where it never binds; 0.02 = the illustrative 200 bp cap of 2026-11-05/06

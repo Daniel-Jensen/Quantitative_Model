@@ -16,6 +16,26 @@ retired session-handoff file; its content is in git history.
 
 ---
 
+## 2026-11-16: the announced proportional rule on Bohn 0.15 and a 2% headline shock (model, results, paper draft)
+
+- PR #38 reinstated (revert of 6b5c38a), then the three decisions that held it back taken:
+  Bohn 0.15 (`calibration/global_projection.py`), headline shock p^d 2% with 1.5% as the
+  lower-stress case (`run.py`), and the announced proportional purchase rule of
+  Bi-Foerster-Traum (k = 2) in place of surprise purchases; deposit clearing left as is.
+- New code: the rule in the period map (`_bft_purchase`, the expected excess return `er_D`) and
+  a continuation in k in the solver (`_solve_bft`, `BFT_WALK`). The private economy, reserve
+  treatment and numerical method are unchanged; with the rule off the solution reproduces the
+  no-policy rules to 8e-9.
+- Canonical solve (2026-11-13): no policy 1.2e-9, k = 2 1.3e-8 (41 min). At 2% the rule removes
+  110-115 of the 115 bp lending spread with purchases of 1.4% of the debt; output -0.103% to
+  -0.024%. The effect is anticipation: the rule known but not yet buying gives 97% of the rise in
+  the price of capital. STATE section 3; `Claude files/diagnostics/bft_rule/FINDINGS.md`.
+- Two traps recorded: the fitted rest-point iteration and the solver's fitted accuracy
+  simulation both drive the Eurosystem book negative, which switches the rule off; replaced by
+  the exact zero-book rest point and an exactly cleared simulation.
+- The surprise 200 bp cap holds at 1.5% (17.1%) but not at 2%; dropped from the paper. Draft
+  results section and appendix in `Claude files/diagnostics/bft_rule/viva_draft/`.
+
 ## 2026-11-12: PR #38 merged: the appendix-B calibration in the global solver (model, results)
 
 - Daniel's `calibration` branch (PR #38, head 0c80116) merged into `main` as written. The model

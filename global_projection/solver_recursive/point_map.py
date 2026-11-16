@@ -129,7 +129,7 @@ def _tpi_purchase_and_price(v, cal, ss):
     v.Q_floor = _tpi_floor(v.Q_bF, cal)
     v.Q_bD_slot = v.Q_bD
     B = cal["B_gov_D_ss"]
-    if v.tpi and not v.d_reg and cal["tpi_gz"]:
+    if v.tpi and not v.d_reg and cal["tpi_gz"] and cal.get("tpi_rule", "cap") == "cap":
         # x > 0 buys at the floor; x < 0 is the price's gap above it
         eps = cal["tpi_eps"]
         v.m_cb = B * _smax(v.x_cb, 0.0, eps)
@@ -382,6 +382,8 @@ def _bond_demands(v, cal):
     v.E_payD = _expect(wgt, payD)
     v.E_payD_nodef = _expect(wgt, [payD_gross[j] if not v.reg[j] else payD_gross[0]
                                    for j in range(nreg)])
+    # the expected excess return on the D bond over the D deposit rate, quarterly (the BFT rule's argument)
+    v.er_D = v.E_payD / v.Q_bD - 1.0 - v.rdep_D
     v.E_payF = _expect(wgt, payF)
     v.E_Om_payF = _expect(wgt, [v.Om_F[j] * payF[j] for j in range(nreg)])
     # a cross-border bond pays in its issuer's good, so the holder values it at p'/p; fx_val < 1
@@ -402,6 +404,18 @@ def _bond_demands(v, cal):
     v.adj_F = 1.0 + cal["psi_bD_F"] * (v.b_D_F_new - cal["b_D_F_ref"]) / cal["B_gov_D_ss"]
 
 
+def _bft_purchase(v, cal, ss):
+    # THE BI-FOERSTER-TRAUM RULE (2026, EQ. 2.29) AS A SHARE OF THE SS D STOCK: THE BOOK'S MARKET VALUE TARGETS
+    # Q_bD*M = k*Q_bD_ss*B_ss*(ER - ER_ref), ER THE QUARTERLY EXPECTED EXCESS RETURN ON THE D BOND OVER THE D DEPOSIT
+    # RATE. THE EUROSYSTEM BUYS UP TO THE TARGET AND NEVER SELLS (THE BOOK RUNS OFF), AND BUYS NO MORE THAN THE
+    # PRIVATELY HELD STOCK CARRIED INTO THE PERIOD
+    B, eps, db = cal["B_gov_D_ss"], cal["tpi_eps"], cal["delta_b_D"]
+    v.M_bft = cal["tpi_bft_k"] * ss["Q_bD_ss"] * B * (v.er_D - cal["tpi_bft_er_ref"]) / v.Q_bD
+    runoff = (1.0 - db) * v.surv * v.M_lag
+    avail = (1.0 - db) * v.surv * (v.b_D_D_lag + v.b_D_F_lag)
+    return _smin(_smax((v.M_bft - runoff) / B, 0.0, eps), avail / B, eps)
+
+
 def _tpi_rule(v, cal, ss):
     # THE D BANK'S D-BOND FOC (A COMPLEMENTARITY PAIR WITH THE TPI ON) AND THE TPI RESIDUAL.
     v.foc_D = (v.E_Om_payD - v.dmd_D * v.Q_bD) / v.E_Om_D
@@ -413,6 +427,9 @@ def _tpi_rule(v, cal, ss):
     v.res_bondD = _fb(-v.foc_D, v.b_D_D_new / cal["B_gov_D_ss"], eps)
     if v.d_reg:
         v.res_tpi = v.x_cb
+    elif cal.get("tpi_rule", "cap") == "bft":
+        # x is the purchase itself (_tpi_purchase_and_price), set by the rule
+        v.res_tpi = v.x_cb - _bft_purchase(v, cal, ss)
     elif cal["tpi_gz"]:
         v.res_tpi = (v.Q_bD_slot - v.Q_bD) / ss["Q_bD_ss"]
     else:
@@ -544,6 +561,7 @@ def _outputs(v, cal):
                 # the TPI book and its flows
                 m_cb=v.m_cb, x_cb=v.x_cb, M_cb_new=v.M_cb_new, Z_cb=v.Z_cb, Op_cb=v.Op_cb, Pi_cb=v.Pi_cb,
                 Tax_F=v.Tax_F, goods_F=v.goods_F, Q_floor=v.Q_floor, foc_D=v.foc_D,
+                er_D=v.er_D, M_bft=getattr(v, "M_bft", 0.0),
                 # the net-worth floor's funded top-ups (D: new debt, F: a lump-sum tax)
                 recap_D=v.recap_D, recap_F=v.recap_F,
                 # the cross-border FOC gaps before their no-short-sale pairs

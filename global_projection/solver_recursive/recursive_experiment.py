@@ -761,6 +761,45 @@ def _solve_tpi(rules, cal, ss, sproc, backend, verbose):
     return rules, bool(ok and ok_gz), wv
 
 
+# the Bi-Foerster-Traum rule's continuation in its coefficient k (2026-11-12): the rungs below the target, Newton
+# iterations per rung, and how often a failed rung is halved back towards the last one solved
+BFT_WALK = dict(rungs=(1.0, 2.0, 4.0, 8.0, 12.0, 16.0), maxit=15, halvings=3)
+
+
+def _solve_bft(rules, cal, ss, sproc, backend, verbose):
+    # WALK THE BFT COEFFICIENT FROM cal["tpi_bft_from"] (0: THE NO-TPI RULES, WHICH SOLVE k = 0) TO cal["tpi_bft_k"].
+    # RETURNS (rules, ok, max|F|); rules.tpi_bft_solved IS THE LAST COEFFICIENT SOLVED (None: NOT EVEN THE START)
+    target, regimes = cal["tpi_bft_k"], tuple(range(rules.n_regimes))
+    last = float(cal.get("tpi_bft_from", 0.0))
+    cal["tpi_gz"] = False
+    if last == 0.0:
+        for rs in (rules, rules.post):
+            if rs is not None:
+                rs.set_values("x_cb", 0, np.zeros(rs.grid.n))
+    # the first rung re-roots the start at the working smoothings and in the TPI's complementarity form
+    todo = [last] + [k for k in BFT_WALK["rungs"] if last < k < target] + [target]
+    fails, wv, solved = 0, np.nan, None
+    while todo:
+        k, good = todo[0], rules.copy()
+        cal["tpi_bft_k"] = k
+        ok, _, wv = _stage(rules, cal, ss, sproc, regimes, False, f"TPI BFT k={k:g}", verbose,
+                           backend=backend, warm=0, maxit=BFT_WALK["maxit"])
+        if ok:
+            solved, last, fails = k, k, 0
+            todo.pop(0)
+            continue
+        _restore(rules, good)
+        fails += 1
+        if fails > BFT_WALK["halvings"] or solved is None:
+            break
+        todo.insert(0, 0.5 * (last + k))
+    cal["tpi_bft_k"] = target
+    rules.tpi_bft_solved = solved
+    if verbose and solved != target:
+        print(f"  TPI BFT: NOT ROOTED at k = {target:g}; last coefficient solved {solved} (max|F| {wv:.1e})")
+    return rules, bool(solved == target), wv
+
+
 def _refine_ladder(s_refine, tpi, cross=True):
     # THE (NODES IN s, GRID MODE) RUNGS UP TO s_refine; cross=False STOPS THE CROSS MODE AT ITS AXIS RUNGS.
     ms = [m for m in (5, 9, 17) if 1 < m < s_refine] + [s_refine]
@@ -891,7 +930,10 @@ def solve_recursive(cal, ss, sproc, mu=1, verbose=True, mu_vec=None, rotate=Fals
             print("  reusing the solved baseline")
 
     cap_solved, target = None, cal["tpi_cap_bp"]
-    if tpi:  # with the TPI on, the cap walk replaces the joint polish
+    bft, k_target = tpi and cal.get("tpi_rule", "cap") == "bft", cal.get("tpi_bft_k")
+    if bft:  # the BFT rule's coefficient walk replaces the joint polish
+        rules, okj, wj = _solve_bft(rules, cal, ss, sproc, backend, verbose)
+    elif tpi:  # with the TPI on, the cap walk replaces the joint polish
         rules, okj, wj = _solve_tpi(rules, cal, ss, sproc, backend, verbose)
         cap_solved = rules.tpi_cap_solved
     else:
@@ -923,9 +965,14 @@ def solve_recursive(cal, ss, sproc, mu=1, verbose=True, mu_vec=None, rotate=Fals
     # starts far from a root and fails; 2026-11-02)
     if tpi and cap_solved is not None:
         cal["tpi_cap_bp"] = cap_solved
+    # a BFT walk short of its target is polished at the coefficient it reached
+    if bft and rules.tpi_bft_solved is not None:
+        cal["tpi_bft_k"] = rules.tpi_bft_solved
     okh, wh = _hard_polish(rules, cal, ss, sproc, hard, tuple(range(nreg)), False, "joint",
                            verbose, backend=backend)
     cal["tpi_cap_bp"] = target
+    if bft:
+        cal["tpi_bft_k"] = k_target
     okj, wj = okj and okh, (wj if np.isnan(wh) else wh)
     # the smoothings the returned rules solve (all zero when the hard polish converged)
     rules.smoothing = {k: cal[k] for k in hard}

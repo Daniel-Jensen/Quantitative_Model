@@ -1,0 +1,349 @@
+% !TEX root = ../main.tex
+% =============================================================================
+%  5. Results
+% =============================================================================
+% PROVISIONAL NUMBERS (2026-11-16). Every number below comes from the global solution on the
+% canonical calibration of 2026-11-13: Bohn coefficient 0.15, headline shock 2% a quarter,
+% 1.5% kept as the lower-stress case. The only policy experiment is the announced proportional
+% rule at k = 2 (branch new-rules); the surprise 200 bp cap is archived in
+% Claude files/docs/shelved/05-results_with_surprise_cap_2026-11-16.tex.
+% Responses clear the impact quarter exactly with next quarter's values from the fitted decision
+% rules; numbers in parentheses or quoted as "two-quarter" clear the impact and following quarter
+% jointly. Sources: results/GLOBAL_2026-11-13_bohn015 (headline.json, no_policy/run.log,
+% forensic/forensic_out.json, forensic/forensic3_out.json).
+\section{Results}
+\label{sec:results}
+
+This section answers three questions. How does a rise in the priced default probability
+$\pi^d_t$ reach output? What does an announced purchase rule do to that transmission? Who bears
+its cost? All responses start from the stochastic rest point and are measured against the path
+without the shock.
+
+\subsection{State-dependent transmission without a backstop}
+\label{sec:res-rest}
+
+Sovereign risk reaches output through bank balance sheets, and only once losses on the bond book
+bind the banks' incentive constraint. Below that point banks absorb the losses out of net worth;
+above it, the same losses raise the cost of credit. This subsection locates the threshold and
+traces the transmission at the headline shock.
+
+At the rest point $D$ banks are better capitalised than at the deterministic steady state. Their
+net worth $n_{D,t}$ is 8.0\% higher, because the bonds they hold earn a risk premium that accrues
+as retained earnings. The constraint is slack: its multiplier $\mu_{D,t}$ (the shadow cost of the
+constraint) is zero, and so is the lending spread $r^{wc}_{D,t}-r_{D,t}$, the premium firms pay
+over the deposit rate on working capital.
+
+The constraint binds once the quarterly default probability passes 1.3\%.
+\Cref{tab:state-dependence} shows how transmission changes at that point. Below it, a riskier
+sovereign lowers the bond price and output, but the lending spread does not move. Above it, each
+further point of default probability raises the multiplier and the lending spread, and output
+falls faster. Moving $\pi^d_t$ from 1.0\% to 2.0\% raises the fall in output three and a half
+times.
+
+\begin{table}[htbp]
+\centering
+\caption{Impact responses by priced default probability, no backstop}
+\label{tab:state-dependence}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lcccccc}
+\toprule
+Quarterly default probability $\pi^d_t$ (\%) & 1.0 & 1.5 & 2.0 & 3.0 & 4.0 & 6.0 \\
+\midrule
+$D$ bond price $q^D_t$ (\%) & $-4.5$ & $-6.2$ & $-7.9$ & $-10.7$ & $-13.2$ & $-17.5$ \\
+Multiplier $\mu_{D,t}$ & 0 & 0.008 & 0.025 & 0.052 & 0.072 & 0.102 \\
+Lending spread $r^{wc}_{D,t}-r_{D,t}$ (bp) & 0 & 35 & 115 & 233 & 319 & 438 \\
+$D$ output (\%) & $-0.029$ & $-0.055$ & $-0.103$ & $-0.174$ & $-0.224$ & $-0.292$ \\
+\bottomrule
+\end{tabular}
+\par\medskip
+\begin{minipage}{0.9\linewidth}\footnotesize
+\emph{Notes:} impact of a one-off rise in $\pi^d_t$ from its rest value of 0.10\%, all other states
+at the stochastic rest point. Prices and output in percent deviation from the rest point; the
+lending spread annualised; the multiplier in levels (zero at rest).
+\end{minipage}
+\end{table}
+
+The threshold lies far in the tail of the risk process. The risk factor $s_t$ has persistence
+$\rho_s=0.9$, innovation volatility $\sigma_s=0.41$ and an unconditional standard deviation of
+0.94, and the 95th percentile of $\pi^d_t$ is 0.47\% a quarter. The headline shock of 2\% a
+quarter (7.8\% a year) lies 3.2 unconditional standard deviations above the mean of $s_t$ (7.4
+innovations), and the stationary distribution puts 0.07\% of quarters above it. The lower-stress
+shock of 1.5\% lies 2.9 standard deviations above the mean (0.2\% of quarters). The
+balance-sheet channel is a crisis phenomenon.
+
+\paragraph{Transmission at the headline shock.}
+\label{sec:res-transmission}
+The $D$ bond price falls 7.9\% and the sovereign spread rises from 62 to 269\,bp. Banks hold the
+bond at market value, so their net worth falls 12.5\%. That is enough to bind the constraint:
+$\mu_{D,t}$ rises from zero to 0.025. By \eqref{eq:foc-general}, every asset must then earn an
+excess return of $\lambda_D\mu_{D,t}$ over deposits, where $\lambda_D$ is the share of assets a
+banker could divert. We call $\lambda_D\mu_{D,t}$ the constraint premium. Firms pay it on working
+capital, and the lending spread rises 115\,bp. Investment falls 1.8\% and output 0.103\% on
+impact (0.41\% annualised).
+
+The higher lending spread lowers output by 0.087 percentage points through the cost of working
+capital. Weaker demand for the $D$ good lowers it by a further 0.060 points through the terms of
+trade. The $D$ deposit rate falls 57\,bp, which offsets half of the rise in the lending spread
+and adds back 0.043 points.
+
+The bond's expected excess return rises 381\,bp. Following \citet{bocola2016pass}, 267\,bp is a
+risk premium: the bond pays least when the banker values wealth most. The other 115\,bp is the
+constraint premium, which \citet{bocola2016pass} calls the liquidity premium, so the constraint
+accounts for about 30\% of the rise.
+
+The constraint binds only on impact. From the next quarter the lending spread is zero, yet output
+stays about 0.047\% below its no-shock path for two years and 0.035\% below after six: the
+investment collapse has run down a capital stock that recovers slowly. Net worth overshoots.
+Banks bought the bond cheap, and its recovery as risk recedes leaves their net worth 3.3\% above
+the no-shock path after two years.
+
+\subsection{The announced proportional backstop}
+\label{sec:res-announced}
+
+An announced rule can matter twice: it can shift the economy before any crisis, and it changes
+how the economy responds once a crisis hits. This subsection measures both. The first effect is
+small; the second is large for credit and small for the bond market.
+
+The central bank follows a purchase rule that every agent knows. It buys $D$ bonds whenever their
+expected excess return exceeds its value at the rest point,
+\begin{equation}
+q^{D}_{t}\,M_{t+1}=k\,\bar q^{D}\bar B_{D}\,\bigl(\mathit{ER}_{t}-\overline{\mathit{ER}}\bigr),
+\qquad M_{t+1}\ge(1-\delta^b_D)\,h_t\,M_{t},
+\label{eq:proportional-rule}
+\end{equation}
+where $M_{t+1}$ is its holding of $D$ bonds, $\mathit{ER}_t$ the quarterly expected excess
+return of the $D$ bond over the $D$ deposit rate, $\overline{\mathit{ER}}=15$\,bp a year its
+value at the rest point without a backstop, $\bar q^{D}\bar B_D$ the market value of the $D$ debt
+at the steady state, and $k$ the response coefficient. The central bank never sells and holds its
+bonds to maturity. Because the rule responds to the excess return rather than to the spread, it
+does not lean against the part of the spread that compensates for expected default losses. We
+set $k=2$.
+
+The announcement effect compares the rest points of the economies with and without the rule. The
+incremental crisis effect compares their responses to the same shock, each from its own rest
+point. Agents in both economies know their policy throughout, so neither comparison is a
+surprise. The two effects sum to the total difference between the shocked economies.
+
+The announcement effect is small. At the rest point the central bank holds 0.02\% of the debt,
+the sovereign spread is 1.7\,bp lower, investment is 0.10\% higher and output 0.04\% higher. Net
+worth is unchanged to within 0.02\%, and the constraint is slack in both economies.
+
+The crisis effect is large. At the headline shock the rule buys 1.4\% of the $D$ debt and lowers
+the sovereign spread by only 13\,bp, yet it removes 110--115\,bp of the 115\,bp rise in the
+lending spread (\cref{tab:headline-impact}). $D$ bank net worth falls 9.6\% instead of 12.5\%,
+the fall in investment halves, and the impact fall in output shrinks from 0.103\% to 0.024\%. At
+the 1.5\% shock the rule buys 1.1\% of the debt and removes the whole 35\,bp rise in the lending
+spread.
+
+\begin{table}[htbp]
+\centering
+\caption{Impact of a sovereign-risk shock: no backstop and the announced proportional rule}
+\label{tab:headline-impact}
+\small
+\begin{tabular}{lccc}
+\toprule
+ & No backstop & Announced rule & Effect of the rule \\
+\midrule
+\multicolumn{4}{l}{\emph{Default probability 2\% a quarter}} \\
+Sovereign spread (bp) & +207 (+202) & +194 (+192) & $-$13 ($-$11) \\
+$D$ bond price $q^D_t$ (\%) & $-$7.87 ($-$7.70) & $-$7.42 ($-$7.33) & +0.45 (+0.37) \\
+$D$ bank net worth $n_{D,t}$ (\%) & $-$12.5 ($-$11.4) & $-$9.6 ($-$8.9) & +2.9 (+2.5) \\
+Multiplier $\mu_{D,t}$ & +0.025 (+0.025) & 0.000 (+0.002) & $-$0.025 ($-$0.024) \\
+Lending spread $r^{wc}_{D,t}-r_{D,t}$ (bp) & +115 (+119) & 0 (+8) & $-$115 ($-$110) \\
+Investment $I_{D,t}$ (\%) & $-$1.77 ($-$1.45) & $-$0.93 ($-$0.73) & +0.84 (+0.73) \\
+Output $Y_{D,t}$ (\%) & $-$0.103 ($-$0.100) & $-$0.024 ($-$0.027) & +0.079 (+0.073) \\
+Purchases (\% of s.s.\ $D$ debt) & 0.00 (0.00) & +1.42 (+1.49) & +1.42 (+1.49) \\
+Consumption $C_{D,t}/C_{F,t}$ (\%) & +0.096 (+0.063) & +0.105 (+0.080) & +0.009 (+0.017) \\
+\midrule
+\multicolumn{4}{l}{\emph{Default probability 1.5\% a quarter}} \\
+Sovereign spread (bp) & +161 (+157) & +154 (+151) & $-$8 ($-$6) \\
+$D$ bond price $q^D_t$ (\%) & $-$6.23 ($-$6.08) & $-$5.96 ($-$5.86) & +0.27 (+0.22) \\
+$D$ bank net worth $n_{D,t}$ (\%) & $-$9.8 ($-$8.8) & $-$7.8 ($-$7.2) & +2.0 (+1.6) \\
+Multiplier $\mu_{D,t}$ & +0.008 (+0.008) & 0.000 (0.000) & $-$0.008 ($-$0.008) \\
+Lending spread $r^{wc}_{D,t}-r_{D,t}$ (bp) & +35 (+37) & 0 (0) & $-$35 ($-$37) \\
+Investment $I_{D,t}$ (\%) & $-$1.36 ($-$1.08) & $-$0.78 ($-$0.60) & +0.58 (+0.48) \\
+Output $Y_{D,t}$ (\%) & $-$0.055 ($-$0.052) & $-$0.020 ($-$0.020) & +0.035 (+0.033) \\
+Purchases (\% of s.s.\ $D$ debt) & 0.00 (0.00) & +1.06 (+1.06) & +1.06 (+1.06) \\
+Consumption $C_{D,t}/C_{F,t}$ (\%) & +0.123 (+0.094) & +0.092 (+0.074) & $-$0.031 ($-$0.020) \\
+\midrule
+\multicolumn{4}{l}{\emph{Announcement effect at the rest point (rule against no backstop)}} \\
+Sovereign spread (bp) & & & $-$1.7 ($-$1.7) \\
+Output $Y_{D,t}$ (\%) & & & +0.038 (+0.038) \\
+Investment $I_{D,t}$ (\%) & & & +0.10 (+0.10) \\
+$D$ bank net worth $n_{D,t}$ (\%) & & & $-$0.02 ($-$0.01) \\
+\bottomrule
+\end{tabular}
+\par\medskip
+\begin{minipage}{0.95\linewidth}\footnotesize
+\emph{Notes:} impact quarter, each economy measured from its own stochastic rest point;
+quantities and prices in percent, rates in bp a year, $\mu_{D,t}$ in levels. The effect of the
+rule is the rule's response less the no-backstop response; it excludes the announcement effect,
+reported separately. Purchases are the face value bought in the impact quarter over the
+steady-state $D$ debt. Each cell clears the impact quarter exactly with next quarter's values
+from the fitted decision rules; in parentheses, the impact and the following quarter are cleared
+jointly. The constraint binds from a default probability of 1.31\% (1.30\%) without a backstop
+and 2.39\% (1.92\%) under the rule.
+\end{minipage}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/fig_irf_announced_2pct}
+\caption{Responses to a rise in the quarterly default probability to 2\%, without a backstop
+and under the announced proportional rule. Without a backstop the $D$ banks' constraint binds on
+impact, and lending and investment fall; under the rule the constraint is slack or nearly so,
+while the sovereign spread barely changes. Lines clear each quarter exactly; hollow markers show
+the impact values when two quarters are cleared jointly. Output, investment and net worth in
+percent deviation from the no-shock path; spreads in bp a year, the sovereign spread in levels;
+purchases in percent of the steady-state $D$ debt.}
+\label{fig:irf-announced}
+\end{figure}
+
+The effect outlasts the purchase. \Cref{fig:irf-announced} shows that the central bank buys only
+in the impact quarter; its holdings then run off, to 0.4\% of the debt after six years. Output
+under the rule stays about 0.027\% below its no-shock path for two years, against 0.047\%
+without a backstop, and the cumulative output loss over six years falls from 1.12 to 0.64
+percent-quarters. Net worth is 2.5\% above the no-shock path after two years, against 3.3\%
+without a backstop.
+
+\subsection{Expected capital prices, bank net worth and credit}
+\label{sec:res-mechanism}
+
+The rule lowers the lending spread through the price of capital, not through the bonds it buys.
+Rearranging \eqref{eq:capital-euler} with \eqref{eq:rk}, the banker prices capital as
+\begin{equation}
+Q_{D,t}=\frac{\E_t\bigl[\Omega_{D,t,t+1}\bigl(mpk_{D,t+1}+(1-\delta_D)\,Q_{D,t+1}\bigr)\bigr]}
+             {\E_t\bigl[\Omega_{D,t,t+1}\bigr]R_{D,t}+\lambda_D\,\mu_{D,t}},
+\label{eq:capital-price}
+\end{equation}
+where $Q_{D,t}$ is the price of installed capital, $mpk_{D,t+1}$ next quarter's marginal product
+of capital, $\delta_D$ depreciation, $\Omega_{D,t,t+1}$ the banker's discount factor and $R_{D,t}$
+the gross deposit rate. The numerator is the expected resale value of capital plus its dividend;
+the denominator contains the constraint premium that also sets the lending spread in
+\eqref{eq:rwc}.
+
+\Cref{tab:mechanism} separates the anticipation of purchases from the purchase itself. All four
+columns start from a common state, the rest point without a backstop with the default
+probability raised to 2\%. The first and last are the two equilibria. The middle two are
+controlled counterfactuals that clear the impact quarter under assumptions no announced policy
+would produce. In the delayed-purchase counterfactual, agents know the rule, but the central bank
+buys nothing in the impact quarter and applies the rule from the next quarter on. In the
+surprise-purchase counterfactual, the central bank makes the rule's purchase, 1.43\% of the
+debt, while agents keep the expectations of the economy without a backstop.
+
+\begin{table}[htbp]
+\centering
+\caption{Anticipated and current purchases at the headline shock: equilibria and controlled
+counterfactuals}
+\label{tab:mechanism}
+\footnotesize
+\setlength{\tabcolsep}{2.5pt}
+\begin{tabular}{lcccc}
+\toprule
+ & No backstop & Surprise purchase & Rule, purchases & Announced rule \\
+ & (equilibrium) & (counterfactual) & from next quarter & (equilibrium) \\
+ & & & (counterfactual) & \\
+\midrule
+Purchase (\% of s.s.\ $D$ debt) & 0 & 1.43 & 0 & 1.43 \\
+Lending spread (bp) & 115 (119) & 118 (114) & 0 (0) & 0 (0) \\
+Price of capital $Q_{D,t}$ (\%) & & +0.015 (+0.02) & +0.443 (+0.40) & +0.458 (+0.40) \\
+$D$ bank net worth $n_{D,t}$ (\%) & & +0.15 (+0.17) & +3.4 (+3.1) & +3.6 (+3.1) \\
+\bottomrule
+\end{tabular}
+\par\medskip
+\begin{minipage}{0.95\linewidth}\footnotesize
+\emph{Notes:} impact quarter, every column at the same state: the stochastic rest point of the
+economy without a backstop, with the default probability raised to 2\% a quarter. The price of
+capital and net worth in percent deviation from the no-backstop column. ``Surprise purchase'':
+the rule's purchase made unexpectedly, under the decision rules of the economy without a
+backstop. ``Rule, purchases from next quarter'': the rule is known but buys nothing in the impact
+quarter. Lending spread annualised. In parentheses, the impact and the following quarter are
+cleared jointly. \Cref{app:mechanism} gives the full decompositions.
+\end{minipage}
+\end{table}
+
+Anticipated purchases do almost all the work. In the delayed-purchase counterfactual the price of
+capital rises 0.44\%, 97\% of its rise under the rule, and the lending spread falls to zero. The
+surprise purchase raises the price of capital by 0.015\% and moves the lending spread by a few
+basis points, upward with one quarter cleared and downward with two, so its own effect cannot be
+told from zero. The purchase is small relative to what it would have to move: 1.4\% of a bond
+book that is itself less than a fifth of the assets banks could divert.
+
+Equation \eqref{eq:capital-price} distinguishes the source of the price rise from its
+amplification. Of the 0.46\% rise under the rule, 0.28 points come from a higher expected resale
+value of capital: banks expect the rule to support the economy in high-risk states, hence more
+investment and stronger demand next quarter, which raises next quarter's price of capital
+through the adjustment cost. A further 0.29 points come from the fall of the constraint premium
+to zero. That term is an equilibrium outcome, not a separate cause: it equals the no-backstop
+lending spread per quarter (115\,bp divided by four), and it disappears because the constraint
+goes slack. The higher deposit rate needed to finance the extra investment subtracts 0.11 points,
+and dividends contribute nothing. These shares are an exact accounting identity at each
+allocation.
+
+The constraint goes slack because the price rise revalues capital the banks already hold. Banks
+carry the undepreciated stock into the quarter and value it at $Q_{D,t}$, so
+\begin{equation}
+\Delta n_{D,t}=(1-f_D)(1-\delta_D)\,K_{D,t}\,\Delta Q_{D,t},
+\label{eq:revaluation}
+\end{equation}
+where $f_D$ is the share of bankers who exit each quarter and $K_{D,t}$ the capital stock.
+Capital is 6.6 times net worth at the headline shock, so the 0.46\% price rise raises net worth
+by 3.0\% of its no-backstop value; the capital gain on the sovereign book adds 0.6\%. At the
+no-backstop allocation a 1\% rise in the price of capital lowers $\mu_{D,t}$ by about 0.057 (the
+semi-elasticity $\partial\mu_{D,t}/\partial\ln Q_{D,t}\approx-5.7$), because net worth rises 6.6
+times as fast as the price while the divertible base, mostly capital financed with deposits,
+rises only 0.8 times as fast. The 0.46\% rise is worth about 0.026, slightly more than the
+no-backstop multiplier of 0.025, so the constraint goes slack. The loop between price and net
+worth amplifies the initial impulse: holding the impact-quarter allocation at its no-backstop
+value, the change in expectations alone raises the price banks will pay for capital by 0.34\%, a
+controlled counterfactual; in equilibrium the rise is 1.36 times as large.
+
+The common-state effect on net worth, 3.6\%, is larger than the 2.9 points of
+\cref{tab:headline-impact} for two reasons. The policy economy starts from its own rest point,
+where banks carry more capital financed with deposits and slightly fewer bonds, which lowers the
+effect to 3.3\% of shocked no-backstop net worth. And \cref{tab:headline-impact} expresses
+responses relative to rest-point net worth, which is 14\% larger than shocked net worth. Clearing
+two quarters jointly lowers the price and net-worth effects by about an eighth and leaves the
+ranking of sources unchanged. At the 1.5\% shock the price of capital rises 0.32\% under the
+rule, 0.27 points of it from the expected resale value, and the delayed-purchase counterfactual
+delivers 96\% of the rise.
+
+
+\subsection{Cross-country incidence and limitations}
+\label{sec:res-incidence}
+
+Two questions remain: who bears the cost of the rule, and how far the numbers can be trusted.
+The rule moves little risk onto $F$. Its effect on credit survives a better approximation; the
+exact level of the lending spread it leaves behind does not.
+
+Without a backstop $F$ is almost untouched. $F$ banks hold 12.7\% of the $D$ debt, but $F$ is
+11.3 times larger than $D$, so the loss per unit of $F$ bank capital is negligible. At the
+headline shock $F$ output and bank net worth even rise slightly on impact, by 0.007\% and
+0.07\%. The rule changes little. Its holdings earn the central bank an expected profit next
+quarter of 0.02\% of $D$'s quarterly output, of which $D$ receives the capital-key share
+$\kappa=0.071$; if default occurs, the loss is 1.2\% of $D$'s quarterly output. $D$ consumption
+relative to $F$ consumption moves by at most 0.03 percentage points on impact. A rule that works
+through anticipation places little risk on the common balance sheet.
+
+The accounting holds exactly at every state we report, under both clearing methods. Bank net
+worth equals the returns on its assets less its deposits, the $D$ bond market clears, $\mu_{D,t}$
+is the positive part of the constraint gap, the lending spread equals the shadow cost of the
+constraint, and \eqref{eq:capital-price} holds, all to within $10^{-10}$. The central bank's
+holdings are never negative along any reported response or in a 1,200-quarter simulation.
+
+The size of the policy effect depends on the approximation. Each response clears the impact
+quarter exactly but takes next quarter's values from the fitted decision rules, which overstate
+next quarter's value of bank net worth by up to 3.4\% at the headline shock. Clearing two
+quarters jointly changes the rule's effect on the lending spread from 115 to 110\,bp and on
+output from 0.079 to 0.073 points. We take that 5\% gap as the measure of approximation error
+near the constraint and claim no convergence beyond it.
+
+The lending spread the rule leaves at 2\% is therefore not established. It is zero with one
+quarter cleared. With two quarters cleared it is 8\,bp from the policy economy's own rest point
+($\mu_{D,t}=0.002$) but zero from the common state of \cref{tab:mechanism}. The headline shock
+sits where the rule's constraint starts to bind, at 2.39\% with one quarter cleared and 1.92\%
+with two, so whether the constraint is exactly slack or barely binding depends on the
+approximation and on the initial state. Under either method the rule removes at least 110 of the
+115\,bp. At higher risk it no longer keeps the constraint slack, leaving lending spreads of
+7\,bp at 2.5\% and 37\,bp at 3\%.

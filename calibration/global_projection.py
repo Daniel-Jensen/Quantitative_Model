@@ -116,8 +116,11 @@ def get_calibration():
         # the coarse d0 solve alone); root 0.987 at the SS bond price 0.947, explosive below q = 0.732.
         # 0.25 (2026-11-06, author's choice: a faster fiscal rule): at 0.06 a crisis left a debt overhang with a
         # half-life of ~60 quarters, and the impulse responses had not returned by quarter 80; 0.25 gives root ~0.94,
-        # a half-life of ~11 quarters
-        bohn_annual=0.25,
+        # a half-life of ~11 quarters.
+        # 0.15 (2026-11-13, authors' decision): the Greek 2010-2019 estimate in appendix B's fiscal table (s.e. 0.02),
+        # the one value of the three with an empirical source; root 0.9635 at the SS bond price, a half-life of ~19
+        # quarters. The 0.25 solution and its results are kept in results/GLOBAL_2026-11-12_pr38 (main repo)
+        bohn_annual=0.15,
         # government purchases over output (Eurostat nama_10_gdp; appendix B)
         G_D=0.204,              G_F=0.191,
 
