@@ -13,9 +13,11 @@ ALL_RULES = STORE_RULES
 # back-compat alias
 DERIVED4 = DERIVED
 
-# rules fitted in logs, or as gross rates, so the fit stays positive
+# rules fitted in logs, or as gross rates, so the fit stays positive; the cross-border books
+# b_DF, b_FD are fitted in levels (2026-10-20): each has a no-short-sale corner, where a log
+# unknown's effect vanishes (the D bank's default-regime book: Jacobian column ~1e-10)
 LOG_RULES = frozenset({"N_D", "N_F", "Kp_D", "Kp_F", "p",
-                       "alpha_D", "alpha_F", "Q_bD", "Q_bF", "b_DF", "b_FD",
+                       "alpha_D", "alpha_F", "Q_bD", "Q_bF",
                        "C_D", "C_F", "A_D", "A_F"})
 GROSS_RULES = frozenset({"rdep_D", "rdep_F", "r_wc_D", "r_wc_F"})
 _FIT_FLOOR = 1e-12
@@ -23,11 +25,14 @@ _FIT_FLOOR = 1e-12
 
 def to_fit(name, v):
     # LEVELS -> THE QUANTITY THE CHEBYSHEV FIT USES.
+    # complex v passes through for the complex-step Jacobian
+    v = np.asarray(v)
+    v = v.astype(np.result_type(v.dtype, float), copy=False)
     if name in GROSS_RULES:
-        return np.log(np.maximum(1.0 + np.asarray(v, dtype=float), _FIT_FLOOR))
+        return np.log(np.maximum(1.0 + v, _FIT_FLOOR))
     if name in LOG_RULES:
-        return np.log(np.maximum(np.asarray(v, dtype=float), _FIT_FLOOR))
-    return np.asarray(v, dtype=float)
+        return np.log(np.maximum(v, _FIT_FLOOR))
+    return v
 
 
 # the regime index is the default indicator: 0 = no default, 1 = default
@@ -51,6 +56,9 @@ def from_fit(name, y):
 
 class RuleSet:
     # COEFFICIENTS AND POINT VALUES FOR EVERY RULE IN EVERY REGIME.
+    # class defaults, so rule sets pickled before the post-default box (or the travelling box
+    # spec, recursive_experiment._build_rules) still load
+    post = home = blend = box = None
 
     def __init__(self, grid, n_regimes=2):
         # AN EMPTY RULE SET ON ONE GRID.
@@ -61,10 +69,14 @@ class RuleSet:
         self.coef = {k: [None for _ in self.reg] for k in ALL_RULES}
         # the quadrature order the rules were solved with, reused by every reader
         self.n_gh = None
+        # the post-default rule set on its own box, its link back here, and the blend between
+        # the two (attach_post); all None for a single box
+        self.post, self.home, self.blend = None, None, None
 
     def set_values(self, name, d, values, weights=None, ridge=0.0):
         # SET ONE RULE'S VALUES IN ONE REGIME AND REFIT IT.
-        self.vals[name][d] = np.asarray(values, dtype=float).copy()
+        values = np.asarray(values)
+        self.vals[name][d] = values.astype(np.result_type(values.dtype, float))
         y = to_fit(name, self.vals[name][d])
         if weights is None and ridge == 0.0:
             self.coef[name][d] = self.grid.fit(y)
@@ -80,15 +92,52 @@ class RuleSet:
         B = self.grid.basis(x)
         return {k: from_fit(k, B @ self.coef[k][d]) for k in ALL_RULES}
 
+    def attach_post(self, post, blend):
+        # ATTACH THE POST-DEFAULT RULE SET AND THE BLEND THAT HANDS THE CONTINUATION BETWEEN THEM.
+        self.post, self.blend = post, blend
+        post.home, post.blend = self, blend
+
+    def blend_weight(self, x):
+        # THE POST-DEFAULT RULES' WEIGHT AT POINTS x: 1 TOWARDS THE POST-DEFAULT CLUSTER, 0 NEAR
+        # THE SS, A C2 QUINTIC STEP BETWEEN, ALONG THE RECOVERY LINE IN NET-WORTH UNITS.
+        b = self.blend
+        p = ((np.atleast_2d(x)[:, b["block"]] - b["centre"]) * b["weights"]) @ b["direction"]
+        t = np.clip((p - b["post_until"]) / (b["normal_from"] - b["post_until"]), 0.0, 1.0)
+        return 1.0 - t * t * t * (10.0 - 15.0 * t + 6.0 * t * t)
+
+    def eval_cont(self, d, x):
+        # THE CONTINUATION RULES IN REGIME d AT NEXT STATES x, EACH SET READ THROUGH ITS OWN BOX
+        # EDGE; ONE FUNCTION WHICHEVER SET'S NODE ASKS.
+        base = self if self.home is None else self.home
+        r = base.eval_all(d, base.grid.clip(x))
+        if base.post is None:
+            return r
+        w = base.blend_weight(x)
+        if not np.any(w > 0.0):
+            return r
+        rp = base.post.eval_all(d, base.post.grid.clip(x))
+        return {k: (1.0 - w) * r[k] + w * rp[k] for k in r}
+
+    def eval_read(self, name, d, x):
+        # ONE RULE AT STATES x FOR THE READERS (IRFs, REST POINT), BLENDED AS THE CONTINUATION IS.
+        base = self if self.home is None else self.home
+        v = base.eval(name, d, x)
+        if base.post is None:
+            return v
+        w = base.blend_weight(x)
+        return v if not np.any(w > 0.0) else (1.0 - w) * v + w * base.post.eval(name, d, x)
+
     def copy(self):
-        # A COPY FOR A FROZEN CONTINUATION.
+        # A COPY FOR A FROZEN CONTINUATION (THE POST-DEFAULT SET IS COPIED AND RE-LINKED).
         rs = RuleSet(self.grid, self.n_regimes)
-        rs.n_gh = self.n_gh
+        rs.n_gh, rs.box = self.n_gh, self.box
         for k in ALL_RULES:
             for d in range(self.n_regimes):
                 rs.vals[k][d] = self.vals[k][d].copy()
                 rs.coef[k][d] = (None if self.coef[k][d] is None
                                  else self.coef[k][d].copy())
+        if self.post is not None:
+            rs.attach_post(self.post.copy(), self.blend)
         return rs
 
     @classmethod

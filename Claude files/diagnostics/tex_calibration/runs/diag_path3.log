@@ -1,0 +1,19 @@
+[resume] from diag_path_foreign_share.pkl at group delta_b_F
+[delta_b_F] fraction 1.0000: ok True  its 4  max|F| 5.70e-09
+[delta_b_F] done
+[bohn] fraction 1.0000: ok False  its 30  max|F| 3.71e-08  LOOSE (kept)
+[bohn] done
+[G] fraction 1.0000: ok False  its 30  max|F| 3.67e-06
+/Users/Huawei/Desktop/Quantitative_Model/global_projection/solver_recursive/point_map.py:425: RuntimeWarning: divide by zero encountered in scalar divide
+  v.w_D = v.w_D0 / (1.0 + zD * v.r_wc_D)
+/Users/Huawei/Desktop/Quantitative_Model/global_projection/solver_recursive/point_map.py:434: RuntimeWarning: invalid value encountered in scalar multiply
+  v.Div_D = (1 - mcD) * v.Y_D + v.capprof_D + div_bank_D + reb * wc_inc_D
+[G] fraction 0.5000: ok False  its 30  max|F| 2.73e-07
+[G] fraction 0.2500: ok True  its 5  max|F| 1.14e-10
+[G] fraction 0.7500: ok False  its 30  max|F| 1.31e-04
+[G] fraction 0.5000: ok False  its 30  max|F| 6.33e-05
+[G] fraction 0.3750: ok False  its 30  max|F| 6.76e-08  LOOSE (kept)
+[G] fraction 0.6250: ok False  its 30  max|F| 5.16e-07
+[G] fraction 0.5000: ok False  its 30  max|F| 2.72e-07
+/opt/anaconda3/lib/python3.13/multiprocessing/resource_tracker.py:301: UserWarning: resource_tracker: There appear to be 5 leaked semaphore objects to clean up at shutdown: {'/mp-ayw9ismy', '/mp-hduzb32j', '/mp-_pycm7a6', '/mp-5vjawx9i', '/mp-xl_460w7'}
+  warnings.warn(

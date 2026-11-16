@@ -1,0 +1,52 @@
+[B] start: s box [-10.3400, -1.9924]
+  collocation solve m2 hard: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve m2 hard  1] sum|F|^2 = 1.900e-07   max|F| = 1.917e-04   step = 1
+    [parsolve m2 hard  2] sum|F|^2 = 9.854e-11   max|F| = 7.629e-06   step = 1
+    [parsolve m2 hard  3] sum|F|^2 = 1.253e-19   max|F| = 2.162e-10   step = 1
+    -> converged in 4 iterations, max|F| = 2.16e-10  (worst equation: id_alpha_D 2.2e-10)
+[m2 hard] ok True  its 4  max|F| 2.16e-10
+[m2 hard] crisis nodes []
+[B]    5.0 bp: rest mu_D -0.0000 spread   -0.0 bp slack 1.125 E[Om] 1.117 lev 7.98 exp 14.4% sov 62 bp | binds from p^d 3.93% (inside the box) | p^d 2%: spread +0 bp, Q_bD -7.69%, n_D -10.97%, n_F +0.026%, Y_D -0.031%, C_D +0.120%, I_D -1.11% | buy 5% at 2%: price +0.43%, spread -0 bp, Y +0.001%; buy 15%: spread -0 bp, Y +0.005% | binding False signs False real False -> PAPER False; outside the box: none
+[B] s box now [-10.3400, -1.9924]
+  collocation solve m2 hard: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve m2 hard  1] sum|F|^2 = 1.516e-07   max|F| = 1.195e-04   step = 1
+    [parsolve m2 hard  2] sum|F|^2 = 3.245e-12   max|F| = 5.574e-07   step = 1
+    [parsolve m2 hard  3] sum|F|^2 = 2.962e-22   max|F| = 7.010e-12   step = 1
+    -> converged in 4 iterations, max|F| = 7.01e-12  (worst equation: id_alpha_D 7.0e-12)
+[m2 hard] ok True  its 4  max|F| 7.01e-12
+[m2 hard] crisis nodes []
+[B]   10.0 bp: rest mu_D -0.0000 spread   -0.0 bp slack 1.118 E[Om] 1.122 lev 7.96 exp 14.4% sov 66 bp | binds from p^d 3.72% (inside the box) | p^d 2%: spread +0 bp, Q_bD -7.74%, n_D -11.10%, n_F +0.031%, Y_D -0.032%, C_D +0.122%, I_D -1.15% | buy 5% at 2%: price +0.44%, spread -0 bp, Y +0.001%; buy 15%: spread -0 bp, Y +0.005% | binding False signs False real False -> PAPER False; outside the box: none
+  collocation solve m2 hard: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve m2 hard  1] sum|F|^2 = 1.364e-04   max|F| = 1.136e-02   step = 1
+    [parsolve m2 hard  2] sum|F|^2 = 1.138e-08   max|F| = 1.049e-04   step = 1
+    [parsolve m2 hard  3] sum|F|^2 = 3.890e-18   max|F| = 1.883e-09   step = 1
+    -> converged in 4 iterations, max|F| = 1.88e-09  (worst equation: id_alpha_D 1.9e-09)
+[m2 hard] ok True  its 4  max|F| 1.88e-09
+[m2 hard] crisis nodes []
+[B]   20.0 bp: rest mu_D -0.0000 spread   -0.0 bp slack 1.110 E[Om] 1.140 lev 7.93 exp 14.3% sov 74 bp | binds from p^d 3.49% (inside the box) | p^d 2%: spread +0 bp, Q_bD -7.82%, n_D -11.24%, n_F +0.036%, Y_D -0.032%, C_D +0.122%, I_D -1.19% | buy 5% at 2%: price +0.45%, spread -0 bp, Y +0.001%; buy 15%: spread -0 bp, Y +0.004% | binding False signs False real False -> PAPER False; outside the box: none
+  collocation solve m2 hard: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve m2 hard  1] sum|F|^2 = 9.776e-05   max|F| = 6.797e-03   step = 1
+    [parsolve m2 hard  2] sum|F|^2 = 2.164e-08   max|F| = 6.610e-05   step = 1
+    [parsolve m2 hard  3] sum|F|^2 = 1.051e-16   max|F| = 2.364e-09   step = 1
+    -> converged in 4 iterations, max|F| = 2.36e-09  (worst equation: bondF_D 2.4e-09)
+[m2 hard] ok True  its 4  max|F| 2.36e-09
+[m2 hard] crisis nodes []
+[B]   40.0 bp: rest mu_D -0.0000 spread   -0.0 bp slack 1.108 E[Om] 1.194 lev 7.89 exp 14.3% sov 93 bp | binds from p^d 3.44% (inside the box) | p^d 2%: spread +0 bp, Q_bD -7.92%, n_D -11.30%, n_F +0.040%, Y_D -0.031%, C_D +0.118%, I_D -1.21% | buy 5% at 2%: price +0.47%, spread -0 bp, Y +0.000%; buy 15%: spread -0 bp, Y +0.003% | binding False signs False real False -> PAPER False; outside the box: none
+  collocation solve m2 hard: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve m2 hard  1] sum|F|^2 = 6.797e-04   max|F| = 2.189e-02   step = 1
+    [parsolve m2 hard  2] sum|F|^2 = 8.327e-06   max|F| = 2.807e-03   step = 1
+    [parsolve m2 hard  3] sum|F|^2 = 1.412e-12   max|F| = 7.674e-07   step = 1
+    [parsolve m2 hard  4] sum|F|^2 = 1.728e-23   max|F| = 2.982e-12   step = 1
+    -> converged in 5 iterations, max|F| = 2.98e-12  (worst equation: bondF_D 3.0e-12)
+[m2 hard] ok True  its 5  max|F| 2.98e-12
+[m2 hard] crisis nodes []
+[B]   60.0 bp: rest mu_D -0.0000 spread   -0.0 bp slack 1.114 E[Om] 1.265 lev 7.86 exp 14.3% sov 112 bp | binds from p^d 3.66% (inside the box) | p^d 2%: spread +0 bp, Q_bD -7.95%, n_D -11.19%, n_F +0.039%, Y_D -0.028%, C_D +0.111%, I_D -1.18% | buy 5% at 2%: price +0.49%, spread -0 bp, Y -0.000%; buy 15%: spread -0 bp, Y +0.003% | binding False signs False real False -> PAPER False; outside the box: none
+  collocation solve m2 hard: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve m2 hard  1] sum|F|^2 = 6.925e-04   max|F| = 2.103e-02   step = 1
+    [parsolve m2 hard  2] sum|F|^2 = 1.978e-07   max|F| = 4.001e-04   step = 1
+    [parsolve m2 hard  3] sum|F|^2 = 2.121e-08   max|F| = 1.298e-04   step = 1
+    [parsolve m2 hard  4] sum|F|^2 = 2.619e-09   max|F| = 4.596e-05   step = 1
+    [parsolve m2 hard  5] sum|F|^2 = 1.689e-09   max|F| = 3.687e-05   step = 0.5
+    [parsolve m2 hard  6] sum|F|^2 = 1.647e-09   max|F| = 3.641e-05   step = 0.0312
+/opt/anaconda3/lib/python3.13/multiprocessing/resource_tracker.py:301: UserWarning: resource_tracker: There appear to be 5 leaked semaphore objects to clean up at shutdown: {'/mp-7zf5tw3_', '/mp-u1ourkbv', '/mp-5_381gy1', '/mp-cg24kryo', '/mp-km75mx65'}
+  warnings.warn(

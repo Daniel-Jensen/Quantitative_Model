@@ -1,0 +1,51 @@
+  collocation solve d0 warm=0 wc=0.0 fx=0.0: 500 unknowns (20 rules x 1 regime(s) x 25 points), backend = parsolve
+    [parsolve d0 warm=0 wc=0.0 fx=0.0  1] sum|F|^2 = 8.157e+00   max|F| = 2.391e+00   LM lambda = 1e-03 s0^2
+    [parsolve d0 warm=0 wc=0.0 fx=0.0  2] sum|F|^2 = 7.882e+00   max|F| = 2.359e+00   step = 0.0312
+    [parsolve d0 warm=0 wc=0.0 fx=0.0  3] sum|F|^2 = 6.582e+00   max|F| = 2.132e+00   step = 0.125
+    [parsolve d0 warm=0 wc=0.0 fx=0.0  4] sum|F|^2 = 4.880e+00   max|F| = 1.281e+00   LM lambda = 1e-07 s0^2
+    [parsolve d0 warm=0 wc=0.0 fx=0.0  5] sum|F|^2 = 4.766e+00   max|F| = 1.271e+00   step = 0.00781
+    [parsolve d0 warm=0 wc=0.0 fx=0.0  6] sum|F|^2 = 4.621e+00   max|F| = 1.130e+00   step = 0.125
+    [parsolve d0 warm=0 wc=0.0 fx=0.0  7] sum|F|^2 = 4.371e+00   max|F| = 1.059e+00   step = 0.0625
+    [parsolve d0 warm=0 wc=0.0 fx=0.0  8] sum|F|^2 = 4.356e+00   max|F| = 1.001e+00   step = 0.0156
+    [parsolve d0 warm=0 wc=0.0 fx=0.0  9] sum|F|^2 = 4.323e+00   max|F| = 9.931e-01   step = 0.00781
+    [parsolve d0 warm=0 wc=0.0 fx=0.0 10] sum|F|^2 = 4.153e+00   max|F| = 9.167e-01   step = 0.0312
+    [parsolve d0 warm=0 wc=0.0 fx=0.0 11] sum|F|^2 = 4.134e+00   max|F| = 9.131e-01   step = 0.00391
+    [parsolve d0 warm=0 wc=0.0 fx=0.0 12] sum|F|^2 = 2.333e+00   max|F| = 7.493e-01   LM lambda = 1e-05 s0^2
+    [parsolve d0 warm=0 wc=0.0 fx=0.0 13] sum|F|^2 = 1.012e+00   max|F| = 6.013e-01   LM lambda = 1e-04 s0^2
+    [parsolve d0 warm=0 wc=0.0 fx=0.0 14] sum|F|^2 = 9.992e-01   max|F| = 5.920e-01   step = 0.0156
+    [parsolve d0 warm=0 wc=0.0 fx=0.0 15] sum|F|^2 = 1.312e-01   max|F| = 1.642e-01   LM lambda = 1e-03 s0^2
+    [parsolve d0 warm=0 wc=0.0 fx=0.0 16] sum|F|^2 = 1.301e-01   max|F| = 1.639e-01   step = 0.00195
+    [parsolve d0 warm=0 wc=0.0 fx=0.0 17] sum|F|^2 = 2.215e-02   max|F| = 4.171e-02   LM lambda = 1e-04 s0^2
+    [parsolve d0 warm=0 wc=0.0 fx=0.0 18] sum|F|^2 = 6.223e-03   max|F| = 3.352e-02   LM lambda = 1e-03 s0^2
+    [parsolve d0 warm=0 wc=0.0 fx=0.0 19] sum|F|^2 = 2.209e-03   max|F| = 1.703e-02   LM lambda = 1e-03 s0^2
+    [parsolve d0 warm=0 wc=0.0 fx=0.0 20] sum|F|^2 = 1.361e-03   max|F| = 1.140e-02   LM lambda = 1e-03 s0^2
+    [parsolve d0 warm=0 wc=0.0 fx=0.0 21] sum|F|^2 = 1.173e-03   max|F| = 1.062e-02   LM lambda = 1e-02 s0^2
+    [parsolve d0 warm=0 wc=0.0 fx=0.0 22] sum|F|^2 = 1.004e-03   max|F| = 1.138e-02   LM lambda = 1e-04 s0^2
+    [parsolve d0 warm=0 wc=0.0 fx=0.0 23] sum|F|^2 = 9.945e-04   max|F| = 1.144e-02   LM lambda = 1e-02 s0^2
+    [parsolve d0 warm=0 wc=0.0 fx=0.0 24] sum|F|^2 = 8.204e-04   max|F| = 1.268e-02   LM lambda = 1e-03 s0^2
+    [parsolve d0 warm=0 wc=0.0 fx=0.0 25] sum|F|^2 = 6.118e-04   max|F| = 5.981e-03   LM lambda = 1e-01 s0^2
+    [parsolve d0 warm=0 wc=0.0 fx=0.0 26] sum|F|^2 = 5.685e-04   max|F| = 6.177e-03   LM lambda = 1e-03 s0^2
+    [parsolve d0 warm=0 wc=0.0 fx=0.0 27] sum|F|^2 = 5.488e-04   max|F| = 5.727e-03   LM lambda = 1e-01 s0^2
+    [parsolve d0 warm=0 wc=0.0 fx=0.0 28] sum|F|^2 = 5.233e-04   max|F| = 5.263e-03   LM lambda = 1e-04 s0^2
+    [parsolve d0 warm=0 wc=0.0 fx=0.0 29] sum|F|^2 = 4.698e-04   max|F| = 5.932e-03   LM lambda = 1e-01 s0^2
+    [parsolve d0 warm=0 wc=0.0 fx=0.0 30] sum|F|^2 = 4.194e-04   max|F| = 5.254e-03   LM lambda = 1e-02 s0^2
+    [parsolve d0 warm=0 wc=0.0 fx=0.0 31] sum|F|^2 = 4.150e-04   max|F| = 5.300e-03   LM lambda = 1e-03 s0^2
+    [parsolve d0 warm=0 wc=0.0 fx=0.0 32] sum|F|^2 = 4.103e-04   max|F| = 5.301e-03   LM lambda = 1e+00 s0^2
+    [parsolve d0 warm=0 wc=0.0 fx=0.0 33] sum|F|^2 = 4.073e-04   max|F| = 5.301e-03   LM lambda = 1e+00 s0^2
+    [parsolve d0 warm=0 wc=0.0 fx=0.0 34] sum|F|^2 = 4.055e-04   max|F| = 5.301e-03   LM lambda = 1e+00 s0^2
+    [parsolve d0 warm=0 wc=0.0 fx=0.0 35] sum|F|^2 = 4.043e-04   max|F| = 5.303e-03   LM lambda = 1e-01 s0^2
+    [parsolve d0 warm=0 wc=0.0 fx=0.0 36] sum|F|^2 = 4.030e-04   max|F| = 5.310e-03   LM lambda = 1e-02 s0^2
+    [parsolve d0 warm=0 wc=0.0 fx=0.0 37] sum|F|^2 = 4.017e-04   max|F| = 5.310e-03   LM lambda = 1e+00 s0^2
+    [parsolve d0 warm=0 wc=0.0 fx=0.0 38] sum|F|^2 = 4.009e-04   max|F| = 5.309e-03   LM lambda = 1e-01 s0^2
+    [parsolve d0 warm=0 wc=0.0 fx=0.0 39] sum|F|^2 = 4.001e-04   max|F| = 5.313e-03   LM lambda = 1e-02 s0^2
+    [parsolve d0 warm=0 wc=0.0 fx=0.0 40] sum|F|^2 = 3.992e-04   max|F| = 5.313e-03   LM lambda = 1e+00 s0^2
+    -> STOPPED in 40 iterations, max|F| = 5.31e-03  (worst equation: goods_D 5.3e-03)
+  collocation solve d0 warm=0 wc=0.0 fx=0.5: 500 unknowns (20 rules x 1 regime(s) x 25 points), backend = parsolve
+    [parsolve d0 warm=0 wc=0.0 fx=0.5  1] sum|F|^2 = 2.018e-03   max|F| = 2.388e-02   LM lambda = 1e-03 s0^2
+    [parsolve d0 warm=0 wc=0.0 fx=0.5  2] sum|F|^2 = 6.740e-04   max|F| = 8.291e-03   LM lambda = 1e-03 s0^2
+    [parsolve d0 warm=0 wc=0.0 fx=0.5  3] sum|F|^2 = 5.907e-04   max|F| = 6.129e-03   LM lambda = 1e-01 s0^2
+    [parsolve d0 warm=0 wc=0.0 fx=0.5  4] sum|F|^2 = 5.512e-04   max|F| = 5.565e-03   LM lambda = 1e-02 s0^2
+    [parsolve d0 warm=0 wc=0.0 fx=0.5  5] sum|F|^2 = 5.391e-04   max|F| = 5.494e-03   LM lambda = 1e-02 s0^2
+    [parsolve d0 warm=0 wc=0.0 fx=0.5  6] sum|F|^2 = 5.362e-04   max|F| = 5.471e-03   LM lambda = 1e-02 s0^2
+/opt/anaconda3/lib/python3.13/multiprocessing/resource_tracker.py:301: UserWarning: resource_tracker: There appear to be 5 leaked semaphore objects to clean up at shutdown: {'/mp-_srtf345', '/mp-j1ka20q7', '/mp-il8ti3ji', '/mp-y7zlckl5', '/mp-qoowwsli'}
+  warnings.warn(

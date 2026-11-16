@@ -1,0 +1,18 @@
+  [gs] next rung 997.73 bp (step 3.00); thresholds ahead 1001.0, 999.7, 999.6, 998.7, 988.2, 979.0
+  collocation solve TPI cap=997.7bp: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve TPI cap=997.7bp  1] sum|F|^2 = 7.061e-07   max|F| = 6.705e-04   step = 1
+    [parsolve TPI cap=997.7bp  2] sum|F|^2 = 6.231e-07   max|F| = 6.017e-04   step = 0.125
+    [parsolve TPI cap=997.7bp  3] sum|F|^2 = 5.762e-07   max|F| = 5.366e-04   step = 0.125
+    [parsolve TPI cap=997.7bp  4] sum|F|^2 = 5.828e-08   max|F| = 1.705e-04   LM lambda = 1e-04 s0^2
+    [parsolve TPI cap=997.7bp  5] sum|F|^2 = 5.786e-08   max|F| = 1.692e-04   step = 0.00781
+    [parsolve TPI cap=997.7bp  6] sum|F|^2 = 5.785e-08   max|F| = 1.689e-04   step = 0.00195
+    [parsolve TPI cap=997.7bp  7] sum|F|^2 = 4.330e-08   max|F| = 1.501e-04   LM lambda = 1e-04 s0^2
+    [parsolve TPI cap=997.7bp  8] sum|F|^2 = 4.297e-08   max|F| = 1.500e-04   step = 0.00781
+    [parsolve TPI cap=997.7bp  9] sum|F|^2 = 4.277e-08   max|F| = 1.503e-04   step = 0.00781
+    [parsolve TPI cap=997.7bp 10] sum|F|^2 = 4.260e-08   max|F| = 1.502e-04   step = 0.00391
+    -> STOPPED in 10 iterations, max|F| = 1.50e-04  (worst equation: tpi 1.5e-04)
+[gs] cap 997.7 bp (tpi_eps 0.0001): Newton ok False (1.5e-04); footprint None (3486s)
+  [gs] next rung 997.73 bp (step 1.50); thresholds ahead 1001.0, 999.7, 999.6, 998.7, 988.2, 979.0
+  collocation solve TPI cap=997.7bp: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+/opt/anaconda3/lib/python3.13/multiprocessing/resource_tracker.py:301: UserWarning: resource_tracker: There appear to be 5 leaked semaphore objects to clean up at shutdown: {'/mp-tby1ot9z', '/mp-01g1eg_7', '/mp-ikcs54b3', '/mp-0o77rd1b', '/mp-zydp5jyf'}
+  warnings.warn(

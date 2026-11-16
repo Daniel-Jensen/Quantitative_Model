@@ -1,0 +1,14 @@
+box: {'k_band': 0.04, 'p_band_D': 0.0226, 'p_band_F': 0.0226, 'b_band': 0.12, 'w_band': 0.02, 'm_band': 0.32}
+[joint k_band 0.04 b_band 0.12] ok False  its 60  max|F| 1.71e-05
+
+[joint k_band 0.04 b_band 0.12 (unconverged)] rest point box position u: K_D -0.15, K_F -0.19, P_D +0.21, P_F -0.26, b_DD +1.01, b_DF +0.06, b_FD -0.10, V_dep +0.35
+[joint k_band 0.04 b_band 0.12 (unconverged)] fitted rest: mu_D 0.00865  loan spread 46.4bp  leverage 7.513  sov spread 57.1bp  E[Om] 0.9212  goods_F +1.4e-04
+   p^d 0.25%: dQ_bD -2.52%  dn_D -3.80%  dn_F -0.07%  dY_D -0.0281%  dC_D -0.0174%  dspread +44.8bp  mu_D 0.01740  E[Om] 0.9426 = nd 0.9412/d 1.510 (alpha' nd 0.940, d 1.571)
+   p^d 0.50%: dQ_bD -4.83%  dn_D -7.34%  dn_F -0.13%  dY_D -0.0558%  dC_D -0.0255%  dspread +84.7bp  mu_D 0.02561  E[Om] 0.9651 = nd 0.9624/d 1.510 (alpha' nd 0.962, d 1.569)
+   p^d 1.00%: dQ_bD -7.47%  dn_D -11.43%  dn_F -0.21%  dY_D -0.0892%  dC_D -0.0224%  dspread +124.4bp  mu_D 0.03436  E[Om] 0.9945 = nd 0.9893/d 1.510 (alpha' nd 0.992, d 1.568)
+   p^d 2.00%: dQ_bD -10.42%  dn_D -16.06%  dn_F -0.30%  dY_D -0.1284%  dC_D -0.0007%  dspread +160.5bp  mu_D 0.04322  E[Om] 1.0327 = nd 1.0229/d 1.510 (alpha' nd 1.029, d 1.567)
+[joint k_band 0.04 b_band 0.12 (unconverged)] exact rest: mu_D 0.01333  loan spread 71.6bp  leverage 7.553  sov spread 59.1bp  E[Om] 0.9207  goods_F -3.6e-07
+   p^d 0.25%: dQ_bD -2.26%  dn_D -3.55%  dn_F -0.07%  dY_D -0.0298%  dC_D +0.0601%  dspread +39.5bp  mu_D 0.02115  E[Om] 0.9418 = nd 0.9403/d 1.511 (alpha' nd 0.938, d 1.571)
+   p^d 0.50%: dQ_bD -4.39%  dn_D -6.91%  dn_F -0.14%  dY_D -0.0562%  dC_D +0.1198%  dspread +72.9bp  mu_D 0.02817  E[Om] 0.9638 = nd 0.9611/d 1.511 (alpha' nd 0.961, d 1.570)
+   p^d 1.00%: dQ_bD -6.96%  dn_D -10.99%  dn_F -0.23%  dY_D -0.0888%  dC_D +0.1919%  dspread +114.7bp  mu_D 0.03741  E[Om] 0.9924 = nd 0.9872/d 1.511 (alpha' nd 0.990, d 1.568)
+   p^d 2.00%: dQ_bD -10.10%  dn_D -16.06%  dn_F -0.35%  dY_D -0.1332%  dC_D +0.2783%  dspread +174.6bp  mu_D 0.05126  E[Om] 1.0296 = nd 1.0198/d 1.511 (alpha' nd 1.025, d 1.567)

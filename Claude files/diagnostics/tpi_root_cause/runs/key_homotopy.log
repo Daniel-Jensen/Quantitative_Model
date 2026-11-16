@@ -1,0 +1,38 @@
+  collocation solve key 0.250 hard: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve key 0.250 hard  1] sum|F|^2 = 9.230e-05   max|F| = 3.857e-03   step = 1
+    [parsolve key 0.250 hard  2] sum|F|^2 = 5.201e-08   max|F| = 1.760e-04   step = 1
+    [parsolve key 0.250 hard  3] sum|F|^2 = 1.277e-13   max|F| = 3.471e-07   step = 1
+    [parsolve key 0.250 hard  4] sum|F|^2 = 2.246e-24   max|F| = 1.298e-12   step = 1
+    -> converged in 5 iterations, max|F| = 1.30e-12  (worst equation: bondF_D 1.3e-12)
+[key] rung 0.250: ok True, max|F| 1.30e-12
+  collocation solve key 0.450 hard: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve key 0.450 hard  1] sum|F|^2 = 2.504e-03   max|F| = 4.869e-02   step = 1
+    [parsolve key 0.450 hard  2] sum|F|^2 = 5.032e-06   max|F| = 1.310e-03   step = 1
+    [parsolve key 0.450 hard  3] sum|F|^2 = 5.107e-09   max|F| = 6.322e-05   step = 1
+    [parsolve key 0.450 hard  4] sum|F|^2 = 1.240e-14   max|F| = 9.466e-08   step = 1
+    [parsolve key 0.450 hard  5] sum|F|^2 = 2.711e-25   max|F| = 2.089e-13   step = 1
+    -> converged in 6 iterations, max|F| = 2.09e-13  (worst equation: id_alpha_D 2.1e-13)
+[key] rung 0.450: ok True, max|F| 2.09e-13
+  collocation solve key 0.700 hard: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve key 0.700 hard  1] sum|F|^2 = 9.610e-05   max|F| = 4.062e-03   step = 1
+    [parsolve key 0.700 hard  2] sum|F|^2 = 1.913e-08   max|F| = 7.588e-05   step = 1
+    [parsolve key 0.700 hard  3] sum|F|^2 = 3.079e-14   max|F| = 1.196e-07   step = 1
+    [parsolve key 0.700 hard  4] sum|F|^2 = 4.737e-25   max|F| = 3.849e-13   step = 1
+    -> converged in 5 iterations, max|F| = 3.85e-13  (worst equation: id_alpha_D 3.8e-13)
+[key] rung 0.700: ok True, max|F| 3.85e-13
+  collocation solve key 1.000 hard: 3000 unknowns (20 rules x 2 regime(s) x 75 points), backend = parsolve
+    [parsolve key 1.000 hard  1] sum|F|^2 = 3.048e-04   max|F| = 9.591e-03   step = 1
+    [parsolve key 1.000 hard  2] sum|F|^2 = 3.418e-06   max|F| = 1.361e-03   step = 1
+    [parsolve key 1.000 hard  3] sum|F|^2 = 1.341e-10   max|F| = 8.627e-06   step = 1
+    [parsolve key 1.000 hard  4] sum|F|^2 = 3.628e-18   max|F| = 1.302e-09   step = 1
+    -> converged in 5 iterations, max|F| = 1.30e-09  (worst equation: bondF_D 1.3e-09)
+[key] rung 1.000: ok True, max|F| 1.30e-09
+[key] key_D 1 solved; experiments follow
+Traceback (most recent call last):
+  File "/Users/Huawei/Desktop/Quantitative_Model/Claude files/diagnostics/tpi_root_cause/key_homotopy.py", line 58, in <module>
+    exec(compile(open(HERE / "key_test.py").read(), str(HERE / "key_test.py"), "exec"), {"__name__": "__main__"})
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/Huawei/Desktop/Quantitative_Model/Claude files/diagnostics/tpi_root_cause/key_test.py", line 12, in <module>
+    HERE = Path(__file__).resolve().parent
+                ^^^^^^^^
+NameError: name '__file__' is not defined. Did you mean: '__name__'?

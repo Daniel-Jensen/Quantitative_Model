@@ -1,0 +1,23 @@
+[
+ {
+  "stage": "f",
+  "f_D": 0.08,
+  "threshold": 0.03759867692136723,
+  "where": "inside the box",
+  "spread_rise_2pct": 2.514100039263667e-09,
+  "solve": 8.643076809811134e-10
+ },
+ {
+  "stage": "broyden",
+  "converged": true,
+  "threshold": 0.03925319144910727,
+  "where": "inside the box",
+  "x": {
+   "leverage_target_D": 8.108745648164863,
+   "leverage_target_F": 7.968926569751571,
+   "sov_exposure_D": 0.1289508412398137,
+   "sov_exposure_F": 0.06496448122294675
+  },
+  "f_D": 0.08
+ }
+]

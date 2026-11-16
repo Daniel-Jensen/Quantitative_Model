@@ -1,0 +1,132 @@
+[load] bs_d0.pkl: lambda 0.12358  mu_ss 0.00102  spread instrument 5.0bp
+[d0] ok True  its 1  max|F| 2.45e-12
+  collocation solve d1 rec=0.85: 500 unknowns (20 rules x 1 regime(s) x 25 points), backend = parsolve
+    [parsolve d1 rec=0.85  1] sum|F|^2 = 6.340e-02   max|F| = 1.787e-01   step = 1
+    [parsolve d1 rec=0.85  2] sum|F|^2 = 3.267e-04   max|F| = 1.351e-02   step = 1
+    [parsolve d1 rec=0.85  3] sum|F|^2 = 3.280e-07   max|F| = 3.687e-04   step = 1
+    [parsolve d1 rec=0.85  4] sum|F|^2 = 9.387e-12   max|F| = 2.906e-06   step = 1
+    [parsolve d1 rec=0.85  5] sum|F|^2 = 5.324e-23   max|F| = 6.728e-12   step = 1
+    -> converged in 6 iterations, max|F| = 6.73e-12  (worst equation: bondF_D 6.7e-12)
+[d1 rec=0.85] ok True  its 6  max|F| 6.73e-12
+  collocation solve d1 rec=0.80: 500 unknowns (20 rules x 1 regime(s) x 25 points), backend = parsolve
+    [parsolve d1 rec=0.80  1] sum|F|^2 = 1.199e-02   max|F| = 1.075e-01   step = 1
+    [parsolve d1 rec=0.80  2] sum|F|^2 = 3.162e-07   max|F| = 3.095e-04   step = 1
+    [parsolve d1 rec=0.80  3] sum|F|^2 = 1.725e-13   max|F| = 3.499e-07   step = 1
+    [parsolve d1 rec=0.80  4] sum|F|^2 = 2.652e-24   max|F| = 1.616e-12   step = 1
+    -> converged in 5 iterations, max|F| = 1.62e-12  (worst equation: bondF_D 1.6e-12)
+[d1 rec=0.80] ok True  its 5  max|F| 1.62e-12
+  collocation solve d1 rec=0.75: 500 unknowns (20 rules x 1 regime(s) x 25 points), backend = parsolve
+    [parsolve d1 rec=0.75  1] sum|F|^2 = 1.110e-04   max|F| = 6.534e-03   step = 1
+    [parsolve d1 rec=0.75  2] sum|F|^2 = 1.147e-08   max|F| = 6.788e-05   step = 1
+    [parsolve d1 rec=0.75  3] sum|F|^2 = 2.399e-14   max|F| = 9.475e-08   step = 1
+    [parsolve d1 rec=0.75  4] sum|F|^2 = 3.598e-26   max|F| = 7.486e-14   step = 1
+    -> converged in 5 iterations, max|F| = 7.49e-14  (worst equation: bondF_D 7.5e-14)
+[d1 rec=0.75] ok True  its 5  max|F| 7.49e-14
+  collocation solve d1 rec=0.70: 500 unknowns (20 rules x 1 regime(s) x 25 points), backend = parsolve
+    [parsolve d1 rec=0.70  1] sum|F|^2 = 1.619e-02   max|F| = 6.260e-02   step = 1
+    [parsolve d1 rec=0.70  2] sum|F|^2 = 6.644e-08   max|F| = 1.411e-04   step = 1
+    [parsolve d1 rec=0.70  3] sum|F|^2 = 1.229e-13   max|F| = 2.367e-07   step = 1
+    [parsolve d1 rec=0.70  4] sum|F|^2 = 8.213e-25   max|F| = 7.000e-13   step = 1
+    -> converged in 5 iterations, max|F| = 7.00e-13  (worst equation: bondF_D 7.0e-13)
+[d1 rec=0.70] ok True  its 5  max|F| 7.00e-13
+  collocation solve d1 rec=0.65: 500 unknowns (20 rules x 1 regime(s) x 25 points), backend = parsolve
+    [parsolve d1 rec=0.65  1] sum|F|^2 = 3.614e-05   max|F| = 2.928e-03   step = 1
+    [parsolve d1 rec=0.65  2] sum|F|^2 = 3.962e-09   max|F| = 4.101e-05   step = 1
+    [parsolve d1 rec=0.65  3] sum|F|^2 = 9.775e-17   max|F| = 6.361e-09   step = 1
+    -> converged in 4 iterations, max|F| = 6.36e-09  (worst equation: bondD_F 6.4e-09)
+[d1 rec=0.65] ok True  its 4  max|F| 6.36e-09
+  collocation solve d1 rec=0.60: 500 unknowns (20 rules x 1 regime(s) x 25 points), backend = parsolve
+    [parsolve d1 rec=0.60  1] sum|F|^2 = 3.817e-05   max|F| = 4.427e-03   step = 1
+    [parsolve d1 rec=0.60  2] sum|F|^2 = 2.578e-11   max|F| = 2.730e-06   step = 1
+    [parsolve d1 rec=0.60  3] sum|F|^2 = 3.475e-21   max|F| = 4.352e-11   step = 1
+    -> converged in 4 iterations, max|F| = 4.35e-11  (worst equation: bondF_D 4.4e-11)
+[d1 rec=0.60] ok True  its 4  max|F| 4.35e-11
+  collocation solve d1 rec=0.55: 500 unknowns (20 rules x 1 regime(s) x 25 points), backend = parsolve
+    [parsolve d1 rec=0.55  1] sum|F|^2 = 2.273e-03   max|F| = 4.691e-02   step = 1
+    [parsolve d1 rec=0.55  2] sum|F|^2 = 1.415e-08   max|F| = 8.097e-05   step = 1
+    [parsolve d1 rec=0.55  3] sum|F|^2 = 3.353e-15   max|F| = 5.202e-08   step = 1
+    [parsolve d1 rec=0.55  4] sum|F|^2 = 2.362e-26   max|F| = 4.163e-14   step = 1
+    -> converged in 5 iterations, max|F| = 4.16e-14  (worst equation: euler_D 4.2e-14)
+[d1 rec=0.55] ok True  its 5  max|F| 4.16e-14
+  collocation solve d1 rec=0.50: 500 unknowns (20 rules x 1 regime(s) x 25 points), backend = parsolve
+    [parsolve d1 rec=0.50  1] sum|F|^2 = 5.790e-04   max|F| = 1.725e-02   step = 1
+    [parsolve d1 rec=0.50  2] sum|F|^2 = 1.398e-09   max|F| = 2.991e-05   step = 1
+    [parsolve d1 rec=0.50  3] sum|F|^2 = 1.595e-16   max|F| = 1.175e-08   step = 1
+    -> converged in 4 iterations, max|F| = 1.17e-08  (worst equation: bondF_D 1.2e-08)
+[d1 rec=0.50] ok True  its 4  max|F| 1.17e-08
+  collocation solve d1 rec=0.45: 500 unknowns (20 rules x 1 regime(s) x 25 points), backend = parsolve
+    [parsolve d1 rec=0.45  1] sum|F|^2 = 9.316e-06   max|F| = 9.503e-04   step = 1
+    [parsolve d1 rec=0.45  2] sum|F|^2 = 5.544e-12   max|F| = 9.664e-07   step = 1
+    [parsolve d1 rec=0.45  3] sum|F|^2 = 3.292e-22   max|F| = 1.638e-11   step = 1
+    -> converged in 4 iterations, max|F| = 1.64e-11  (worst equation: bondF_D 1.6e-11)
+[d1 rec=0.45] ok True  its 4  max|F| 1.64e-11
+  collocation solve joint eps 1e-2: 1000 unknowns (20 rules x 2 regime(s) x 25 points), backend = parsolve
+    [parsolve joint eps 1e-2  1] sum|F|^2 = 8.314e-04   max|F| = 2.272e-02   step = 0.5
+    [parsolve joint eps 1e-2  2] sum|F|^2 = 5.535e-04   max|F| = 1.556e-02   step = 1
+    [parsolve joint eps 1e-2  3] sum|F|^2 = 6.768e-06   max|F| = 9.947e-04   step = 1
+    [parsolve joint eps 1e-2  4] sum|F|^2 = 5.613e-09   max|F| = 4.306e-05   step = 1
+    [parsolve joint eps 1e-2  5] sum|F|^2 = 6.635e-13   max|F| = 7.887e-07   step = 1
+    [parsolve joint eps 1e-2  6] sum|F|^2 = 3.330e-21   max|F| = 5.631e-11   step = 1
+    -> converged in 7 iterations, max|F| = 5.63e-11  (worst equation: id_alpha_D 5.6e-11)
+[joint eps 1e-2] ok True  its 7  max|F| 5.63e-11
+[joint eps 1e-2] crisis nodes []
+  collocation solve joint eps 5.0e-03: 1000 unknowns (20 rules x 2 regime(s) x 25 points), backend = parsolve
+    [parsolve joint eps 5.0e-03  1] sum|F|^2 = 9.987e-05   max|F| = 5.653e-03   step = 1
+    [parsolve joint eps 5.0e-03  2] sum|F|^2 = 1.125e-06   max|F| = 9.717e-04   step = 1
+    [parsolve joint eps 5.0e-03  3] sum|F|^2 = 1.497e-08   max|F| = 1.175e-04   step = 1
+    [parsolve joint eps 5.0e-03  4] sum|F|^2 = 1.514e-11   max|F| = 3.793e-06   step = 1
+    [parsolve joint eps 5.0e-03  5] sum|F|^2 = 1.806e-17   max|F| = 4.152e-09   step = 1
+    -> converged in 6 iterations, max|F| = 4.15e-09  (worst equation: id_alpha_D 4.2e-09)
+[joint eps 5.0e-03] ok True  its 6  max|F| 4.15e-09
+[joint eps 5.0e-03] crisis nodes []
+  collocation solve joint eps 2.5e-03: 1000 unknowns (20 rules x 2 regime(s) x 25 points), backend = parsolve
+    [parsolve joint eps 2.5e-03  1] sum|F|^2 = 1.626e-05   max|F| = 3.869e-03   step = 1
+    [parsolve joint eps 2.5e-03  2] sum|F|^2 = 8.446e-09   max|F| = 8.975e-05   step = 1
+    [parsolve joint eps 2.5e-03  3] sum|F|^2 = 8.017e-15   max|F| = 8.704e-08   step = 1
+    [parsolve joint eps 2.5e-03  4] sum|F|^2 = 6.619e-26   max|F| = 1.162e-13   step = 1
+    -> converged in 5 iterations, max|F| = 1.16e-13  (worst equation: id_alpha_D 1.2e-13)
+[joint eps 2.5e-03] ok True  its 5  max|F| 1.16e-13
+[joint eps 2.5e-03] crisis nodes []
+  collocation solve joint eps 1.0e-03: 1000 unknowns (20 rules x 2 regime(s) x 25 points), backend = parsolve
+    [parsolve joint eps 1.0e-03  1] sum|F|^2 = 3.698e-08   max|F| = 1.140e-04   step = 1
+    [parsolve joint eps 1.0e-03  2] sum|F|^2 = 7.255e-13   max|F| = 5.154e-07   step = 1
+    [parsolve joint eps 1.0e-03  3] sum|F|^2 = 1.086e-21   max|F| = 2.579e-11   step = 1
+    -> converged in 4 iterations, max|F| = 2.58e-11  (worst equation: id_alpha_F 2.6e-11)
+[joint eps 1.0e-03] ok True  its 4  max|F| 2.58e-11
+[joint eps 1.0e-03] crisis nodes []
+  collocation solve joint eps 5.0e-04: 1000 unknowns (20 rules x 2 regime(s) x 25 points), backend = parsolve
+    [parsolve joint eps 5.0e-04  1] sum|F|^2 = 1.551e-10   max|F| = 9.665e-06   step = 1
+    [parsolve joint eps 5.0e-04  2] sum|F|^2 = 5.723e-18   max|F| = 1.640e-09   step = 1
+    -> converged in 3 iterations, max|F| = 1.64e-09  (worst equation: id_alpha_F 1.6e-09)
+[joint eps 5.0e-04] ok True  its 3  max|F| 1.64e-09
+[joint eps 5.0e-04] crisis nodes []
+  collocation solve joint eps 2.5e-04: 1000 unknowns (20 rules x 2 regime(s) x 25 points), backend = parsolve
+    [parsolve joint eps 2.5e-04  1] sum|F|^2 = 6.254e-13   max|F| = 7.446e-07   step = 1
+    [parsolve joint eps 2.5e-04  2] sum|F|^2 = 1.026e-21   max|F| = 3.096e-11   step = 1
+    -> converged in 3 iterations, max|F| = 3.10e-11  (worst equation: id_alpha_F 3.1e-11)
+[joint eps 2.5e-04] ok True  its 3  max|F| 3.10e-11
+[joint eps 2.5e-04] crisis nodes []
+  collocation solve joint eps 1.0e-04: 1000 unknowns (20 rules x 2 regime(s) x 25 points), backend = parsolve
+    [parsolve joint eps 1.0e-04  1] sum|F|^2 = 3.275e-16   max|F| = 1.632e-08   step = 1
+    -> converged in 2 iterations, max|F| = 1.63e-08  (worst equation: id_alpha_F 1.6e-08)
+[joint eps 1.0e-04] ok True  its 2  max|F| 1.63e-08
+[joint eps 1.0e-04] crisis nodes []
+  collocation solve hard mu_eps+book_eps+floor_eps: 1000 unknowns (20 rules x 2 regime(s) x 25 points), backend = parsolve
+    [parsolve hard mu_eps+book_eps+floor_eps  1] sum|F|^2 = 1.262e-19   max|F| = 2.457e-10   step = 1
+    -> converged in 2 iterations, max|F| = 2.46e-10  (worst equation: id_alpha_F 2.5e-10)
+[hard mu_eps+book_eps+floor_eps] ok True  its 2  max|F| 2.46e-10
+[hard mu_eps+book_eps+floor_eps] crisis nodes []
+
+[best] hard mu_eps+book_eps+floor_eps
+
+[hard mu_eps+book_eps+floor_eps] rest point box position u: K_D -0.69, K_F -0.09, P_D -0.08, b_DD +1.02
+[hard mu_eps+book_eps+floor_eps] fitted rest: mu_D -0.00000  loan spread -0.0bp  leverage 7.809  sov spread 74.7bp  E[Om] 1.1050  goods_F +1.1e-05
+   p^d 0.25%: dQ_bD -2.35%  dn_D -3.04%  dn_F -0.03%  dY_D -0.0173%  dC_D -0.0772%  dspread +0.0bp  mu_D -0.00000  E[Om] 1.1258 = nd 1.1243/d 1.721 (alpha' nd 1.138, d 1.847)
+   p^d 0.50%: dQ_bD -4.51%  dn_D -5.82%  dn_F -0.05%  dY_D -0.0331%  dC_D -0.1402%  dspread +0.0bp  mu_D -0.00000  E[Om] 1.1463 = nd 1.1434/d 1.723 (alpha' nd 1.159, d 1.847)
+   p^d 1.00%: dQ_bD -6.98%  dn_D -9.01%  dn_F -0.08%  dY_D -0.0514%  dC_D -0.2018%  dspread +0.0bp  mu_D -0.00000  E[Om] 1.1721 = nd 1.1665/d 1.726 (alpha' nd 1.184, d 1.847)
+   p^d 2.00%: dQ_bD -9.73%  dn_D -12.58%  dn_F -0.11%  dY_D -0.0722%  dC_D -0.2562%  dspread +0.0bp  mu_D -0.00000  E[Om] 1.2048 = nd 1.1941/d 1.729 (alpha' nd 1.213, d 1.846)
+[hard mu_eps+book_eps+floor_eps] exact rest: mu_D -0.00000  loan spread -0.0bp  leverage 7.795  sov spread 73.3bp  E[Om] 1.1044  goods_F +1.3e-10
+   p^d 0.25%: dQ_bD -2.07%  dn_D -2.53%  dn_F -0.03%  dY_D -0.0031%  dC_D +0.0155%  dspread +0.0bp  mu_D -0.00000  E[Om] 1.1282 = nd 1.1267/d 1.720 (alpha' nd 1.142, d 1.848)
+   p^d 0.50%: dQ_bD -4.02%  dn_D -4.92%  dn_F -0.06%  dY_D -0.0056%  dC_D +0.0319%  dspread +0.0bp  mu_D -0.00000  E[Om] 1.1511 = nd 1.1483/d 1.722 (alpha' nd 1.166, d 1.848)
+   p^d 1.00%: dQ_bD -6.38%  dn_D -7.78%  dn_F -0.10%  dY_D -0.0082%  dC_D +0.0535%  dspread +0.0bp  mu_D -0.00000  E[Om] 1.1790 = nd 1.1735/d 1.724 (alpha' nd 1.194, d 1.848)
+   p^d 2.00%: dQ_bD -9.28%  dn_D -11.27%  dn_F -0.14%  dY_D -0.0106%  dC_D +0.0824%  dspread +0.0bp  mu_D -0.00000  E[Om] 1.2131 = nd 1.2026/d 1.726 (alpha' nd 1.226, d 1.849)

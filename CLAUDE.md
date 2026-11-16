@@ -22,9 +22,10 @@ Deliverable: the viva paper, Overleaf project 698b4f88aeef1d0e1d08cc0c; the loca
 They share no model code and are calibrated differently; impulse magnitudes are not comparable.
 
 ## Source of truth
-1. **Paper and code calibrations differ** (STATE section 1 has the side-by-side table and the
-   open kink risk under the paper's 5 bp wedge). While they differ, paper model numbers stay
-   [TBC] and no code number goes into the paper. Re-check both before repeating any value.
+1. **Paper and code calibrations still differ** in the fiscal rule (Bohn 0.04 vs 0.25), the
+   deposit market's dynamics and the rest-point targets missed after the fiscal-rule change
+   (STATE section 1). While they differ, paper model numbers stay [TBC] and no code number
+   goes into the paper. Re-check both before repeating any value.
 2. **Code over prose.** Parameter values come from the calibration files; mechanisms from the
    period map (`global_projection/solver_recursive/point_map.py`) or the SSJ equation files.
    A number in this file, STATE or PROGRESS is historical unless it names the calibration and
@@ -32,8 +33,9 @@ They share no model code and are calibrated differently; impulse magnitudes are 
 3. **Data numbers come with provenance.** Before quoting or changing a data-based calibration
    value, check `Claude files/docs/DATA.md`: several have no script, and some do not reproduce from the stored
    files.
-4. **Results are dated.** The reference global solution is the 6 Oct 2026 run on the code
-   calibration; global impulse-response levels from before it are void.
+4. **Results are dated.** The reference global solution is the 12 Nov 2026 run of `main`
+   after PR #38 (the appendix-B calibration); global levels from before it belong to the old
+   code calibration and are void for the paper.
 5. `experiments_results.md` and `paper_draft_results.md` are generated; never hand-edit them.
 
 ## Repository map
@@ -117,9 +119,14 @@ Everything runs from the repo root; imports are package-qualified.
 - `Claude files/docs/reference/`: `global_solver.md` (solver, grid, tests, tolerances),
   `global_modelling_choices.md` (deliberate choices, reasons, known limitations),
   `ssj_pipeline.md` (SSJ architecture, pricing rules, experiments, iteration checklist).
+- `Claude files/docs/guide_global.md` and `RUN_GLOBAL.md` (PR #38): the solver as it now is,
+  and how to run, resume and cache a global solve; `reference/global_solver.md` predates them.
+- `Claude files/reports/`: the analyses behind the current global results (appendix-B
+  validation, the non-divertible Eurosystem claim, the backstop's mechanism and root cause).
 - `Claude files/docs/tpi_backstop_plan.md`: the backstop's design and solution method.
 - `Claude files/docs/STATE.md` (Part I global, Part II SSJ): current results and calibration
-  status only. History to 27 Oct 2026: `Claude files/docs/shelved/STATE_archive_2026-10-27.md`.
+  status only. History to 27 Oct 2026: `Claude files/docs/shelved/STATE_archive_2026-10-27.md`;
+  later archives and the STATE Daniel's PR #38 carried are beside it.
 - `Claude files/docs/PROGRESS.md`: changelog. Branch roles: `Claude files/docs/GLOSSARY.md` section 9.
 - `Claude files/docs/SPEC.md`: research goals and the paper's framing.
 - `Claude files/REFACTOR_ARCHITECTURE.md`: full file map, environment and run guide.
